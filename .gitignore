@@ -1,0 +1,20 @@
+# Julia environment and package files
+/Manifest.toml
+/manifests/
+*.jl.cov
+*.jl.mem
+*.jl.h5
+*.jl.hdf5
+*.jl.zarr
+
+# Documentation build output
+/docs/build/
+/docs/site/
+
+# OS/Editor files
+.DS_Store
+.vscode/
+.idea/
+.history/
+*.log
+*.tmp

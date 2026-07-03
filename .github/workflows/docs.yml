@@ -1,0 +1,42 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    tags: '*'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+          
+      - uses: julia-actions/cache@v1
+      
+      # We need ffmpeg for Makie video recording
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # Dev local packages so they are available to the docs environment
+      - name: Install Monorepo Packages
+        run: |
+          julia --project=docs/ -e '
+            using Pkg
+            Pkg.develop(path="lib/CoreCPM")
+            Pkg.develop(path="lib/CPMToolkit")
+            Pkg.develop(path="lib/MakieCPM")
+            Pkg.develop(path="lib/NeuralCPM")
+            Pkg.instantiate()'
+
+      # Build and deploy docs
+      - name: Build and Deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If using DocumenterTools SSH deploy keys
+        run: julia --project=docs/ docs/make.jl

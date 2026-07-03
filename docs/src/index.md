@@ -1,0 +1,70 @@
+# Celly.jl
+
+The **Cellular Potts Model** (CPM) is a lattice-based computational framework for simulating
+the collective behaviour of biological cells. Each lattice site carries an integer *cell ID*;
+cells are contiguous domains of equal IDs embedded in a background medium.
+A Monte Carlo dynamics drives the system: at each step a lattice site is chosen, its ID is
+proposed to be overwritten by a neighbouring ID, and the proposal is accepted or rejected
+according to a Boltzmann factor derived from a Hamiltonian that encodes biological rules such
+as cell volume, surface area, adhesion, and chemotaxis.
+The CPM has been used to model cell sorting, tissue morphogenesis, tumour invasion,
+wound healing, and developmental patterning.
+
+---
+
+## The Celly.jl Packages
+
+| Package | Role |
+|---------|------|
+| **CoreCPM** | The physics engine — lattice representation, Monte Carlo algorithms, penalty evaluation, trackers, and I/O backends. Intended as an internal library; end users rarely import it directly. |
+| **CPMToolkit** | A declarative, user-facing DSL that lets you define cell types, attach biological components, build a [`CPMProblem`](@ref), and `solve` it in a few lines of Julia. Re-exports everything from CoreCPM. |
+| **MakieCPM** | Visualization layer built on Makie.jl — static plots, interactive dashboards (`explore_cpm`), and video recording (`record_cpm`). |
+| **NeuralCPM** | Energy-based model training: replace hand-crafted penalties with a Lux.jl neural network trained via Persistent Contrastive Divergence. |
+
+---
+
+## Quick Start
+
+```julia
+using CPMToolkit    # re-exports CoreCPM automatically
+using MakieCPM
+
+# 1. Define cell types
+A      = CellType(:A)
+B      = CellType(:B)
+Medium = CellType(:Medium)
+
+# 2. Assemble the model
+sys = CPMSystem(
+    [A, B, Medium],
+    [
+        VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
+        AdhesionComponent(
+            (A, Medium) => 15.0f0,
+            (B, Medium) => 15.0f0,
+            (A, A)      => 2.0f0,
+            (B, B)      => 2.0f0,
+            (A, B)      => 10.0f0,
+        ),
+    ]
+)
+
+# 3. Build and solve the problem
+prob = CPMProblem(sys, Dict(A => 20, B => 20), (200, 200); tspan=(0, 500))
+alg  = CheckerboardMetropolis(T=2.0f0, sweeps_per_step=10)
+sol  = solve(prob, alg; saveat=10)
+
+# 4. Record a video
+record_cpm("cell_sorting.mp4", sol; framerate=30)
+```
+
+---
+
+## Where to Go Next
+
+- **[Getting Started](@ref getting-started)** — installation, first simulation, algorithm selection.
+- **[Concepts](@ref concepts)** — the mathematical background: Hamiltonian, Metropolis acceptance, HST penalties.
+- **[CPMToolkit](@ref cpmtoolkit-overview)** — the declarative DSL in depth.
+- **[MakieCPM](@ref makiecpm-overview)** — visualization, dashboards, and video recording.
+- **[NeuralCPM](@ref neuralcpm-overview)** — neural energy-based models.
+- **Tutorials** — step-by-step worked examples.
