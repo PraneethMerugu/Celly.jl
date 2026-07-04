@@ -243,6 +243,15 @@ new_cell_data = StructArray(new_components)
 new_u0 = CPMState(prob.u0.grid, new_cell_data, prob.u0.N_cells, prob.u0.free_list)
 prob = CPMProblem(new_u0, prob.tspan, prob.p)
 
+# Initialize proliferation competent flags based on PP = 0.5f0
+for i in 1:prob.u0.N_cells[]
+    if prob.u0.cell_data.cell_types[i] == 2 && rand() < 0.5f0 # Follower is ID 2
+        prob.u0.cell_data.is_proliferation_competent[i] = true
+        prob.u0.cell_data.mitotic_timers[i] = rand() * 75.0f0
+        prob.u0.cell_data.mitotic_thresholds[i] = 25.0f0 + rand() * 100.0f0
+    end
+end
+
 # Assemble callbacks
 vol_pen = prob.p.penalties[1] # The HSTVolumePenalty
 cb_set = SciMLBase.CallbackSet(
