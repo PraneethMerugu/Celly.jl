@@ -4,6 +4,8 @@ authors = ["Praneeth Merugu <merugufam@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+CPMToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 CoreCPM = "047998c1-3edd-4edf-b561-cee99549c5a6"
 MakieCPM = "95794c00-c762-4965-bf31-de18bcca2bc9"
 NeuralCPM = "c08961df-e966-447e-a5c1-1c24cca73f80"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"

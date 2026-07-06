@@ -10,11 +10,16 @@ Celly.jl is a monorepo containing several interconnected packages:
 
 ## Installation
 
-To install the packages in this ecosystem, you can add them via the Julia package manager. 
+`Celly.jl` acts as a meta-package that unifies several sub-packages. Because these sub-packages are not yet in the official Julia registry, you must first install them directly from their sub-directories using their GitHub URLs before installing the main `Celly` package.
+
+Open the Julia REPL, type `]` to enter the Pkg prompt, and run:
 
 ```julia
-using Pkg
-Pkg.add("Celly") # If registered
+pkg> add https://github.com/PraneethMerugu/Celly.jl:lib/CoreCPM
+pkg> add https://github.com/PraneethMerugu/Celly.jl:lib/MakieCPM
+pkg> add https://github.com/PraneethMerugu/Celly.jl:lib/NeuralCPM
+pkg> add https://github.com/PraneethMerugu/Celly.jl:lib/CPMToolkit
+pkg> add https://github.com/PraneethMerugu/Celly.jl
 ```
 
 For development, you can clone the repository and develop the packages:
