@@ -15,9 +15,9 @@ using SciMLBase
     cell_data = build_cell_data(grid, 10) # Max capacity 10
     trackers = (VolumeTracker(),)
     u0 = CPMState(grid, cell_data, 0)
-    p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty(fill(1.0f0, 10)),), trackers)
+    p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),), trackers)
     cache = CPMCache(u0, p_sys.topology)
-    ws = CoreCPM.CoreCPMTools.MitosisWorkspace(grid, 10)
+    ws = CoreCPM.MitosisWorkspace(grid, 10)
     
     # Spawn 3 cells
     for i in 1:3
@@ -112,9 +112,9 @@ using SciMLBase
     # Initialize engine with custom fields
     cell_data2 = build_cell_data(grid, 5; proteins=fill!(similar(grid, Float32, 5), 0.0f0))
     u0_2 = CPMState(grid, cell_data2, 0)
-    p_sys_2 = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty(fill(1.0f0, 10)),), trackers)
+    p_sys_2 = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),), trackers)
     cache_2 = CPMCache(u0_2, p_sys_2.topology)
-    ws_2 = CoreCPM.CoreCPMTools.MitosisWorkspace(grid, 10)
+    ws_2 = CoreCPM.MitosisWorkspace(grid, 10)
     
     u0_2.N_cells[] = 1
     u0_2.cell_data.target_volumes[1] = 100

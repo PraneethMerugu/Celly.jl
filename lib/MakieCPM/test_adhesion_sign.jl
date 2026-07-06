@@ -19,7 +19,7 @@ function test_sign()
     grid[5, 5] = 2
     
     u0 = CPMState(grid, cell_data)
-    p_sys = CPMParameters(VonNeumannTopology{2}(), (AdhesionPenalty(J),), ())
+    p_sys = CPMParameters(VonNeumannTopology{2}(), (AdhesionPenalty{Rigid}(J),), ())
     
     # Let's manually evaluate dH for flipping (5,6) from 1 to 2
     ctx = CoreCPM.UpdateContext(

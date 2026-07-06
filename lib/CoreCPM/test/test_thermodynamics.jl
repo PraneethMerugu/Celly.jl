@@ -29,7 +29,7 @@ using Statistics
         cell_data.cell_types[1] = 1
         cell_data.target_volumes[1] = target_vol
         
-        penalties = (HSTVolumePenalty(Float32[lambda_v, lambda_v]; eta=1.0f0),) # index 1 is cell type 1
+        penalties = (HSTVolumePenalty{Rigid}(Float32[lambda_v, lambda_v]; eta=1.0f0),) # index 1 is cell type 1
         trackers = (VolumeTracker(),)
         
         CoreCPM.sync_cell_data!(grid, cell_data, N_cells)
@@ -79,7 +79,7 @@ using Statistics
         J[2, 3] = 1.0f0
         J[3, 2] = 1.0f0
         
-        penalties = (AdhesionPenalty(J),)
+        penalties = (AdhesionPenalty{Rigid}(J),)
         trackers = ()
         
         T_vals = Float32[0.5, 1.1, 1.5, 2.5]

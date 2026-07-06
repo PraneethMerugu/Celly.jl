@@ -270,7 +270,7 @@ parameters = [
         start = 5.0f0,
         action = (p, a, val) -> begin
             old_vol = p.p.penalties[1]
-            new_vol = CoreCPM.HSTVolumePenalty(old_vol.lambdas, Float32(val))
+            new_vol = CoreCPM.HSTVolumePenalty{Rigid}(old_vol.lambdas, Float32(val))
             new_pens = (new_vol, p.p.penalties[2], p.p.penalties[3])
             new_p = CoreCPM.CPMParameters(p.p.topology, new_pens, p.p.trackers)
             return CoreCPM.CPMProblem(p.u0, p.tspan, new_p)

@@ -15,7 +15,7 @@ using HDF5
     
     u0 = CPMState(grid, cell_data, 1)
     topo = VonNeumannTopology{2}()
-    penalties = (VolumePenalty([1.0f0]),)
+    penalties = (VolumePenalty{Rigid}([1.0f0]),)
     trackers = (VolumeTracker(),)
     
     p = CPMParameters(topo, penalties, trackers)

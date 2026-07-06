@@ -1,7 +1,7 @@
 module CoreCPMHDF5Ext
 
 using CoreCPM
-using CoreCPM.CoreCPMBase
+
 using HDF5
 using StructArrays
 import Adapt
@@ -13,7 +13,7 @@ mutable struct HDF5Container{GridT, CellT, FileT, NCellsT}
     hdf5_N_cells::NCellsT
 end
 
-function CoreCPMBase.initialize_backend(backend::CoreCPMBase.HDF5Backend, prob, alg, opts)
+function CoreCPM.initialize_backend(backend::CoreCPM.HDF5Backend, prob, alg, opts)
     # Estimate upper bound for number of saves
     if opts.save_everystep
         num_saves = Int(prob.tspan[2] - prob.tspan[1] + 2)
@@ -52,12 +52,13 @@ function CoreCPMBase.initialize_backend(backend::CoreCPMBase.HDF5Backend, prob, 
     hdf5_N_cells = create_dataset(h5file, "N_cells", datatype(Int), dataspace((0,), max_dims=(-1,)), chunk=(1,), deflate=3)
     
     sol_u = HDF5Container(h5file, hdf5_grid, cell_datasets, hdf5_N_cells)
-    sol_t = Int[]
+    tType = typeof(prob.tspan[1])
+    sol_t = tType[]
     
     return sol_u, sol_t
 end
 
-function CoreCPMBase.save_state!(integrator, backend::CoreCPMBase.HDF5Backend)
+function CoreCPM.save_state!(integrator, backend::CoreCPM.HDF5Backend)
     hc = integrator.sol_u
     idx = length(integrator.sol_t) + 1
     

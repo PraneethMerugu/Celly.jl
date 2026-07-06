@@ -17,7 +17,7 @@ using CoreCPM
     cell_data.cell_types[1] = 1
     cell_data.cell_types[2] = 1
     
-    penalty = HSTVolumePenalty(Float32[0.0f0, 50.0f0])
+    penalty = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
     
     u0 = CPMState(grid, cell_data, 2)
     cache = CPMCache(u0, VonNeumannTopology{2}())

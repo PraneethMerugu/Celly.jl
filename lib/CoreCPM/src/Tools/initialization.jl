@@ -42,7 +42,11 @@ function build_cell_data(grid::AbstractArray, N_cells::Int; FloatType=Float32, I
         inertia_zz = alloc_zero(FloatType, N_cells),
         inertia_xy = alloc_zero(FloatType, N_cells),
         inertia_xz = alloc_zero(FloatType, N_cells),
-        inertia_yz = alloc_zero(FloatType, N_cells)
+        inertia_yz = alloc_zero(FloatType, N_cells),
+        volume_lambdas = alloc_zero(FloatType, N_cells),
+        surface_area_lambdas = alloc_zero(FloatType, N_cells),
+        length_lambdas = alloc_zero(FloatType, N_cells),
+        adhesion_modifiers = alloc_zero(FloatType, N_cells)
     )
     
     all_fields = merge(base_fields, (; custom_fields...))

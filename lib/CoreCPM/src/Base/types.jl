@@ -1,7 +1,8 @@
 using StructArrays
 import Adapt
 using ArgCheck
-
+import Functors
+import Functors: @functor, fmap
 @inline function pcg_hash(seed::UInt64)
     state = seed * 0x5851F42D4C957F2D + 0x14057B7EF767814F
     word = xor(state >> ((state >> 59) + UInt64(5)), state) * 0x5851F42D4C957F2D
@@ -17,6 +18,15 @@ end
 end
 
 """
+    FlexibilityTrait
+    
+Traits indicating whether a physical property or penalty is rigid (type-coupled) or flexible (per-cell and dynamically writable).
+"""
+abstract type FlexibilityTrait end
+struct Rigid <: FlexibilityTrait end
+struct Flex <: FlexibilityTrait end
+
+"""
     CPMState{Grid, CellData}
 
 The mutable state vector `u` for a Cellular Potts Model simulation.
@@ -30,6 +40,15 @@ struct CPMState{Grid, CellData} <: AbstractCPMState
     N_cells::Base.RefValue{Int}
     free_list::Vector{UInt32}
 end
+function Functors.functor(::Type{<:CPMState}, x)
+    children = (grid = x.grid, cell_data = x.cell_data)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.grid, y.cell_data, x.N_cells, x.free_list)
+    return children, reconstruct
+end
+function Adapt.adapt_structure(to, x::CPMState)
+    children, reconstruct = Functors.functor(typeof(x), x)
+    return reconstruct(Adapt.adapt(to, children))
+end
 
 function CPMState(grid::AbstractArray{T, N}, cell_data::StructArray, N_cells::Int=Int(maximum(grid))) where {T, N}
     @argcheck length(grid) > 0 "Grid cannot be empty"
@@ -38,10 +57,7 @@ function CPMState(grid::AbstractArray{T, N}, cell_data::StructArray, N_cells::In
         @argcheck hasproperty(cell_data, field) "cell_data is missing required field: `$field`. Use `build_cell_data`."
     end
     
-    ArrayT = Base.typename(typeof(grid)).wrapper
-    adapted_cell_data = Adapt.adapt(ArrayT, cell_data)
-    
-    return CPMState(grid, adapted_cell_data, Ref(N_cells), UInt32[])
+    return CPMState(grid, cell_data, Ref(N_cells), UInt32[])
 end
 
 """
@@ -53,6 +69,15 @@ struct CPMParameters{Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple}
     topology::Topo
     penalties::P
     trackers::Tr
+end
+function Functors.functor(::Type{<:CPMParameters}, x)
+    children = (topology = x.topology, penalties = x.penalties, trackers = x.trackers)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.topology, y.penalties, y.trackers)
+    return children, reconstruct
+end
+function Adapt.adapt_structure(to, x::CPMParameters)
+    children, reconstruct = Functors.functor(typeof(x), x)
+    return reconstruct(Adapt.adapt(to, children))
 end
 
 """
@@ -147,6 +172,15 @@ struct CPMProblem{uType, tType, pType} <: AbstractCPMProblem
     u0::uType
     tspan::Tuple{tType, tType}
     p::pType
+end
+function Functors.functor(::Type{<:CPMProblem}, x)
+    children = (u0 = x.u0, p = x.p)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.u0, x.tspan, y.p)
+    return children, reconstruct
+end
+function Adapt.adapt_structure(to, x::CPMProblem)
+    children, reconstruct = Functors.functor(typeof(x), x)
+    return reconstruct(Adapt.adapt(to, children))
 end
 
 """

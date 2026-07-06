@@ -1,7 +1,7 @@
 using Test
 using CoreCPM
-using CoreCPM.CoreCPMTools
-using CoreCPM.CoreCPMBase
+
+
 using SciMLBase
 @testset "Checkerboard Coloring Rules" begin
     @test checkerboard_colors(VonNeumannTopology{2}()) == 2
@@ -34,8 +34,8 @@ end
     
     trackers = (VolumeTracker(), SurfaceAreaTracker())
     penalties = (
-        HSTVolumePenalty([0.0f0, 50.0f0, 50.0f0]),
-        HSTSurfaceAreaPenalty([0.0f0, 2.0f0, 2.0f0])
+        HSTVolumePenalty{Rigid}([0.0f0, 50.0f0, 50.0f0]),
+        HSTSurfaceAreaPenalty{Rigid}([0.0f0, 2.0f0, 2.0f0])
     )
     
     u0 = CPMState(grid, cell_data, N_cells)

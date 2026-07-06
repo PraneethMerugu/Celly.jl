@@ -11,7 +11,7 @@ function run_sim()
     grid_dims = size(grid)
     
     # Large penalty parameter to keep circle intact
-    penalties = (HSTVolumePenalty(ones(Float32, 256) .* 1.0f0),)
+    penalties = (HSTVolumePenalty{Rigid}(ones(Float32, 256) .* 1.0f0),)
     trackers = (VolumeTracker(), SurfaceAreaTracker())
     
     cell_data = build_cell_data(grid, N_cells)

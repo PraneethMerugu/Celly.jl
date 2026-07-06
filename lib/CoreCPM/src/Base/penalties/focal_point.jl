@@ -4,12 +4,11 @@
 Models strong mechanical junctions (springs) between the centers of mass of specific cells.
 Useful for modeling epithelial sheets or rigid tissue structures.
 """
-struct FocalPointSpringPenalty{FloatT <: AbstractVector, MatrixT <: AbstractMatrix} <: AbstractPenalty
+struct FocalPointSpringPenalty{FloatT <: AbstractVector, MatrixT <: AbstractMatrix} <: AbstractPenalty{Rigid}
     lambdas::FloatT
     target_lengths::FloatT
     connectivity::MatrixT
 end
-Adapt.@adapt_structure FocalPointSpringPenalty
 
 @inline function evaluate_penalty(p::FocalPointSpringPenalty, ctx)
     F = eltype(p.lambdas)
@@ -156,14 +155,16 @@ end
 
 A thermodynamically consistent (fluctuating force) version of the focal point spring.
 """
-struct HSTFocalPointPenalty{FloatT <: AbstractVector, IntT <: AbstractMatrix, FType} <: AbstractPenalty
+struct HSTFocalPointPenalty{FloatT <: AbstractVector, IntT <: AbstractMatrix, FType} <: AbstractPenalty{Rigid}
     lambdas::FloatT
     target_lengths::FloatT
     connectivity::IntT
     eta::FType
 end
-Adapt.@adapt_structure HSTFocalPointPenalty
-HSTFocalPointPenalty(lambdas, target_lengths, connectivity; eta=1.0) = HSTFocalPointPenalty(lambdas, target_lengths, connectivity, eta)
+function HSTFocalPointPenalty(lambdas, target_lengths, connectivity; eta=1.0)
+    F = eltype(lambdas)
+    return HSTFocalPointPenalty(lambdas, target_lengths, connectivity, convert(F, eta))
+end
 
 @inline function evaluate_penalty(p::HSTFocalPointPenalty, ctx)
     F = eltype(p.lambdas)
@@ -226,7 +227,7 @@ end
             
             # SDE Integration (Ornstein-Uhlenbeck)
             lam = F(lambdas[my_type + 1])
-            alpha = F(exp(-eta * dt))
+            alpha = exp(-eta * dt)
             noise_std = sqrt(max(zero(F), F(2.0) * lam * F(T_val) * (one(F) - alpha^2)))
             
             # Generate independent noise for X and Y

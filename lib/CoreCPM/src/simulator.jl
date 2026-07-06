@@ -9,11 +9,11 @@ function SciMLBase.__init(prob::CPMProblem, alg::AbstractCPMAlgorithm, args...; 
     
     t_end = prob.tspan[2]
     backend = get(kwargs, :backend, MemoryBackend())
-    # Process saveat to a sorted array of ints
+    tType = typeof(prob.tspan[1])
     if saveat isa Number
-        saveat_vec = collect(prob.tspan[1]:Int(saveat):prob.tspan[2])
+        saveat_vec = collect(tType, prob.tspan[1]:saveat:prob.tspan[2])
     else
-        saveat_vec = Int.(saveat)
+        saveat_vec = tType.(saveat)
     end
     sort!(saveat_vec)
 
@@ -31,7 +31,7 @@ end
 
 @inline function _update_step_auxiliary!(items::Tuple, u, p::CPMParameters, cache::CPMCache, T::Float32, dt::Float32, ::Val{I}) where {I}
     if I <= length(items)
-        CoreCPMBase.update_step_auxiliary!(items[I], u, p, cache, T, dt)
+        update_step_auxiliary!(items[I], u, p, cache, T, dt)
         _update_step_auxiliary!(items, u, p, cache, T, dt, Val(I+1))
     end
 end
@@ -39,7 +39,7 @@ end
 
 @inline function _update_sweep_auxiliary!(items::Tuple, u, p::CPMParameters, cache::CPMCache, T::Float32, dt::Float32, ::Val{I}) where {I}
     if I <= length(items)
-        CoreCPMBase.update_sweep_auxiliary!(items[I], u, p, cache, T, dt)
+        update_sweep_auxiliary!(items[I], u, p, cache, T, dt)
         _update_sweep_auxiliary!(items, u, p, cache, T, dt, Val(I+1))
     end
 end

@@ -2,7 +2,7 @@
 
 julia_version = "1.10.10"
 manifest_format = "2.0"
-project_hash = "8f402ade5fae20453eb234d9e051d683b229252f"
+project_hash = "19d0529d39ac434986a034f76f58bf2a948a0edb"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -345,7 +345,7 @@ uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.6.3"
 
 [[deps.CoreCPM]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "KernelAbstractions", "LinearAlgebra", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../../CoreCPM"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -595,6 +595,12 @@ version = "1.9.3"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
     EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
     Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+
+[[deps.Functors]]
+deps = ["Compat", "ConstructionBase", "LinearAlgebra", "Random"]
+git-tree-sha1 = "60a0339f28a233601cb74468032b5c302d5067de"
+uuid = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
+version = "0.5.2"
 
 [[deps.GLFW]]
 deps = ["GLFW_jll"]

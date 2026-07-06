@@ -20,13 +20,13 @@ state = CPMState(grid, cell_data)
 topology = MooreTopology{2}()
 J_matrix = Float32[0 10 10; 10 2 20; 10 20 2]
 penalties = (
-    VolumePenalty(Float32[0.0f0, 50.0f0, 50.0f0]),
-    AdhesionPenalty(J_matrix)
+    VolumePenalty{Rigid}(Float32[0.0f0, 50.0f0, 50.0f0]),
+    AdhesionPenalty{Rigid}(J_matrix)
 )
 params = CPMParameters(topology, penalties, (VolumeTracker(),))
 alg = ParallelMetropolis(T=10.0f0, active_fraction=0.1f0)
 prob = CPMProblem(state, (0, 10), params)
-cache = CPMCache(grid, topology)
+cache = CPMCache(state, topology)
 
 for i in 1:10
     execute_step!(state, params, cache, alg)
@@ -48,7 +48,7 @@ theta = ComponentArray(
 )
 
 function update_fn(p_old::CPMParameters, θ)
-    new_vol = VolumePenalty(θ.volume_lambdas)
+    new_vol = VolumePenalty{Rigid}(θ.volume_lambdas)
     new_nn = LocalNeuralPenalty(model, θ.neural_weights, st)
     return CPMParameters(p_old.topology, (new_vol, new_nn), p_old.trackers)
 end

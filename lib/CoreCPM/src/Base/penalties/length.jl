@@ -3,12 +3,35 @@
 
 Constrains the major axis length of a cell, inducing elongation and polarity.
 """
-struct HSTLengthPenalty{FloatT <: AbstractVector, FType} <: AbstractPenalty
+struct HSTLengthPenalty{FlexType <: FlexibilityTrait, FloatT <: AbstractVector, FType} <: AbstractHSTPenalty{FlexType}
     lambdas::FloatT
     eta::FType
 end
-Adapt.@adapt_structure HSTLengthPenalty
-HSTLengthPenalty(lambdas; eta=1.0) = HSTLengthPenalty(lambdas, eta)
+function HSTLengthPenalty{Rigid}(lambdas; eta=1.0)
+    F = eltype(lambdas)
+    return HSTLengthPenalty{Rigid, typeof(lambdas), F}(lambdas, convert(F, eta))
+end
+function HSTLengthPenalty{Rigid}(lambdas, eta)
+    return HSTLengthPenalty{Rigid}(lambdas; eta=eta)
+end
+function HSTLengthPenalty(lambdas; eta=1.0)
+    return HSTLengthPenalty{Rigid}(lambdas; eta=eta)
+end
+function HSTLengthPenalty(lambdas, eta)
+    return HSTLengthPenalty{Rigid}(lambdas; eta=eta)
+end
+function HSTLengthPenalty{Flex}(; eta=1.0, FloatType=Float32)
+    F = convert(FloatType, eta)
+    return HSTLengthPenalty{Flex, Vector{FloatType}, typeof(F)}(FloatType[], F)
+end
+function HSTLengthPenalty{Flex}(eta)
+    return HSTLengthPenalty{Flex}(; eta=eta)
+end
+
+lambda_field(::HSTLengthPenalty) = Val{:length_lambdas}()
+hst_state_field(::HSTLengthPenalty) = Val{:length_pressures}()
+hst_value_field(::HSTLengthPenalty) = Val{:current_lengths}()
+hst_target_field(::HSTLengthPenalty) = Val{:target_lengths}()
 
 @inline function evaluate_penalty(p::HSTLengthPenalty, ctx)
     F = eltype(p.lambdas)
@@ -20,8 +43,7 @@ HSTLengthPenalty(lambdas; eta=1.0) = HSTLengthPenalty(lambdas, eta)
         W, H = F(ctx.grid_dims[1]), F(ctx.grid_dims[2])
         
         if ctx.tgt != 0
-            c_type = ctx.cell_data.cell_types[ctx.tgt]
-            lam = p.lambdas[c_type + 1]
+            lam = get_lambda(p, ctx, ctx.tgt)
             lp = F(ctx.cell_data.length_pressures[ctx.tgt])
             ax, ay = F(ctx.cell_data.anchor_x[ctx.tgt]), F(ctx.cell_data.anchor_y[ctx.tgt])
             vx, vy = F(ctx.cell_data.major_axis_x[ctx.tgt]), F(ctx.cell_data.major_axis_y[ctx.tgt])
@@ -36,8 +58,7 @@ HSTLengthPenalty(lambdas; eta=1.0) = HSTLengthPenalty(lambdas, eta)
             end
         end
         if ctx.src != 0
-            c_type = ctx.cell_data.cell_types[ctx.src]
-            lam = p.lambdas[c_type + 1]
+            lam = get_lambda(p, ctx, ctx.src)
             lp = F(ctx.cell_data.length_pressures[ctx.src])
             ax, ay = F(ctx.cell_data.anchor_x[ctx.src]), F(ctx.cell_data.anchor_y[ctx.src])
             vx, vy = F(ctx.cell_data.major_axis_x[ctx.src]), F(ctx.cell_data.major_axis_y[ctx.src])
@@ -56,8 +77,7 @@ HSTLengthPenalty(lambdas; eta=1.0) = HSTLengthPenalty(lambdas, eta)
         W, H, D = F(ctx.grid_dims[1]), F(ctx.grid_dims[2]), F(ctx.grid_dims[3])
         
         if ctx.tgt != 0
-            c_type = ctx.cell_data.cell_types[ctx.tgt]
-            lam = p.lambdas[c_type + 1]
+            lam = get_lambda(p, ctx, ctx.tgt)
             lp = F(ctx.cell_data.length_pressures[ctx.tgt])
             ax, ay, az = F(ctx.cell_data.anchor_x[ctx.tgt]), F(ctx.cell_data.anchor_y[ctx.tgt]), F(ctx.cell_data.anchor_z[ctx.tgt])
             vx, vy, vz = F(ctx.cell_data.major_axis_x[ctx.tgt]), F(ctx.cell_data.major_axis_y[ctx.tgt]), F(ctx.cell_data.major_axis_z[ctx.tgt])
@@ -73,8 +93,7 @@ HSTLengthPenalty(lambdas; eta=1.0) = HSTLengthPenalty(lambdas, eta)
             end
         end
         if ctx.src != 0
-            c_type = ctx.cell_data.cell_types[ctx.src]
-            lam = p.lambdas[c_type + 1]
+            lam = get_lambda(p, ctx, ctx.src)
             lp = F(ctx.cell_data.length_pressures[ctx.src])
             ax, ay, az = F(ctx.cell_data.anchor_x[ctx.src]), F(ctx.cell_data.anchor_y[ctx.src]), F(ctx.cell_data.anchor_z[ctx.src])
             vx, vy, vz = F(ctx.cell_data.major_axis_x[ctx.src]), F(ctx.cell_data.major_axis_y[ctx.src]), F(ctx.cell_data.major_axis_z[ctx.src])
@@ -343,7 +362,7 @@ end
         acc_sin_x, acc_cos_x, acc_sin_y, acc_cos_y, acc_sin_z, acc_cos_z,
         major_x, major_y, major_z, lengths, target_lengths, length_pressures,
         inertia_xx, inertia_yy, inertia_zz, inertia_xy, inertia_xz, inertia_yz,
-        vols, ctypes, lambdas, eta, T_val, seed, dt, dims)
+        vols, ctypes, llambdas, p_lambdas, is_flex, eta, T_val, seed, dt, dims)
     my_cell_id = @index(Global, Linear)
     if my_cell_id <= length(vols)
         F = eltype(lengths)
@@ -445,8 +464,8 @@ end
 
             # ---- SDE Integration (Ornstein-Uhlenbeck) ----
             my_type  = ctypes[my_cell_id]
-            lam      = F(lambdas[my_type + 1])
-            alpha    = F(exp(-eta * dt))
+            lam      = is_flex ? F(llambdas[my_cell_id]) : F(p_lambdas[my_type + 1])
+            alpha    = exp(-eta * dt)
             mean_lp  = F(2.0) * lam * (L - F(target_lengths[my_cell_id]))
             hash_base = pcg_hash(seed + UInt64(my_cell_id) + UInt64(33333))
             u1 = F((hash_base & 0x00FFFFFF)) / F(0x01000000)
@@ -462,7 +481,7 @@ end
     end
 end
 
-function update_step_auxiliary!(p::HSTLengthPenalty, u::AbstractCPMState, p_sys::CPMParameters, cache::CPMCache, T_val, dt)
+function update_step_auxiliary!(p::HSTLengthPenalty{FlexType}, u::AbstractCPMState, p_sys::CPMParameters, cache::CPMCache, T_val, dt) where {FlexType}
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)
     N    = length(u.cell_data.volumes)
     seed = pcg_hash(cache.step_counter[] + UInt64(12345))
@@ -505,7 +524,7 @@ function update_step_auxiliary!(p::HSTLengthPenalty, u::AbstractCPMState, p_sys:
            u.cell_data.inertia_zz, u.cell_data.inertia_xy,
            u.cell_data.inertia_xz, u.cell_data.inertia_yz,
            u.cell_data.volumes, u.cell_data.cell_types,
-           p.lambdas, p.eta, T_val, seed, dt, cache.grid_dims,
+           u.cell_data.length_lambdas, p.lambdas, FlexType === Flex, p.eta, T_val, seed, dt, cache.grid_dims,
            ndrange=N)
     KernelAbstractions.synchronize(backend)
 end

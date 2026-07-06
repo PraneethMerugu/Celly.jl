@@ -3,11 +3,10 @@
 
 Biases cell membrane extensions up (or down) a pre-computed spatial chemical gradient.
 """
-struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray} <: AbstractPenalty
+struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray} <: AbstractPenalty{Rigid}
     lambdas::FloatT
     chem_field::ArrayT
 end
-Adapt.@adapt_structure ChemotaxisPenalty
 
 @inline function evaluate_penalty(p::ChemotaxisPenalty, ctx)
     N = length(ctx.grid_dims)

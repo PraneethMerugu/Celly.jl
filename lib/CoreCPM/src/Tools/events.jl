@@ -243,7 +243,7 @@ end
             for d in 1:N
                 idx = (cell_id - UInt32(1)) * UInt32(N) + UInt32(d)
                 delta = Float32(coords[d]) - dev_centroids[idx]
-                dist[d] = CoreCPMBase.shortest_vector(topo, delta, Float32(dims[d]))
+                dist[d] = shortest_vector(topo, delta, Float32(dims[d]))
             end
             
             cov_elements = div(N * (N + 1), 2)
@@ -424,8 +424,8 @@ end
         seed = step_counter + UInt64(p)
         
         if N == 2
-            v1 = CoreCPMBase.randn_pcg(seed, seed + UInt64(1))
-            v2 = CoreCPMBase.randn_pcg(seed + UInt64(2), seed + UInt64(3))
+            v1 = randn_pcg(seed, seed + UInt64(1))
+            v2 = randn_pcg(seed + UInt64(2), seed + UInt64(3))
             
             mag = max(1f-12, sqrt(v1^2 + v2^2))
             
@@ -435,9 +435,9 @@ end
             dev_normals[idx_x] = v1 / mag
             dev_normals[idx_y] = v2 / mag
         else
-            v1 = CoreCPMBase.randn_pcg(seed, seed + UInt64(1))
-            v2 = CoreCPMBase.randn_pcg(seed + UInt64(2), seed + UInt64(3))
-            v3 = CoreCPMBase.randn_pcg(seed + UInt64(4), seed + UInt64(5))
+            v1 = randn_pcg(seed, seed + UInt64(1))
+            v2 = randn_pcg(seed + UInt64(2), seed + UInt64(3))
+            v3 = randn_pcg(seed + UInt64(4), seed + UInt64(5))
             
             mag = max(1f-12, sqrt(v1^2 + v2^2 + v3^2))
             
@@ -490,7 +490,7 @@ end
             idx = (cell_id - UInt32(1)) * UInt32(N) + UInt32(d)
             
             dist = Float32(coords[d]) - dev_centroids[idx]
-            dist = CoreCPMBase.shortest_vector(topo, dist, Float32(dims[d]))
+            dist = shortest_vector(topo, dist, Float32(dims[d]))
             dot_val += dist * dev_normals[idx]
         end
         
@@ -690,74 +690,96 @@ function process_death_events!(u::AbstractCPMState, cache::CPMCache, ws::Mitosis
 end
 
 """
-    reset_hst_pressures_after_division!(engine, pen::HSTVolumePenalty)
+    reset_hst_fields_after_division!(engine, pen::AbstractHSTPenalty)
 
-Resets the stochastic pressure field for all live cells to its thermodynamic
-mean `p_eq = 2λ(V - V_target)` immediately after a mitosis event.
-
-**Why this is needed:** When a cell divides its volume is split in half, but
-the inherited `pressures` value was calibrated to the pre-division volume.
-This mismatch drives a spurious O(1/η) MCS transient. Calling this function
-immediately after `process_mitosis_events!` eliminates that transient.
-
-Call pattern:
-```julia
-process_mitosis_events!(engine; trigger=myTrigger)
-reset_hst_pressures_after_division!(engine, vol_pen)
-```
+Resets the stochastic auxiliary field for all live cells to its thermodynamic mean
+immediately after a mitosis event, preventing O(1/η) MCS transients.
 """
-@kernel function _kernel_reset_hst_pressures!(pressures, cell_types, volumes, target_volumes, lambdas, N_cells)
+@kernel function _kernel_reset_hst_fields!(states, values, targets, ctypes, lambdas, p_lambdas, is_flex, N_cells)
     i = @index(Global, Linear)
     if i <= N_cells
-        ct = cell_types[i]
-        if ct > 0 && volumes[i] > 0
-            V  = Float32(volumes[i])
-            Vt = Float32(target_volumes[i])
-            pressures[i] = 2.0f0 * lambdas[ct + 1] * (V - Vt)
+        ct = ctypes[i]
+        if ct > 0 && values[i] > 0
+            F = eltype(states)
+            val  = F(values[i])
+            tgt = F(targets[i])
+            lam = is_flex ? F(lambdas[i]) : F(p_lambdas[ct + 1])
+            states[i] = F(2.0) * lam * (val - tgt)
         end
     end
 end
 
-function reset_hst_pressures_after_division!(u::AbstractCPMState, cache::CPMCache, pen::HSTVolumePenalty)
-    if !hasproperty(u.cell_data, :pressures)
+function reset_hst_fields_after_division!(u::AbstractCPMState, cache::CPMCache, pen::AbstractHSTPenalty{FlexType}) where {FlexType}
+    state_val = hst_state_field(pen)
+    val_val = hst_value_field(pen)
+    tgt_val = hst_target_field(pen)
+    lam_val = lambda_field(pen)
+    
+    _reset_hst_fields_inner!(u, cache, pen, FlexType === Flex, state_val, val_val, tgt_val, lam_val)
+end
+
+function _reset_hst_fields_inner!(u, cache, pen, is_flex, ::Val{S}, ::Val{V}, ::Val{T}, ::Val{L}) where {S, V, T, L}
+    if !hasproperty(u.cell_data, S)
         return
     end
+    states = getproperty(u.cell_data, S)
+    values = getproperty(u.cell_data, V)
+    targets = getproperty(u.cell_data, T)
+    lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
+    
     backend = KernelAbstractions.get_backend(u.grid)
-    k = _kernel_reset_hst_pressures!(backend, cache.block_size)
-    k(u.cell_data.pressures, u.cell_data.cell_types, u.cell_data.volumes, u.cell_data.target_volumes, pen.lambdas, UInt32(u.N_cells[]), ndrange=u.N_cells[])
+    k = _kernel_reset_hst_fields!(backend, cache.block_size)
+    k(states, values, targets, u.cell_data.cell_types, lambdas, pen.lambdas, is_flex, UInt32(u.N_cells[]), ndrange=u.N_cells[])
     KernelAbstractions.synchronize(backend)
     return nothing
 end
 
-"""
-    reset_hst_tensions_after_division!(engine, pen::HSTSurfaceAreaPenalty)
-
-Resets the stochastic tension field for all live cells to its thermodynamic
-mean `t_eq = 2λ(SA - SA_target)` immediately after a mitosis event.
-
-See `reset_hst_pressures_after_division!` for motivation.
-"""
-@kernel function _kernel_reset_hst_tensions!(tensions, cell_types, surface_areas, target_surface_areas, lambdas, N_cells)
+@kernel function _update_hst_generic_kernel!(states, values, tgts, ctypes, vlambdas, p_lambdas, is_flex, eta, T_val, seed, dt)
     i = @index(Global, Linear)
-    if i <= N_cells
-        ct = cell_types[i]
-        if ct > 0 && surface_areas[i] > 0
-            SA  = Float32(surface_areas[i])
-            SAt = Float32(target_surface_areas[i])
-            tensions[i] = 2.0f0 * lambdas[ct + 1] * (SA - SAt)
+    if i <= length(values)
+        c_type = ctypes[i]
+        if c_type > 0
+            F = eltype(states)
+            v_true = F(values[i])
+            if v_true > zero(F)
+                lam = is_flex ? F(vlambdas[i]) : F(p_lambdas[c_type + 1])
+                mean_p = F(2.0) * lam * (v_true - F(tgts[i]))
+                alpha = exp(-eta * dt)
+                noise_std = sqrt(max(zero(F), F(2.0) * lam * F(T_val) * (one(F) - alpha^2)))
+                noise = noise_std * F(randn_pcg(seed + UInt64(i), seed + UInt64(i + 12345)))
+                states[i] = alpha * states[i] + (one(F) - alpha) * mean_p + noise
+            else
+                states[i] = zero(F)
+            end
         end
     end
 end
 
-function reset_hst_tensions_after_division!(u::AbstractCPMState, cache::CPMCache, pen::HSTSurfaceAreaPenalty)
-    if !hasproperty(u.cell_data, :tensions)
+function update_step_auxiliary!(pen::AbstractHSTPenalty{FlexType}, u::AbstractCPMState, p::CPMParameters, cache::CPMCache, T_val, dt) where {FlexType}
+    state_val = hst_state_field(pen)
+    val_val = hst_value_field(pen)
+    tgt_val = hst_target_field(pen)
+    lam_val = lambda_field(pen)
+    
+    _update_hst_inner!(u, cache, pen, FlexType === Flex, T_val, dt, state_val, val_val, tgt_val, lam_val)
+end
+
+function _update_hst_inner!(u, cache, pen, is_flex, T_val, dt, ::Val{S}, ::Val{V}, ::Val{T}, ::Val{L}) where {S, V, T, L}
+    if !hasproperty(u.cell_data, S)
         return
     end
-    backend = KernelAbstractions.get_backend(u.grid)
-    k = _kernel_reset_hst_tensions!(backend, cache.block_size)
-    k(u.cell_data.tensions, u.cell_data.cell_types, u.cell_data.surface_areas, u.cell_data.target_surface_areas, pen.lambdas, UInt32(u.N_cells[]), ndrange=u.N_cells[])
+    states = getproperty(u.cell_data, S)
+    values = getproperty(u.cell_data, V)
+    targets = getproperty(u.cell_data, T)
+    lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
+
+    cache.noise_counter[] += UInt64(1)
+    backend = KernelAbstractions.get_backend(states)
+    seed = pcg_hash(cache.noise_counter[])
+    
+    kernel = _update_hst_generic_kernel!(backend, cache.block_size)
+    kernel(states, values, targets, u.cell_data.cell_types, lambdas, pen.lambdas, is_flex, pen.eta, T_val, seed, dt, ndrange=length(states))
     KernelAbstractions.synchronize(backend)
-    return nothing
 end
 
 import SciMLBase

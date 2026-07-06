@@ -26,7 +26,7 @@ using Test
             target_lengths = Float32[10.0, 10.0]
             eta = 0.5f0
             
-            penalties = (HSTVolumePenalty(fill(2.0f0, 256)), HSTFocalPointPenalty(lambdas, target_lengths, conn, eta))
+            penalties = (HSTVolumePenalty{Rigid}(fill(2.0f0, 256)), HSTFocalPointPenalty(lambdas, target_lengths, conn, eta))
             u0 = CPMState(grid, cell_data)
             p_sys = CPMParameters(MooreTopology{2}(), penalties, (VolumeTracker(),))
             prob = CPMProblem(u0, (0, 100), p_sys)

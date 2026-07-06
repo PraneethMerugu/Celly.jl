@@ -8,7 +8,8 @@ The default out-of-core data saving backend. Pushes grid and cell_data into an a
 struct MemoryBackend <: AbstractOutputBackend end
 
 function initialize_backend(::MemoryBackend, prob, alg, opts)
-    return Any[], Int[]
+    tType = typeof(prob.tspan[1])
+    return Any[], tType[]
 end
 
 function save_state!(integrator, ::MemoryBackend)

@@ -20,8 +20,8 @@ using CoreCPM
     
     # Penalties: Volume + Length
     penalties = (
-        HSTVolumePenalty(Float32[0.0, 50.0]),
-        HSTLengthPenalty(Float32[0.0, 100.0], 1.0f0) # high length penalty
+        HSTVolumePenalty{Rigid}(Float32[0.0, 50.0]),
+        HSTLengthPenalty{Rigid}(Float32[0.0, 100.0], 1.0f0) # high length penalty
     )
     
     # Set up engine

@@ -112,4 +112,6 @@ using SciMLBase
         @test sol.retcode == SciMLBase.ReturnCode.Success
     end
 
+    include("test_flex_traits.jl")
+
 end

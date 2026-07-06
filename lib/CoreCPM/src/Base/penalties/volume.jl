@@ -4,13 +4,26 @@
 A hydrostatic formulation of the volume constraint. Uses a fluctuating internal pressure
 `p` for each cell instead of a rigid quadratic constraint, allowing for thermodynamic detailed balance.
 """
-struct HSTVolumePenalty{FloatT <: AbstractVector, FType} <: AbstractPenalty
+struct HSTVolumePenalty{FlexType <: FlexibilityTrait, FloatT <: AbstractVector, FType} <: AbstractHSTPenalty{FlexType}
     lambdas::FloatT
     eta::FType
 end
-import Adapt
-Adapt.@adapt_structure HSTVolumePenalty
-HSTVolumePenalty(lambdas; eta=1.0) = HSTVolumePenalty(lambdas, eta)
+function HSTVolumePenalty{Rigid}(lambdas; eta=1.0)
+    F = eltype(lambdas)
+    return HSTVolumePenalty{Rigid, typeof(lambdas), F}(lambdas, convert(F, eta))
+end
+function HSTVolumePenalty(lambdas; eta=1.0)
+    return HSTVolumePenalty{Rigid}(lambdas; eta=eta)
+end
+function HSTVolumePenalty{Flex}(; eta=1.0, FloatType=Float32)
+    F = convert(FloatType, eta)
+    return HSTVolumePenalty{Flex, Vector{FloatType}, typeof(F)}(FloatType[], F)
+end
+
+lambda_field(::HSTVolumePenalty) = Val{:volume_lambdas}()
+hst_state_field(::HSTVolumePenalty) = Val{:pressures}()
+hst_value_field(::HSTVolumePenalty) = Val{:volumes}()
+hst_target_field(::HSTVolumePenalty) = Val{:target_volumes}()
 
 
 
@@ -26,35 +39,7 @@ HSTVolumePenalty(lambdas; eta=1.0) = HSTVolumePenalty(lambdas, eta)
     return dH
 end
 
-@kernel function _update_hst_vol_kernel!(pressures, vols, tgts, ctypes, lambdas, eta, T_val, seed, dt)
-    i = @index(Global, Linear)
-    if i <= length(vols)
-        c_type = ctypes[i]
-        if c_type > 0
-            F = eltype(pressures)
-            v_true = F(vols[i])
-            if v_true > zero(F)
-                lam = F(lambdas[c_type + 1])
-                mean_p = F(2.0) * lam * (v_true - F(tgts[i]))
-                alpha = F(exp(-eta * dt))
-                noise_std = sqrt(max(zero(F), F(2.0) * lam * F(T_val) * (one(F) - alpha^2)))
-                noise = noise_std * F(randn_pcg(seed + UInt64(i), seed + UInt64(i + 12345)))
-                pressures[i] = alpha * pressures[i] + (one(F) - alpha) * mean_p + noise
-            else
-                pressures[i] = zero(F)
-            end
-        end
-    end
-end
-
-function update_step_auxiliary!(pen::HSTVolumePenalty, u::AbstractCPMState, p::CPMParameters, cache::CPMCache, T_val, dt)
-    cache.noise_counter[] += UInt64(1)
-    backend = KernelAbstractions.get_backend(u.cell_data.volumes)
-    seed = pcg_hash(cache.noise_counter[])
-    kernel = _update_hst_vol_kernel!(backend, cache.block_size)
-    kernel(u.cell_data.pressures, u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.cell_types, pen.lambdas, pen.eta, T_val, seed, dt, ndrange=length(u.cell_data.volumes))
-    KernelAbstractions.synchronize(backend)
-end
+# Generic update_step_auxiliary! handles HST pressure updates via AbstractHSTPenalty.
 
 """
     VolumePenalty(lambdas)
@@ -62,24 +47,27 @@ end
 The classic cellular volume constraint. Acts as a harmonic spring, penalizing deviations
 from a cell's `target_volume` according to its type-specific `lambda`.
 """
-struct VolumePenalty{FloatT <: AbstractVector} <: AbstractPenalty
+struct VolumePenalty{FlexType <: FlexibilityTrait, FloatT <: AbstractVector} <: AbstractPenalty{FlexType}
     lambdas::FloatT
 end
-Adapt.@adapt_structure VolumePenalty
+
+VolumePenalty{Rigid}(lambdas) = VolumePenalty{Rigid, typeof(lambdas)}(lambdas)
+VolumePenalty(lambdas) = VolumePenalty{Rigid}(lambdas)
+VolumePenalty{Flex}(; FloatType=Float32) = VolumePenalty{Flex, Vector{FloatType}}(FloatType[])
+
+lambda_field(::VolumePenalty) = Val{:volume_lambdas}()
 
 @inline function evaluate_penalty(p::VolumePenalty, ctx)
     F = eltype(p.lambdas)
     dH = zero(F)
     if ctx.src != 0
-        c_type = ctx.cell_data.cell_types[ctx.src]
-        lam = F(p.lambdas[c_type + 1])
+        lam = F(get_lambda(p, ctx, ctx.src))
         v = F(ctx.cell_data.volumes[ctx.src])
         tgt = F(ctx.cell_data.target_volumes[ctx.src])
         dH += lam * (one(F) - F(2.0) * (v - tgt))
     end
     if ctx.tgt != 0
-        c_type = ctx.cell_data.cell_types[ctx.tgt]
-        lam = F(p.lambdas[c_type + 1])
+        lam = F(get_lambda(p, ctx, ctx.tgt))
         v = F(ctx.cell_data.volumes[ctx.tgt])
         tgt = F(ctx.cell_data.target_volumes[ctx.tgt])
         dH += lam * (one(F) + F(2.0) * (v - tgt))
@@ -87,18 +75,18 @@ Adapt.@adapt_structure VolumePenalty
     return dH
 end
 
-function compute_global_energy(p::VolumePenalty, u, params)
+function compute_global_energy(p::VolumePenalty{FlexType}, u, params) where {FlexType}
     F = eltype(p.lambdas)
-    E_arr = [begin
-        v = F(u.cell_data.volumes[i])
-        if v > zero(F)
-            c_type = u.cell_data.cell_types[i]
-            lam = F(p.lambdas[c_type + 1])
-            tgt = F(u.cell_data.target_volumes[i])
-            lam * (v - tgt)^2
-        else
-            zero(F)
-        end
-    end for i in 1:length(u.cell_data.volumes)]
+    vols = u.cell_data.volumes
+    tgts = u.cell_data.target_volumes
+    c_types = u.cell_data.cell_types
+    
+    if FlexType === Flex
+        lams = u.cell_data.volume_lambdas
+    else
+        lams = p.lambdas[c_types .+ 1]
+    end
+    
+    E_arr = (vols .> zero(F)) .* lams .* (vols .- tgts).^2
     return sum(E_arr)
 end

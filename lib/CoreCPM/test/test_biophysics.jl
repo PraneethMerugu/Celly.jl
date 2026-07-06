@@ -15,7 +15,7 @@ using Test
                 cell_data.cell_types[i] = i % 2 == 0 ? 1 : 2
                 cell_data.target_volumes[i] = 20
             end
-            penalties = (HSTVolumePenalty(fill(2.0f0, 256)), AdhesionPenalty(J_matrix))
+            penalties = (HSTVolumePenalty{Rigid}(fill(2.0f0, 256)), AdhesionPenalty{Rigid}(J_matrix))
             trackers = (VolumeTracker(), SurfaceAreaTracker())
             u0 = CPMState(grid, cell_data)
             p_sys = CPMParameters(MooreTopology{2}(), penalties, trackers)
@@ -77,7 +77,7 @@ using Test
         cell_data = build_cell_data(grid, 1)
         cell_data.cell_types[1] = 1; cell_data.target_volumes[1] = 50
         
-        penalties = (HSTVolumePenalty(fill(2.0f0, 2)),)
+        penalties = (HSTVolumePenalty{Rigid}(fill(2.0f0, 2)),)
         u0 = CPMState(grid, cell_data)
         p_sys = CPMParameters(NoFluxMooreTopology{2}(), penalties, (VolumeTracker(),))
         prob = CPMProblem(u0, (0, 1000), p_sys)
@@ -128,7 +128,7 @@ using Test
                 
                 # HST Volume penalty tracks pressure. No surface area penalty.
                 lambda_v = 1.0f0
-                penalties = (HSTVolumePenalty(Float32[lambda_v, lambda_v]; eta=0.1f0), AdhesionPenalty(J_matrix))
+                penalties = (HSTVolumePenalty{Rigid}(Float32[lambda_v, lambda_v]; eta=0.1f0), AdhesionPenalty{Rigid}(J_matrix))
                 
                 u0 = CPMState(grid, cell_data)
                 p_sys = CPMParameters(MooreTopology{2}(), penalties, (VolumeTracker(),))
@@ -193,7 +193,7 @@ using Test
                 lambda_v = 1.0f0
                 
                 # Turn ON isotropic Euclidean weighting
-                penalties = (HSTVolumePenalty(Float32[lambda_v, lambda_v]; eta=0.1f0), AdhesionPenalty(J_matrix; isotropic=true))
+                penalties = (HSTVolumePenalty{Rigid}(Float32[lambda_v, lambda_v]; eta=0.1f0), AdhesionPenalty{Rigid}(J_matrix; isotropic=true))
                 
                 u0 = CPMState(grid, cell_data)
                 p_sys = CPMParameters(MooreTopology{2}(), penalties, (VolumeTracker(),))

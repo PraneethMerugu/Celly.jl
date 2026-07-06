@@ -16,7 +16,7 @@ using Statistics
         
         lambda_v, T_val = 5.0f0, 50.0f0
         
-        penalties = (HSTVolumePenalty(Float32[lambda_v, lambda_v]; eta=1.0f0),)
+        penalties = (HSTVolumePenalty{Rigid}(Float32[lambda_v, lambda_v]; eta=1.0f0),)
         trackers = (VolumeTracker(),)
         
         u0 = CPMState(grid, cell_data)

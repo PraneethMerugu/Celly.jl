@@ -17,7 +17,7 @@ using Test
         
         J = Float32[0.0 5.0; 5.0 2.0]
         
-        penalties = (VolumePenalty(Float32[0.0f0, 2.0f0]), AdhesionPenalty(J))
+        penalties = (VolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]), AdhesionPenalty{Rigid}(J))
         u0 = CPMState(grid, cell_data)
         p_sys = CPMParameters(MooreTopology{2}(), penalties, (VolumeTracker(), SurfaceAreaTracker()))
         prob = CPMProblem(u0, (0, 100), p_sys)
@@ -74,7 +74,7 @@ using Test
         
         J = Float32[0.0 5.0 5.0; 5.0 2.0 5.0; 5.0 5.0 2.0]
         u0 = CPMState(grid, cell_data)
-        p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty(Float32[0.0f0, 1.0f0, 1.0f0]), AdhesionPenalty(J)), (VolumeTracker(),))
+        p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(Float32[0.0f0, 1.0f0, 1.0f0]), AdhesionPenalty{Rigid}(J)), (VolumeTracker(),))
         prob = CPMProblem(u0, (0, 100), p_sys)
         alg = AlgType(; T=0.0f0)
         integrator = init(prob, alg)
@@ -135,7 +135,7 @@ using Test
         end
         
         u0 = CPMState(grid, cell_data)
-        p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty(Float32[0.0f0, 2.0f0]),), (VolumeTracker(),))
+        p_sys = CPMParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]),), (VolumeTracker(),))
         prob = CPMProblem(u0, (0, 500), p_sys)
         alg = AlgType(; T=10.0f0)
         integrator = init(prob, alg)

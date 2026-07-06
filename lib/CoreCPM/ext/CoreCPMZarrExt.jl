@@ -1,7 +1,7 @@
 module CoreCPMZarrExt
 
 using CoreCPM
-using CoreCPM.CoreCPMBase
+
 using Zarr
 using StructArrays
 import Adapt
@@ -12,7 +12,7 @@ mutable struct ZarrContainer{GridT, CellT, NCellsT}
     zarr_N_cells::NCellsT
 end
 
-function CoreCPMBase.initialize_backend(backend::CoreCPMBase.ZarrBackend, prob, alg, opts)
+function CoreCPM.initialize_backend(backend::CoreCPM.ZarrBackend, prob, alg, opts)
     # Estimate upper bound for number of saves
     # It is safer to slightly over-allocate and trim later, or just leave empty chunks
     if opts.save_everystep
@@ -51,12 +51,13 @@ function CoreCPMBase.initialize_backend(backend::CoreCPMBase.ZarrBackend, prob, 
     zarr_N_cells = Zarr.zcreate(Int, zgroup, "N_cells", num_saves; chunks=(num_saves,), fill_value=0)
     
     sol_u = ZarrContainer(zarr_grid, cell_datasets, zarr_N_cells)
-    sol_t = Int[]
+    tType = typeof(prob.tspan[1])
+    sol_t = tType[]
     
     return sol_u, sol_t
 end
 
-function CoreCPMBase.save_state!(integrator, backend::CoreCPMBase.ZarrBackend)
+function CoreCPM.save_state!(integrator, backend::CoreCPM.ZarrBackend)
     zc = integrator.sol_u
     idx = length(integrator.sol_t) + 1
     

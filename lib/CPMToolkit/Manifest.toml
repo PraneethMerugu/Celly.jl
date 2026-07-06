@@ -2,7 +2,7 @@
 
 julia_version = "1.10.10"
 manifest_format = "2.0"
-project_hash = "b00d6c7319a5e549c3c30c5d24264b4b13ad9d84"
+project_hash = "8c5532c9fe7a5b75f7553276e44d6d9f2a1d2b3e"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -184,16 +184,18 @@ version = "1.6.0"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.CoreCPM]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "KernelAbstractions", "LinearAlgebra", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../CoreCPM"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
 
     [deps.CoreCPM.extensions]
     CoreCPMHDF5Ext = "HDF5"
+    CoreCPMMermaidExt = ["Mermaid", "CommonSolve"]
     CoreCPMZarrExt = "Zarr"
 
     [deps.CoreCPM.weakdeps]
+    CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
     HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
     Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
@@ -250,6 +252,12 @@ version = "1.9.3"
     EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
     Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 
+[[deps.Functors]]
+deps = ["Compat", "ConstructionBase", "LinearAlgebra", "Random"]
+git-tree-sha1 = "60a0339f28a233601cb74468032b5c302d5067de"
+uuid = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
+version = "0.5.2"
+
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
 git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
@@ -289,9 +297,9 @@ version = "1.6.1"
 
 [[deps.KernelAbstractions]]
 deps = ["Adapt", "Atomix", "InteractiveUtils", "MacroTools", "PrecompileTools", "Requires", "StaticArrays", "UUIDs"]
-git-tree-sha1 = "f2e76d3ced51a2a9e185abc0b97494c7273f649f"
+git-tree-sha1 = "a5b87110fa95d711355af44832497745aa93fb52"
 uuid = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-version = "0.9.41"
+version = "0.9.42"
 
     [deps.KernelAbstractions.extensions]
     EnzymeExt = "EnzymeCore"
@@ -328,15 +336,36 @@ version = "0.5.16"
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
+[[deps.Mermaid]]
+deps = ["CommonSolve", "DocStringExtensions", "OrderedCollections"]
+path = "../../../Mermaid.jl"
+uuid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
+version = "0.1.0"
+
+    [deps.Mermaid.extensions]
+    AgentsExt = "Agents"
+    DiffEqExt = "DiffEqBase"
+    MethodOfLinesExt = ["MethodOfLines", "DiffEqBase"]
+    SurrogatesExt = "Surrogates"
+    TrixiParticlesExt = ["TrixiParticles", "DiffEqBase"]
+
+    [deps.Mermaid.weakdeps]
+    Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
+    DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
+    Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+    MethodOfLines = "94925ecb-adb7-4558-8ed8-f975c56a0bf4"
+    Surrogates = "6fc51010-71bc-11e9-0e15-a3fcc6593c49"
+    TrixiParticles = "66699cd8-9c01-4e9d-a059-b96c86d16b3a"
+
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.23+4"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "05f45c2e0de6259db764adbfd2f1dc6d3f8de13c"
+git-tree-sha1 = "94ba93778373a53bfd5a0caaf7d809c445292ff4"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "2.0.1"
+version = "1.8.2"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
@@ -453,9 +482,9 @@ version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "Random", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLLogging", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "f3e7cd82d057fdeacf9c12292ea72481c05a57c2"
+git-tree-sha1 = "a4a3caa5612dcd4ff0925a98b3820654c663cd9c"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "3.30.0"
+version = "3.31.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
@@ -463,6 +492,7 @@ version = "3.30.0"
     SciMLBaseDistributionsExt = "Distributions"
     SciMLBaseEnzymeExt = "Enzyme"
     SciMLBaseForwardDiffExt = "ForwardDiff"
+    SciMLBaseFunctionPropertiesExt = "FunctionProperties"
     SciMLBaseMakieExt = "Makie"
     SciMLBaseMeasurementsExt = "Measurements"
     SciMLBaseMonteCarloMeasurementsExt = "MonteCarloMeasurements"
@@ -483,6 +513,7 @@ version = "3.30.0"
     Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+    FunctionProperties = "f62d2435-5019-4c03-9749-2d4c77af0cbc"
     Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
     Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
     MonteCarloMeasurements = "0987c9cc-fe09-11e8-30f0-b96dd679fdca"
@@ -510,9 +541,9 @@ version = "2.0.1"
 
 [[deps.SciMLOperators]]
 deps = ["Accessors", "Adapt", "ArrayInterface", "DocStringExtensions", "LinearAlgebra"]
-git-tree-sha1 = "e6d0a9836575d20218770fc38784e5f669c58b1b"
+git-tree-sha1 = "da2b6aeedd65761a5a8bb6667acfb9c22069bee6"
 uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "1.22.1"
+version = "1.23.0"
 
     [deps.SciMLOperators.extensions]
     SciMLOperatorsLoopVectorizationExt = "LoopVectorization"

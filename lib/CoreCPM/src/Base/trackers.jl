@@ -1,7 +1,21 @@
 import Atomix
 import AcceleratedKernels
+import Adapt
+import Functors
 
 abstract type AbstractTracker end
+
+function Functors.functor(::Type{<:AbstractTracker}, x)
+    props = propertynames(x)
+    children = NamedTuple{props}(getproperty.(Ref(x), props))
+    reconstruct(children) = Base.typename(typeof(x)).wrapper(values(children)...)
+    return children, reconstruct
+end
+
+function Adapt.adapt_structure(to, x::AbstractTracker)
+    children, reconstruct = Functors.functor(typeof(x), x)
+    return reconstruct(Adapt.adapt(to, children))
+end
 
 @inline tx_delta_type(::AbstractTracker) = error("Not implemented")
 @inline compute_tx_deltas(::AbstractTracker, ctx) = error("Not implemented")
@@ -16,6 +30,7 @@ A global state tracker that automatically tracks the volume (number of grid site
 belonging to each cell without requiring `O(N)` recalculations per step.
 """
 struct VolumeTracker <: AbstractTracker end
+const VolumeFlexTracker = VolumeTracker
 @inline tx_delta_type(::VolumeTracker) = Int32
 
 @inline function compute_tx_deltas(::VolumeTracker, ctx)
@@ -44,6 +59,7 @@ A global state tracker that automatically tracks the surface area (number of dis
 for each cell dynamically as the grid is updated.
 """
 struct SurfaceAreaTracker <: AbstractTracker end
+const SurfaceAreaFlexTracker = SurfaceAreaTracker
 @inline tx_delta_type(::SurfaceAreaTracker) = Int32
 
 @inline function compute_tx_deltas(::SurfaceAreaTracker, ctx)
@@ -76,6 +92,11 @@ function initialize_metrics!(::SurfaceAreaTracker, cell_data, grid, topo, dims)
         end
     end
 end
+
+# --- Length & Adhesion Flex Trackers (Dummy Trackers) ---
+# Used strictly as signals in the Problem compilation step
+struct LengthFlexTracker <: AbstractTracker end
+struct AdhesionFlexTracker <: AbstractTracker end
 
 # Utilities
 @inline evaluate_all_trackers(::Tuple{}, ctx) = ()

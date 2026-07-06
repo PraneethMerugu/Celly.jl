@@ -13,7 +13,7 @@ using CairoMakie # For plot testing
         cell_data.cell_types[i] = 1
     end
     
-    penalties = (HSTVolumePenalty(zeros(Float32, 256)),)
+    penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
     trackers = (VolumeTracker(), SurfaceAreaTracker())
     
     u0 = CPMState(grid, cell_data)

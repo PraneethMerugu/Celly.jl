@@ -24,7 +24,7 @@ using CoreCPM
     
     vol_tracker = VolumeTracker()
     
-    vol_pen = HSTVolumePenalty(Float32[0.0f0, 50.0f0])
+    vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
     
     # Positive lambda means it wants to move UP the gradient (towards +x)
     chem_pen = ChemotaxisPenalty(Float32[0.0f0, 200.0f0], chem_field)
@@ -33,7 +33,7 @@ using CoreCPM
     # J[cell, medium] = 20.0, J[cell, cell] = 0.0
     J = zeros(Float32, 2, 2)
     J[2, 1] = 20.0f0; J[1, 2] = 20.0f0
-    adh_pen = AdhesionPenalty(J)
+    adh_pen = AdhesionPenalty{Rigid}(J)
     
 
     

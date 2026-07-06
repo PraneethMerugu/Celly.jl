@@ -17,7 +17,7 @@ function test_metal_cpm()
     # 2. Transfer grid to Apple Silicon GPU
     gpu_grid = MtlArray(host_grid)
     
-    penalties = (HSTVolumePenalty(ones(Float32, 256)),)
+    penalties = (HSTVolumePenalty{Rigid}(ones(Float32, 256)),)
     
     cell_data = build_cell_data(gpu_grid, N_cells)
     

@@ -29,7 +29,7 @@ using CoreCPM, SciMLBase
     lambdas = Float32[0.0f0, 50.0f0]
     eta = 0.1f0
     
-    penalty = HSTLengthPenalty(lambdas, eta)
+    penalty = HSTLengthPenalty{Rigid}(lambdas, eta)
     
     u0 = CPMState(grid, cell_data)
     p_sys = CPMParameters(MooreTopology{2}(), (penalty,), (VolumeTracker(),))
@@ -80,7 +80,7 @@ end
     cell_data.cell_types[1] = 1
     cell_data.target_lengths[1] = 30.0f0
     
-    penalty = HSTLengthPenalty(Float32[0.0f0, 50.0f0], 0.1f0)
+    penalty = HSTLengthPenalty{Rigid}(Float32[0.0f0, 50.0f0], 0.1f0)
     u0 = CPMState(grid, cell_data)
     p_sys = CPMParameters(MooreTopology{2}(), (penalty,), (VolumeTracker(),))
     cache = CPMCache(u0, p_sys.topology)
@@ -112,8 +112,8 @@ end
     cell_data.target_lengths[1] = 18.0f0
     
     vol_tracker = VolumeTracker()
-    vol_pen = HSTVolumePenalty(Float32[0.0f0, 50.0f0])
-    len_pen = HSTLengthPenalty(Float32[0.0f0, 40.0f0], 0.1f0)
+    vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
+    len_pen = HSTLengthPenalty{Rigid}(Float32[0.0f0, 40.0f0], 0.1f0)
     
     u0 = CPMState(grid, cell_data)
     p_sys = CPMParameters(MooreTopology{2}(), (vol_pen, len_pen), (VolumeTracker(),))

@@ -26,46 +26,90 @@ function compile_penalties(sys::CPMSystem, type_to_id::Dict{CellType, UInt8}, nu
 
     for pen in sys.penalties
         if pen isa VolumeComponent
+            FlexType = typeof(pen).parameters[1]
             push!(required_trackers, CoreCPM.VolumeTracker())
+            if FlexType === CoreCPM.Flex
+                push!(required_trackers, CoreCPM.VolumeFlexTracker())
+            end
             λ_vec = zeros(Float32, num_types)
             for (ct, vals) in pen.mappings
                 id = type_to_id[ct]
                 λ_vec[id + 1] = vals.λ
                 initial_props[id][:target_volumes] = Int32(round(vals.target))
+                if FlexType === CoreCPM.Flex
+                    initial_props[id][:volume_lambdas] = Float32(vals.λ)
+                end
             end
-            push!(compiled_penalties, CoreCPM.VolumePenalty(λ_vec))
+            if FlexType === CoreCPM.Flex
+                push!(compiled_penalties, CoreCPM.VolumePenalty{Flex}())
+            else
+                push!(compiled_penalties, CoreCPM.VolumePenalty(λ_vec))
+            end
             
         elseif pen isa HSTVolumeComponent
+            FlexType = typeof(pen).parameters[1]
             push!(required_trackers, CoreCPM.VolumeTracker())
+            if FlexType === CoreCPM.Flex
+                push!(required_trackers, CoreCPM.VolumeFlexTracker())
+            end
             λ_vec = zeros(Float32, num_types)
             for (ct, vals) in pen.mappings
                 id = type_to_id[ct]
                 λ_vec[id + 1] = vals.λ
                 initial_props[id][:target_volumes] = Int32(round(vals.target))
+                if FlexType === CoreCPM.Flex
+                    initial_props[id][:volume_lambdas] = Float32(vals.λ)
+                end
             end
-            push!(compiled_penalties, CoreCPM.HSTVolumePenalty(λ_vec, eta=pen.eta))
+            if FlexType === CoreCPM.Flex
+                push!(compiled_penalties, CoreCPM.HSTVolumePenalty{Flex}(eta=pen.eta))
+            else
+                push!(compiled_penalties, CoreCPM.HSTVolumePenalty(λ_vec, eta=pen.eta))
+            end
 
         elseif pen isa SurfaceAreaComponent
+            FlexType = typeof(pen).parameters[1]
             push!(required_trackers, CoreCPM.SurfaceAreaTracker())
+            if FlexType === CoreCPM.Flex
+                push!(required_trackers, CoreCPM.SurfaceAreaFlexTracker())
+            end
             λ_vec = zeros(Float32, num_types)
             for (ct, vals) in pen.mappings
                 id = type_to_id[ct]
                 λ_vec[id + 1] = vals.λ
                 initial_props[id][:target_surface_areas] = Int32(round(vals.target))
+                if FlexType === CoreCPM.Flex
+                    initial_props[id][:surface_area_lambdas] = Float32(vals.λ)
+                end
             end
-            push!(compiled_penalties, CoreCPM.HSTSurfaceAreaPenalty(λ_vec, eta=pen.eta))
+            if FlexType === CoreCPM.Flex
+                push!(compiled_penalties, CoreCPM.HSTSurfaceAreaPenalty{Flex}(eta=pen.eta))
+            else
+                push!(compiled_penalties, CoreCPM.HSTSurfaceAreaPenalty(λ_vec, eta=pen.eta))
+            end
             
         elseif pen isa LengthComponent
+            FlexType = typeof(pen).parameters[1]
             # Length component does not currently have a builtin tracker equivalent,
             # we rely on the inertia tensors being tracked if needed, 
             # but currently LengthPenalty evaluates purely locally or via tracked COM.
+            if FlexType === CoreCPM.Flex
+                push!(required_trackers, CoreCPM.LengthFlexTracker())
+            end
             λ_vec = zeros(Float32, num_types)
             for (ct, vals) in pen.mappings
                 id = type_to_id[ct]
                 λ_vec[id + 1] = vals.λ
                 initial_props[id][:target_lengths] = Float32(vals.target)
+                if FlexType === CoreCPM.Flex
+                    initial_props[id][:length_lambdas] = Float32(vals.λ)
+                end
             end
-            push!(compiled_penalties, CoreCPM.HSTLengthPenalty(λ_vec, eta=pen.eta))
+            if FlexType === CoreCPM.Flex
+                push!(compiled_penalties, CoreCPM.HSTLengthPenalty{Flex}(eta=pen.eta))
+            else
+                push!(compiled_penalties, CoreCPM.HSTLengthPenalty(λ_vec, eta=pen.eta))
+            end
             
         elseif pen isa ChemotaxisComponent
             λ_vec = zeros(Float32, num_types)
@@ -76,6 +120,14 @@ function compile_penalties(sys::CPMSystem, type_to_id::Dict{CellType, UInt8}, nu
             push!(compiled_penalties, CoreCPM.ChemotaxisPenalty(λ_vec, pen.chemical_field))
 
         elseif pen isa AdhesionComponent
+            FlexType = typeof(pen).parameters[1]
+            if FlexType === CoreCPM.Flex
+                push!(required_trackers, CoreCPM.AdhesionFlexTracker())
+                # For Medium, initialized properties fall back to 1.0 logic in get_modifier
+                for id in 1:(num_types-1)
+                    initial_props[id][:adhesion_modifiers] = 1.0f0
+                end
+            end
             J_mat = zeros(Float32, num_types, num_types)
             for ((t1, t2), val) in pen.mappings
                 id1 = type_to_id[t1]
@@ -83,7 +135,11 @@ function compile_penalties(sys::CPMSystem, type_to_id::Dict{CellType, UInt8}, nu
                 J_mat[id1 + 1, id2 + 1] = val
                 J_mat[id2 + 1, id1 + 1] = val
             end
-            push!(compiled_penalties, CoreCPM.AdhesionPenalty(J_mat))
+            if FlexType === CoreCPM.Flex
+                push!(compiled_penalties, CoreCPM.AdhesionPenalty{Flex}(J_mat))
+            else
+                push!(compiled_penalties, CoreCPM.AdhesionPenalty(J_mat))
+            end
             
         elseif pen isa CoreCPM.AbstractPenalty
             # Raw penalty fallback
