@@ -22,8 +22,8 @@ CairoMakie.activate!()   # or GLMakie / WGLMakie
 # kind) and a *base* CPMProblem.  Each ensemble member will modify only the
 # algorithm temperature while sharing the same system.
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
@@ -31,24 +31,24 @@ sys = CPMSystem(
     [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
-            B => (λ = 5.0f0, target = 500),
+            B => (λ = 5.0f0, target = 500)
         ),
         AdhesionComponent(
             (A, Medium) => 16.0f0,
             (B, Medium) => 16.0f0,
-            (A, A)      =>  2.0f0,
-            (B, B)      =>  2.0f0,
-            (A, B)      => 14.0f0,
-        ),
-    ],
+            (A, A) => 2.0f0,
+            (B, B) => 2.0f0,
+            (A, B) => 14.0f0
+        )
+    ]
 )
 
 base_prob = CPMProblem(
     sys,
     Dict(A => 25, B => 25),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 # ## Temperature sweep values
@@ -63,8 +63,6 @@ temperatures = [0.5f0, 1.0f0, 2.0f0, 4.0f0]
 # interface.  The standard pattern stores the temperature in the metadata and
 # reconstructs the algorithm inside `prob_func`.
 
-
-
 function output_func(sol, i)
     ## Compute a scalar sorting metric: mean size of contiguous same-type clusters.
     ## Here we use a simple proxy: standard deviation of type-A local density.
@@ -73,8 +71,9 @@ function output_func(sol, i)
     Nx, Ny = size(final_lattice)
     tile = 20
     densities = Float64[]
-    for ix in 1:tile:Nx-tile, iy in 1:tile:Ny-tile
-        block = final_lattice[ix:ix+tile-1, iy:iy+tile-1]
+    for ix in 1:tile:(Nx - tile), iy in 1:tile:(Ny - tile)
+
+        block = final_lattice[ix:(ix + tile - 1), iy:(iy + tile - 1)]
         push!(densities, mean(block .== 1))   ## cell type index 1 = A
     end
     metric = std(densities)   ## higher std → more sorted
@@ -83,8 +82,8 @@ end
 
 ensemble_prob = SciMLBase.EnsembleProblem(
     base_prob;
-    
-    output_func = output_func,
+
+    output_func = output_func
 )
 
 # ## Run the sweep
@@ -99,7 +98,7 @@ for (i, T) in enumerate(temperatures)
     sim = SciMLBase.solve(
         ensemble_prob, alg, SciMLBase.EnsembleSerial();
         trajectories = 1,
-        saveat       = 60,
+        saveat = 60
     )
     results[i] = sim.u[1]   ## output_func returned the scalar metric
 end
@@ -109,15 +108,15 @@ end
 # Higher temperature → less sorting → lower spatial variance of cell-type density.
 
 fig = Figure(resolution = (700, 450))
-ax  = Axis(fig[1, 1];
+ax = Axis(fig[1, 1];
     xlabel = "Metropolis Temperature T",
     ylabel = "Sorting index (std of A-density per tile)",
-    title  = "Cell Sorting vs. Temperature",
+    title = "Cell Sorting vs. Temperature"
 )
 scatterlines!(ax, Float32.(temperatures), results;
-    color       = :steelblue,
-    markersize  = 12,
-    linewidth   = 2,
+    color = :steelblue,
+    markersize = 12,
+    linewidth = 2
 )
 save("parameter_sweep_sorting.png", fig)
 fig

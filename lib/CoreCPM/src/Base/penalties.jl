@@ -21,7 +21,7 @@ end
     return _get_flex_lambda(lambda_field(p), ctx.cell_data, cell_id)
 end
 
-@inline _get_flex_lambda(::Val{F}, cell_data, cell_id) where F = getproperty(cell_data, F)[cell_id]
+@inline _get_flex_lambda(::Val{F}, cell_data, cell_id) where {F} = getproperty(cell_data, F)[cell_id]
 
 function Functors.functor(::Type{<:AbstractPenalty}, x)
     props = propertynames(x)
@@ -36,15 +36,21 @@ function Adapt.adapt_structure(to, x::AbstractPenalty)
 end
 
 @inline evaluate_all_penalties(::Tuple{}, ctx) = 0.0f0
-@inline evaluate_all_penalties(penalties::Tuple, ctx) = evaluate_penalty(penalties[1], ctx) + evaluate_all_penalties(Base.tail(penalties), ctx)
+@inline evaluate_all_penalties(penalties::Tuple, ctx) = evaluate_penalty(penalties[1], ctx) +
+                                                        evaluate_all_penalties(Base.tail(penalties), ctx)
 
 # Global Energy evaluation interface for EBM training
 compute_global_energy(::Tuple{}, u, params) = 0.0f0
-compute_global_energy(penalties::Tuple, u, params) = compute_global_energy(penalties[1], u, params) + compute_global_energy(Base.tail(penalties), u, params)
+function compute_global_energy(penalties::Tuple, u, params)
+    compute_global_energy(penalties[1], u, params) +
+    compute_global_energy(Base.tail(penalties), u, params)
+end
 
 # Phase 2 Global Update Hook (Fallback does nothing)
-@inline update_step_auxiliary!(item::Any, u::AbstractCPMState, p::CPMParameters, cache::CPMCache, T, dt=1.0) = nothing
-@inline update_sweep_auxiliary!(item::Any, u::AbstractCPMState, p::CPMParameters, cache::CPMCache, T, dt=1.0) = nothing
+@inline update_step_auxiliary!(item::Any, u::AbstractCPMState, p::CPMParameters,
+    cache::CPMCache, T, dt = 1.0) = nothing
+@inline update_sweep_auxiliary!(item::Any, u::AbstractCPMState, p::CPMParameters,
+    cache::CPMCache, T, dt = 1.0) = nothing
 
 include("penalties/neural.jl")
 include("penalties/volume.jl")

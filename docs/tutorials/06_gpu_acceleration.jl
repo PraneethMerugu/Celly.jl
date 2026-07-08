@@ -26,7 +26,7 @@ using MakieCPM
 
 # ## Cell Types
 
-TypeA  = CellType(:TypeA)
+TypeA = CellType(:TypeA)
 Medium = CellType(:Medium)
 
 # ## Energy Model
@@ -39,9 +39,9 @@ sys = CPMSystem(
         VolumeComponent(TypeA => (λ = 5.0f0, target = 200)),
         SurfaceAreaComponent(TypeA => (λ = 1.0f0, target = 60)),
         AdhesionComponent(
-            (TypeA, TypeA)  => 2.0f0,
-            (TypeA, Medium) => 16.0f0,
-        ),
+            (TypeA, TypeA) => 2.0f0,
+            (TypeA, Medium) => 16.0f0
+        )
     ]
 )
 
@@ -66,9 +66,9 @@ sys = CPMSystem(
 # sweep order. Exact Metropolis dynamics, no parallelism. Use as the
 # reference implementation for validating GPU results on small grids.
 
-alg_checkerboard  = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
-alg_parallel      = ParallelMetropolis(T = 2.0f0, sweeps_per_step = 10)
-alg_sequential    = SequentialMetropolis(T = 2.0f0, sweeps_per_step = 10)
+alg_checkerboard = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
+alg_parallel = ParallelMetropolis(T = 2.0f0, sweeps_per_step = 10)
+alg_sequential = SequentialMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
 # ## Problem — Large Grid
 #
@@ -91,8 +91,8 @@ prob = CPMProblem(
     sys,
     Dict(TypeA => 200),
     (500, 500);
-    tspan    = (0, 500),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 500),
+    topology = VonNeumannTopology{2}()
 )
 
 # ## Timing Pattern
@@ -126,12 +126,12 @@ record_cpm(
     "06_gpu_acceleration.mp4",
     sol;
     metrics = [
-        "N Cells"     => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> begin
             n = u.N_cells[]
             n > 0 ? sum(Array(u.cell_data.volumes)[1:n]) / n : 0.0
-        end,
+        end
     ],
-    framerate  = 24,
-    resolution = (1200, 700),
+    framerate = 24,
+    resolution = (1200, 700)
 )

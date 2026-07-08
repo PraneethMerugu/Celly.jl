@@ -28,7 +28,7 @@ using Statistics: mean, std
 # A single epithelial cell type plus the background medium.
 
 Epithelial = CellType(:Epithelial)
-Medium     = CellType(:Medium)
+Medium = CellType(:Medium)
 
 # ## Energy Model — Volume, Surface Area, and Adhesion
 #
@@ -58,8 +58,8 @@ sys = CPMSystem(
         ),
         AdhesionComponent(
             (Epithelial, Epithelial) => 3.0f0,
-            (Epithelial, Medium)     => 18.0f0,
-        ),
+            (Epithelial, Medium) => 18.0f0
+        )
     ]
 )
 
@@ -73,8 +73,8 @@ prob = CPMProblem(
     sys,
     Dict(Epithelial => 180),
     (150, 150);
-    tspan    = (0, 800),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 800),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -93,20 +93,20 @@ sol = solve(prob, alg; saveat = 8)
 fig = explore_cpm(
     prob, alg;
     metrics = [
-        "N Cells"    => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> mean(Array(u.cell_data.volumes)[1:u.N_cells[]]),
-        "σ Volume"    => u -> std(Array(u.cell_data.volumes)[1:u.N_cells[]]),
-        "Mean Perimeter" => u -> begin
-            n = u.N_cells[]
-            n > 0 ? mean(Array(u.cell_data.surface_areas)[1:n]) : 0.0
-        end,
+        "σ Volume" => u -> std(Array(u.cell_data.volumes)[1:u.N_cells[]]),
+        "Mean Perimeter" =>
+            u -> begin
+                n = u.N_cells[]
+                n > 0 ? mean(Array(u.cell_data.surface_areas)[1:n]) : 0.0
+            end
     ],
     parameters = [
         "Temperature" => (
-            range  = 0.5f0:0.5f0:6.0f0,
-            start  = 2.0f0,
-            action = (prob, alg, val) ->
-                CheckerboardMetropolis(T = val, sweeps_per_step = 10)
-        ),
-    ],
+        range = 0.5f0:0.5f0:6.0f0,
+        start = 2.0f0,
+        action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
+    ),
+    ]
 )

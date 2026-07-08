@@ -5,7 +5,8 @@ using Mermaid
 using Adapt
 using CommonSolve
 import CommonSolve: init, step!
-import Mermaid: AbstractTimeDependentComponent, AbstractComponentIntegrator, ConnectedVariable
+import Mermaid: AbstractTimeDependentComponent, AbstractComponentIntegrator,
+                ConnectedVariable
 
 """
     CPMComponent(model::CPMProblem, alg::AbstractCPMAlgorithm;
@@ -13,17 +14,18 @@ import Mermaid: AbstractTimeDependentComponent, AbstractComponentIntegrator, Con
 
 A Mermaid component that wraps a Cellular Potts Model simulation.
 """
-struct _CPMComponent{P<:CPMProblem, A<:AbstractCPMAlgorithm} <: AbstractTimeDependentComponent
+struct _CPMComponent{P <: CPMProblem, A <: AbstractCPMAlgorithm} <:
+       AbstractTimeDependentComponent
     model::P
     alg::A
     name::String
     timestep::Float64
-    state_names::Dict{String,Any}
+    state_names::Dict{String, Any}
 end
 
 function CoreCPM.CPMComponent(model::CPMProblem, alg::AbstractCPMAlgorithm;
-                              name::AbstractString = "Tissue", timestep::Real = 1.0)
-    return _CPMComponent(model, alg, name, timestep, Dict{String,Any}())
+        name::AbstractString = "Tissue", timestep::Real = 1.0)
+    return _CPMComponent(model, alg, name, timestep, Dict{String, Any}())
 end
 
 mutable struct _CPMComponentIntegrator{I, C} <: AbstractComponentIntegrator
@@ -34,20 +36,20 @@ end
 
 function init(c::_CPMComponent)
     integrator = init(c.model, c.alg)
-    
+
     getters = Dict{String, Function}()
-    
+
     # 1. Base states
     getters["#time"] = (intg) -> intg.t
     getters["#state"] = (intg) -> intg.u
     getters["#grid"] = (intg) -> intg.u.grid
-    
+
     getters["#ids"] = (intg) -> begin
         N = intg.u.N_cells[]
         vols = Adapt.adapt(Array, intg.u.cell_data.volumes)
         return findall(i -> vols[i] > 0, 1:N)
     end
-    
+
     # 2. Cell data
     for field in propertynames(integrator.u.cell_data)
         field_str = string(field)
@@ -55,14 +57,14 @@ function init(c::_CPMComponent)
             getters[field_str] = (intg) -> getproperty(intg.u.cell_data, f)
         end
     end
-    
+
     # 3. Penalties & Trackers
     name_counts = Dict{String, Int}()
     for p in integrator.p.penalties
         tname = string(nameof(typeof(p)))
         name_counts[tname] = get(name_counts, tname, 0) + 1
     end
-    
+
     current_counts = Dict{String, Int}()
     for (i, p) in enumerate(integrator.p.penalties)
         tname = string(nameof(typeof(p)))
@@ -72,7 +74,7 @@ function init(c::_CPMComponent)
         else
             p_name = tname
         end
-        
+
         for field in propertynames(p)
             var_name = "$(p_name).$(field)"
             let i_idx = i, f = field
@@ -80,7 +82,7 @@ function init(c::_CPMComponent)
             end
         end
     end
-    
+
     return _CPMComponentIntegrator(integrator, c, getters)
 end
 
@@ -92,19 +94,19 @@ end
 
 function Mermaid.getstate(compInt::_CPMComponentIntegrator, key::ConnectedVariable)
     var = key.variable
-    
+
     if !haskey(compInt.getters, var)
         throw(KeyError(var))
     end
-    
+
     data = compInt.getters[var](compInt.integrator)
-    
+
     if first(var) == '#'
         return data isa AbstractArray ? Adapt.adapt(Array, data) : data
     end
-    
+
     cpu_data = data isa AbstractArray ? Adapt.adapt(Array, data) : data
-    
+
     if isnothing(key.variableindex)
         # If it's cell data, bound it by N_cells
         if hasproperty(compInt.integrator.u.cell_data, Symbol(var))
@@ -128,7 +130,7 @@ end
 
 function Mermaid.setstate!(compInt::_CPMComponentIntegrator, key::ConnectedVariable, value)
     var = key.variable
-    
+
     if first(var) == '#'
         if var == "#time"
             compInt.integrator.t = value
@@ -145,9 +147,9 @@ function Mermaid.setstate!(compInt::_CPMComponentIntegrator, key::ConnectedVaria
     if !haskey(compInt.getters, var)
         throw(KeyError(var))
     end
-    
+
     data_col = compInt.getters[var](compInt.integrator)
-    
+
     if isnothing(key.variableindex)
         if data_col isa AbstractArray
             if hasproperty(compInt.integrator.u.cell_data, Symbol(var))
@@ -155,7 +157,7 @@ function Mermaid.setstate!(compInt::_CPMComponentIntegrator, key::ConnectedVaria
                 N = compInt.integrator.u.N_cells[]
                 vols = Adapt.adapt(Array, compInt.integrator.u.cell_data.volumes)
                 active_ids = findall(i -> vols[i] > 0, 1:N)
-                
+
                 limit = min(length(value), length(active_ids))
                 for idx in 1:limit
                     cpu_data[active_ids[idx]] = value[idx]
@@ -180,38 +182,40 @@ function Mermaid.setstate!(compInt::_CPMComponentIntegrator, key::ConnectedVaria
         end
         copyto!(data_col, cpu_data)
     end
-    
+
     # For simplicity, if any target_volume or lambda changes, re-init track metrics before next sweep
-    CoreCPM.initialize_all_metrics!(compInt.integrator.p.trackers, compInt.integrator.u.cell_data, 
-                                    compInt.integrator.u.grid, compInt.integrator.p.topology, 
-                                    compInt.integrator.cache.grid_dims)
+    CoreCPM.initialize_all_metrics!(
+        compInt.integrator.p.trackers, compInt.integrator.u.cell_data,
+        compInt.integrator.u.grid, compInt.integrator.p.topology,
+        compInt.integrator.cache.grid_dims)
     return nothing
 end
 
 function Mermaid.setstate!(compInt::_CPMComponentIntegrator, state::CoreCPM.AbstractCPMState)
     compInt.integrator.u = state
-    CoreCPM.initialize_all_metrics!(compInt.integrator.p.trackers, compInt.integrator.u.cell_data, 
-                                    compInt.integrator.u.grid, compInt.integrator.p.topology, 
-                                    compInt.integrator.cache.grid_dims)
+    CoreCPM.initialize_all_metrics!(
+        compInt.integrator.p.trackers, compInt.integrator.u.cell_data,
+        compInt.integrator.u.grid, compInt.integrator.p.topology,
+        compInt.integrator.cache.grid_dims)
 end
 
 function Mermaid.variables(comp::_CPMComponent)
     # We can't access the actual instance getters until init() is called.
     # However, Mermaid calls `variables()` on the component *before* init() sometimes.
     # We must replicate the logic here using `comp.model.u0` and `comp.model.p.penalties`.
-    
+
     vars = String["#ids", "#time", "#state", "#grid"]
-    
+
     for p in propertynames(comp.model.u0.cell_data)
         push!(vars, string(p))
     end
-    
+
     name_counts = Dict{String, Int}()
     for penalty in comp.model.p.penalties
         tname = string(nameof(typeof(penalty)))
         name_counts[tname] = get(name_counts, tname, 0) + 1
     end
-    
+
     current_counts = Dict{String, Int}()
     for penalty in comp.model.p.penalties
         tname = string(nameof(typeof(penalty)))
@@ -221,12 +225,12 @@ function Mermaid.variables(comp::_CPMComponent)
         else
             p_name = tname
         end
-        
+
         for prop in propertynames(penalty)
             push!(vars, p_name * "." * string(prop))
         end
     end
-    
+
     return vars
 end
 

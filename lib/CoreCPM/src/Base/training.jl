@@ -27,9 +27,11 @@ NOTE: The MCMC sampling step (`execute_step!`) must be run *outside* this functi
 """
 function cpm_loss(theta, cache::CPMTrainingCache, data_batch, update_fn)
     p_tracked = update_fn(cache.p, theta)
-    
-    E_data = sum(u -> compute_global_energy(p_tracked.penalties, u, p_tracked), data_batch) / length(data_batch)
-    E_model = sum(u -> compute_global_energy(p_tracked.penalties, u, p_tracked), cache.persistent_states) / length(cache.persistent_states)
-    
+
+    E_data = sum(u -> compute_global_energy(p_tracked.penalties, u, p_tracked), data_batch) /
+             length(data_batch)
+    E_model = sum(u -> compute_global_energy(p_tracked.penalties, u, p_tracked), cache.persistent_states) /
+              length(cache.persistent_states)
+
     return E_data - E_model
 end

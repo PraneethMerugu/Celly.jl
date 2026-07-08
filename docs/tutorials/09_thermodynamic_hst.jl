@@ -33,7 +33,7 @@ using Statistics: mean, std, var
 
 # ## Cell Types
 
-CellA  = CellType(:CellA)
+CellA = CellType(:CellA)
 Medium = CellType(:Medium)
 
 # ## Classical System (Reference)
@@ -46,9 +46,9 @@ sys_classical = CPMSystem(
     [
         VolumeComponent(CellA => (λ = 5.0f0, target = 200)),
         AdhesionComponent(
-            (CellA, CellA)   => 2.0f0,
-            (CellA, Medium)  => 16.0f0,
-        ),
+            (CellA, CellA) => 2.0f0,
+            (CellA, Medium) => 16.0f0
+        )
     ]
 )
 
@@ -70,9 +70,9 @@ sys_hst = CPMSystem(
         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = 1.0),
         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
         AdhesionComponent(
-            (CellA, CellA)   => 2.0f0,
-            (CellA, Medium)  => 16.0f0,
-        ),
+            (CellA, CellA) => 2.0f0,
+            (CellA, Medium) => 16.0f0
+        )
     ]
 )
 
@@ -85,22 +85,22 @@ prob_classical = CPMProblem(
     sys_classical,
     Dict(CellA => 40),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 prob_hst = CPMProblem(
     sys_hst,
     Dict(CellA => 40),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 3.0f0, sweeps_per_step = 10)
 
 sol_classical = solve(prob_classical, alg; saveat = 6)
-sol_hst       = solve(prob_hst,       alg; saveat = 6)
+sol_hst = solve(prob_hst, alg; saveat = 6)
 
 # ## Comparing Volume Distributions
 #
@@ -127,30 +127,29 @@ sol_hst       = solve(prob_hst,       alg; saveat = 6)
 fig = explore_cpm(
     prob_hst, alg;
     metrics = [
-        "N Cells"          => u -> u.N_cells[],
-        "Mean Volume"      => u -> begin
+        "N Cells" => u -> u.N_cells[],
+        "Mean Volume" => u -> begin
             n = u.N_cells[]
             n > 1 ? mean(Array(u.cell_data.volumes)[1:n]) : 0.0
         end,
-        "Volume Variance"  => u -> begin
+        "Volume Variance" => u -> begin
             n = u.N_cells[]
             n > 1 ? var(Array(u.cell_data.volumes)[1:n]) : 0.0
         end,
-        "Volume Std Dev"   => u -> begin
+        "Volume Std Dev" => u -> begin
             n = u.N_cells[]
             n > 1 ? std(Array(u.cell_data.volumes)[1:n]) : 0.0
-        end,
+        end
     ],
     parameters = [
         "Temperature" => (
-            range  = 0.5f0:0.5f0:8.0f0,
-            start  = 3.0f0,
-            action = (prob, alg, val) ->
-                CheckerboardMetropolis(T = val, sweeps_per_step = 10)
+            range = 0.5f0:0.5f0:8.0f0,
+            start = 3.0f0,
+            action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
         ),
         "HST eta" => (
-            range  = 0.1f0:0.1f0:2.0f0,
-            start  = 1.0f0,
+            range = 0.1f0:0.1f0:2.0f0,
+            start = 1.0f0,
             action = (prob, alg, val) -> begin
                 ## Rebuild the HST system with the new eta value
                 new_sys = CPMSystem(
@@ -159,13 +158,13 @@ fig = explore_cpm(
                         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = val),
                         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
                         AdhesionComponent(
-                            (CellA, CellA)  => 2.0f0,
-                            (CellA, Medium) => 16.0f0,
-                        ),
+                            (CellA, CellA) => 2.0f0,
+                            (CellA, Medium) => 16.0f0
+                        )
                     ]
                 )
                 CheckerboardMetropolis(T = 3.0f0, sweeps_per_step = 10)
             end
-        ),
-    ],
+        )
+    ]
 )

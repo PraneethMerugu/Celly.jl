@@ -3,7 +3,8 @@
 
 Biases cell membrane extensions up (or down) a pre-computed spatial chemical gradient.
 """
-struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray} <: AbstractPenalty{Rigid}
+struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray} <:
+       AbstractPenalty{Rigid}
     lambdas::FloatT
     chem_field::ArrayT
 end
@@ -11,10 +12,10 @@ end
 @inline function evaluate_penalty(p::ChemotaxisPenalty, ctx)
     N = length(ctx.grid_dims)
     F = eltype(p.lambdas)
-    
+
     c_i = zero(F)
     c_j = zero(F)
-    
+
     if N == 2
         c_i = F(p.chem_field[ctx.spatial_coords[1] + 1, ctx.spatial_coords[2] + 1])
         c_j = F(p.chem_field[ctx.source_coords[1] + 1, ctx.source_coords[2] + 1])
@@ -22,7 +23,7 @@ end
         c_i = F(p.chem_field[ctx.spatial_coords[1] + 1, ctx.spatial_coords[2] + 1, ctx.spatial_coords[3] + 1])
         c_j = F(p.chem_field[ctx.source_coords[1] + 1, ctx.source_coords[2] + 1, ctx.source_coords[3] + 1])
     end
-    
+
     dH = zero(F)
     if ctx.tgt != 0
         tgt_type = ctx.cell_data.cell_types[ctx.tgt]

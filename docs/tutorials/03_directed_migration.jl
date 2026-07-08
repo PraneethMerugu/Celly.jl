@@ -23,7 +23,7 @@ using MakieCPM
 # medium toward a chemoattractant source at the right edge of the domain.
 
 Neutrophil = CellType(:Neutrophil)
-Medium     = CellType(:Medium)
+Medium = CellType(:Medium)
 
 # ## Chemical Gradient Field
 #
@@ -54,10 +54,10 @@ sys = CPMSystem(
     [
         VolumeComponent(Neutrophil => (λ = 8.0f0, target = 200)),
         AdhesionComponent(
-            (Neutrophil, Medium)      => 20.0f0,
-            (Neutrophil, Neutrophil)  => 2.0f0,
+            (Neutrophil, Medium) => 20.0f0,
+            (Neutrophil, Neutrophil) => 2.0f0
         ),
-        ChemotaxisComponent(Neutrophil => 10000.0f0, chemical_field = gradient_field),
+        ChemotaxisComponent(Neutrophil => 10000.0f0, chemical_field = gradient_field)
     ]
 )
 
@@ -70,8 +70,8 @@ prob = CPMProblem(
     sys,
     Dict(Neutrophil => 5),
     (H, W);
-    tspan    = (0, 1500),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 1500),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
@@ -88,13 +88,13 @@ record_cpm(
     "03_directed_migration.mp4",
     sol;
     metrics = [
-        "N Cells"        => u -> u.N_cells[],
-        "Mean X Pos"     => u -> begin
+        "N Cells" => u -> u.N_cells[],
+        "Mean X Pos" => u -> begin
             grid = Array(u.grid)
-            xs   = [col for (row, col) in Tuple.(findall(>(0), grid))]
+            xs = [col for (row, col) in Tuple.(findall(>(0), grid))]
             isempty(xs) ? 0.0 : sum(xs) / length(xs)
-        end,
+        end
     ],
-    framerate  = 24,
-    resolution = (1300, 700),
+    framerate = 24,
+    resolution = (1300, 700)
 )

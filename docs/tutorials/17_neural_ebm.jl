@@ -36,13 +36,13 @@ rng = Random.default_rng()
 # event.  Here we use a 3×3 patch (9 pixels × n_types one-hot) = 9·3 = 27
 # input features for three cell types.
 
-n_types    = 3    # A, B, Medium
+n_types = 3    # A, B, Medium
 patch_size = 9    # 3×3 neighbourhood, flattened
 
 model = Chain(
     Dense(9 => 64, tanh),
     Dense(64 => 32, tanh),
-    Dense(32 => 1),             # scalar energy contribution
+    Dense(32 => 1)             # scalar energy contribution
 )
 
 ps, st = Lux.setup(rng, model)
@@ -62,8 +62,8 @@ neural_penalty = LocalNeuralPenalty(model, ps, st)
 # standard components provide a stable prior that keeps cells well-behaved;
 # the neural penalty learns residual structure from data.
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
@@ -71,25 +71,25 @@ sys = CPMSystem(
     [
         VolumeComponent(
             A => (λ = 3.0f0, target = 400),
-            B => (λ = 3.0f0, target = 400),
+            B => (λ = 3.0f0, target = 400)
         ),
         AdhesionComponent(
             (A, Medium) => 10.0f0,
             (B, Medium) => 10.0f0,
-            (A, A)      =>  2.0f0,
-            (B, B)      =>  2.0f0,
-            (A, B)      =>  8.0f0,
+            (A, A) => 2.0f0,
+            (B, B) => 2.0f0,
+            (A, B) => 8.0f0
         ),
-        neural_penalty,    # learned energy term
-    ],
+        neural_penalty    # learned energy term
+    ]
 )
 
 prob = CPMProblem(
     sys,
     Dict(A => 15, B => 15),
     (150, 150);
-    tspan    = (0, 400),
-    topology = MooreTopology{2}(),
+    tspan = (0, 400),
+    topology = MooreTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)

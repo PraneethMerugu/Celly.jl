@@ -26,8 +26,8 @@ using Statistics
 # We build a simple two-population sorting model that will be solved twice —
 # once with each backend — so the results can be compared.
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
@@ -35,24 +35,24 @@ sys = CPMSystem(
     [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
-            B => (λ = 5.0f0, target = 500),
+            B => (λ = 5.0f0, target = 500)
         ),
         AdhesionComponent(
             (A, Medium) => 16.0f0,
             (B, Medium) => 16.0f0,
-            (A, A)      =>  2.0f0,
-            (B, B)      =>  2.0f0,
-            (A, B)      => 14.0f0,
-        ),
-    ],
+            (A, A) => 2.0f0,
+            (B, B) => 2.0f0,
+            (A, B) => 14.0f0
+        )
+    ]
 )
 
 prob = CPMProblem(
     sys,
     Dict(A => 20, B => 20),
     (200, 200);
-    tspan    = (0, 1000),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 1000),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -73,7 +73,7 @@ sol_zarr = solve(prob, alg; saveat = 20, backend = ZarrBackend(zarr_path))
 #
 # Open the store, list the arrays, and read a single snapshot frame.
 
-store   = zopen(zarr_path, "r")
+store = zopen(zarr_path, "r")
 lattice = store["grid"]          # dimensions: (Nx, Ny, n_frames)
 println("Zarr lattice shape : ", size(lattice))
 println("Number of frames   : ", size(lattice, 3))
@@ -122,6 +122,6 @@ using MakieCPM
 record_cpm(
     "cell_sorting_zarr.mp4",
     sol_zarr;
-    framerate  = 15,
-    resolution = (800, 800),
+    framerate = 15,
+    resolution = (800, 800)
 )

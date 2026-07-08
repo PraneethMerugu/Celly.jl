@@ -1,7 +1,8 @@
 module System
 
 export CellType, CPMSystem, AbstractComponent
-export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent, LengthComponent, ChemotaxisComponent
+export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
+       LengthComponent, ChemotaxisComponent
 using CoreCPM: FlexibilityTrait, Rigid, Flex
 
 """
@@ -28,10 +29,10 @@ struct VolumeComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
     mappings::Dict{CellType, NamedTuple{(:target, :λ), Tuple{Float32, Float32}}}
 end
 
-function VolumeComponent(pairs::Pair{CellType, <:NamedTuple}...; flex::Bool=false)
+function VolumeComponent(pairs::Pair{CellType, <:NamedTuple}...; flex::Bool = false)
     dict = Dict{CellType, NamedTuple{(:target, :λ), Tuple{Float32, Float32}}}()
     for (ct, vals) in pairs
-        dict[ct] = (target=Float32(vals.target), λ=Float32(vals.λ))
+        dict[ct] = (target = Float32(vals.target), λ = Float32(vals.λ))
     end
     FlexType = flex ? Flex : Rigid
     return VolumeComponent{FlexType}(dict)
@@ -47,10 +48,10 @@ struct HSTVolumeComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
     eta::Float32
 end
 
-function HSTVolumeComponent(pairs::Pair{CellType, <:NamedTuple}...; eta=1.0, flex::Bool=false)
+function HSTVolumeComponent(pairs::Pair{CellType, <:NamedTuple}...; eta = 1.0, flex::Bool = false)
     dict = Dict{CellType, NamedTuple{(:target, :λ), Tuple{Float32, Float32}}}()
     for (ct, vals) in pairs
-        dict[ct] = (target=Float32(vals.target), λ=Float32(vals.λ))
+        dict[ct] = (target = Float32(vals.target), λ = Float32(vals.λ))
     end
     FlexType = flex ? Flex : Rigid
     return HSTVolumeComponent{FlexType}(dict, Float32(eta))
@@ -66,10 +67,10 @@ struct SurfaceAreaComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
     eta::Float32
 end
 
-function SurfaceAreaComponent(pairs::Pair{CellType, <:NamedTuple}...; eta=1.0, flex::Bool=false)
+function SurfaceAreaComponent(pairs::Pair{CellType, <:NamedTuple}...; eta = 1.0, flex::Bool = false)
     dict = Dict{CellType, NamedTuple{(:target, :λ), Tuple{Float32, Float32}}}()
     for (ct, vals) in pairs
-        dict[ct] = (target=Float32(vals.target), λ=Float32(vals.λ))
+        dict[ct] = (target = Float32(vals.target), λ = Float32(vals.λ))
     end
     FlexType = flex ? Flex : Rigid
     return SurfaceAreaComponent{FlexType}(dict, Float32(eta))
@@ -85,10 +86,10 @@ struct LengthComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
     eta::Float32
 end
 
-function LengthComponent(pairs::Pair{CellType, <:NamedTuple}...; eta=1.0, flex::Bool=false)
+function LengthComponent(pairs::Pair{CellType, <:NamedTuple}...; eta = 1.0, flex::Bool = false)
     dict = Dict{CellType, NamedTuple{(:target, :λ), Tuple{Float32, Float32}}}()
     for (ct, vals) in pairs
-        dict[ct] = (target=Float32(vals.target), λ=Float32(vals.λ))
+        dict[ct] = (target = Float32(vals.target), λ = Float32(vals.λ))
     end
     FlexType = flex ? Flex : Rigid
     return LengthComponent{FlexType}(dict, Float32(eta))
@@ -121,7 +122,7 @@ struct AdhesionComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
     mappings::Dict{Tuple{CellType, CellType}, Float32}
 end
 
-function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; flex::Bool=false)
+function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; flex::Bool = false)
     dict = Dict{Tuple{CellType, CellType}, Float32}()
     for (types, val) in pairs
         # Adhesion is symmetric, store canonical ordering

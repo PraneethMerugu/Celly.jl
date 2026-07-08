@@ -23,7 +23,7 @@ using MakieCPM
 # belongs to exactly one cell (or to the special `Medium` background). We
 # represent this with `CellType` objects that carry a symbolic name.
 
-TypeA  = CellType(:TypeA)
+TypeA = CellType(:TypeA)
 Medium = CellType(:Medium)
 
 # ## Building the Energy Model
@@ -46,8 +46,8 @@ sys = CPMSystem(
         VolumeComponent(TypeA => (λ = 5.0f0, target = 100)),
         AdhesionComponent(
             (TypeA, Medium) => 20.0f0,
-            (TypeA, TypeA)  => 2.0f0,
-        ),
+            (TypeA, TypeA) => 2.0f0
+        )
     ]
 )
 
@@ -63,7 +63,7 @@ prob = CPMProblem(
     Dict(TypeA => 10),
     (100, 100);
     tspan = (0, 300),
-    topology = VonNeumannTopology{2}(),
+    topology = VonNeumannTopology{2}()
 )
 
 # ## Choosing an Algorithm
@@ -93,13 +93,13 @@ record_cpm(
     "01_first_simulation.mp4",
     sol;
     metrics = [
-        "N Cells"     => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> begin
             vols = Array(u.cell_data.volumes)
-            n    = u.N_cells[]
+            n = u.N_cells[]
             n > 0 ? sum(vols[1:n]) / n : 0.0
-        end,
+        end
     ],
-    framerate  = 20,
-    resolution = (1200, 700),
+    framerate = 20,
+    resolution = (1200, 700)
 )

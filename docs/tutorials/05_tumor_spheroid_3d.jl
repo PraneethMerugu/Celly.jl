@@ -27,7 +27,7 @@ using Zarr
 
 # ## Cell Type
 
-Tumor  = CellType(:Tumor)
+Tumor = CellType(:Tumor)
 Medium = CellType(:Medium)
 
 # ## Energy Model
@@ -44,9 +44,9 @@ sys = CPMSystem(
     [
         VolumeComponent(Tumor => (λ = 5.0f0, target = 65)),
         AdhesionComponent(
-            (Tumor, Tumor)   => 2.0f0,
-            (Tumor, Medium)  => 18.0f0,
-        ),
+            (Tumor, Tumor) => 2.0f0,
+            (Tumor, Medium) => 18.0f0
+        )
     ]
 )
 
@@ -62,8 +62,8 @@ prob = CPMProblem(
     sys,
     Dict(Tumor => 20),
     (50, 50, 50);
-    tspan    = (0, 400),
-    topology = VonNeumannTopology{3}(),
+    tspan = (0, 400),
+    topology = VonNeumannTopology{3}()
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -76,8 +76,8 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 # Pass the backend to `solve` alongside `saveat`.
 
 sol = solve(prob, alg;
-    saveat  = 5,
-    backend = ZarrBackend("05_tumor_spheroid.zarr"),
+    saveat = 5,
+    backend = ZarrBackend("05_tumor_spheroid.zarr")
 )
 
 # ## Visualising a Z-Slice
@@ -93,12 +93,12 @@ record_cpm(
     sol;
     slice = 25,
     metrics = [
-        "N Cells"     => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> begin
             n = u.N_cells[]
             n > 0 ? sum(Array(u.cell_data.volumes)[1:n]) / n : 0.0
-        end,
+        end
     ],
-    framerate  = 20,
-    resolution = (1200, 700),
+    framerate = 20,
+    resolution = (1200, 700)
 )

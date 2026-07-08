@@ -14,7 +14,7 @@ end
 cell_types = UInt8[rand() > 0.5 ? 1 : 2 for _ in 1:N_cells]
 target_volumes = Int32[25 for _ in 1:N_cells]
 
-cell_data = build_cell_data(grid, N_cells, target_volumes=target_volumes, cell_types=cell_types)
+cell_data = build_cell_data(grid, N_cells, target_volumes = target_volumes, cell_types = cell_types)
 state = CPMState(grid, cell_data)
 
 topology = MooreTopology{2}()
@@ -24,7 +24,7 @@ penalties = (
     AdhesionPenalty{Rigid}(J_matrix)
 )
 params = CPMParameters(topology, penalties, (VolumeTracker(),))
-alg = ParallelMetropolis(T=10.0f0, active_fraction=0.1f0)
+alg = ParallelMetropolis(T = 10.0f0, active_fraction = 0.1f0)
 prob = CPMProblem(state, (0, 10), params)
 cache = CPMCache(state, topology)
 
@@ -58,11 +58,11 @@ shuffle!(initial_grid)
 initial_state = CPMState(initial_grid, deepcopy(cell_data))
 base_prob = CPMProblem(initial_state, (0, 0), params)
 
-train_cache = CPMTrainingCache(base_prob, 2, ParallelMetropolis(T=10.0f0, active_fraction=0.1f0))
+train_cache = CPMTrainingCache(base_prob, 2, ParallelMetropolis(T = 10.0f0, active_fraction = 0.1f0))
 
 p_context = (
-    train_cache = train_cache, 
-    data_batch = data_batch, 
+    train_cache = train_cache,
+    data_batch = data_batch,
     update_fn = update_fn
 )
 
@@ -77,11 +77,11 @@ function mcmc_callback(state, loss_val)
 end
 
 optf = OptimizationFunction(
-    (θ, p) -> cpm_loss(θ, p.train_cache, p.data_batch, p.update_fn), 
+    (θ, p) -> cpm_loss(θ, p.train_cache, p.data_batch, p.update_fn),
     AutoZygote()
 )
 opt_prob = OptimizationProblem(optf, theta, p_context)
 
 println("Training Neural CPM...")
-result = solve(opt_prob, Adam(0.01), maxiters=2, callback=mcmc_callback)
+result = solve(opt_prob, Adam(0.01), maxiters = 2, callback = mcmc_callback)
 println("Success!")

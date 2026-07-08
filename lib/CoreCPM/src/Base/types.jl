@@ -14,7 +14,7 @@ end
     # Extract the upper 32 bits to generate a Float32 in [0, 1).
     u1 = Float32(pcg_hash(seed1) >> 32) * 2.3283064f-10 # multiply by 2^-32
     u2 = Float32(pcg_hash(seed2) >> 32) * 2.3283064f-10
-    return sqrt(-2.0f0 * log(max(1f-7, u1))) * cos(2.0f0 * Float32(pi) * u2)
+    return sqrt(-2.0f0 * log(max(1.0f-7, u1))) * cos(2.0f0 * Float32(pi) * u2)
 end
 
 """
@@ -50,13 +50,14 @@ function Adapt.adapt_structure(to, x::CPMState)
     return reconstruct(Adapt.adapt(to, children))
 end
 
-function CPMState(grid::AbstractArray{T, N}, cell_data::StructArray, N_cells::Int=Int(maximum(grid))) where {T, N}
+function CPMState(grid::AbstractArray{T, N}, cell_data::StructArray,
+        N_cells::Int = Int(maximum(grid))) where {T, N}
     @argcheck length(grid) > 0 "Grid cannot be empty"
     required_fields = (:volumes, :target_volumes, :cell_types, :anchor_x, :anchor_y)
     for field in required_fields
         @argcheck hasproperty(cell_data, field) "cell_data is missing required field: `$field`. Use `build_cell_data`."
     end
-    
+
     return CPMState(grid, cell_data, Ref(N_cells), UInt32[])
 end
 
@@ -100,36 +101,36 @@ struct CPMCache{N, ArrayT, IdxArrayT}
     color_offsets::Vector{Int}
 end
 
-function CPMCache(u::AbstractCPMState, topology::AbstractTopology, block_size::Int=256)
+function CPMCache(u::AbstractCPMState, topology::AbstractTopology, block_size::Int = 256)
     grid = u.grid
     N = ndims(grid)
     grid_dims = ntuple(i -> size(grid, i), Val(N))
     ArrayT = typeof(similar(grid, Float32, 1))
     IdxArrayT = typeof(similar(grid, UInt32, 1))
-    
+
     W = grid_dims[1]
     sin_lut_x = similar(grid, Float32, W)
     cos_lut_x = similar(grid, Float32, W)
-    sin_lut_x .= sin.(2.0f0 .* Float32(pi) .* (0:W-1) ./ W)
-    cos_lut_x .= cos.(2.0f0 .* Float32(pi) .* (0:W-1) ./ W)
-    
+    sin_lut_x .= sin.(2.0f0 .* Float32(pi) .* (0:(W - 1)) ./ W)
+    cos_lut_x .= cos.(2.0f0 .* Float32(pi) .* (0:(W - 1)) ./ W)
+
     H = grid_dims[2]
     sin_lut_y = similar(grid, Float32, H)
     cos_lut_y = similar(grid, Float32, H)
-    sin_lut_y .= sin.(2.0f0 .* Float32(pi) .* (0:H-1) ./ H)
-    cos_lut_y .= cos.(2.0f0 .* Float32(pi) .* (0:H-1) ./ H)
-    
+    sin_lut_y .= sin.(2.0f0 .* Float32(pi) .* (0:(H - 1)) ./ H)
+    cos_lut_y .= cos.(2.0f0 .* Float32(pi) .* (0:(H - 1)) ./ H)
+
     if N == 3
         D = grid_dims[3]
         sin_lut_z = similar(grid, Float32, D)
         cos_lut_z = similar(grid, Float32, D)
-        sin_lut_z .= sin.(2.0f0 .* Float32(pi) .* (0:D-1) ./ D)
-        cos_lut_z .= cos.(2.0f0 .* Float32(pi) .* (0:D-1) ./ D)
+        sin_lut_z .= sin.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
+        cos_lut_z .= cos.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
     else
         sin_lut_z = similar(grid, Float32, 0)
         cos_lut_z = similar(grid, Float32, 0)
     end
-    
+
     # Precompute dense thread packing indices for CheckerboardMetropolis
     num_colors = checkerboard_colors(topology)
     color_lists = [UInt32[] for _ in 1:num_colors]
@@ -138,7 +139,7 @@ function CPMCache(u::AbstractCPMState, topology::AbstractTopology, block_size::I
         c = checkerboard_color(topology, coords)
         push!(color_lists[c + 1], UInt32(idx))
     end
-    
+
     flat_indices = UInt32[]
     color_offsets = zeros(Int, num_colors + 1)
     offset = 1
@@ -148,11 +149,13 @@ function CPMCache(u::AbstractCPMState, topology::AbstractTopology, block_size::I
         offset += length(color_lists[i])
     end
     color_offsets[end] = offset
-    
+
     device_indices = Adapt.adapt(Base.typename(typeof(grid)).wrapper, flat_indices)
-    
-    return CPMCache{N, ArrayT, IdxArrayT}(grid_dims, Ref(UInt64(0)), Ref(UInt64(0)), block_size,
-                               sin_lut_x, cos_lut_x, sin_lut_y, cos_lut_y, sin_lut_z, cos_lut_z, device_indices, color_offsets)
+
+    return CPMCache{N, ArrayT, IdxArrayT}(
+        grid_dims, Ref(UInt64(0)), Ref(UInt64(0)), block_size,
+        sin_lut_x, cos_lut_x, sin_lut_y, cos_lut_y, sin_lut_z,
+        cos_lut_z, device_indices, color_offsets)
 end
 
 abstract type AbstractCPMProblem <: SciMLBase.AbstractSciMLProblem end
@@ -200,11 +203,14 @@ struct ParallelMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractCPMAlgo
     active_fraction::FloatT
     sweeps_per_step::IntT
 end
-function ParallelMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1, T=1.0, FloatType=Float32, IntType=Int32)
-    return ParallelMetropolis{typeof(sampler), FloatType, IntType}(sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+function ParallelMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
+    return ParallelMetropolis{typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
 end
 
-Base.getproperty(alg::ParallelMetropolis{S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT} = begin
+function Base.getproperty(alg::ParallelMetropolis{S, FloatT, IntT}, sym::Symbol) where {
+        S, FloatT, IntT}
     if sym === :FloatType
         return FloatT
     elseif sym === :IntType
@@ -226,11 +232,15 @@ struct CheckerboardMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractCPM
     active_fraction::FloatT
     sweeps_per_step::IntT
 end
-function CheckerboardMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1, T=1.0, FloatType=Float32, IntType=Int32)
-    return CheckerboardMetropolis{typeof(sampler), FloatType, IntType}(sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+function CheckerboardMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
+    return CheckerboardMetropolis{typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
 end
 
-Base.getproperty(alg::CheckerboardMetropolis{S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT} = begin
+function Base.getproperty(
+        alg::CheckerboardMetropolis{
+            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
     if sym === :FloatType
         return FloatT
     elseif sym === :IntType
@@ -251,11 +261,15 @@ struct SparseLotteryMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractCP
     active_fraction::FloatT
     sweeps_per_step::IntT
 end
-function SparseLotteryMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1, T=1.0, FloatType=Float32, IntType=Int32)
-    return SparseLotteryMetropolis{typeof(sampler), FloatType, IntType}(sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+function SparseLotteryMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
+    return SparseLotteryMetropolis{typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
 end
 
-Base.getproperty(alg::SparseLotteryMetropolis{S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT} = begin
+function Base.getproperty(
+        alg::SparseLotteryMetropolis{
+            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
     if sym === :FloatType
         return FloatT
     elseif sym === :IntType
@@ -276,11 +290,15 @@ struct SequentialMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractCPMAl
     active_fraction::FloatT
     sweeps_per_step::IntT
 end
-function SequentialMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1, T=1.0, FloatType=Float32, IntType=Int32)
-    return SequentialMetropolis{typeof(sampler), FloatType, IntType}(sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+function SequentialMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
+    return SequentialMetropolis{typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
 end
 
-Base.getproperty(alg::SequentialMetropolis{S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT} = begin
+function Base.getproperty(
+        alg::SequentialMetropolis{
+            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
     if sym === :FloatType
         return FloatT
     elseif sym === :IntType
@@ -320,7 +338,7 @@ The result of a completed simulation. Contains the saved grid states and cell pr
 Accessible like an array: `sol[i]` returns the state at time `sol.t[i]`.
 """
 struct CPMSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, Any, Any}
-    u::T 
+    u::T
     t::Vector{Int}
     prob::P
     alg::A
@@ -333,7 +351,7 @@ Base.getindex(sol::CPMSolution, i::Int) = sol.u[i]
 Base.firstindex(sol::CPMSolution) = 1
 Base.lastindex(sol::CPMSolution) = length(sol.t)
 
-Base.getproperty(sol::CPMSolution, sym::Symbol) = begin
+function Base.getproperty(sol::CPMSolution, sym::Symbol)
     if sym === :interp || sym === :destats || sym === :stats
         return nothing
     elseif sym === :dense

@@ -21,8 +21,8 @@ using Statistics
 # behaviour is exquisitely sensitive to temperature and the A–B adhesion
 # energy — exactly the parameters we will expose as interactive sliders.
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
@@ -30,24 +30,24 @@ sys = CPMSystem(
     [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
-            B => (λ = 5.0f0, target = 500),
+            B => (λ = 5.0f0, target = 500)
         ),
         AdhesionComponent(
             (A, Medium) => 16.0f0,
             (B, Medium) => 16.0f0,
-            (A, A)      =>  2.0f0,
-            (B, B)      =>  2.0f0,
-            (A, B)      => 14.0f0,   # heterotypic — start high for sorting
-        ),
-    ],
+            (A, A) => 2.0f0,
+            (B, B) => 2.0f0,
+            (A, B) => 14.0f0   # heterotypic — start high for sorting
+        )
+    ]
 )
 
 prob = CPMProblem(
     sys,
     Dict(A => 25, B => 25),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 # ## Metric definitions
@@ -71,11 +71,12 @@ metrics = [
         ## Fraction of A-cell neighbours that are also A
         lat = Array(u.grid)
         types = Array(u.cell_data.cell_types)
-        n_same = 0; n_total = 0
+        n_same = 0;
+        n_total = 0
         for I in CartesianIndices(lat)
             id = lat[I]
             id == 0 && continue
-            for dI in (CartesianIndex(1,0), CartesianIndex(0,1))
+            for dI in (CartesianIndex(1, 0), CartesianIndex(0, 1))
                 J = I + dI
                 checkbounds(Bool, lat, J) || continue
                 jd = lat[J]
@@ -85,7 +86,7 @@ metrics = [
             end
         end
         n_total == 0 ? 0.5 : n_same / n_total
-    end,
+    end
 ]
 
 # ## Parameter definitions
@@ -102,14 +103,13 @@ metrics = [
 
 parameters = [
     "Temperature" => (
-        range  = 0.5f0:0.5f0:6.0f0,
-        start  = 2.0f0,
-        action = (prob, alg, val) ->
-            CheckerboardMetropolis(T = val, sweeps_per_step = 10),
+        range = 0.5f0:0.5f0:6.0f0,
+        start = 2.0f0,
+        action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
     ),
     "Adhesion J_AB" => (
-        range  = 2.0f0:2.0f0:30.0f0,
-        start  = 14.0f0,
+        range = 2.0f0:2.0f0:30.0f0,
+        start = 14.0f0,
         action = (prob, alg, val) -> begin
             ## Rebuild the system with the new heterotypic adhesion energy
             new_sys = CPMSystem(
@@ -117,21 +117,21 @@ parameters = [
                 [
                     VolumeComponent(
                         A => (λ = 5.0f0, target = 500),
-                        B => (λ = 5.0f0, target = 500),
+                        B => (λ = 5.0f0, target = 500)
                     ),
                     AdhesionComponent(
                         (A, Medium) => 16.0f0,
                         (B, Medium) => 16.0f0,
-                        (A, A)      =>  2.0f0,
-                        (B, B)      =>  2.0f0,
-                        (A, B)      => val,
-                    ),
-                ],
+                        (A, A) => 2.0f0,
+                        (B, B) => 2.0f0,
+                        (A, B) => val
+                    )
+                ]
             )
             ## Return the same algorithm; the dashboard detects the system change
             CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
-        end,
-    ),
+        end
+    )
 ]
 
 # ## Dashboard layout
@@ -155,6 +155,6 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
 fig = explore_cpm(
     prob, alg;
-    metrics    = metrics,
-    parameters = parameters,
+    metrics = metrics,
+    parameters = parameters
 )

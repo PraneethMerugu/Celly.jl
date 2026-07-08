@@ -18,24 +18,24 @@ using Statistics
 #
 # Both simulations use an identical energy landscape; only the topology differs.
 
-Cell   = CellType(:Cell)
+Cell = CellType(:Cell)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
     [Cell, Medium],
     [
         VolumeComponent(
-            Cell   => (λ = 5.0f0, target = 300),
-            Medium => (λ = 0.0f0, target = 0),
+            Cell => (λ = 5.0f0, target = 300),
+            Medium => (λ = 0.0f0, target = 0)
         ),
         SurfaceAreaComponent(
             Cell => (λ = 1.5f0, target = 70),
         ),
         AdhesionComponent(
             (Cell, Medium) => 20.0f0,
-            (Cell, Cell)   =>  4.0f0,
-        ),
-    ],
+            (Cell, Cell) => 4.0f0
+        )
+    ]
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -50,8 +50,8 @@ prob_periodic = CPMProblem(
     sys,
     Dict(Cell => 20),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 sol_periodic = solve(prob_periodic, alg; saveat = 20)
@@ -69,8 +69,8 @@ prob_noflux = CPMProblem(
     sys,
     Dict(Cell => 20),
     (200, 200);
-    tspan    = (0, 600),
-    topology = NoFluxVonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = NoFluxVonNeumannTopology{2}()
 )
 
 sol_noflux = solve(prob_noflux, alg; saveat = 20)
@@ -95,8 +95,8 @@ sol_noflux = solve(prob_noflux, alg; saveat = 20)
 # We record both simulations, then assemble them into a single figure for
 # comparison using the Makie layout system.
 
-record_cpm("periodic_boundary.mp4",  sol_periodic; framerate = 15, resolution = (800, 800))
-record_cpm("noflux_boundary.mp4",    sol_noflux;   framerate = 15, resolution = (800, 800))
+record_cpm("periodic_boundary.mp4", sol_periodic; framerate = 15, resolution = (800, 800))
+record_cpm("noflux_boundary.mp4", sol_noflux; framerate = 15, resolution = (800, 800))
 
 # Build a static side-by-side comparison from the final frames
 

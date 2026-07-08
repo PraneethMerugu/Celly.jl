@@ -23,7 +23,7 @@ using Statistics
 # We model two populations: elongated stromal cells (Fib) and a surrounding
 # Medium.  A single CellType call registers the label in the system.
 
-Fib    = CellType(:Fib)
+Fib = CellType(:Fib)
 Medium = CellType(:Medium)
 
 # ## Energy components
@@ -41,20 +41,20 @@ Medium = CellType(:Medium)
 
 components = [
     VolumeComponent(
-        Fib    => (λ = 5.0f0, target = 400),
-        Medium => (λ = 0.0f0, target = 0),
+        Fib => (λ = 5.0f0, target = 400),
+        Medium => (λ = 0.0f0, target = 0)
     ),
     SurfaceAreaComponent(
         Fib => (λ = 1.0f0, target = 80),
     ),
     AdhesionComponent(
         (Fib, Medium) => 20.0f0,
-        (Fib, Fib)    => 4.0f0,
+        (Fib, Fib) => 4.0f0
     ),
     LengthComponent(
         Fib => (λ = 3.0f0, target = 20.0f0);
-        eta = 1.0,
-    ),
+        eta = 1.0
+    )
 ]
 
 # ## System and problem
@@ -64,16 +64,16 @@ components = [
 
 sys = CPMSystem(
     [Fib, Medium],
-    components,
+    components
 )
 
 prob = CPMProblem(
     sys,
     Dict(Fib => 30),
     (200, 200);
-    tspan    = (0, 800),
+    tspan = (0, 800),
     topology = VonNeumannTopology{2}(),
-    trackers = (),
+    trackers = ()
 )
 
 # ## Growth and mitosis callbacks
@@ -86,17 +86,17 @@ prob = CPMProblem(
 
 growth_cb = LinearGrowthCallback(0.3f0)
 
-trigger    = VolumeThresholdTrigger(2.0f0)
+trigger = VolumeThresholdTrigger(2.0f0)
 mitosis_cb = MitosisCallback(
     trigger;
-    orientation        = MajorAxisOrientation(),
-    inheritance_rules  = (target_volumes = Split(0.5f0),),
+    orientation = MajorAxisOrientation(),
+    inheritance_rules = (target_volumes = Split(0.5f0),)
 )
 
 using SciMLBase
 cb = SciMLBase.CallbackSet(
     SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb,
+    mitosis_cb
 )
 
 # ## Algorithm
@@ -113,18 +113,18 @@ alg = CheckerboardMetropolis(T = 2.5f0, sweeps_per_step = 10)
 fig = explore_cpm(
     prob, alg;
     metrics = [
-        "Mean Major Length" => u -> begin
-            n = u.N_cells[]
-            n == 0 ? 0.0 : mean(Array(u.cell_data.current_lengths)[1:n])
-        end,
-        "N Cells" => u -> u.N_cells[],
+        "Mean Major Length" =>
+            u -> begin
+                n = u.N_cells[]
+                n == 0 ? 0.0 : mean(Array(u.cell_data.current_lengths)[1:n])
+            end,
+        "N Cells" => u -> u.N_cells[]
     ],
     parameters = [
         "Temperature" => (
-            range  = 0.5f0:0.5f0:6.0f0,
-            start  = 2.5f0,
-            action = (prob, alg, val) ->
-                CheckerboardMetropolis(T = val, sweeps_per_step = 10),
-        ),
-    ],
+        range = 0.5f0:0.5f0:6.0f0,
+        start = 2.5f0,
+        action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
+    ),
+    ]
 )

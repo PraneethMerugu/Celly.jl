@@ -25,8 +25,8 @@ using Statistics
 # conventionally marks the background (cell ID 0).  Order here has no effect
 # on the simulation — the system sorts and validates internally.
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 # ## Step 2: Build components
@@ -38,9 +38,9 @@ Medium = CellType(:Medium)
 # parameters; Medium is conventionally given λ = 0.
 
 vol = VolumeComponent(
-    A      => (λ = 5.0f0, target = 500),
-    B      => (λ = 5.0f0, target = 400),
-    Medium => (λ = 0.0f0, target = 0),
+    A => (λ = 5.0f0, target = 500),
+    B => (λ = 5.0f0, target = 400),
+    Medium => (λ = 0.0f0, target = 0)
 )
 
 # ### HSTVolumeComponent
@@ -51,7 +51,7 @@ vol = VolumeComponent(
 
 hst_vol = HSTVolumeComponent(
     A => (λ = 5.0f0, target = 500);
-    eta = 1.0,    # controls steepness of the lower threshold
+    eta = 1.0    # controls steepness of the lower threshold
 )
 
 # ### SurfaceAreaComponent
@@ -61,7 +61,7 @@ hst_vol = HSTVolumeComponent(
 
 surf = SurfaceAreaComponent(
     A => (λ = 1.0f0, target = 100),
-    B => (λ = 1.0f0, target = 80),
+    B => (λ = 1.0f0, target = 80)
 )
 
 # ### AdhesionComponent
@@ -73,9 +73,9 @@ surf = SurfaceAreaComponent(
 adh = AdhesionComponent(
     (A, Medium) => 16.0f0,
     (B, Medium) => 16.0f0,
-    (A, A)      =>  2.0f0,
-    (B, B)      =>  2.0f0,
-    (A, B)      => 14.0f0,
+    (A, A) => 2.0f0,
+    (B, B) => 2.0f0,
+    (A, B) => 14.0f0
 )
 
 # ### LengthComponent
@@ -86,7 +86,7 @@ adh = AdhesionComponent(
 
 len = LengthComponent(
     A => (λ = 3.0f0, target = 20.0f0);
-    eta = 1.0,
+    eta = 1.0
 )
 
 # ### ChemotaxisComponent
@@ -100,7 +100,7 @@ chemical_field = rand(Float32, 200, 200)   # replace with your field
 
 chem = ChemotaxisComponent(
     A => 0.5f0;
-    chemical_field = chemical_field,
+    chemical_field = chemical_field
 )
 
 # ## Step 3: Assemble the system
@@ -111,7 +111,7 @@ chem = ChemotaxisComponent(
 
 sys = CPMSystem(
     [A, B, Medium],
-    [vol, surf, adh, len],
+    [vol, surf, adh, len]
 )
 
 # ## Step 4: Build the problem
@@ -134,9 +134,9 @@ prob = CPMProblem(
     sys,
     Dict(A => 20, B => 20),
     (200, 200);
-    tspan    = (0, 600),
+    tspan = (0, 600),
     topology = VonNeumannTopology{2}(),
-    trackers = (),
+    trackers = ()
 )
 
 # ## Step 5: Algorithm selection
@@ -167,13 +167,13 @@ record_cpm(
     "cpmtoolkit_dsl_demo.mp4", sol;
     metrics = [
         "Mean Volume A" => u -> begin
-            types = Array(u.cell_data.cell_types)
-            vols  = Array(u.cell_data.volumes)
-            n     = u.N_cells[]
-            idx   = findall(==(1), types[1:n])
-            isempty(idx) ? 0.0 : mean(vols[idx])
-        end,
+        types = Array(u.cell_data.cell_types)
+        vols = Array(u.cell_data.volumes)
+        n = u.N_cells[]
+        idx = findall(==(1), types[1:n])
+        isempty(idx) ? 0.0 : mean(vols[idx])
+    end,
     ],
-    framerate  = 20,
-    resolution = (1200, 800),
+    framerate = 20,
+    resolution = (1200, 800)
 )

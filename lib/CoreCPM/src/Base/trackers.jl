@@ -20,7 +20,9 @@ end
 @inline tx_delta_type(::AbstractTracker) = error("Not implemented")
 @inline compute_tx_deltas(::AbstractTracker, ctx) = error("Not implemented")
 @inline commit_direct!(::AbstractTracker, cell_data, cell_id, delta) = error("Not implemented")
-function initialize_metrics!(::AbstractTracker, cell_data, grid, topo, dims) error("Not implemented") end
+function initialize_metrics!(::AbstractTracker, cell_data, grid, topo, dims)
+    error("Not implemented")
+end
 
 # --- Volume Tracker ---
 """
@@ -43,7 +45,7 @@ end
 
 function initialize_metrics!(::VolumeTracker, cell_data, grid, topo, dims)
     fill!(cell_data.volumes, Int32(0))
-    AcceleratedKernels.foreachindex(grid; block_size=DEFAULT_BLOCK_SIZE) do I
+    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
         cell_id = grid[I]
         if cell_id > 0
             Atomix.@atomic cell_data.volumes[cell_id] += Int32(1)
@@ -77,7 +79,7 @@ function initialize_metrics!(::SurfaceAreaTracker, cell_data, grid, topo, dims)
     N_dirs_val = num_dirs(topo)
     N_dirs_int = get_val(N_dirs_val)
     fill!(cell_data.surface_areas, Int32(0))
-    AcceleratedKernels.foreachindex(grid; block_size=DEFAULT_BLOCK_SIZE) do I
+    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
         cell_id = grid[I]
         if cell_id > 0
             n_other = Int32(0)
@@ -100,12 +102,14 @@ struct AdhesionFlexTracker <: AbstractTracker end
 
 # Utilities
 @inline evaluate_all_trackers(::Tuple{}, ctx) = ()
-@inline evaluate_all_trackers(trackers::Tuple, ctx) = (compute_tx_deltas(trackers[1], ctx), evaluate_all_trackers(Base.tail(trackers), ctx)...)
+@inline evaluate_all_trackers(trackers::Tuple, ctx) = (
+    compute_tx_deltas(trackers[1], ctx), evaluate_all_trackers(Base.tail(trackers), ctx)...)
 
-@inline get_tracker_delta(::Type{T}, trackers::Tuple, tx_deltas::Tuple) where T = _get_tracker_delta(T, trackers, tx_deltas)
+@inline get_tracker_delta(::Type{T}, trackers::Tuple, tx_deltas::Tuple) where {T} = _get_tracker_delta(
+    T, trackers, tx_deltas)
 
-@inline _get_tracker_delta(::Type{T}, ::Tuple{}, ::Tuple{}) where T = nothing
-@inline function _get_tracker_delta(::Type{T}, trackers::Tuple, tx_deltas::Tuple) where T
+@inline _get_tracker_delta(::Type{T}, ::Tuple{}, ::Tuple{}) where {T} = nothing
+@inline function _get_tracker_delta(::Type{T}, trackers::Tuple, tx_deltas::Tuple) where {T}
     if trackers[1] isa T
         return tx_deltas[1]
     else
@@ -114,7 +118,8 @@ struct AdhesionFlexTracker <: AbstractTracker end
 end
 
 @inline apply_tx_deltas_direct!(src, tgt, ::Tuple{}, ::Tuple{}, cell_data) = nothing
-@inline function apply_tx_deltas_direct!(src, tgt, tx_deltas::Tuple, trackers::Tuple, cell_data)
+@inline function apply_tx_deltas_direct!(
+        src, tgt, tx_deltas::Tuple, trackers::Tuple, cell_data)
     delta_src, delta_tgt = tx_deltas[1]
     t = trackers[1]
     if src > 0
@@ -129,19 +134,22 @@ end
 function initialize_all_metrics!(trackers::Tuple, cell_data, grid, topo, dims)
     _initialize_metrics!(trackers, cell_data, grid, topo, dims, Val(1))
 end
-function _initialize_metrics!(trackers::Tuple, cell_data, grid, topo, dims, ::Val{I}) where {I}
+function _initialize_metrics!(
+        trackers::Tuple, cell_data, grid, topo, dims, ::Val{I}) where {I}
     if I <= length(trackers)
         initialize_metrics!(trackers[I], cell_data, grid, topo, dims)
         _initialize_metrics!(trackers, cell_data, grid, topo, dims, Val(I+1))
     end
 end
 
-function update_local_metrics!(::AbstractTracker, cell_data, grid, topo, dims, dev_is_modified) 
+function update_local_metrics!(
+        ::AbstractTracker, cell_data, grid, topo, dims, dev_is_modified)
     # Fallback/do nothing for unknown trackers
 end
 
-function update_local_metrics!(::VolumeTracker, cell_data, grid, topo, dims, dev_is_modified)
-    AcceleratedKernels.foreachindex(grid; block_size=DEFAULT_BLOCK_SIZE) do I
+function update_local_metrics!(
+        ::VolumeTracker, cell_data, grid, topo, dims, dev_is_modified)
+    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
         cell_id = grid[I]
         if cell_id > 0 && dev_is_modified[cell_id]
             Atomix.@atomic cell_data.volumes[cell_id] += Int32(1)
@@ -149,10 +157,11 @@ function update_local_metrics!(::VolumeTracker, cell_data, grid, topo, dims, dev
     end
 end
 
-function update_local_metrics!(::SurfaceAreaTracker, cell_data, grid, topo, dims, dev_is_modified)
+function update_local_metrics!(
+        ::SurfaceAreaTracker, cell_data, grid, topo, dims, dev_is_modified)
     N_dirs_val = num_dirs(topo)
     N_dirs_int = get_val(N_dirs_val)
-    AcceleratedKernels.foreachindex(grid; block_size=DEFAULT_BLOCK_SIZE) do I
+    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
         cell_id = grid[I]
         if cell_id > 0 && dev_is_modified[cell_id]
             n_other = Int32(0)
@@ -168,13 +177,16 @@ function update_local_metrics!(::SurfaceAreaTracker, cell_data, grid, topo, dims
     end
 end
 
-function update_local_all_metrics!(trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified)
+function update_local_all_metrics!(
+        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified)
     _update_local_metrics!(trackers, cell_data, grid, topo, dims, dev_is_modified, Val(1))
 end
 
-function _update_local_metrics!(trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified, ::Val{I}) where {I}
+function _update_local_metrics!(
+        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified, ::Val{I}) where {I}
     if I <= length(trackers)
         update_local_metrics!(trackers[I], cell_data, grid, topo, dims, dev_is_modified)
-        _update_local_metrics!(trackers, cell_data, grid, topo, dims, dev_is_modified, Val(I+1))
+        _update_local_metrics!(
+            trackers, cell_data, grid, topo, dims, dev_is_modified, Val(I+1))
     end
 end

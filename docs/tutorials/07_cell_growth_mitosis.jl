@@ -24,7 +24,7 @@ using SciMLBase
 # ## Cell Type
 
 Progenitor = CellType(:Progenitor)
-Medium     = CellType(:Medium)
+Medium = CellType(:Medium)
 
 # ## Energy Model
 #
@@ -38,8 +38,8 @@ sys = CPMSystem(
         VolumeComponent(Progenitor => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Progenitor, Progenitor) => 2.0f0,
-            (Progenitor, Medium)     => 18.0f0,
-        ),
+            (Progenitor, Medium) => 18.0f0
+        )
     ]
 )
 
@@ -78,8 +78,8 @@ growth_cb = LinearGrowthCallback(0.3f0)
 trigger = VolumeThresholdTrigger(2.0f0)
 
 mitosis_cb = MitosisCallback(trigger;
-    orientation        = RandomOrientation(),
-    inheritance_rules  = (target_volumes = Split(0.5f0),),
+    orientation = RandomOrientation(),
+    inheritance_rules = (target_volumes = Split(0.5f0),)
 )
 
 # ## Combining Callbacks with SciMLBase
@@ -91,7 +91,7 @@ mitosis_cb = MitosisCallback(trigger;
 
 cb = SciMLBase.CallbackSet(
     SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb,
+    mitosis_cb
 )
 
 # ## Problem and Algorithm
@@ -100,9 +100,9 @@ prob = CPMProblem(
     sys,
     Dict(Progenitor => 5),
     (200, 200);
-    tspan    = (0, 800),
+    tspan = (0, 800),
     topology = VonNeumannTopology{2}(),
-    max_cells = 1000,
+    max_cells = 1000
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -118,22 +118,22 @@ sol = solve(prob, alg; saveat = 8, callback = cb)
 fig = explore_cpm(
     prob, alg;
     metrics = [
-        "N Cells"     => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> begin
             n = u.N_cells[]
             n > 0 ? sum(Array(u.cell_data.volumes)[1:n]) / n : 0.0
         end,
-        "Mean Target Vol" => u -> begin
-            n = u.N_cells[]
-            n > 0 ? sum(Array(u.cell_data.target_volumes)[1:n]) / n : 0.0
-        end,
+        "Mean Target Vol" =>
+            u -> begin
+                n = u.N_cells[]
+                n > 0 ? sum(Array(u.cell_data.target_volumes)[1:n]) / n : 0.0
+            end
     ],
     parameters = [
         "Temperature" => (
-            range  = 0.5f0:0.5f0:5.0f0,
-            start  = 2.0f0,
-            action = (prob, alg, val) ->
-                CheckerboardMetropolis(T = val, sweeps_per_step = 10)
-        ),
-    ],
+        range = 0.5f0:0.5f0:5.0f0,
+        start = 2.0f0,
+        action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
+    ),
+    ]
 )

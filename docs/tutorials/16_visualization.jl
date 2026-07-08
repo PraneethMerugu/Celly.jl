@@ -20,8 +20,8 @@ CairoMakie.activate!()  # vector/raster for docs
 
 # ## Build a simple model to visualise
 
-A      = CellType(:A)
-B      = CellType(:B)
+A = CellType(:A)
+B = CellType(:B)
 Medium = CellType(:Medium)
 
 sys = CPMSystem(
@@ -29,24 +29,24 @@ sys = CPMSystem(
     [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
-            B => (λ = 5.0f0, target = 500),
+            B => (λ = 5.0f0, target = 500)
         ),
         AdhesionComponent(
             (A, Medium) => 16.0f0,
             (B, Medium) => 16.0f0,
-            (A, A)      =>  2.0f0,
-            (B, B)      =>  2.0f0,
-            (A, B)      => 14.0f0,
-        ),
-    ],
+            (A, A) => 2.0f0,
+            (B, B) => 2.0f0,
+            (A, B) => 14.0f0
+        )
+    ]
 )
 
 prob = CPMProblem(
     sys,
     Dict(A => 20, B => 20),
     (200, 200);
-    tspan    = (0, 600),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 600),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -69,9 +69,9 @@ save("cpmplot_snapshot.png", fig)
 # integer cell-type indices (0 = Medium, 1 = first type, …).
 
 fig2 = Figure(resolution = (900, 900))
-ax2  = Axis(fig2[1, 1]; title = "Custom colours")
+ax2 = Axis(fig2[1, 1]; title = "Custom colours")
 cpmplot!(ax2, sol.u[end];
-    type_colors = [:white, :tomato, :dodgerblue],
+    type_colors = [:white, :tomato, :dodgerblue]
 )
 save("cpmplot_custom_colors.png", fig2)
 
@@ -100,25 +100,29 @@ record_cpm(
             n == 0 ? 0.0 : mean(Array(u.cell_data.volumes)[1:n])
         end,
         "N Cells" => u -> u.N_cells[],
-        "Sorting Index" => u -> begin
-            lat   = Array(u.grid)
-            types = Array(u.cell_data.cell_types)
-            n_same = 0; n_total = 0
-            for I in CartesianIndices(lat)
-                id = lat[I]; id == 0 && continue
-                for dI in (CartesianIndex(1,0), CartesianIndex(0,1))
-                    J = I + dI
-                    checkbounds(Bool, lat, J) || continue
-                    jd = lat[J]; jd == 0 && continue
-                    n_total += 1
-                    types[id] == types[jd] && (n_same += 1)
+        "Sorting Index" =>
+            u -> begin
+                lat = Array(u.grid)
+                types = Array(u.cell_data.cell_types)
+                n_same = 0;
+                n_total = 0
+                for I in CartesianIndices(lat)
+                    id = lat[I];
+                    id == 0 && continue
+                    for dI in (CartesianIndex(1, 0), CartesianIndex(0, 1))
+                        J = I + dI
+                        checkbounds(Bool, lat, J) || continue
+                        jd = lat[J];
+                        jd == 0 && continue
+                        n_total += 1
+                        types[id] == types[jd] && (n_same += 1)
+                    end
                 end
+                n_total == 0 ? 0.5 : n_same / n_total
             end
-            n_total == 0 ? 0.5 : n_same / n_total
-        end,
     ],
-    framerate  = 20,
-    resolution = (1400, 900),
+    framerate = 20,
+    resolution = (1400, 900)
 )
 
 # ## 4. explore_cpm — interactive dashboard

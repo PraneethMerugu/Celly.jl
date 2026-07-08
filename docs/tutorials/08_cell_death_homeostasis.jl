@@ -26,7 +26,7 @@ using Statistics: mean
 # ## Cell Types
 
 Epithelial = CellType(:Epithelial)
-Medium     = CellType(:Medium)
+Medium = CellType(:Medium)
 
 # ## Energy Model
 
@@ -36,8 +36,8 @@ sys = CPMSystem(
         VolumeComponent(Epithelial => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Epithelial, Epithelial) => 2.0f0,
-            (Epithelial, Medium)     => 18.0f0,
-        ),
+            (Epithelial, Medium) => 18.0f0
+        )
     ]
 )
 
@@ -47,11 +47,11 @@ sys = CPMSystem(
 # their target volume. `Split(0.5f0)` halves the target volume at division
 # so each daughter must grow anew before its next division.
 
-growth_cb  = LinearGrowthCallback(0.25f0)
-trigger    = VolumeThresholdTrigger(2.0f0)
+growth_cb = LinearGrowthCallback(0.25f0)
+trigger = VolumeThresholdTrigger(2.0f0)
 mitosis_cb = MitosisCallback(trigger;
-    orientation       = MajorAxisOrientation(),
-    inheritance_rules = (target_volumes = Split(0.5f0),),
+    orientation = MajorAxisOrientation(),
+    inheritance_rules = (target_volumes = Split(0.5f0),)
 )
 
 # ## Death Callback — Stochastic Apoptosis
@@ -94,7 +94,7 @@ cb = SciMLBase.CallbackSet(
     SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
     mitosis_cb,
     random_death_cb,
-    death_cb,
+    death_cb
 )
 
 # ## Problem
@@ -108,9 +108,9 @@ prob = CPMProblem(
     sys,
     Dict(Epithelial => 30),
     (150, 150);
-    tspan    = (0, 2000),
+    tspan = (0, 2000),
     topology = VonNeumannTopology{2}(),
-    max_cells = 1000,
+    max_cells = 1000
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -128,7 +128,7 @@ sol = solve(prob, alg; saveat = 10, callback = cb)
 fig = explore_cpm(
     prob, alg;
     metrics = [
-        "N Cells"     => u -> u.N_cells[],
+        "N Cells" => u -> u.N_cells[],
         "Mean Volume" => u -> begin
             n = u.N_cells[]
             n > 0 ? mean(Array(u.cell_data.volumes)[1:n]) : 0.0
@@ -138,14 +138,13 @@ fig = explore_cpm(
             ## near-zero = homeostatic plateau
             n = u.N_cells[]
             Float64(n) - 65.0   # 65 is the expected N* for these parameters
-        end,
+        end
     ],
     parameters = [
         "Temperature" => (
-            range  = 0.5f0:0.5f0:5.0f0,
-            start  = 2.0f0,
-            action = (prob, alg, val) ->
-                CheckerboardMetropolis(T = val, sweeps_per_step = 10)
-        ),
-    ],
+        range = 0.5f0:0.5f0:5.0f0,
+        start = 2.0f0,
+        action = (prob, alg, val) -> CheckerboardMetropolis(T = val, sweeps_per_step = 10)
+    ),
+    ]
 )

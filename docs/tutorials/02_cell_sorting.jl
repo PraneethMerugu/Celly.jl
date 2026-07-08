@@ -26,8 +26,8 @@ using Statistics: mean
 # and neural retinal cells; here the two types are abstract but the physics
 # is identical.
 
-TypeA  = CellType(:TypeA)
-TypeB  = CellType(:TypeB)
+TypeA = CellType(:TypeA)
+TypeB = CellType(:TypeB)
 Medium = CellType(:Medium)
 
 # ## Adhesion Matrix — the Key DAH Parameter
@@ -51,15 +51,15 @@ sys = CPMSystem(
     [
         VolumeComponent(
             TypeA => (λ = 5.0f0, target = 150),
-            TypeB => (λ = 5.0f0, target = 150),
+            TypeB => (λ = 5.0f0, target = 150)
         ),
         AdhesionComponent(
-            (TypeA, TypeA)  => 2.0f0,
-            (TypeB, TypeB)  => 2.0f0,
-            (TypeA, TypeB)  => 14.0f0,
+            (TypeA, TypeA) => 2.0f0,
+            (TypeB, TypeB) => 2.0f0,
+            (TypeA, TypeB) => 14.0f0,
             (TypeA, Medium) => 16.0f0,
-            (TypeB, Medium) => 16.0f0,
-        ),
+            (TypeB, Medium) => 16.0f0
+        )
     ]
 )
 
@@ -73,8 +73,8 @@ prob = CPMProblem(
     sys,
     Dict(TypeA => 30, TypeB => 30),
     (150, 150);
-    tspan  = (0, 1000),
-    topology = VonNeumannTopology{2}(),
+    tspan = (0, 1000),
+    topology = VonNeumannTopology{2}()
 )
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
@@ -100,8 +100,8 @@ record_cpm(
             types = Array(u.cell_data.cell_types)
             count(==(2), types[1:u.N_cells[]])
         end,
-        "Mean Volume" => u -> mean(Array(u.cell_data.volumes)[1:u.N_cells[]]),
+        "Mean Volume" => u -> mean(Array(u.cell_data.volumes)[1:u.N_cells[]])
     ],
-    framerate  = 24,
-    resolution = (1400, 800),
+    framerate = 24,
+    resolution = (1400, 800)
 )

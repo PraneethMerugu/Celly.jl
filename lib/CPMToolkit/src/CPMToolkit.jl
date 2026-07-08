@@ -11,7 +11,8 @@ using .System
 using .Problem
 
 export CellType, CPMSystem, AbstractComponent
-export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent, LengthComponent, ChemotaxisComponent
+export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
+       LengthComponent, ChemotaxisComponent
 export CPMProblem
 
 end
