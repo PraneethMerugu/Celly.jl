@@ -11,8 +11,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics
 
 # ## Model definition
@@ -25,7 +25,7 @@ A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         VolumeComponent(
@@ -42,7 +42,7 @@ sys = CPMSystem(
     ]
 )
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(A => 25, B => 25),
     (200, 200);
@@ -98,7 +98,7 @@ metrics = [
 #              that returns a *new* algorithm (or modified problem) for each
 #              slider position.  The dashboard re-solves from scratch.
 #
-# The adhesion J slider rebuilds the entire CPMSystem with the new J_AB value.
+# The adhesion J slider rebuilds the entire PottsSystem with the new J_AB value.
 # This is intentional: the `action` closure has full Julia power available.
 
 parameters = [
@@ -112,7 +112,7 @@ parameters = [
         start = 14.0f0,
         action = (prob, alg, val) -> begin
             ## Rebuild the system with the new heterotypic adhesion energy
-            new_sys = CPMSystem(
+            new_sys = PottsSystem(
                 [A, B, Medium],
                 [
                     VolumeComponent(

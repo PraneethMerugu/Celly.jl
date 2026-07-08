@@ -1,10 +1,10 @@
-using CoreCPM
+using CorePotts
 using SciMLBase
 using Test
 using Random
 using Statistics
-using CPMToolkit
-using CPMToolkit.TestProblems
+using PottsToolkit
+using PottsToolkit.TestProblems
 @testset "Thermodynamic Verification Tests" begin
     @testset "A. Single-Cell Volume Fluctuation Test" begin
         for AlgType in TEST_ALGORITHMS

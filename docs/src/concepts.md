@@ -1,6 +1,6 @@
 # [Concepts](@id concepts)
 
-This page provides the mathematical and algorithmic background for Celly.jl.
+This page provides the mathematical and algorithmic background for Potts.jl.
 Understanding these ideas is not required to run simulations, but it will help you design
 experiments, tune parameters, and interpret results.
 
@@ -10,7 +10,7 @@ experiments, tune parameters, and interpret results.
 
 ### Lattice Representation
 
-A CPM simulation lives on a discrete lattice $\Lambda \subset \mathbb{Z}^d$ (typically
+A Potts simulation lives on a discrete lattice $\Lambda \subset \mathbb{Z}^d$ (typically
 $d = 2$ or $d = 3$). Each lattice site $\mathbf{x} \in \Lambda$ carries an integer **cell
 ID** $\sigma(\mathbf{x}) \in \{0, 1, 2, \ldots, N_\text{cells}\}$.
 The value $\sigma = 0$ denotes the background *medium*.
@@ -40,7 +40,7 @@ The total energy of a configuration is a sum of penalty terms:
 $$H = H_\text{volume} + H_\text{surface} + H_\text{adhesion} + H_\text{length} + \cdots$$
 
 Each penalty term encodes one biological constraint. The exact form of each term is
-described in detail on the [Penalties](@ref corecpm-penalties) page. The key property
+described in detail on the [Penalties](@ref corepotts-penalties) page. The key property
 exploited by the engine is **locality**: because a copy attempt at site $\mathbf{x}$ only
 changes cell IDs in a small neighbourhood, $\Delta H$ can be evaluated in $O(1)$ time
 using pre-computed incremental statistics maintained by *trackers*.
@@ -66,7 +66,7 @@ High $T$ allows large fluctuations.
 When multiple sites are updated simultaneously (as in `CheckerboardMetropolis` or
 `ParallelMetropolis`), a naive application of the Metropolis criterion is biased because the
 proposal distribution is no longer symmetric.
-CoreCPM applies the **Hastings correction**: the acceptance probability is multiplied by the
+CorePotts applies the **Hastings correction**: the acceptance probability is multiplied by the
 ratio of the reverse-proposal probability to the forward-proposal probability,
 
 $$P_\text{accept} = \min\!\left(1,\; \frac{q(\mathbf{x}' \to \mathbf{x})}{q(\mathbf{x} \to \mathbf{x}')}\, e^{-\Delta H / T}\right)$$
@@ -114,7 +114,7 @@ Because $\phi_i$ is now a genuine (auxiliary) degree of freedom that evolves ind
 the joint system $(\sigma, \phi)$ satisfies detailed balance with respect to the augmented
 Hamiltonian.
 This is particularly important for penalties coupled to dynamic targets (growth, division)
-and for NeuralCPM, where the energy function is learned.
+and for NeuralPotts, where the energy function is learned.
 
 Use `HSTVolumeComponent`, `HSTLengthComponent`, or `HSTSurfaceAreaComponent` wherever
 you need this guarantee.
@@ -146,7 +146,7 @@ No $O(N)$ scan of the lattice ever occurs during the hot loop; the lattice is on
 once at initialisation.
 
 > [!TIP]
-> Trackers are registered automatically when you add components to a `CPMSystem`. You do
+> Trackers are registered automatically when you add components to a `PottsSystem`. You do
 > not need to manage them manually.
 
 ---

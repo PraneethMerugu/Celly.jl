@@ -1,8 +1,8 @@
-using CoreCPM
+using CorePotts
 using SciMLBase
 using Test
-using CPMToolkit
-using CPMToolkit.TestProblems
+using PottsToolkit
+using PottsToolkit.TestProblems
 @testset "Biophysical Verification Tests" begin
     @testset "D. Steinberg’s Differential Adhesion Hypothesis" begin
         for AlgType in TEST_ALGORITHMS
@@ -32,7 +32,7 @@ using CPMToolkit.TestProblems
                         c1 = integrator.u.grid[x, y]
                         c1 == 0 && continue
                         t1 = integrator.u.cell_data.cell_types[c1]
-                        for (dx, dy) in CoreCPM.lottery_offsets(VonNeumannTopology{2}())
+                        for (dx, dy) in CorePotts.lottery_offsets(VonNeumannTopology{2}())
                             nx, ny = mod1(x+dx, W), mod1(y+dy, H)
                             c2 = integrator.u.grid[nx, ny]
                             c2 == 0 && continue
@@ -152,7 +152,7 @@ using CPMToolkit.TestProblems
                 R_eff = sqrt(mean_V / pi)
 
                 # Note: The true effective macroscopic surface tension gamma_eff is roughly 6 * J.
-                # This factor of 6 arises from two artifacts of the standard discrete CPM:
+                # This factor of 6 arises from two artifacts of the standard discrete Potts:
                 # 1. The Hamiltonian sums over all directed edges without a 1/2 factor, so every edge
                 #    is double-counted across the boundary (factor of 2).
                 # 2. On a 2nd-order Moore lattice, a flat boundary pixel has 3 neighbor edges crossing 

@@ -7,7 +7,7 @@ CairoMakie.activate!()
 # the gut, skin, and lung. Their mechanical properties — stiffness, cohesion,
 # and resistance to shear — emerge from the interplay between cell-cell
 # adhesion and cytoskeletal tension. A widely used theoretical framework for
-# epithelial mechanics is the *vertex model*, but the CPM captures similar
+# epithelial mechanics is the *vertex model*, but the Potts captures similar
 # physics at the level of individual lattice sites, making it straightforward
 # to model irregular cell shapes and topological rearrangements (T1/T2
 # transitions) without explicit bookkeeping.
@@ -19,8 +19,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics: mean, std
 
 # ## Cell Types
@@ -47,7 +47,7 @@ Medium = CellType(:Medium)
 # contact with each other, forming the coherent sheet. If J(cell,cell) were
 # made larger, the sheet would fragment into isolated rounded-up cells.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Epithelial, Medium],
     [
         VolumeComponent(
@@ -69,7 +69,7 @@ sys = CPMSystem(
 # confluent monolayer (coverage fraction ≈ 180 × 100 / 22500 ≈ 0.8). We run
 # for 800 MCS to allow the initial random seed to relax to a tessellation.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Epithelial => 180),
     (150, 150);

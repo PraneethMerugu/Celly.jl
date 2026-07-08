@@ -1,15 +1,15 @@
 # docs/make.jl
-# Unified documentation build for the CPM Ecosystem monorepo.
+# Unified documentation build for the Potts Ecosystem monorepo.
 # Run with: julia --project=docs/ docs/make.jl
 
 using Documenter
 using Literate
 
 # Load all packages so their docstrings are accessible to @autodocs
-using CoreCPM
-using CPMToolkit
-using MakieCPM
-using NeuralCPM
+using CorePotts
+using PottsToolkit
+using MakiePotts
+using NeuralPotts
 
 # ===========================================================================
 # STEP 1: Literate pre-processing
@@ -36,19 +36,19 @@ end
 # ===========================================================================
 
 makedocs(
-    sitename = "Celly.jl",
+    sitename = "Potts.jl",
     authors = "Praneeth Merugu",
 
     # All modules whose exported symbols should be checked for docstrings.
     # Include internal submodules so @autodocs finds Base/Tools types.
     modules = [
-        CoreCPM,
-        CPMToolkit,
-        MakieCPM,
-        NeuralCPM
+        CorePotts,
+        PottsToolkit,
+        MakiePotts,
+        NeuralPotts
     ], format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
-        canonical = "https://praneethmerugu.github.io/Celly.jl/",
+        canonical = "https://praneethmerugu.github.io/Potts.jl/",
         size_threshold = nothing,
         size_threshold_warn = nothing        # collapselevel = 2,
     ),
@@ -59,25 +59,25 @@ makedocs(
     remotes = nothing, pages = [
         "Home" => "index.md",
         "Getting Started" => "getting_started.md",
-        "Concepts & Math" => "concepts.md", "CoreCPM" => [
-            "Overview" => "corecpm/index.md",
-            "Topologies" => "corecpm/topology.md",
-            "Penalties" => "corecpm/penalties.md",
-            "Engine & Algorithms" => "corecpm/engine.md",
-            "Output Backends" => "corecpm/backends.md",
-            "API Reference" => "corecpm/api.md"
+        "Concepts & Math" => "concepts.md", "CorePotts" => [
+            "Overview" => "corepotts/index.md",
+            "Topologies" => "corepotts/topology.md",
+            "Penalties" => "corepotts/penalties.md",
+            "Engine & Algorithms" => "corepotts/engine.md",
+            "Output Backends" => "corepotts/backends.md",
+            "API Reference" => "corepotts/api.md"
         ],
-        "CPMToolkit" => [
-            "Overview" => "cpmtoolkit/index.md",
-            "API Reference" => "cpmtoolkit/api.md"
+        "PottsToolkit" => [
+            "Overview" => "pottstoolkit/index.md",
+            "API Reference" => "pottstoolkit/api.md"
         ],
-        "MakieCPM" => [
-            "Overview" => "makiecpm/index.md",
-            "API Reference" => "makiecpm/api.md"
+        "MakiePotts" => [
+            "Overview" => "makiepotts/index.md",
+            "API Reference" => "makiepotts/api.md"
         ],
-        "NeuralCPM" => [
-            "Overview" => "neuralcpm/index.md",
-            "API Reference" => "neuralcpm/api.md"
+        "NeuralPotts" => [
+            "Overview" => "neuralpotts/index.md",
+            "API Reference" => "neuralpotts/api.md"
         ],
         "Tutorials" => [
             "1: First Simulation" => "tutorials/01_first_simulation.md",
@@ -94,7 +94,7 @@ makedocs(
             "12: Parameter Sweeps" => "tutorials/12_parameter_sweeps.md",
             "13: Boundary Conditions" => "tutorials/13_boundary_conditions.md",
             "14: Interactive Exploration" => "tutorials/14_interactive_exploration.md",
-            "15: CPMToolkit DSL" => "tutorials/15_cpmtoolkit_dsl.md",
+            "15: PottsToolkit DSL" => "tutorials/15_pottstoolkit_dsl.md",
             "16: Visualization" => "tutorials/16_visualization.md",
             "17: Neural EBM" => "tutorials/17_neural_ebm.md"
         ]
@@ -108,7 +108,7 @@ makedocs(
 # ===========================================================================
 
 deploydocs(
-    repo = "github.com/PraneethMerugu/Celly.jl.git",
+    repo = "github.com/PraneethMerugu/Potts.jl.git",
     devbranch = "main",
     push_preview = true  # deploy PR previews to gh-pages/previews/PR##
 )

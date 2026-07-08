@@ -10,19 +10,19 @@ CairoMakie.activate!()
 # growth in 3D is essential because the geometry of diffusion-limited growth
 # is qualitatively different from its 2D projection.
 #
-# Celly.jl uses the exact same API in 3D as in 2D: the only change
+# Potts.jl uses the exact same API in 3D as in 2D: the only change
 # is the topology type and grid dimensionality. This tutorial demonstrates
 # that generality on a 50 × 50 × 50 lattice.
 
 # ## Packages
 #
-# `Zarr` is imported alongside CPMToolkit so we can use `ZarrBackend` to
+# `Zarr` is imported alongside PottsToolkit so we can use `ZarrBackend` to
 # write the 3D time-series to disk. 3D simulations produce large arrays
 # (50³ × n_frames × 4 bytes ≈ tens of MB per run), making on-disk backends
 # preferable to the default in-memory `MemoryBackend`.
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Zarr
 
 # ## Cell Type
@@ -39,7 +39,7 @@ Medium = CellType(:Medium)
 # each other over the surrounding medium, consistent with the elevated
 # E-cadherin expression observed in early-stage carcinomas.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Tumor, Medium],
     [
         VolumeComponent(Tumor => (λ = 5.0f0, target = 65)),
@@ -58,7 +58,7 @@ sys = CPMSystem(
 # 2D neighbourhood and the appropriate choice for isotropic diffusion-limited
 # problems. We seed 20 tumour cells in the centre and run for 400 MCS.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Tumor => 20),
     (50, 50, 50);
@@ -82,13 +82,13 @@ sol = solve(prob, alg;
 
 # ## Visualising a Z-Slice
 #
-# MakieCPM's `record_cpm` can display a 2D cross-section of a 3D grid.
+# MakiePotts's `record_potts` can display a 2D cross-section of a 3D grid.
 # The `slice` keyword (when provided) selects a fixed index along the last
 # dimension (z-axis), so the movie shows the equatorial plane of the
 # spheroid — the same view used in confocal microscopy z-stack projections.
 # Here we take the central slice at z = 25.
 
-record_cpm(
+record_potts(
     "05_tumor_spheroid_3d.mp4",
     sol;
     slice = 25,

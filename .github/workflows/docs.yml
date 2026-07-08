@@ -29,10 +29,10 @@ jobs:
           julia --project=docs/ -e '
             using Pkg
             Pkg.develop([
-                PackageSpec(path="lib/CoreCPM"),
-                PackageSpec(path="lib/CPMToolkit"),
-                PackageSpec(path="lib/MakieCPM"),
-                PackageSpec(path="lib/NeuralCPM")
+                PackageSpec(path="lib/CorePotts"),
+                PackageSpec(path="lib/PottsToolkit"),
+                PackageSpec(path="lib/MakiePotts"),
+                PackageSpec(path="lib/NeuralPotts")
             ])
             Pkg.instantiate()'
 

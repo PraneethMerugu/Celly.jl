@@ -1,7 +1,7 @@
 # # Parameter Sweeps with EnsembleProblem
 #
-# One of the most powerful features of the CPMToolkit design is that
-# `CPMProblem` is a first-class citizen of the **SciML** ecosystem.  This
+# One of the most powerful features of the PottsToolkit design is that
+# `PottsProblem` is a first-class citizen of the **SciML** ecosystem.  This
 # means that `SciMLBase.EnsembleProblem` works out of the box — no adapter
 # code, no monkey-patching.  In this tutorial we sweep the Metropolis
 # temperature T over four values, solve the same cell-sorting model for each,
@@ -10,7 +10,7 @@
 
 # ## Packages
 
-using CPMToolkit
+using PottsToolkit
 using SciMLBase
 using Statistics
 using CairoMakie
@@ -19,14 +19,14 @@ CairoMakie.activate!()   # or GLMakie / WGLMakie
 # ## Base model
 #
 # We define a two-population sorting system (A and B cells prefer their own
-# kind) and a *base* CPMProblem.  Each ensemble member will modify only the
+# kind) and a *base* PottsProblem.  Each ensemble member will modify only the
 # algorithm temperature while sharing the same system.
 
 A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         VolumeComponent(
@@ -43,7 +43,7 @@ sys = CPMSystem(
     ]
 )
 
-base_prob = CPMProblem(
+base_prob = PottsProblem(
     sys,
     Dict(A => 25, B => 25),
     (200, 200);

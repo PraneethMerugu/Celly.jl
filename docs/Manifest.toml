@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "c99e226a22b018dae98f2a9c6bfbb5f358a03334"
+project_hash = "d9f6353a8806196a30d99d70dfb67c9879c5b3f7"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -230,15 +230,6 @@ git-tree-sha1 = "389ad5c84de1ae7cf0e28e381131c98ea87d54fc"
 uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 version = "0.5.0"
 
-[[deps.CPMToolkit]]
-deps = ["CommonSolve", "CoreCPM", "Mermaid", "Random", "Reexport", "StructArrays"]
-path = "../lib/CPMToolkit"
-uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
-version = "0.1.0"
-
-    [deps.CPMToolkit.extensions]
-    CPMToolkitMermaidExt = "Mermaid"
-
 [[deps.CPUSummary]]
 deps = ["CpuId", "IfElse", "PrecompileTools", "Preferences", "Static"]
 git-tree-sha1 = "f3a21d7fc84ba618a779d1ed2fcca2e682865bab"
@@ -278,12 +269,6 @@ deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jl
 git-tree-sha1 = "1fa950ebc3e37eccd51c6a8fe1f92f7d86263522"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.7+0"
-
-[[deps.Celly]]
-deps = ["CPMToolkit", "CoreCPM", "MakieCPM", "NeuralCPM", "Reexport"]
-path = ".."
-uuid = "15ba70d5-27dc-4a83-b627-d79984c8d986"
-version = "0.1.0"
 
 [[deps.ChainRules]]
 deps = ["Adapt", "ChainRulesCore", "Compat", "Distributed", "GPUArraysCore", "IrrationalConstants", "LinearAlgebra", "Random", "RealDot", "SparseArrays", "SparseInverseSubset", "Statistics", "StructArrays", "SuiteSparse"]
@@ -483,18 +468,6 @@ git-tree-sha1 = "439e35b0b36e2e5881738abc8857bd92ad6ff9a8"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.6.3"
 
-[[deps.CoreCPM]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
-path = "../lib/CoreCPM"
-uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
-version = "0.1.0"
-weakdeps = ["CommonSolve", "HDF5", "Zarr"]
-
-    [deps.CoreCPM.extensions]
-    CoreCPMHDF5Ext = "HDF5"
-    CoreCPMMermaidExt = ["Mermaid", "CommonSolve"]
-    CoreCPMZarrExt = "Zarr"
-
 [[deps.CoreMath]]
 deps = ["CoreMath_jll"]
 git-tree-sha1 = "8c0480f92b1b1796239156a1b9b1bfb1b39499b4"
@@ -506,6 +479,18 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "a692a4c1dc59a4b8bc0b6403876eb3250fde2bc3"
 uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
+
+[[deps.CorePotts]]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+path = "../lib/CorePotts"
+uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
+version = "0.1.0"
+weakdeps = ["CommonSolve", "HDF5", "Zarr"]
+
+    [deps.CorePotts.extensions]
+    CorePottsHDF5Ext = "HDF5"
+    CorePottsMermaidExt = ["Mermaid", "CommonSolve"]
+    CorePottsZarrExt = "Zarr"
 
 [[deps.CpuId]]
 deps = ["Markdown"]
@@ -1564,9 +1549,9 @@ version = "0.24.12"
     [deps.Makie.weakdeps]
     DynamicQuantities = "06fc5a27-2a28-4c7c-a15d-362465fb6821"
 
-[[deps.MakieCPM]]
-deps = ["CPMToolkit", "CommonSolve", "CoreCPM", "Makie", "Random", "SciMLBase", "Test"]
-path = "../lib/MakieCPM"
+[[deps.MakiePotts]]
+deps = ["CommonSolve", "CorePotts", "Makie", "PottsToolkit", "Random", "SciMLBase", "Test"]
+path = "../lib/MakiePotts"
 uuid = "95794c00-c762-4965-bf31-de18bcca2bc9"
 version = "0.1.0"
 
@@ -1702,9 +1687,9 @@ version = "1.1.1"
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.3.0"
 
-[[deps.NeuralCPM]]
-deps = ["ChainRulesCore", "ComponentArrays", "CoreCPM", "Lux", "Optimization", "OptimizationOptimisers", "Random", "StaticArrays", "Statistics", "Test", "Zygote"]
-path = "../lib/NeuralCPM"
+[[deps.NeuralPotts]]
+deps = ["ChainRulesCore", "ComponentArrays", "CorePotts", "Lux", "Optimization", "OptimizationOptimisers", "Random", "StaticArrays", "Statistics", "Test", "Zygote"]
+path = "../lib/NeuralPotts"
 uuid = "c08961df-e966-447e-a5c1-1c24cca73f80"
 version = "0.1.0"
 
@@ -1930,6 +1915,21 @@ version = "1.4.4"
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
 uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
+
+[[deps.Potts]]
+deps = ["CorePotts", "MakiePotts", "NeuralPotts", "PottsToolkit", "Reexport"]
+path = ".."
+uuid = "15ba70d5-27dc-4a83-b627-d79984c8d986"
+version = "0.1.0"
+
+[[deps.PottsToolkit]]
+deps = ["CommonSolve", "CorePotts", "Mermaid", "Random", "Reexport", "StructArrays"]
+path = "../lib/PottsToolkit"
+uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
+version = "0.1.0"
+
+    [deps.PottsToolkit.extensions]
+    PottsToolkitMermaidExt = "Mermaid"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "PrecompileTools"]

@@ -9,14 +9,14 @@ CairoMakie.activate!()
 # amphibian embryo explants and later formalised by Malcolm Steinberg as the
 # **Differential Adhesion Hypothesis (DAH)**. The DAH states that cells
 # behave like immiscible liquids — the tissue configuration that minimises
-# total interfacial energy is the one cells evolve toward. In CPM terms, this
+# total interfacial energy is the one cells evolve toward. In Potts terms, this
 # means the relative magnitudes of the contact energy J determine whether two
 # cell types mix, partially sort, or completely engulf one another.
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics: mean
 
 # ## Cell Types
@@ -46,7 +46,7 @@ Medium = CellType(:Medium)
 # maximising homotypic contacts — the hallmark of complete cell sorting.
 # If J(A,B) were intermediate, you would observe partial engulfment instead.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [TypeA, TypeB, Medium],
     [
         VolumeComponent(
@@ -69,7 +69,7 @@ sys = CPMSystem(
 # sort without being critically space-constrained. We run for 1000 MCS so
 # sorting has time to reach a near-equilibrium cluster configuration.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(TypeA => 30, TypeB => 30),
     (150, 150);
@@ -86,9 +86,9 @@ sol = solve(prob, alg; saveat = 10)
 # The metrics panel shows the number of TypeA and TypeB cells separately so
 # we can confirm that no spurious cell loss or gain occurs during sorting.
 # Cell identity is stored in `u.cell_data.cell_types`; type indices follow
-# the order given to `CPMSystem` (TypeA = 1, TypeB = 2).
+# the order given to `PottsSystem` (TypeA = 1, TypeB = 2).
 
-record_cpm(
+record_potts(
     "02_cell_sorting.mp4",
     sol;
     metrics = [

@@ -18,8 +18,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using SciMLBase
 using Statistics: mean
 
@@ -30,7 +30,7 @@ Medium = CellType(:Medium)
 
 # ## Energy Model
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Epithelial, Medium],
     [
         VolumeComponent(Epithelial => (λ = 5.0f0, target = 150)),
@@ -56,7 +56,7 @@ mitosis_cb = MitosisCallback(trigger;
 
 # ## Death Callback — Stochastic Apoptosis
 #
-# # cells shrink to zero and disappear. Wait, `DeathCallback` in `CoreCPM` automatically removes
+# # cells shrink to zero and disappear. Wait, `DeathCallback` in `CorePotts` automatically removes
 # any cell whose `target_volume <= 0`. So to trigger death, we just use a standard
 # `DiscreteCallback` to randomly set `target_volume = 0` for a few cells each step.
 #
@@ -104,7 +104,7 @@ cb = SciMLBase.CallbackSet(
 # A 150 × 150 grid comfortably accommodates up to ~100 cells of target
 # volume 150 before crowding effects dominate.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Epithelial => 30),
     (150, 150);

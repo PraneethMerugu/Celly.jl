@@ -1,0 +1,158 @@
+module TestProblems
+
+using ..PottsToolkit
+using CorePotts
+using Random
+
+export cell_sorting_problem, young_laplace_droplet, ising_model, single_cell_fluctuation
+
+"""
+    cell_sorting_problem(; kwargs...)
+
+Returns a canonical PottsProblem for Steinberg differential adhesion hypothesis cell sorting.
+"""
+function cell_sorting_problem(;
+        grid_size = (50, 50),
+        cells_per_type = 25,
+        target_volume = 25,
+        volume_lambda = 5.0f0,
+        J_AA = 2.0f0,
+        J_BB = 2.0f0,
+        J_AB = 15.0f0,
+        J_Medium = 10.0f0,
+        tspan = (0, 20),
+        topology = MooreTopology{2}()
+    )
+    A = CellType(:A)
+    B = CellType(:B)
+    Medium = CellType(:Medium)
+
+    sys = PottsSystem([A, B, Medium], [
+        HSTVolumeComponent(A => (λ=volume_lambda, target=target_volume),
+                           B => (λ=volume_lambda, target=target_volume)),
+        AdhesionComponent(
+            (A, A) => J_AA, (B, B) => J_BB, (A, B) => J_AB,
+            (A, Medium) => J_Medium, (B, Medium) => J_Medium
+        )
+    ])
+    return PottsProblem(sys, Dict(A => cells_per_type, B => cells_per_type), grid_size; tspan=tspan, topology=topology)
+end
+
+"""
+    young_laplace_droplet(; kwargs...)
+
+Returns a canonical PottsProblem for verifying the Young-Laplace equation for a single droplet.
+"""
+function young_laplace_droplet(;
+        grid_size = (256, 256),
+        target_volume = 5026, # R ≈ 40
+        volume_lambda = 1.0f0,
+        volume_eta = 0.1f0,
+        gamma = 10.0f0,
+        tspan = (0, 70),
+        topology = MooreTopology{2}(),
+        isotropic = false
+    )
+    Cell = CellType(:Cell)
+    Medium = CellType(:Medium)
+
+    sys = PottsSystem([Cell, Medium], [
+        HSTVolumeComponent(Cell => (λ=volume_lambda, target=target_volume); eta=volume_eta),
+        AdhesionComponent(
+            (Cell, Cell) => 0.0f0,
+            (Cell, Medium) => gamma,
+            (Medium, Medium) => 0.0f0;
+            isotropic=isotropic
+        )
+    ])
+    
+    # We want exactly one cell centered. 
+    # The default PottsProblem initialization spawns cells randomly, but for this specific test
+    # we usually want it placed precisely in the center to avoid boundary effects. 
+    prob = PottsProblem(sys, Dict(Cell => 1), grid_size; tspan=tspan, topology=topology)
+    
+    # Reset grid and manually spawn hypersphere
+    W, H = grid_size
+    prob.u0.grid .= 0
+    center = (W ÷ 2, H ÷ 2)
+    radius = round(Int, sqrt(target_volume / pi))
+    CorePotts.spawn_hypersphere!(prob.u0.grid, grid_size, center, radius, UInt32(2))
+    
+    # Sync volume tracker. PottsToolkit maps types to IDs starting from 1 for non-medium.
+    # So ID 2 is the Cell. ID 1 is Medium (wait, Medium is 0 in grid, but its volume is at index 1).
+    # The cells start at index 2 in cell_data.
+    prob.u0.cell_data.volumes[2] = sum(prob.u0.grid .== 2)
+    prob.u0.cell_data.volumes[1] = prod(grid_size) - prob.u0.cell_data.volumes[2]
+    
+    return prob
+end
+
+"""
+    single_cell_fluctuation(; kwargs...)
+
+Returns a canonical PottsProblem for measuring thermodynamic volume fluctuations.
+"""
+function single_cell_fluctuation(;
+        grid_size = (50, 50),
+        target_volume = 100,
+        volume_lambda = 5.0f0,
+        volume_eta = 1.0f0,
+        tspan = (0, 11_000),
+        topology = MooreTopology{2}()
+    )
+    Cell = CellType(:Cell)
+    Medium = CellType(:Medium)
+
+    sys = PottsSystem([Cell, Medium], [
+        HSTVolumeComponent(Cell => (λ=volume_lambda, target=target_volume); eta=volume_eta)
+    ])
+    
+    prob = PottsProblem(sys, Dict(Cell => 1), grid_size; tspan=tspan, topology=topology)
+    
+    # Reset grid and manually spawn hypersphere
+    W, H = grid_size
+    prob.u0.grid .= 0
+    center = (W ÷ 2, H ÷ 2)
+    radius = round(Int, sqrt(target_volume / pi))
+    CorePotts.spawn_hypersphere!(prob.u0.grid, grid_size, center, radius, UInt32(2))
+    
+    prob.u0.cell_data.volumes[2] = sum(prob.u0.grid .== 2)
+    prob.u0.cell_data.volumes[1] = prod(grid_size) - prob.u0.cell_data.volumes[2]
+    
+    return prob
+end
+
+"""
+    ising_model(; kwargs...)
+
+Returns a canonical PottsProblem for testing 2D Ising Model critical phase transitions.
+"""
+function ising_model(;
+        grid_size = (50, 50),
+        J = 1.0f0,
+        tspan = (0, 6000),
+        topology = VonNeumannTopology{2}()
+    )
+    Up = CellType(:Up)
+    Down = CellType(:Down)
+    Medium = CellType(:Medium) # We won't use Medium, but it's required
+
+    sys = PottsSystem([Up, Down, Medium], [
+        AdhesionComponent(
+            (Up, Down) => J,
+            (Up, Up) => 0.0f0,
+            (Down, Down) => 0.0f0,
+            (Up, Medium) => 0.0f0,
+            (Down, Medium) => 0.0f0
+        )
+    ])
+    
+    # We want a fully occupied grid (no Medium) with 2 cells taking up all space.
+    prob = PottsProblem(sys, Dict(Up => 1, Down => 1), grid_size; tspan=tspan, topology=topology, max_cells=3)
+    
+    # The grid will be populated by the test script.
+    
+    return prob
+end
+
+end

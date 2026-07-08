@@ -7,15 +7,15 @@ CairoMakie.activate!()
 # central to wound healing, immune surveillance, embryonic morphogenesis, and
 # cancer metastasis. Neutrophils, for example, follow bacterial
 # *N*-formylmethionine peptide gradients over millimetre distances to reach
-# infection sites within minutes. In the CPM, chemotaxis is implemented as a
+# infection sites within minutes. In the Potts, chemotaxis is implemented as a
 # bias on the Metropolis copy attempt: moves that advance a cell's centre of
 # mass up the gradient receive an extra energy reduction proportional to χ
 # (chi), the chemotactic sensitivity.
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 
 # ## Cell Type
 #
@@ -34,7 +34,7 @@ Medium = CellType(:Medium)
 # but a linear field suffices to demonstrate directed migration cleanly.
 #
 # The field array has dimensions (height, width) = (rows, cols) to match
-# Julia's column-major layout and the CPM grid convention.
+# Julia's column-major layout and the Potts grid convention.
 
 const W = 200   # grid width  (x direction — gradient direction)
 const H = 100   # grid height (y direction)
@@ -49,7 +49,7 @@ gradient_field = Float32[j / W for i in 1:H, j in 1:W]
 # target area, and a modest AdhesionComponent so the cell boundary stays
 # compact while migrating.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Neutrophil, Medium],
     [
         VolumeComponent(Neutrophil => (λ = 8.0f0, target = 200)),
@@ -66,7 +66,7 @@ sys = CPMSystem(
 # We place 5 neutrophils near the left edge of a 200 × 100 grid and run for
 # 600 MCS. `saveat = 5` gives smooth playback at 24 fps.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Neutrophil => 5),
     (H, W);
@@ -84,7 +84,7 @@ sol = solve(prob, alg; saveat = 5)
 # neutrophil pixels. Over time it should shift rightward as cells migrate
 # up the gradient, providing a quantitative readout of directional bias.
 
-record_cpm(
+record_potts(
     "03_directed_migration.mp4",
     sol;
     metrics = [

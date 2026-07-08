@@ -1,10 +1,10 @@
 using CairoMakie
 CairoMakie.activate!()
 
-# # Neural Energy-Based Model (NeuralCPM)
+# # Neural Energy-Based Model (NeuralPotts)
 #
 # Hand-crafting penalty functions requires biological intuition and careful
-# parameter fitting.  **NeuralCPM** offers an alternative: replace (or
+# parameter fitting.  **NeuralPotts** offers an alternative: replace (or
 # augment) the explicit energy terms with a neural network trained to
 # reproduce observed cell configurations.  The network is an
 # *energy-based model* (EBM) — it assigns a scalar energy to every lattice
@@ -14,14 +14,14 @@ CairoMakie.activate!()
 #
 # A critical architectural constraint: MCMC sampling must run **outside** the
 # loss function so that Zygote's AD does not trace through the stochastic
-# lattice updates.  The `CPMTrainingCache` struct owns the persistent Markov
+# lattice updates.  The `PottsTrainingCache` struct owns the persistent Markov
 # chains and is mutated in-place during the training loop.
 
 # ## Packages
 
-using CPMToolkit      # re-exports CoreCPM
-using NeuralCPM       # extends CoreCPM with neural penalty types + training utilities
-using MakieCPM
+using PottsToolkit      # re-exports CorePotts
+using NeuralPotts       # extends CorePotts with neural penalty types + training utilities
+using MakiePotts
 using Lux
 using Optimisers
 using Statistics
@@ -49,16 +49,16 @@ ps, st = Lux.setup(rng, model)
 
 # ## Step 2: Wrap in LocalNeuralPenalty
 #
-# `LocalNeuralPenalty` is defined in NeuralCPM.  It implements the
-# `CoreCPM.AbstractPenalty` interface so it can be dropped into any
-# `CPMSystem` component list alongside standard components.
+# `LocalNeuralPenalty` is defined in NeuralPotts.  It implements the
+# `CorePotts.AbstractPenalty` interface so it can be dropped into any
+# `PottsSystem` component list alongside standard components.
 # The `radius` controls the neighbourhood patch fed to the network.
 
 neural_penalty = LocalNeuralPenalty(model, ps, st)
 
-# ## Step 3: Build the CPM system and problem
+# ## Step 3: Build the Potts system and problem
 #
-# The neural penalty is listed alongside standard CPM components.  The
+# The neural penalty is listed alongside standard Potts components.  The
 # standard components provide a stable prior that keeps cells well-behaved;
 # the neural penalty learns residual structure from data.
 
@@ -66,7 +66,7 @@ A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         VolumeComponent(
@@ -84,7 +84,7 @@ sys = CPMSystem(
     ]
 )
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(A => 15, B => 15),
     (150, 150);
@@ -96,14 +96,14 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 
 # ## Step 4: Create a training cache
 #
-# `CPMTrainingCache` owns K *persistent Markov chains* — independent CPM
+# `PottsTrainingCache` owns K *persistent Markov chains* — independent Potts
 # integrators initialised from random states.  During training their states
 # are updated (MCMC steps) *before* the loss is evaluated, so Zygote never
 # needs to differentiate through the stochastic update kernel.
 
 # ```julia
 # n_chains = 4
-# cache    = CPMTrainingCache(prob, n_chains, alg)
+# cache    = PottsTrainingCache(prob, n_chains, alg)
 #
 # opt_state = Optimisers.setup(Optimisers.Adam(1e-3), ps)
 # 
@@ -117,7 +117,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 #     advance_chains!(cache, alg; n_steps = 20)
 # 
 #     loss_val, grads = Lux.withgradient(ps) do params
-#         NeuralCPM.cpm_loss(
+#         NeuralPotts.potts_loss(
 #             neural_penalty,
 #             params, st,
 #             observed_lattices,
@@ -137,7 +137,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 # Rebuild the system with the trained parameters, solve, and record.
 
 # ```julia
-# trained_sys = CPMSystem(
+# trained_sys = PottsSystem(
 #     [A, B, Medium],
 #     [
 #         VolumeComponent(
@@ -155,7 +155,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 #     ],
 # )
 # 
-# trained_prob = CPMProblem(
+# trained_prob = PottsProblem(
 #     trained_sys,
 #     Dict(A => 15, B => 15),
 #     (150, 150);
@@ -165,7 +165,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 # 
 # trained_sol = solve(trained_prob, alg; saveat = 20)
 # 
-# record_cpm(
+# record_potts(
 #     "neural_ebm_trained.mp4", trained_sol;
 #     metrics = [
 #         "Mean Volume" => u -> begin

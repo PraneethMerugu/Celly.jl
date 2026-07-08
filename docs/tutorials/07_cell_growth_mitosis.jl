@@ -4,7 +4,7 @@ CairoMakie.activate!()
 # # Cell Growth & Mitosis
 #
 # The cell cycle — a precisely orchestrated sequence of growth, DNA
-# replication, and division — is the engine of tissue expansion. In the CPM,
+# replication, and division — is the engine of tissue expansion. In the Potts,
 # cell growth is modelled by continuously increasing the *target volume*
 # parameter, so the volume penalty drives the cell to physically expand. When
 # the actual volume reaches a threshold (typically 2× the initial target),
@@ -17,8 +17,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using SciMLBase
 
 # ## Cell Type
@@ -32,7 +32,7 @@ Medium = CellType(:Medium)
 # sufficient to produce compact, physically realistic daughter cells after
 # division.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Progenitor, Medium],
     [
         VolumeComponent(Progenitor => (λ = 5.0f0, target = 150)),
@@ -84,7 +84,7 @@ mitosis_cb = MitosisCallback(trigger;
 
 # ## Combining Callbacks with SciMLBase
 #
-# CPM callbacks conform to the SciML callback interface. A `CallbackSet`
+# Potts callbacks conform to the SciML callback interface. A `CallbackSet`
 # bundles any number of callbacks that fire together at each step. The growth
 # callback is wrapped in a `DiscreteCallback` with a condition that always
 # returns `true` (fire every step).
@@ -96,7 +96,7 @@ cb = SciMLBase.CallbackSet(
 
 # ## Problem and Algorithm
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Progenitor => 5),
     (200, 200);

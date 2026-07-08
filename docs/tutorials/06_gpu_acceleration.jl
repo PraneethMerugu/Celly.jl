@@ -3,9 +3,9 @@ CairoMakie.activate!()
 
 # # GPU Acceleration
 #
-# A typical 2D CPM on a 500 × 500 grid with 1000 cells runs in a few seconds
+# A typical 2D Potts on a 500 × 500 grid with 1000 cells runs in a few seconds
 # on a modern CPU. Scaling to 1000 × 1000 grids, 3D domains, or parameter
-# sweeps can push wall-clock time into hours. Celly.jl offloads the
+# sweeps can push wall-clock time into hours. Potts.jl offloads the
 # inner Monte Carlo loop to the GPU with a single change: allocate the lattice
 # array on the GPU device. The rest of the API — energy components, callbacks,
 # backends, and visualisation — is identical.
@@ -18,8 +18,8 @@ CairoMakie.activate!()
 # Apple Silicon Macs use Metal; NVIDIA hardware uses CUDA.
 # On CPU-only systems the tutorial still runs using the CPU path.
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 
 # using CUDA   # NVIDIA GPU — uncomment on CUDA systems
 # using Metal  # Apple GPU — uncomment on Apple Silicon
@@ -33,7 +33,7 @@ Medium = CellType(:Medium)
 #
 # We use a representative mix of components to benchmark a realistic workload.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [TypeA, Medium],
     [
         VolumeComponent(TypeA => (λ = 5.0f0, target = 200)),
@@ -85,9 +85,9 @@ alg_sequential = SequentialMetropolis(T = 2.0f0, sweeps_per_step = 10)
 # grid = Metal.zeros(UInt32, 500, 500)
 # ```
 #
-# Then pass `grid` as the third argument to CPMProblem instead of the tuple.
+# Then pass `grid` as the third argument to PottsProblem instead of the tuple.
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(TypeA => 200),
     (500, 500);
@@ -122,7 +122,7 @@ prob = CPMProblem(
 
 # ## Visualisation
 
-record_cpm(
+record_potts(
     "06_gpu_acceleration.mp4",
     sol;
     metrics = [

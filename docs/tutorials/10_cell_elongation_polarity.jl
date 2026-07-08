@@ -5,7 +5,7 @@ CairoMakie.activate!()
 #
 # Many cell types in living tissues adopt elongated morphologies rather than
 # compact rounded shapes. Fibroblasts, myotubes, and epithelial cells under
-# mechanical stress all exhibit well-defined long axes. In the CPM this is
+# mechanical stress all exhibit well-defined long axes. In the Potts this is
 # captured by the **LengthComponent**, which penalises deviations of the
 # cell's major-axis length (derived from the inertia-tensor eigendecomposition)
 # from a prescribed target. Combining elongation with realistic cell division
@@ -14,8 +14,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics
 
 # ## Cell-type definitions
@@ -62,12 +62,12 @@ components = [
 # We place 30 fibroblast-like cells on a 200×200 periodic grid and run for
 # 800 MCS.  VonNeumannTopology{2}() gives the standard 4-connected neighbourhood.
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Fib, Medium],
     components
 )
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(Fib => 30),
     (200, 200);

@@ -1,6 +1,6 @@
 # [Getting Started](@id getting-started)
 
-This page walks you through installing the Celly.jl packages, running your first
+This page walks you through installing the Potts.jl packages, running your first
 simulation, and choosing the right Monte Carlo algorithm for your use case.
 
 ---
@@ -11,19 +11,19 @@ The four packages are registered in the Julia General registry (or a local regis
 working from source). Open the Julia REPL and enter Pkg mode with `]`:
 
 ```julia-repl
-pkg> add CPMToolkit
-pkg> add MakieCPM
-pkg> add NeuralCPM
-pkg> add CoreCPM        # usually pulled in automatically as a dependency
+pkg> add PottsToolkit
+pkg> add MakiePotts
+pkg> add NeuralPotts
+pkg> add CorePotts        # usually pulled in automatically as a dependency
 ```
 
 Or equivalently from Julia code:
 
 ```julia
 import Pkg
-Pkg.add("CPMToolkit")
-Pkg.add("MakieCPM")
-Pkg.add("NeuralCPM")
+Pkg.add("PottsToolkit")
+Pkg.add("MakiePotts")
+Pkg.add("NeuralPotts")
 ```
 
 ### Working from Source (Dev Mode)
@@ -33,7 +33,7 @@ bootstrap one-liner from the repo root:
 
 ```julia
 import Pkg
-for pkg in ["CoreCPM", "CPMToolkit", "MakieCPM", "NeuralCPM"]
+for pkg in ["CorePotts", "PottsToolkit", "MakiePotts", "NeuralPotts"]
     Pkg.develop(path = joinpath("lib", pkg))
 end
 ```
@@ -46,11 +46,11 @@ reflected without re-adding.
 ## A Complete Minimal Example: Cell Sorting
 
 The classic Steinberg cell-sorting experiment — two cell populations with different adhesion
-energies spontaneously segregate — is the Hello World of CPM simulations.
+energies spontaneously segregate — is the Hello World of Potts simulations.
 
 ```julia
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 
 # ── 1. Cell types ──────────────────────────────────────────────────────────────
 A      = CellType(:A)
@@ -58,7 +58,7 @@ B      = CellType(:B)
 Medium = CellType(:Medium)
 
 # ── 2. System: biological components ──────────────────────────────────────────
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         # Volume constraint keeps cells at a target area
@@ -78,7 +78,7 @@ sys = CPMSystem(
 )
 
 # ── 3. Problem: cells, grid size, time span ────────────────────────────────────
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(A => 20, B => 20),  # 20 cells of each type
     (200, 200);               # 200×200 lattice
@@ -90,7 +90,7 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 sol = solve(prob, alg; saveat = 10)
 
 # ── 5. Record a video ─────────────────────────────────────────────────────────
-record_cpm("cell_sorting.mp4", sol;
+record_potts("cell_sorting.mp4", sol;
     metrics   = ["N Cells" => u -> u.N_cells[]],
     framerate = 30,
 )
@@ -103,7 +103,7 @@ two populations progressively clustering together.
 
 ## Choosing a Monte Carlo Algorithm
 
-CPMToolkit (via CoreCPM) ships three Metropolis algorithms. They differ in how lattice-site
+PottsToolkit (via CorePotts) ships three Metropolis algorithms. They differ in how lattice-site
 copy attempts are parallelised and in the strict guarantees they provide.
 
 | Algorithm | Parallelism | Conflicts | When to use |
@@ -142,7 +142,7 @@ colouring (e.g. `ExtendedVonNeumannTopology`).
 alg = SequentialMetropolis(T = 2.0f0, sweeps_per_step = 10)
 ```
 
-Sites are updated one at a time in a random order. This is the textbook CPM algorithm and
+Sites are updated one at a time in a random order. This is the textbook Potts algorithm and
 produces statistically exact samples from the Gibbs distribution, but is much slower than
 the parallel variants. Use it to validate parallel implementations or to reproduce published
 results from the literature.
@@ -160,4 +160,4 @@ results from the literature.
   acceptance criterion.
 - Browse the [Tutorials](@ref) for worked examples covering growth, mitosis, chemotaxis,
   and more.
-- See [CPMToolkit](@ref cpmtoolkit-overview) for the full component reference.
+- See [PottsToolkit](@ref pottstoolkit-overview) for the full component reference.

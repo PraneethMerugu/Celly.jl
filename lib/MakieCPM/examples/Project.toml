@@ -1,9 +1,0 @@
-[deps]
-Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-CPMToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
-CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
-CoreCPM = "047998c1-3edd-4edf-b561-cee99549c5a6"
-Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-MakieCPM = "95794c00-c762-4965-bf31-de18bcca2bc9"
-StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"

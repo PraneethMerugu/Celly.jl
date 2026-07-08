@@ -3,7 +3,7 @@ CairoMakie.activate!()
 
 # # Thermodynamic HST Penalties
 #
-# The classic CPM volume penalty H_V = λ(V - V_target)² is convenient but
+# The classic Potts volume penalty H_V = λ(V - V_target)² is convenient but
 # thermodynamically inconsistent at finite temperature. The problem is that
 # it treats the target volume as a *fixed* external field — the cell behaves
 # as if coupled to a spring whose other end is nailed to the wall. This
@@ -27,8 +27,8 @@ CairoMakie.activate!()
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics: mean, std, var
 
 # ## Cell Types
@@ -41,7 +41,7 @@ Medium = CellType(:Medium)
 # `VolumeComponent` uses the standard quadratic penalty H = λ(V−V₀)².
 # We use this as the baseline against which HST is compared.
 
-sys_classical = CPMSystem(
+sys_classical = PottsSystem(
     [CellA, Medium],
     [
         VolumeComponent(CellA => (λ = 5.0f0, target = 200)),
@@ -64,7 +64,7 @@ sys_classical = CPMSystem(
 # `SurfaceAreaComponent` is included to constrain cell shape alongside volume,
 # giving a more realistic mechanical phenotype.
 
-sys_hst = CPMSystem(
+sys_hst = PottsSystem(
     [CellA, Medium],
     [
         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = 1.0),
@@ -81,7 +81,7 @@ sys_hst = CPMSystem(
 # Identical grid, cell count, and run length for a fair comparison.
 # Both systems get the same random seed via the same algorithm.
 
-prob_classical = CPMProblem(
+prob_classical = PottsProblem(
     sys_classical,
     Dict(CellA => 40),
     (200, 200);
@@ -89,7 +89,7 @@ prob_classical = CPMProblem(
     topology = VonNeumannTopology{2}()
 )
 
-prob_hst = CPMProblem(
+prob_hst = PottsProblem(
     sys_hst,
     Dict(CellA => 40),
     (200, 200);
@@ -152,7 +152,7 @@ fig = explore_cpm(
             start = 1.0f0,
             action = (prob, alg, val) -> begin
                 ## Rebuild the HST system with the new eta value
-                new_sys = CPMSystem(
+                new_sys = PottsSystem(
                     [CellA, Medium],
                     [
                         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = val),

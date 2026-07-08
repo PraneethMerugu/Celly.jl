@@ -1,16 +1,16 @@
-# # Visualization with MakieCPM
+# # Visualization with MakiePotts
 #
-# MakieCPM is the dedicated visualisation layer for Celly.jl.  It
-# provides three complementary tools: `cpmplot` for quick static snapshots,
-# `record_cpm` for polished video output, and `explore_cpm` for fully
+# MakiePotts is the dedicated visualisation layer for Potts.jl.  It
+# provides three complementary tools: `pottsplot` for quick static snapshots,
+# `record_potts` for polished video output, and `explore_cpm` for fully
 # interactive parameter exploration.  All three are backend-agnostic — they
 # work with GLMakie (native window), CairoMakie (publication PDFs/PNGs), and
 # WGLMakie (Pluto/Jupyter notebooks).
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics
 
 # Choose a Makie backend — only one may be loaded at a time.
@@ -24,7 +24,7 @@ A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         VolumeComponent(
@@ -41,7 +41,7 @@ sys = CPMSystem(
     ]
 )
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(A => 20, B => 20),
     (200, 200);
@@ -52,47 +52,47 @@ prob = CPMProblem(
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 sol = solve(prob, alg; saveat = 30)
 
-# ## 1. Static snapshot with cpmplot
+# ## 1. Static snapshot with pottsplot
 #
-# `cpmplot(state)` accepts any lattice array or integrator state and returns
+# `pottsplot(state)` accepts any lattice array or integrator state and returns
 # a `(fig, ax, plot_object)` triple following the Makie recipe convention.
 # Use `fig` to save or display; `ax` to adjust axes labels and limits.
 
-fig, ax, p = cpmplot(sol.u[end])
+fig, ax, p = pottsplot(sol.u[end])
 ax.title[] = "Final state — cell sorting"
-save("cpmplot_snapshot.png", fig)
+save("pottsplot_snapshot.png", fig)
 
-# ## 2. cpmplot! with custom colours
+# ## 2. pottsplot! with custom colours
 #
-# `cpmplot!` is the mutating recipe: it draws into an *existing* Axis.
+# `pottsplot!` is the mutating recipe: it draws into an *existing* Axis.
 # Use `type_colors` to override the default colour palette.  Keys are the
 # integer cell-type indices (0 = Medium, 1 = first type, …).
 
 fig2 = Figure(resolution = (900, 900))
 ax2 = Axis(fig2[1, 1]; title = "Custom colours")
-cpmplot!(ax2, sol.u[end];
+pottsplot!(ax2, sol.u[end];
     type_colors = [:white, :tomato, :dodgerblue]
 )
-save("cpmplot_custom_colors.png", fig2)
+save("pottsplot_custom_colors.png", fig2)
 
-# ## 3. record_cpm — full parameter tour
+# ## 3. record_potts — full parameter tour
 #
-# `record_cpm` iterates over all saved frames in `sol` and writes each as a
+# `record_potts` iterates over all saved frames in `sol` and writes each as a
 # video frame.  The `metrics` keyword adds a side panel of time-series plots
 # that update in sync with the lattice view.
 #
 # **Signature:**
 # ```julia
-# record_cpm(filename, sol; metrics, framerate, resolution)
+# record_potts(filename, sol; metrics, framerate, resolution)
 # ```
 #
 # - `filename`   — output path; extension determines format (.mp4, .gif, .webm)
-# - `sol`        — CPMSolution (from MemoryBackend)
+# - `sol`        — PottsSolution (from MemoryBackend)
 # - `metrics`    — `Vector` of `"Label" => (u -> scalar)` pairs
 # - `framerate`  — integer frames per second
 # - `resolution` — `(width, height)` in pixels
 
-record_cpm(
+record_potts(
     "cell_sorting.mp4", sol;
     metrics = [
         "Mean Volume" => u -> begin
@@ -152,7 +152,7 @@ record_cpm(
 
 # ## Backend compatibility summary
 #
-# | Backend    | cpmplot | record_cpm | explore_cpm |
+# | Backend    | pottsplot | record_potts | explore_cpm |
 # |------------|:-------:|:----------:|:-----------:|
 # | GLMakie    |    ✓    |     ✓      |      ✓      |
 # | CairoMakie |    ✓    |     ✓      |      ✗*     |

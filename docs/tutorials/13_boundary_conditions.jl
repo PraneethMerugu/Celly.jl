@@ -3,15 +3,15 @@
 # The default periodic boundary conditions let cells wrap around the grid
 # edges, which is appropriate for modelling bulk tissue but unsuitable for
 # confined geometries such as a cell monolayer growing in a well or a tissue
-# slice pressed against a rigid substrate.  CPMToolkit exposes the boundary
-# condition through the `topology` keyword of `CPMProblem`.  Swapping a single
+# slice pressed against a rigid substrate.  PottsToolkit exposes the boundary
+# condition through the `topology` keyword of `PottsProblem`.  Swapping a single
 # type changes the behaviour of every attempted copy event at the boundary —
 # no other code needs to change.
 
 # ## Packages
 
-using CPMToolkit
-using MakieCPM
+using PottsToolkit
+using MakiePotts
 using Statistics
 
 # ## Shared model components
@@ -21,7 +21,7 @@ using Statistics
 Cell = CellType(:Cell)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [Cell, Medium],
     [
         VolumeComponent(
@@ -42,11 +42,11 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
 # ## Periodic topology (VonNeumannTopology{2})
 #
-# The 4-connected periodic neighbourhood is the standard CPM topology.  Cells
+# The 4-connected periodic neighbourhood is the standard Potts topology.  Cells
 # that reach the right edge reappear on the left; top wraps to bottom.
 # This is ideal for bulk tissue models where edge effects should not matter.
 
-prob_periodic = CPMProblem(
+prob_periodic = PottsProblem(
     sys,
     Dict(Cell => 20),
     (200, 200);
@@ -65,7 +65,7 @@ sol_periodic = solve(prob_periodic, alg; saveat = 20)
 # Cells therefore pile up, elongate, and crowd near the walls rather than
 # smoothly wrapping.
 
-prob_noflux = CPMProblem(
+prob_noflux = PottsProblem(
     sys,
     Dict(Cell => 20),
     (200, 200);
@@ -95,8 +95,8 @@ sol_noflux = solve(prob_noflux, alg; saveat = 20)
 # We record both simulations, then assemble them into a single figure for
 # comparison using the Makie layout system.
 
-record_cpm("periodic_boundary.mp4", sol_periodic; framerate = 15, resolution = (800, 800))
-record_cpm("noflux_boundary.mp4", sol_noflux; framerate = 15, resolution = (800, 800))
+record_potts("periodic_boundary.mp4", sol_periodic; framerate = 15, resolution = (800, 800))
+record_potts("noflux_boundary.mp4", sol_noflux; framerate = 15, resolution = (800, 800))
 
 # Build a static side-by-side comparison from the final frames
 
@@ -108,8 +108,8 @@ fig = Figure(resolution = (1400, 700))
 ax1 = Axis(fig[1, 1]; title = "Periodic (VonNeumann)")
 ax2 = Axis(fig[1, 2]; title = "Rigid Walls (NoFlux)")
 
-cpmplot!(ax1, sol_periodic.u[end])
-cpmplot!(ax2, sol_noflux.u[end])
+pottsplot!(ax1, sol_periodic.u[end])
+pottsplot!(ax2, sol_noflux.u[end])
 
 save("boundary_conditions_comparison.png", fig)
 fig

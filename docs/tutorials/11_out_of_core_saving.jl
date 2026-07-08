@@ -4,19 +4,19 @@ CairoMakie.activate!()
 # # Out-of-Core Saving with Zarr & HDF5
 #
 # Long 2-D simulations and all 3-D simulations can easily produce hundreds of
-# gigabytes of lattice data — far more than fits in RAM.  CPMToolkit solves
+# gigabytes of lattice data — far more than fits in RAM.  PottsToolkit solves
 # this through *backend extensions*: instead of accumulating snapshots in a
-# CPMSolution object, the solver streams each saved frame directly to disk.
+# PottsSolution object, the solver streams each saved frame directly to disk.
 # Two backends ship out of the box: **ZarrBackend** (chunked, compressed,
 # cloud-friendly) and **HDF5Backend** (widely supported in the scientific
 # Python/Julia ecosystem).
 
 # ## Packages
 #
-# Loading `Zarr` and `HDF5` activates the corresponding CPMToolkit package
+# Loading `Zarr` and `HDF5` activates the corresponding PottsToolkit package
 # extensions that define the backend types.
 
-using CPMToolkit
+using PottsToolkit
 using Zarr
 using HDF5
 using Statistics
@@ -30,7 +30,7 @@ A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium)
 
-sys = CPMSystem(
+sys = PottsSystem(
     [A, B, Medium],
     [
         VolumeComponent(
@@ -47,7 +47,7 @@ sys = CPMSystem(
     ]
 )
 
-prob = CPMProblem(
+prob = PottsProblem(
     sys,
     Dict(A => 20, B => 20),
     (200, 200);
@@ -61,7 +61,7 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 #
 # Pass `backend = ZarrBackend("path/to/output.zarr")` to `solve`.  The solver
 # writes each saved frame as a new chunk in the Zarr store.  The returned
-# value is a `CPMSolution` where the state history is backed by the Zarr store instead of RAM.
+# value is a `PottsSolution` where the state history is backed by the Zarr store instead of RAM.
 #
 # The Zarr store is a directory on disk; you can open it with any Zarr-aware
 # tool (Python `zarr`, Julia `Zarr.jl`, Dask, xarray …).
@@ -104,22 +104,22 @@ end
 # |-------------------------|:-------------:|:-----------:|:-----------:|
 # | RAM usage               | full          | tiny        | tiny        |
 # | explore_cpm support     | ✓             | ✗           | ✗           |
-# | record_cpm from file    | ✓             | ✓           | ✓           |
+# | record_potts from file    | ✓             | ✓           | ✓           |
 # | Cloud / parallel writes | ✗             | ✓ (N5/S3)   | partial     |
 # | Ecosystem compatibility | Julia only    | Python/Julia | universal  |
 #
 # Because the backends stream to disk, `explore_cpm` (which needs a live
-# integrator + MemoryBackend) is not available.  Use `record_cpm` with the
-# returned CPMSolution for post-hoc visualisation.
+# integrator + MemoryBackend) is not available.  Use `record_potts` with the
+# returned PottsSolution for post-hoc visualisation.
 
 # ## Recording from the Zarr store
 #
-# `record_cpm` works transparently with the `sol_zarr` object because it
+# `record_potts` works transparently with the `sol_zarr` object because it
 # acts as a lazy container.
 
-using MakieCPM
+using MakiePotts
 
-record_cpm(
+record_potts(
     "cell_sorting_zarr.mp4",
     sol_zarr;
     framerate = 15,
