@@ -43,8 +43,6 @@ makedocs(
     # Include internal submodules so @autodocs finds Base/Tools types.
     modules = [
         CoreCPM,
-        CoreCPM.CoreCPMBase,
-        CoreCPM.CoreCPMTools,
         CPMToolkit,
         MakieCPM,
         NeuralCPM

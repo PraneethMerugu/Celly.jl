@@ -9,3 +9,12 @@ CoreCPM = "047998c1-3edd-4edf-b561-cee99549c5a6"
 MakieCPM = "95794c00-c762-4965-bf31-de18bcca2bc9"
 NeuralCPM = "c08961df-e966-447e-a5c1-1c24cca73f80"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[targets]
+test = ["Test", "SciMLBase", "Random", "Statistics"]

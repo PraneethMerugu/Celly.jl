@@ -1,7 +1,6 @@
 # [CoreCPM API Reference](@id corecpm-api)
 
-This page provides the full docstring index for the `CoreCPM` package and its internal
-sub-modules `CoreCPM.CoreCPMBase` and `CoreCPM.CoreCPMTools`.
+This page provides the full docstring index for the `CoreCPM` package.
 
 > [!NOTE]
 > End users normally access this API through `CPMToolkit`, which re-exports all public
@@ -13,7 +12,7 @@ sub-modules `CoreCPM.CoreCPMBase` and `CoreCPM.CoreCPMTools`.
 ## Types
 
 ```@autodocs
-Modules = [CoreCPM, CoreCPM.CoreCPMBase, CoreCPM.CoreCPMTools]
+Modules = [CoreCPM]
 Order   = [:type]
 ```
 
@@ -22,7 +21,7 @@ Order   = [:type]
 ## Functions
 
 ```@autodocs
-Modules = [CoreCPM, CoreCPM.CoreCPMBase, CoreCPM.CoreCPMTools]
+Modules = [CoreCPM]
 Order   = [:function]
 ```
 
@@ -31,6 +30,6 @@ Order   = [:function]
 ## Constants
 
 ```@autodocs
-Modules = [CoreCPM, CoreCPM.CoreCPMBase]
+Modules = [CoreCPM]
 Order   = [:constant]
 ```

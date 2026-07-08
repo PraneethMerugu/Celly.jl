@@ -121,6 +121,7 @@ function compile_penalties(sys::CPMSystem, type_to_id::Dict{CellType, UInt8}, nu
 
         elseif pen isa AdhesionComponent
             FlexType = typeof(pen).parameters[1]
+            Isotropic = typeof(pen).parameters[2]
             if FlexType === CoreCPM.Flex
                 push!(required_trackers, CoreCPM.AdhesionFlexTracker())
                 # For Medium, initialized properties fall back to 1.0 logic in get_modifier
@@ -136,9 +137,9 @@ function compile_penalties(sys::CPMSystem, type_to_id::Dict{CellType, UInt8}, nu
                 J_mat[id2 + 1, id1 + 1] = val
             end
             if FlexType === CoreCPM.Flex
-                push!(compiled_penalties, CoreCPM.AdhesionPenalty{Flex}(J_mat))
+                push!(compiled_penalties, CoreCPM.AdhesionPenalty{Flex}(J_mat; isotropic=Isotropic))
             else
-                push!(compiled_penalties, CoreCPM.AdhesionPenalty(J_mat))
+                push!(compiled_penalties, CoreCPM.AdhesionPenalty(J_mat; isotropic=Isotropic))
             end
 
         elseif pen isa CoreCPM.AbstractPenalty

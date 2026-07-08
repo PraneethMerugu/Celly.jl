@@ -81,6 +81,8 @@ The situations where you would reach into CoreCPM are:
    to implement adaptive stopping criteria.
 4. **Custom backends** — Subtype `AbstractBackend` to stream simulation state to a new
    storage format (e.g. a cloud object store).
+5. **Testing** — If you are writing tests for the physics engine, rely on `CPMToolkit.TestProblems`
+   to instantiate reproducible `CPMProblem`s rather than manually assembling arrays.
 
 ---
 

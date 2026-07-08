@@ -211,8 +211,6 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
     end
 end
 
-include("test_thermodynamics.jl")
-include("test_biophysics.jl")
 include("test_edgecases.jl")
 include("test_hst_detailed_balance.jl")
 @testset "HST Focal Point Penalty Test" begin

@@ -1,7 +1,7 @@
 name = "CoreCPM"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
-authors = ["PraneethMerugu <merugufam@gmail.com>"]
 version = "0.1.0"
+authors = ["PraneethMerugu <merugufam@gmail.com>"]
 
 [deps]
 AcceleratedKernels = "6a4ca0a5-0e36-4168-a932-d9be78d558f1"

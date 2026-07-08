@@ -118,11 +118,11 @@ end
 
 Maps a pair of `CellType`s to their adhesion penalty (J-value).
 """
-struct AdhesionComponent{FlexType <: FlexibilityTrait} <: AbstractComponent
+struct AdhesionComponent{FlexType <: FlexibilityTrait, Isotropic} <: AbstractComponent
     mappings::Dict{Tuple{CellType, CellType}, Float32}
 end
 
-function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; flex::Bool = false)
+function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; flex::Bool = false, isotropic::Bool = false)
     dict = Dict{Tuple{CellType, CellType}, Float32}()
     for (types, val) in pairs
         # Adhesion is symmetric, store canonical ordering
@@ -132,7 +132,7 @@ function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; fl
         dict[canonical_key] = Float32(val)
     end
     FlexType = flex ? Flex : Rigid
-    return AdhesionComponent{FlexType}(dict)
+    return AdhesionComponent{FlexType, isotropic}(dict)
 end
 
 """
