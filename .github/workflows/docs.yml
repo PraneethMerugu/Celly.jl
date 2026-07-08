@@ -28,10 +28,12 @@ jobs:
         run: |
           julia --project=docs/ -e '
             using Pkg
-            Pkg.develop(path="lib/CoreCPM")
-            Pkg.develop(path="lib/CPMToolkit")
-            Pkg.develop(path="lib/MakieCPM")
-            Pkg.develop(path="lib/NeuralCPM")
+            Pkg.develop([
+                PackageSpec(path="lib/CoreCPM"),
+                PackageSpec(path="lib/CPMToolkit"),
+                PackageSpec(path="lib/MakieCPM"),
+                PackageSpec(path="lib/NeuralCPM")
+            ])
             Pkg.instantiate()'
 
       # Build and deploy docs
