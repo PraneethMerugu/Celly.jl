@@ -1,0 +1,1 @@
+{"dtype":"<f4","filters":null,"shape":[53,41],"order":"C","zarr_format":2,"node_type":"array","chunks":[1,41],"fill_value":0.0,"dimension_separator":".","compressor":{"blocksize":0,"id":"blosc","clevel":5,"cname":"lz4","shuffle":1}}
