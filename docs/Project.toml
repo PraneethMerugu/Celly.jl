@@ -1,7 +1,5 @@
 [deps]
-PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-Potts = "15ba70d5-27dc-4a83-b627-d79984c8d986"
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
@@ -10,6 +8,8 @@ Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 MakiePotts = "95794c00-c762-4965-bf31-de18bcca2bc9"
 NeuralPotts = "c08961df-e966-447e-a5c1-1c24cca73f80"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
+Potts = "15ba70d5-27dc-4a83-b627-d79984c8d986"
+PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 

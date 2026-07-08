@@ -1,7 +1,7 @@
 name = "PottsToolkit"
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
-authors = ["PraneethMerugu <merugufam@gmail.com>"]
 version = "0.1.0"
+authors = ["PraneethMerugu <merugufam@gmail.com>"]
 
 [deps]
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
@@ -13,6 +13,9 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [extensions]
 PottsToolkitMermaidExt = "Mermaid"
+
+[compat]
+Mermaid = "0.1.0"
 
 [extras]
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"

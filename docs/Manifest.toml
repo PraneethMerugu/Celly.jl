@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "d9f6353a8806196a30d99d70dfb67c9879c5b3f7"
+project_hash = "f13ad3af76bc7c725243ef196fa596451bb2cca0"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -1591,7 +1591,9 @@ version = "2.28.1010+0"
 
 [[deps.Mermaid]]
 deps = ["CommonSolve", "DocStringExtensions", "OrderedCollections"]
-path = "../../Mermaid.jl"
+git-tree-sha1 = "f64067a4b79da874f5204e69deac363140693801"
+repo-rev = "main"
+repo-url = "https://github.com/eebio/Mermaid.jl"
 uuid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 version = "0.1.0"
 
@@ -1917,7 +1919,7 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.Potts]]
-deps = ["CorePotts", "MakiePotts", "NeuralPotts", "PottsToolkit", "Reexport"]
+deps = ["CorePotts", "MakiePotts", "Mermaid", "NeuralPotts", "PottsToolkit", "Reexport"]
 path = ".."
 uuid = "15ba70d5-27dc-4a83-b627-d79984c8d986"
 version = "0.1.0"
