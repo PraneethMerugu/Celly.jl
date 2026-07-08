@@ -29,7 +29,8 @@ function run_showcase()
         (Epithelial, Mesenchymal) => 8.0
     )
 
-    sys = PottsSystem(cell_types = [Medium, Epithelial, Mesenchymal], penalties = [vol, adh])
+    sys = PottsSystem(cell_types = [Medium, Epithelial, Mesenchymal], penalties = [
+        vol, adh])
 
     # Randomly initialize a mixture of cells
     counts = Dict(Epithelial => 80, Mesenchymal => 80)

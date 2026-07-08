@@ -553,7 +553,8 @@ Evaluates the `trigger` for all active cells. For any cell where the trigger is 
 is divided in half according to the geometric `orientation`. Properties are inherited by the new 
 daughter cell according to `inheritance_rules`.
 """
-function process_mitosis_events!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
+function process_mitosis_events!(
+        u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
         ws::MitosisWorkspace; trigger = VolumeThresholdTrigger(),
         orientation::DivisionOrientation = RandomOrientation(),
         inheritance_rules::NamedTuple = NamedTuple())

@@ -4,8 +4,8 @@ using StructArrays
 using CorePotts
 using SciMLBase
 using CorePotts: pcg_hash, lottery_offsets, offsets, MooreTopology, VonNeumannTopology,
-               ExtendedMooreTopology, ExtendedVonNeumannTopology, idx_to_coord, get_val,
-               num_dirs
+                 ExtendedMooreTopology, ExtendedVonNeumannTopology, idx_to_coord, get_val,
+                 num_dirs
 using KernelAbstractions
 
 const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialMetropolis)

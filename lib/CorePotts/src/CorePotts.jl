@@ -47,7 +47,8 @@ export num_dirs, offsets, lottery_offsets, idx_to_coord, coord_to_idx, get_neigh
 export AbstractSampler, MetropolisSampler, evaluate_acceptance
 export pcg_hash
 export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetropolis,
-       CheckerboardMetropolis, SequentialMetropolis, SparseLotteryMetropolis, PottsIntegrator,
+       CheckerboardMetropolis, SequentialMetropolis, SparseLotteryMetropolis,
+       PottsIntegrator,
        PottsSolution, PottsState, PottsParameters, PottsCache
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
 export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,

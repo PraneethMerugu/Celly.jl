@@ -122,7 +122,8 @@ struct AdhesionComponent{FlexType <: FlexibilityTrait, Isotropic} <: AbstractCom
     mappings::Dict{Tuple{CellType, CellType}, Float32}
 end
 
-function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...; flex::Bool = false, isotropic::Bool = false)
+function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...;
+        flex::Bool = false, isotropic::Bool = false)
     dict = Dict{Tuple{CellType, CellType}, Float32}()
     for (types, val) in pairs
         # Adhesion is symmetric, store canonical ordering

@@ -172,7 +172,8 @@ end
 
 Executes a single Monte Carlo Sweep (MCS) across the grid using a deterministic checkerboard algorithm.
 """
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::CheckerboardMetropolis)
+function execute_step!(u::AbstractPottsState, p::PottsParameters,
+        cache::PottsCache, alg::CheckerboardMetropolis)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler

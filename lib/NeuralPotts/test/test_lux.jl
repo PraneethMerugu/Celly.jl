@@ -1,6 +1,7 @@
 # Test environment is automatically activated by Pkg.test()
 
-using CorePotts, NeuralPotts, Lux, Optimization, OptimizationOptimisers, ComponentArrays, Zygote
+using CorePotts, NeuralPotts, Lux, Optimization, OptimizationOptimisers, ComponentArrays,
+      Zygote
 using Random, Statistics
 
 grid_dims = (50, 50)

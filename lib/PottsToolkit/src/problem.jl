@@ -137,9 +137,9 @@ function compile_penalties(sys::PottsSystem, type_to_id::Dict{CellType, UInt8}, 
                 J_mat[id2 + 1, id1 + 1] = val
             end
             if FlexType === CorePotts.Flex
-                push!(compiled_penalties, CorePotts.AdhesionPenalty{Flex}(J_mat; isotropic=Isotropic))
+                push!(compiled_penalties, CorePotts.AdhesionPenalty{Flex}(J_mat; isotropic = Isotropic))
             else
-                push!(compiled_penalties, CorePotts.AdhesionPenalty(J_mat; isotropic=Isotropic))
+                push!(compiled_penalties, CorePotts.AdhesionPenalty(J_mat; isotropic = Isotropic))
             end
 
         elseif pen isa CorePotts.AbstractPenalty

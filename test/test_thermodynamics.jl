@@ -57,7 +57,8 @@ using PottsToolkit.TestProblems
 
                 println("B. Ising Model Magnetization")
                 for T in T_vals
-                    prob = TestProblems.ising_model(grid_size=(W, H), J=1.0f0, tspan=(0, 6000))
+                    prob = TestProblems.ising_model(grid_size = (W, H), J = 1.0f0, tspan = (
+                        0, 6000))
 
                     Random.seed!(Int(T*100))
                     for i in 1:length(prob.u0.grid)
