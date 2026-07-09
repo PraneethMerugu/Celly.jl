@@ -107,5 +107,5 @@ record_potts(
 )
 
 # ```@raw html
-# <video autoplay loop muted playsinline controls src="./02_cell_sorting.mp4" width="100%"></video>
+# <video autoplay loop muted playsinline controls src="../02_cell_sorting.mp4" width="100%"></video>
 # ```

@@ -104,5 +104,5 @@ record_potts(
 )
 
 # ```@raw html
-# <video autoplay loop muted playsinline controls src="./05_tumor_spheroid_3d.mp4" width="100%"></video>
+# <video autoplay loop muted playsinline controls src="../05_tumor_spheroid_3d.mp4" width="100%"></video>
 # ```

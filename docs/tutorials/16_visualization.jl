@@ -126,7 +126,7 @@ record_potts(
 )
 
 # ```@raw html
-# <video autoplay loop muted playsinline controls src="./cell_sorting.mp4" width="100%"></video>
+# <video autoplay loop muted playsinline controls src="../cell_sorting.mp4" width="100%"></video>
 # ```
 
 # ## 4. explore_cpm — interactive dashboard
