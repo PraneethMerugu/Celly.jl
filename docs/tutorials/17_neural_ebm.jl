@@ -177,3 +177,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 #     resolution = (1000, 800),
 # )
 # ```
+
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./neural_ebm_trained.mp4" width="100%"></video>
+# ```

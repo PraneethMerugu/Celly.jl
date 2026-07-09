@@ -125,6 +125,10 @@ record_potts(
     resolution = (1400, 900)
 )
 
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./cell_sorting.mp4" width="100%"></video>
+# ```
+
 # ## 4. explore_cpm — interactive dashboard
 #
 # `explore_cpm` launches a live window (requires a GPU-capable backend such

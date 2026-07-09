@@ -135,3 +135,7 @@ record_potts(
     framerate = 24,
     resolution = (1200, 700)
 )
+
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./06_gpu_acceleration.mp4" width="100%"></video>
+# ```

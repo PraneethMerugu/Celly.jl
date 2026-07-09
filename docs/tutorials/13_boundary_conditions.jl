@@ -113,3 +113,9 @@ pottsplot!(ax2, sol_noflux.u[end])
 
 save("boundary_conditions_comparison.png", fig)
 fig
+
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./periodic_boundary.mp4" width="100%"></video>
+# <br>
+# <video autoplay loop muted playsinline controls src="./noflux_boundary.mp4" width="100%"></video>
+# ```

@@ -125,3 +125,7 @@ record_potts(
     framerate = 15,
     resolution = (800, 800)
 )
+
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./cell_sorting_zarr.mp4" width="100%"></video>
+# ```

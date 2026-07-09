@@ -98,3 +98,7 @@ record_potts(
     framerate = 24,
     resolution = (1300, 700)
 )
+
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./03_directed_migration.mp4" width="100%"></video>
+# ```
