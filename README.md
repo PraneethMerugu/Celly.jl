@@ -1,5 +1,6 @@
 # Potts.jl
 
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://praneethmerugu.github.io/Potts.jl/dev/)
 Welcome to **Potts.jl**, a Cellular Potts Model (Potts) simulation ecosystem for Julia.
 
 Potts.jl is a monorepo containing several interconnected packages:
