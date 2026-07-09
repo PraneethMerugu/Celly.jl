@@ -1,5 +1,6 @@
 using Test
 using CorePotts
+using SciMLBase
 
 @testset "ChemotaxisPenalty Directional Migration" begin
     # 100x100 grid
@@ -59,7 +60,7 @@ using CorePotts
     solve!(integrator)
     CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, 1)
 
-    final_x = compute_com_x(grid)
+    final_x = compute_com_x(integrator.u.grid)
 
     # It should have migrated significantly rightward (+x)
     @test final_x > initial_x + 1.0f0

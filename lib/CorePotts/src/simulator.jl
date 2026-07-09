@@ -28,7 +28,7 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     cache = PottsCache(prob.u0, prob.p.topology, block_size)
 
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
-    return PottsIntegrator(prob.u0, prob.p, prob.tspan[1], alg, cache, opts, sol_u,
+    return PottsIntegrator(deepcopy(prob.u0), prob.p, prob.tspan[1], alg, cache, opts, sol_u,
         sol_t, saveat_vec, save_everystep, save_start, save_end)
 end
 

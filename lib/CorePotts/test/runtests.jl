@@ -228,7 +228,13 @@ end
 include("test_topology_abstractions.jl")
 include("test_event_gpu_sync.jl")
 include("test_length_3d.jl")
-include("test_mitosis_overhaul.jl")
+@testset "Events" begin
+    include("test_mitosis_overhaul.jl")
+end
+
+@testset "Connectivity" begin
+    include("test_connectivity.jl")
+end
 include("test_ooc_backends.jl")
 include("test_mermaid_integration.jl")
 

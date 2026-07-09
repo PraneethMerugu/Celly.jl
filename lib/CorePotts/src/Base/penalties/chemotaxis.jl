@@ -25,10 +25,10 @@ end
     end
 
     dH = zero(F)
-    if ctx.tgt != 0
-        tgt_type = ctx.cell_data.cell_types[ctx.tgt]
-        if tgt_type > 0
-            dH -= F(p.lambdas[tgt_type + 1]) * (c_i - c_j)
+    if ctx.src != 0
+        src_type = ctx.cell_data.cell_types[ctx.src]
+        if src_type > 0
+            dH -= F(p.lambdas[src_type + 1]) * (c_i - c_j)
         end
     end
     # As in classic CC3D, chemotaxis only biases the expanding cell's leading edge.

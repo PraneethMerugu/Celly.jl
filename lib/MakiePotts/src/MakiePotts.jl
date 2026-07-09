@@ -16,7 +16,9 @@ export explore_cpm, record_potts
             "#FF9500", "#AF52DE", "#5E5CE6", "#FF2D55"],
         slice = 0,
         draw_boundaries = false,
-        boundary_color = "#000000"
+        boundary_color = "#000000",
+        color_property = :cell_types,
+        color_offset = 0
     )
 end
 
@@ -24,7 +26,7 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
     state_obs = plot[1]
 
     color_map_obs = lift(state_obs, plot.type_colors, plot.slice, plot.draw_boundaries,
-        plot.boundary_color) do u, colors, slice_idx, draw_b, b_color
+        plot.boundary_color, plot.color_property, plot.color_offset) do u, colors, slice_idx, draw_b, b_color, c_prop, c_offset
         cmap = Makie.to_colormap(colors)
         b_c = Makie.to_color(b_color)
         N_col = length(cmap)
@@ -33,7 +35,7 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
         g = ndims(g_full) == 3 ?
             g_full[:, :, slice_idx <= 0 ? size(g_full, 3) ÷ 2 : slice_idx] : g_full
 
-        ct = u.cell_data.cell_types
+        ct = getproperty(u.cell_data, c_prop)
 
         img = Matrix{Makie.RGBAf}(undef, size(g))
         dims = size(g)
@@ -49,7 +51,7 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
                             ni, nj = i + di, j + dj
                             if ni >= 1 && ni <= dims[1] && nj >= 1 && nj <= dims[2]
                                 nid = g[ni, nj]
-                                if nid != id
+                                if nid != id && nid < id
                                     is_boundary = true
                                     break
                                 end
@@ -60,7 +62,7 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
                     if is_boundary
                         img[i, j] = b_c
                     else
-                        type_id = id == 0 ? 0 : ct[id]
+                        type_id = id == 0 ? 0 : (ct[id] + c_offset)
                         img[i, j] = Makie.to_color(cmap[mod1(type_id + 1, N_col)])
                     end
                 end
@@ -68,7 +70,7 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
         else
             for i in eachindex(g)
                 id = g[i]
-                type_id = id == 0 ? 0 : ct[id]
+                type_id = id == 0 ? 0 : (ct[id] + c_offset)
                 img[i] = Makie.to_color(cmap[mod1(type_id + 1, N_col)])
             end
         end

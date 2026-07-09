@@ -59,7 +59,7 @@ export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
 export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
        compute_global_energy, VolumePenalty, HSTVolumePenalty, HSTSurfaceAreaPenalty,
        AdhesionPenalty, FocalPointSpringPenalty, HSTFocalPointPenalty, HSTLengthPenalty,
-       ChemotaxisPenalty, evaluate_all_penalties, evaluate_penalty, update_step_auxiliary!,
+       ChemotaxisPenalty, ConnectivityConstraint, evaluate_all_penalties, evaluate_penalty, update_step_auxiliary!,
        update_sweep_auxiliary!, initialize_com_anchors!
 export lambda_field, hst_state_field, hst_value_field, hst_target_field
 export PottsTrainingCache, potts_loss

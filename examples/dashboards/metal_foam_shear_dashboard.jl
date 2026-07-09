@@ -2,15 +2,13 @@ using GLMakie
 using PottsToolkit
 using MakiePotts
 using CorePotts
+using Metal
+using Adapt
 
 # ------------------------------------------------------------------
 # 1. Custom Shear Penalty
 # ------------------------------------------------------------------
-# We use a mutable struct so the shear_rate can be changed dynamically 
-# via the dashboard slider. This works safely because we use SequentialMetropolis 
-# which runs purely on the CPU in a single-threaded loop.
-
-mutable struct BulkShearPenalty{T} <: CorePotts.AbstractPenalty
+struct BulkShearPenalty{T} <: CorePotts.AbstractPenalty{CorePotts.Rigid}
     shear_rate::T
 end
 
@@ -21,15 +19,13 @@ function CorePotts.evaluate_penalty(p::BulkShearPenalty, ctx)
     y = ctx.spatial_coords[2]
 
     # Delta x: direction of the boundary movement
-    # ctx.spatial_coords is the pixel being overwritten (target_val/loser)
-    # ctx.source_coords is the pixel invading (src_val/winner)
     dx = Int(ctx.spatial_coords[1]) - Int(ctx.source_coords[1])
 
     # Handle periodic boundary conditions for the displacement
     w = ctx.grid_dims[1]
-    if dx > w / 2
+    if dx > w ÷ 2
         dx -= w
-    elseif dx < -w / 2
+    elseif dx < -(w ÷ 2)
         dx += w
     end
 
@@ -37,8 +33,8 @@ function CorePotts.evaluate_penalty(p::BulkShearPenalty, ctx)
     h = ctx.grid_dims[2]
     y_rel = Float32(y) - Float32(h) / 2.0f0
 
-    # Gamma is the strain field 
-    gamma = Float32(p.shear_rate) * y_rel
+    # Gamma is the strain field (read from GPU array)
+    gamma = p.shear_rate[1] * y_rel
 
     # Bias the Hamiltonian: favors moves in the direction of shear
     return -gamma * Float32(dx)
@@ -47,7 +43,6 @@ end
 # ------------------------------------------------------------------
 # 2. Custom Topology
 # ------------------------------------------------------------------
-# Periodic in X, No-Flux (Hard Wall) in Y, with Extended Moore (4th nearest neighbor)
 struct PeriodicXNoFluxYExtendedMooreTopology{N, R} <: CorePotts.AbstractTopology{N} end
 
 function CorePotts.offsets(::PeriodicXNoFluxYExtendedMooreTopology{2, 2})
@@ -92,7 +87,8 @@ end
 Foam = CellType(:Foam)
 Medium = CellType(:Medium)
 
-shear_penalty = BulkShearPenalty(0.0f0)
+shear_rate_mtl = MtlArray(Float32[0.0f0])
+shear_penalty = BulkShearPenalty(shear_rate_mtl)
 
 sys = PottsSystem(
     cell_types = [Foam, Medium],
@@ -107,21 +103,9 @@ sys = PottsSystem(
 )
 
 # ------------------------------------------------------------------
-# 4. Problem Setup
+# 4. Custom Initialization (Brick-Wall) & Problem Setup
 # ------------------------------------------------------------------
-# 200x200 grid, densely packed with 160 Foam cells
-prob = PottsProblem(
-    sys,
-    Dict(Foam => 160),
-    (200, 200);
-    tspan = (0, 5000),
-    topology = PeriodicXNoFluxYExtendedMooreTopology{2, 2}()
-)
-
-# ------------------------------------------------------------------
-# 4.5 Custom Initialization (Brick-Wall)
-# ------------------------------------------------------------------
-function brick_wall_init!(grid::Matrix{Int32}, n_cols::Int, n_rows::Int, dims::NTuple{
+function brick_wall_init!(grid::AbstractMatrix, n_cols::Int, n_rows::Int, dims::NTuple{
         2, Int})
     w, h = dims
     cell_w = w / n_cols
@@ -129,36 +113,51 @@ function brick_wall_init!(grid::Matrix{Int32}, n_cols::Int, n_rows::Int, dims::N
 
     for y in 1:h
         row = Int(floor((y - 1) / cell_h))
-        # Alternating offset in every other row
         x_offset = (row % 2 == 1) ? (cell_w / 2) : 0.0
 
         for x in 1:w
             shifted_x = (x - 1 + x_offset) % w
             col = Int(floor(shifted_x / cell_w))
 
-            # Map to unique cell ID (1-indexed)
             cell_id = row * n_cols + col + 1
-            grid[x, y] = Int32(cell_id)
+            grid[x, y] = eltype(grid)(cell_id)
         end
     end
 end
 
-println("Generating Brick-Wall partition...")
-brick_wall_init!(prob.u0.grid, 16, 10, (200, 200))
+println("Generating Brick-Wall partition for 500x500...")
+# Create CPU problem first to compile penalties and allocate cell data
+prob_cpu = PottsProblem(
+    sys,
+    Dict(Foam => 1000),
+    (500, 500);
+    tspan = (0, 500),
+    topology = PeriodicXNoFluxYExtendedMooreTopology{2, 2}()
+)
+
+cpu_grid = zeros(UInt32, 500, 500)
+brick_wall_init!(cpu_grid, 40, 25, (500, 500))
+prob_cpu.u0.grid .= cpu_grid
 
 # Sync the target volumes to match the exact brick-wall calculated sizes
-dummy_cache = CorePotts.PottsCache(prob.u0, prob.p.topology, 128)
-CorePotts.sync_cell_data!(prob.u0, prob.p, dummy_cache, 160; set_targets = true)
+dummy_cache = CorePotts.PottsCache(prob_cpu.u0, prob_cpu.p.topology, 128)
+CorePotts.sync_cell_data!(prob_cpu.u0, prob_cpu.p, dummy_cache, 1000; set_targets = true)
 
-alg = SequentialMetropolis(T = 1.5f0, sweeps_per_step = 5)
+# Convert to GPU State
+println("Transferring state to Metal GPU...")
+prob = Adapt.adapt(MtlArray, prob_cpu)
 
 # ------------------------------------------------------------------
 # 5. Burn-in Phase
 # ------------------------------------------------------------------
+# Configure CheckerboardMetropolis for Metal
+alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 5, active_fraction = 1.0f0 /
+                                                                               5.0f0)
+
 println("Starting burn-in phase: Equilibrating foam without shear...")
 integrator = CorePotts.init(prob, alg)
 
-# Run first 400 steps at finite temperature to allow junctions to form
+# Run first 400 steps at finite temperature
 for i in 1:400
     if i % 100 == 0
         println("  Burn-in step $i/500")
@@ -166,9 +165,9 @@ for i in 1:400
     CorePotts.step!(integrator)
 end
 
-# Cool down to T = 0.0f0 for the final 100 steps of relaxation
+# Cool down to T = 0.0f0 for the final 100 steps
 println("  Cooling down to T = 0.0...")
-integrator.alg = SequentialMetropolis(
+integrator.alg = CheckerboardMetropolis(
     sampler = integrator.alg.sampler,
     sweeps_per_step = integrator.alg.sweeps_per_step,
     active_fraction = integrator.alg.active_fraction,
@@ -221,8 +220,12 @@ end
 function compute_t1s(sol, current_step; bin_size = 50)
     prev_step = max(1, current_step - bin_size)
 
-    curr_adj = compute_adjacency(sol.u[current_step].grid)
-    prev_adj = compute_adjacency(sol.u[prev_step].grid)
+    # Download GPU grids to CPU memory before iteration to avoid scalar indexing
+    curr_grid_cpu = Array(sol.u[current_step].grid)
+    prev_grid_cpu = Array(sol.u[prev_step].grid)
+
+    curr_adj = compute_adjacency(curr_grid_cpu)
+    prev_adj = compute_adjacency(prev_grid_cpu)
 
     new_edges = setdiff(curr_adj, prev_adj)
     return Float32(length(new_edges))
@@ -231,7 +234,7 @@ end
 # ------------------------------------------------------------------
 # 6. Interactive Dashboard
 # ------------------------------------------------------------------
-if !isdefined(Main, :TESTING)
+if !haskey(ENV, "TESTING")
     println("Launching interactive dashboard...")
     GLMakie.activate!()
 
@@ -248,15 +251,29 @@ if !isdefined(Main, :TESTING)
                 range = -0.1f0:0.005f0:0.1f0,
                 start = 0.0f0,
                 action = (p, a, val) -> begin
-                    shear_penalty.shear_rate = val
+                    # The 3rd penalty in our tuple is the BulkShearPenalty
+                    # Since prob_burned is on the GPU, we must allow scalar indexing to mutate its scalar property
+                    Metal.@allowscalar prob_burned.p.penalties[3].shear_rate[1] = val
                     return a
+                end
+            ),
+            "Sweeps Per Step" => (
+                range = 1:20,
+                start = 5,
+                action = (p, a, val) -> begin
+                    return CorePotts.CheckerboardMetropolis(
+                        sampler = a.sampler,
+                        T = a.T,
+                        sweeps_per_step = val,
+                        active_fraction = 1.0f0 / Float32(val)
+                    )
                 end
             ),
             "Temperature" => (
                 range = 0.0f0:0.1f0:5.0f0,
-                start = 1.5f0,
+                start = 0.0f0, # Start at 0 since we cooled down during burn-in
                 action = (p, a, val) -> begin
-                    return CorePotts.SequentialMetropolis(
+                    return CorePotts.CheckerboardMetropolis(
                         sampler = a.sampler,
                         sweeps_per_step = a.sweeps_per_step,
                         active_fraction = a.active_fraction,
@@ -269,7 +286,7 @@ if !isdefined(Main, :TESTING)
                 start = 2.0f0,
                 action = (p, a, val) -> begin
                     # Foam is index 2, Medium is index 1
-                    p.p.penalties[2].J[2, 2] = val
+                    Metal.@allowscalar p.p.penalties[2].J[2, 2] = val
                     return a
                 end
             )
@@ -278,7 +295,6 @@ if !isdefined(Main, :TESTING)
 
     display(fig)
 
-    # Keep the window open in standalone script execution
     println("Press Enter to close...")
     readline()
 end

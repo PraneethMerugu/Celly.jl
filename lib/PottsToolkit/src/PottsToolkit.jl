@@ -15,7 +15,7 @@ using .TestProblems
 export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
-export PottsProblem
+export PottsProblem, compile_component
 export TestProblems
 
 end

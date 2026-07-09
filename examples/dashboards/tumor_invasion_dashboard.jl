@@ -168,7 +168,7 @@ function sciml_tumor_mitosis_callback(vol_pen)
             u, integrator.p, cache, ws_ref[]; trigger = trigger,
             orientation = CorePotts.RandomOrientation(),
             inheritance_rules = (target_volumes = CorePotts.Split(0.5f0),))
-        CorePotts.reset_hst_pressures_after_division!(u, cache, vol_pen)
+        CorePotts.reset_hst_fields_after_division!(u, cache, vol_pen)
 
         cache.step_counter[] += 1
         backend = KernelAbstractions.get_backend(u.grid)

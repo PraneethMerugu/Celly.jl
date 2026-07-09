@@ -131,12 +131,21 @@ function run_showcase()
         "Active Cell Count" => u -> count(>(0), @view u.cell_data.volumes[2:end])
     ]
 
-    println("Launching Interactive Dashboard...")
-    fig = explore_cpm(prob, alg; metrics = my_metrics, parameters = my_parameters)
-    display(fig)
-    return fig
+    if !haskey(ENV, "TESTING")
+        println("Launching Interactive Dashboard...")
+        fig = explore_cpm(prob, alg; metrics = my_metrics, parameters = my_parameters)
+        display(fig)
+        return fig
+    else
+        println("TESTING=true, running headless pre-solve...")
+        CommonSolve.solve(prob, alg)
+        println("Successfully finished headless solve!")
+        return nothing
+    end
 end
 
 fig = run_showcase()
-println("Press Enter to close the dashboard and exit...")
-readline()
+if !haskey(ENV, "TESTING")
+    println("Press Enter to close the dashboard and exit...")
+    readline()
+end

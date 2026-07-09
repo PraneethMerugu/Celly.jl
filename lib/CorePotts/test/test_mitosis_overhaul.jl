@@ -37,59 +37,59 @@ using SciMLBase
     prob = PottsProblem(u0, (0, 10), p_sys)
     integrator = init(prob, ParallelMetropolis(T = 0.0f0))
     growth(integrator)
-    @test u0.cell_data.target_volumes[1] == 11
+    @test integrator.u.cell_data.target_volumes[1] == 11
 
     # Trigger mitosis, all 3 cells should divide. Total cells will become 6.
-    process_mitosis_events!(u0, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = RandomOrientation())
 
-    @test u0.N_cells[] == 6
-    @test length(u0.cell_data.volumes) >= 6
-    @test u0.cell_data.volumes[6] > 0
+    @test integrator.u.N_cells[] == 6
+    @test length(integrator.u.cell_data.volumes) >= 6
+    @test integrator.u.cell_data.volumes[6] > 0
 
     # 2. Test Cell Death & ID Recycling
     # Kill cell 2
-    u0.cell_data.target_volumes[2] = 0
-    u0.cell_data.volumes[2] = 0
+    integrator.u.cell_data.target_volumes[2] = 0
+    integrator.u.cell_data.volumes[2] = 0
 
-    process_death_events!(u0, cache, ws)
-    @test u0.cell_data.cell_types[2] == 0
-    @test u0.free_list[1] == UInt32(2)
+    process_death_events!(integrator.u, cache, ws)
+    @test integrator.u.cell_data.cell_types[2] == 0
+    @test integrator.u.free_list[1] == UInt32(2)
 
     # Set targets so ONLY cell 1 divides
-    for i in 1:u0.N_cells[]
-        u0.cell_data.target_volumes[i] = 10000
+    for i in 1:integrator.u.N_cells[]
+        integrator.u.cell_data.target_volumes[i] = 10000
     end
-    u0.cell_data.target_volumes[1] = 5
+    integrator.u.cell_data.target_volumes[1] = 5
 
     # Trigger another division for cell 1
-    process_mitosis_events!(u0, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = RandomOrientation())
 
     # The child should reuse ID 2
-    @test u0.N_cells[] == 6 # Still 6 max N_cells used!
-    @test u0.cell_data.volumes[2] > 0
-    @test u0.cell_data.cell_types[2] == 1
-    @test isempty(u0.free_list)
+    @test integrator.u.N_cells[] == 6 # Still 6 max N_cells used!
+    @test integrator.u.cell_data.volumes[2] > 0
+    @test integrator.u.cell_data.cell_types[2] == 1
+    @test isempty(integrator.u.free_list)
 
     # 3. Test Oriented Mitosis (MajorAxisOrientation)
     # Reset grid and data
-    fill!(u0.grid, UInt32(0))
-    u0.N_cells[] = 1
-    empty!(u0.free_list)
+    fill!(integrator.u.grid, UInt32(0))
+    integrator.u.N_cells[] = 1
+    empty!(integrator.u.free_list)
 
     # Spawn a highly elongated cell (Major Axis is Y axis)
     for x in 40:60
         for y in 20:80
-            u0.grid[x, y] = 1
+            integrator.u.grid[x, y] = 1
         end
     end
-    sync_cell_data!(u0, p_sys, cache, 1)
+    sync_cell_data!(integrator.u, p_sys, cache, 1)
 
     # Target volume small to force division
-    u0.cell_data.target_volumes[1] = 100
+    integrator.u.cell_data.target_volumes[1] = 100
 
-    process_mitosis_events!(u0, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = MajorAxisOrientation())
 
     # If the cleavage plane normal is the minor axis (X), the cut goes through the major axis.
@@ -98,9 +98,9 @@ using SciMLBase
     # So the cut plane is parallel to the MAJOR axis.
     # Thus, one child is on the left, one on the right.
 
-    sync_cell_data!(u0, p_sys, cache, 2)
-    vol_1 = u0.cell_data.volumes[1]
-    vol_2 = u0.cell_data.volumes[2]
+    sync_cell_data!(integrator.u, p_sys, cache, 2)
+    vol_1 = integrator.u.cell_data.volumes[1]
+    vol_2 = integrator.u.cell_data.volumes[2]
 
     @test vol_1 > 0
     @test vol_2 > 0
