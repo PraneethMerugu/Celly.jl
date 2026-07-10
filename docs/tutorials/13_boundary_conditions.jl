@@ -19,11 +19,11 @@ using Statistics
 # Both simulations use an identical energy landscape; only the topology differs.
 
 Cell = CellType(:Cell)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
-    [Cell, Medium],
-    [
+    cell_types = [Medium, Cell],
+    penalties  = [
         VolumeComponent(
             Cell => (λ = 5.0f0, target = 300),
             Medium => (λ = 0.0f0, target = 0)

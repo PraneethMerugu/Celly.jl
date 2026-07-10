@@ -20,6 +20,25 @@ All sites with the same non-zero ID belong to the same cell — cells are theref
 Each cell $i$ also has an associated **cell type** $\tau(i)$ drawn from a small discrete
 set (e.g. `A`, `B`, `Medium`). Cell types determine which biological rules apply to a cell.
 
+### Cell IDs and Type IDs
+
+Two distinct integer spaces are used throughout the API:
+
+- **Cell IDs** (`σ`): assigned to lattice sites. `σ = 0` is the background medium.
+  Active cells have IDs `1, 2, …, N_cells`, assigned sequentially as cells are
+  placed during initialization. `cell_data` arrays are **indexed directly by cell ID**.
+
+- **Cell type IDs** (`τ`): integers `1, 2, …, N_types` assigned to each
+  **non-background** `CellType` in the order they appear in `cell_types` of `PottsSystem`.
+  The background type (`is_background=true`) is excluded from this numbering.
+  `cell_data.cell_types[i]` returns the type ID `τ` of cell `i`.
+
+> [!IMPORTANT]
+> Both spaces are **strictly 1-based**. There is no "0th cell" and no "0th type."
+> When writing callbacks or metrics that filter by cell type, use the type ID,
+> and prefer symbolic lookup over hardcoded integers to avoid silent bugs if the
+> `cell_types` ordering changes.
+
 ### Monte Carlo Dynamics
 
 At each **Monte Carlo step** (MCS) the following procedure is repeated $|\Lambda|$ times
@@ -147,7 +166,9 @@ once at initialisation.
 
 > [!TIP]
 > Trackers are registered automatically when you add components to a `PottsSystem`. You do
-> not need to manage them manually.
+> not need to manage them manually. At problem construction, `build_initial_state` seeds
+> the lattice from an `AbstractLayout`, then `initialize_metrics!` performs a **single
+> O(|\Lambda|) scan** to populate all tracker arrays. Every subsequent update is O(1).
 
 ---
 

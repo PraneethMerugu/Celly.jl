@@ -64,11 +64,11 @@ neural_penalty = LocalNeuralPenalty(model, ps, st)
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
-    [A, B, Medium],
-    [
+    cell_types = [Medium, A, B],
+    penalties  = [
         VolumeComponent(
             A => (λ = 3.0f0, target = 400),
             B => (λ = 3.0f0, target = 400)
@@ -138,8 +138,8 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 
 # ```julia
 # trained_sys = PottsSystem(
-#     [A, B, Medium],
-#     [
+#     cell_types = [Medium, A, B],
+#     penalties  = [
 #         VolumeComponent(
 #             A => (λ = 3.0f0, target = 400),
 #             B => (λ = 3.0f0, target = 400),

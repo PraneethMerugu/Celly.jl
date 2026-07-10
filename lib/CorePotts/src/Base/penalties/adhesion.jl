@@ -20,6 +20,11 @@ function AdhesionPenalty{Flex}(J; isotropic::Bool = false)
     AdhesionPenalty{Flex, typeof(J), isotropic}(J)
 end
 
+# ConstructionBase Overloads
+struct AdhesionReconstructor{Trait, Iso} end
+(::AdhesionReconstructor{Trait, Iso})(J) where {Trait, Iso} = AdhesionPenalty{Trait, typeof(J), Iso}(J)
+ConstructionBase.constructorof(::Type{<:AdhesionPenalty{Trait, MatrixT, Iso}}) where {Trait, MatrixT, Iso} = AdhesionReconstructor{Trait, Iso}()
+
 @inline function get_adhesion_modifier(p::AdhesionPenalty{Rigid}, ctx, cell_id)
     return one(eltype(p.J))
 end

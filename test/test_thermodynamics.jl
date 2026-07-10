@@ -27,7 +27,7 @@ using PottsToolkit.TestProblems
                 volumes = Int32[]
                 condition(u, t, integrator) = t > 1000
                 function affect!(integrator)
-                    push!(volumes, integrator.u.cell_data.volumes[2])
+                    push!(volumes, integrator.u.cell_data.volumes[1])
                 end
                 cb = SciMLBase.DiscreteCallback(condition, affect!)
 
@@ -62,11 +62,10 @@ using PottsToolkit.TestProblems
 
                     Random.seed!(Int(T*100))
                     for i in 1:length(prob.u0.grid)
-                        prob.u0.grid[i] = rand() < 0.95 ? 2 : 3
+                        prob.u0.grid[i] = rand() < 0.95 ? 1 : 2
                     end
+                    prob.u0.cell_data.volumes[1] = sum(prob.u0.grid .== 1)
                     prob.u0.cell_data.volumes[2] = sum(prob.u0.grid .== 2)
-                    prob.u0.cell_data.volumes[3] = sum(prob.u0.grid .== 3)
-                    prob.u0.cell_data.volumes[1] = 0
                     alg = AlgType(; T = T, active_fraction = 0.1f0, sweeps_per_step = 10)
 
                     mag_acc = 0.0
@@ -75,9 +74,9 @@ using PottsToolkit.TestProblems
                         u = integrator.u
                         c1, c2 = 0, 0
                         for v in u.grid
-                            if v == 2
+                            if v == 1
                                 c1 += 1
-                            elseif v == 3
+                            elseif v == 2
                                 c2 += 1
                             end
                         end

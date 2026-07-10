@@ -55,12 +55,12 @@ using MakiePotts
 # ── 1. Cell types ──────────────────────────────────────────────────────────────
 A      = CellType(:A)
 B      = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
 
 # ── 2. System: biological components ──────────────────────────────────────────
 sys = PottsSystem(
-    [A, B, Medium],
-    [
+    cell_types = [Medium, A, B],         # background type listed first by convention
+    penalties  = [
         # Volume constraint keeps cells at a target area
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
@@ -158,6 +158,6 @@ results from the literature.
 
 - Read [Concepts](@ref concepts) for the mathematical details behind the Hamiltonian and
   acceptance criterion.
-- Browse the [Tutorials](@ref) for worked examples covering growth, mitosis, chemotaxis,
+- Browse the **Tutorials** for worked examples covering growth, mitosis, chemotaxis,
   and more.
 - See [PottsToolkit](@ref pottstoolkit-overview) for the full component reference.

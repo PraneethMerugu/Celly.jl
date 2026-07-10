@@ -17,7 +17,7 @@ wound healing, and developmental patterning.
 | Package | Role |
 |---------|------|
 | **CorePotts** | The physics engine — lattice representation, Monte Carlo algorithms, penalty evaluation, trackers, and I/O backends. Intended as an internal library; end users rarely import it directly. |
-| **PottsToolkit** | A declarative, user-facing DSL that lets you define cell types, attach biological components, build a [`PottsProblem`](@ref), and `solve` it in a few lines of Julia. Re-exports everything from CorePotts. |
+| **PottsToolkit** | A declarative, user-facing modeling API that lets you define cell types, attach biological components, build a [`PottsProblem`](@ref), and `solve` it in a few lines of Julia. Re-exports everything from CorePotts. |
 | **MakiePotts** | Visualization layer built on Makie.jl — static plots, interactive dashboards (`explore_cpm`), and video recording (`record_potts`). |
 | **NeuralPotts** | Energy-based model training: replace hand-crafted penalties with a Lux.jl neural network trained via Persistent Contrastive Divergence. |
 
@@ -32,12 +32,12 @@ using MakiePotts
 # 1. Define cell types
 A      = CellType(:A)
 B      = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
 
 # 2. Assemble the model
 sys = PottsSystem(
-    [A, B, Medium],
-    [
+    cell_types = [Medium, A, B],                  # background type listed first by convention
+    penalties  = [
         VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
         AdhesionComponent(
             (A, Medium) => 15.0f0,
@@ -64,7 +64,7 @@ record_potts("cell_sorting.mp4", sol; framerate=30)
 
 - **[Getting Started](@ref getting-started)** — installation, first simulation, algorithm selection.
 - **[Concepts](@ref concepts)** — the mathematical background: Hamiltonian, Metropolis acceptance, HST penalties.
-- **[PottsToolkit](@ref pottstoolkit-overview)** — the declarative DSL in depth.
+- **[PottsToolkit](@ref pottstoolkit-overview)** — the modeling API in depth.
 - **[MakiePotts](@ref makiepotts-overview)** — visualization, dashboards, and video recording.
 - **[NeuralPotts](@ref neuralpotts-overview)** — neural energy-based models.
 - **Tutorials** — step-by-step worked examples.

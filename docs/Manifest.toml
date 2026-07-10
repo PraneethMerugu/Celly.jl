@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "f13ad3af76bc7c725243ef196fa596451bb2cca0"
+project_hash = "96ecbe2a936515d067c69a0a712c46d741ee6e79"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -481,7 +481,7 @@ uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -1919,7 +1919,7 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.Potts]]
-deps = ["CorePotts", "MakiePotts", "Mermaid", "NeuralPotts", "PottsToolkit", "Reexport"]
+deps = ["CorePotts", "MakiePotts", "NeuralPotts", "PottsToolkit", "Reexport"]
 path = ".."
 uuid = "15ba70d5-27dc-4a83-b627-d79984c8d986"
 version = "0.1.0"

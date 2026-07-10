@@ -25,7 +25,7 @@ function cell_sorting_problem(;
 )
     A = CellType(:A)
     B = CellType(:B)
-    Medium = CellType(:Medium)
+    Medium = CellType(:Medium, is_background=true)
 
     sys = PottsSystem([A, B, Medium],
         [
@@ -36,8 +36,8 @@ function cell_sorting_problem(;
                 (A, Medium) => J_Medium, (B, Medium) => J_Medium
             )
         ])
-    return PottsProblem(sys, Dict(A => cells_per_type, B => cells_per_type),
-        grid_size; tspan = tspan, topology = topology)
+    layout = RandomLayout(Dict(A => cells_per_type, B => cells_per_type))
+    return PottsProblem(sys, layout, grid_size; tspan = tspan, topology = topology)
 end
 
 """
@@ -56,7 +56,7 @@ function young_laplace_droplet(;
         isotropic = false
 )
     Cell = CellType(:Cell)
-    Medium = CellType(:Medium)
+    Medium = CellType(:Medium, is_background=true)
 
     sys = PottsSystem([Cell, Medium],
         [
@@ -69,25 +69,11 @@ function young_laplace_droplet(;
             )
         ])
 
-    # We want exactly one cell centered. 
-    # The default PottsProblem initialization spawns cells randomly, but for this specific test
-    # we usually want it placed precisely in the center to avoid boundary effects. 
-    prob = PottsProblem(sys, Dict(Cell => 1), grid_size; tspan = tspan, topology = topology)
-
-    # Reset grid and manually spawn hypersphere
-    W, H = grid_size
-    prob.u0.grid .= 0
-    center = (W ÷ 2, H ÷ 2)
+    center = (grid_size[1] ÷ 2, grid_size[2] ÷ 2)
     radius = round(Int, sqrt(target_volume / pi))
-    CorePotts.spawn_hypersphere!(prob.u0.grid, grid_size, center, radius, UInt32(2))
+    layout = HypersphereLayout(Cell, center, radius)
 
-    # Sync volume tracker. PottsToolkit maps types to IDs starting from 1 for non-medium.
-    # So ID 2 is the Cell. ID 1 is Medium (wait, Medium is 0 in grid, but its volume is at index 1).
-    # The cells start at index 2 in cell_data.
-    prob.u0.cell_data.volumes[2] = sum(prob.u0.grid .== 2)
-    prob.u0.cell_data.volumes[1] = prod(grid_size) - prob.u0.cell_data.volumes[2]
-
-    return prob
+    return PottsProblem(sys, layout, grid_size; tspan = tspan, topology = topology)
 end
 
 """
@@ -104,26 +90,18 @@ function single_cell_fluctuation(;
         topology = MooreTopology{2}()
 )
     Cell = CellType(:Cell)
-    Medium = CellType(:Medium)
+    Medium = CellType(:Medium, is_background=true)
 
     sys = PottsSystem([Cell, Medium],
         [
             HSTVolumeComponent(Cell => (λ = volume_lambda, target = target_volume); eta = volume_eta)
         ])
 
-    prob = PottsProblem(sys, Dict(Cell => 1), grid_size; tspan = tspan, topology = topology)
-
-    # Reset grid and manually spawn hypersphere
-    W, H = grid_size
-    prob.u0.grid .= 0
-    center = (W ÷ 2, H ÷ 2)
+    center = (grid_size[1] ÷ 2, grid_size[2] ÷ 2)
     radius = round(Int, sqrt(target_volume / pi))
-    CorePotts.spawn_hypersphere!(prob.u0.grid, grid_size, center, radius, UInt32(2))
+    layout = HypersphereLayout(Cell, center, radius)
 
-    prob.u0.cell_data.volumes[2] = sum(prob.u0.grid .== 2)
-    prob.u0.cell_data.volumes[1] = prod(grid_size) - prob.u0.cell_data.volumes[2]
-
-    return prob
+    return PottsProblem(sys, layout, grid_size; tspan = tspan, topology = topology)
 end
 
 """
@@ -139,7 +117,7 @@ function ising_model(;
 )
     Up = CellType(:Up)
     Down = CellType(:Down)
-    Medium = CellType(:Medium) # We won't use Medium, but it's required
+    Medium = CellType(:Medium, is_background=true) # We won't use Medium, but it's required
 
     sys = PottsSystem([Up, Down, Medium],
         [
@@ -153,7 +131,8 @@ function ising_model(;
         ])
 
     # We want a fully occupied grid (no Medium) with 2 cells taking up all space.
-    prob = PottsProblem(sys, Dict(Up => 1, Down => 1), grid_size;
+    layout = RandomLayout(Dict(Up => 1, Down => 1))
+    prob = PottsProblem(sys, layout, grid_size;
         tspan = tspan, topology = topology, max_cells = 3)
 
     # The grid will be populated by the test script.

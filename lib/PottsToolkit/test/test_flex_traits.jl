@@ -5,11 +5,11 @@ using PottsToolkit
 @testset "Flex Traits Tests" begin
     # 1. Define a system with Flex traits
     sys = PottsSystem(
-        cell_types = [CellType(:Medium), CellType(:A)],
+        cell_types = [CellType(:Medium, is_background=true), CellType(:A)],
         penalties = [
             VolumeComponent(CellType(:A) => (target = 100.0, λ = 5.0), flex = true),
             AdhesionComponent((CellType(:A), CellType(:A)) => 10.0,
-                (CellType(:A), CellType(:Medium)) => 5.0,
+                (CellType(:A), CellType(:Medium, is_background=true)) => 5.0,
                 flex = true)
         ]
     )
@@ -19,19 +19,19 @@ using PottsToolkit
     prob = PottsProblem(sys, u0_counts, (20, 20); tspan = (0, 10))
 
     # 3. Check that Flex properties are initialized
+    @test prob.u0.cell_data.volume_lambdas[1] == 5.0f0
     @test prob.u0.cell_data.volume_lambdas[2] == 5.0f0
-    @test prob.u0.cell_data.volume_lambdas[3] == 5.0f0
 
     # 4. Check adhesion modifiers initialized to 1.0
+    @test prob.u0.cell_data.adhesion_modifiers[1] == 1.0f0
     @test prob.u0.cell_data.adhesion_modifiers[2] == 1.0f0
-    @test prob.u0.cell_data.adhesion_modifiers[3] == 1.0f0
 
     # 5. Modify one cell's lambda and verify independent behavior
-    prob.u0.cell_data.volume_lambdas[2] = 10.0f0
-    prob.u0.cell_data.adhesion_modifiers[3] = 2.0f0
+    prob.u0.cell_data.volume_lambdas[1] = 10.0f0
+    prob.u0.cell_data.adhesion_modifiers[2] = 2.0f0
 
-    @test prob.u0.cell_data.volume_lambdas[2] == 10.0f0
-    @test prob.u0.cell_data.volume_lambdas[3] == 5.0f0
+    @test prob.u0.cell_data.volume_lambdas[1] == 10.0f0
+    @test prob.u0.cell_data.volume_lambdas[2] == 5.0f0
 
     # Check penalty types
     @test prob.p.penalties[1] isa CorePotts.VolumePenalty{CorePotts.Flex}
@@ -41,7 +41,7 @@ using PottsToolkit
     vol_pen = prob.p.penalties[1]
 
     # Fake context
-    ctx = (src = UInt32(2), tgt = UInt32(3), cell_data = prob.u0.cell_data)
+    ctx = (src = UInt32(1), tgt = UInt32(2), cell_data = prob.u0.cell_data)
 
     lam_src = CorePotts.get_lambda(vol_pen, ctx, ctx.src)
     lam_tgt = CorePotts.get_lambda(vol_pen, ctx, ctx.tgt)

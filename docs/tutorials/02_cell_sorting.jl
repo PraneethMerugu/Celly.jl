@@ -28,7 +28,7 @@ using Statistics: mean
 
 TypeA = CellType(:TypeA)
 TypeB = CellType(:TypeB)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Adhesion Matrix — the Key DAH Parameter
 #
@@ -47,8 +47,8 @@ Medium = CellType(:Medium)
 # If J(A,B) were intermediate, you would observe partial engulfment instead.
 
 sys = PottsSystem(
-    [TypeA, TypeB, Medium],
-    [
+    cell_types = [Medium, TypeA, TypeB],
+    penalties  = [
         VolumeComponent(
             TypeA => (λ = 5.0f0, target = 150),
             TypeB => (λ = 5.0f0, target = 150)

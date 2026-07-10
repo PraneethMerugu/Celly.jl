@@ -18,3 +18,6 @@ LocalNeuralPenalty(m, w, s) = LocalNeuralPenalty{Rigid}(m, w, s)
 function LocalNeuralPenalty{Flex}(m, w, s)
     LocalNeuralPenalty{Flex, typeof(m), typeof(w), typeof(s)}(m, w, s)
 end
+
+# ConstructionBase Overloads
+ConstructionBase.constructorof(::Type{<:LocalNeuralPenalty{Trait}}) where {Trait} = LocalNeuralPenalty{Trait}

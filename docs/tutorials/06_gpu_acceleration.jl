@@ -27,15 +27,15 @@ using MakiePotts
 # ## Cell Types
 
 TypeA = CellType(:TypeA)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy Model
 #
 # We use a representative mix of components to benchmark a realistic workload.
 
 sys = PottsSystem(
-    [TypeA, Medium],
-    [
+    cell_types = [Medium, TypeA],
+    penalties  = [
         VolumeComponent(TypeA => (λ = 5.0f0, target = 200)),
         SurfaceAreaComponent(TypeA => (λ = 1.0f0, target = 60)),
         AdhesionComponent(
@@ -84,6 +84,9 @@ alg_sequential = SequentialMetropolis(T = 2.0f0, sweeps_per_step = 10)
 # # Metal:
 # grid = Metal.zeros(UInt32, 500, 500)
 # ```
+#
+# Note: passing a raw GPU array bypasses AbstractLayout initialization. Cell data arrays
+# will not be auto-populated — only use this for advanced custom initialization.
 #
 # Then pass `grid` as the third argument to PottsProblem instead of the tuple.
 

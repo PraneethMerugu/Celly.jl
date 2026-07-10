@@ -1,7 +1,7 @@
 # [PottsToolkit](@id pottstoolkit-overview)
 
 **PottsToolkit** is the recommended entry point for all Potts simulations.
-It provides a declarative, high-level DSL that compiles to CorePotts's internal
+It provides a declarative, high-level modeling API that compiles to CorePotts's internal
 representation — you describe *what* biological rules apply to your cells;
 PottsToolkit figures out *how* to implement them efficiently on the lattice.
 
@@ -28,7 +28,7 @@ Cell types determine which penalty parameters apply to which cells.
 ```julia
 A      = CellType(:A)
 B      = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
 ```
 
 There is always at least one `Medium` type representing the background lattice.
@@ -56,8 +56,8 @@ A `PottsSystem` bundles cell types and components into a complete model descript
 
 ```julia
 sys = PottsSystem(
-    [A, B, Medium],          # cell types
-    [                        # components
+    cell_types = [Medium, A, B],     # background type listed first by convention
+    penalties  = [
         VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
         AdhesionComponent((A, Medium) => 15.0f0, (A, B) => 10.0f0, (A, A) => 2.0f0,
                           (B, Medium) => 15.0f0, (B, B) => 2.0f0),
@@ -90,14 +90,37 @@ prob = PottsProblem(
 
 **Under the hood**, `PottsProblem` does the following:
 
-1. Allocates the lattice array and initialises it by seeding cells as compact circular
-   blobs placed on a regular grid.
-2. Instantiates each component's CorePotts penalty object with the compiled parameter
-   arrays.
-3. Registers the required trackers for each penalty (e.g. the volume tracker for
-   `VolumeComponent`).
-4. Wraps everything in a `SciMLBase.AbstractDEProblem`-compatible struct so that
+1. Converts `Dict(CellType => count)` into a `HypersphereLayout` — compact circular
+   blobs (2D) or spheres (3D) arranged on a regular sub-grid.
+2. Calls `build_initial_state` to populate the lattice from the layout, assigning
+   cell IDs sequentially from `1`.
+3. Calls `initialize_metrics!` to perform a single O(|Λ|) scan that syncs all
+   tracker arrays (volume, surface area, etc.) from the actual lattice contents.
+4. Instantiates each component's CorePotts penalty object with the compiled parameter
+   arrays, keyed by type ID.
+5. Wraps everything in a `SciMLBase.AbstractDEProblem`-compatible struct so that
    `solve`, `init`, and `step!` work as expected.
+
+### Custom Layouts
+
+By default `PottsProblem` places cells via `HypersphereLayout`, which distributes
+compact blobs on a regular sub-grid. For fine-grained control, pass a layout directly:
+
+```julia
+using PottsToolkit: HypersphereLayout
+
+# Explicit layout — override the default radius computation
+layout = HypersphereLayout(
+    Dict(A => 20, B => 20),
+    (200, 200);
+    radius = 8.0f0    # each cell is a disc of radius 8 lattice sites
+)
+
+prob = PottsProblem(sys, layout, (200, 200); tspan = (0, 500))
+```
+
+Any `AbstractLayout` subtype can be passed here, making it straightforward to implement
+e.g. stripe initializations, confined geometries, or data-driven initial conditions.
 
 ---
 
@@ -140,8 +163,10 @@ mitosis_cb = MitosisCallback(trigger;
     inheritance_rules = (target_volumes = Split(0.5f0),),
 )
 
+# Type IDs are 1-based and assigned to non-background types in declaration order.
+# With `cell_types = [Medium, A, B]`: A has type ID 1, B has type ID 2.
 death_cb = DeathCallback((cell_id, cell_data) ->
-    cell_data.cell_types[cell_id] == 3     # kill cells of type 3
+    cell_data.cell_types[cell_id] == 2     # kill cells of type B (type ID = 2)
 )
 
 cb = SciMLBase.CallbackSet(

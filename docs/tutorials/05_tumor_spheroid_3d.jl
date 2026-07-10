@@ -28,7 +28,7 @@ using Zarr
 # ## Cell Type
 
 Tumor = CellType(:Tumor)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy Model
 #
@@ -40,8 +40,8 @@ Medium = CellType(:Medium)
 # E-cadherin expression observed in early-stage carcinomas.
 
 sys = PottsSystem(
-    [Tumor, Medium],
-    [
+    cell_types = [Medium, Tumor],
+    penalties  = [
         VolumeComponent(Tumor => (λ = 5.0f0, target = 65)),
         AdhesionComponent(
             (Tumor, Tumor) => 2.0f0,
@@ -56,7 +56,7 @@ sys = PottsSystem(
 # constructs a 3D lattice. `VonNeumannTopology{3}()` gives 6-connectivity
 # (the six face-adjacent voxels), which is the 3D analogue of the 4-connected
 # 2D neighbourhood and the appropriate choice for isotropic diffusion-limited
-# problems. We seed 20 tumour cells in the centre and run for 400 MCS.
+# problems. We seed 20 tumour cells distributed on a regular 3D sub-grid and run for 400 MCS.
 
 prob = PottsProblem(
     sys,

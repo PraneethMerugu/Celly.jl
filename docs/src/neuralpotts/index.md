@@ -66,7 +66,8 @@ Feature vector f(x):
   [8]  cell type of neighbour 8 (NW)
 ```
 
-Cell types are encoded as integers (matching their index in the `CellType` list) and
+Cell types are encoded as **type IDs** — integers `1, 2, …` assigned to non-background
+`CellType`s in declaration order (background is excluded). They are
 normalised before being passed to the network.
 The network outputs a single scalar $\Delta E_\theta(\mathbf{f})$, which is added to
 the total $\Delta H$ for the copy attempt.
@@ -157,12 +158,12 @@ using PottsToolkit, NeuralPotts, Lux, Zygote, Optimisers
 
 # 1. Define cell types and a system with a neural penalty
 A      = CellType(:A)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
 
 network = Lux.Chain(Lux.Dense(9, 64, tanh), Lux.Dense(64, 1))
 penalty = LocalNeuralPenalty(network)
 
-sys  = PottsSystem([A, Medium], [penalty])
+sys  = PottsSystem(cell_types = [Medium, A], penalties = [penalty])
 prob = PottsProblem(sys, Dict(A => 30), (100, 100); tspan=(0, 200))
 alg  = CheckerboardMetropolis(T=1.0f0, sweeps_per_step=5)
 

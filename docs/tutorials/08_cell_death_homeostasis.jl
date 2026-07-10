@@ -26,13 +26,13 @@ using Statistics: mean
 # ## Cell Types
 
 Epithelial = CellType(:Epithelial)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy Model
 
 sys = PottsSystem(
-    [Epithelial, Medium],
-    [
+    cell_types = [Medium, Epithelial],
+    penalties  = [
         VolumeComponent(Epithelial => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Epithelial, Epithelial) => 2.0f0,
@@ -77,6 +77,7 @@ const P_DEATH = 0.005f0
 random_death_cb = SciMLBase.DiscreteCallback(
     (u, t, integrator) -> true,
     function (integrator)
+        ## i is a 1-based cell ID; cell_data arrays are indexed from 1
         for i in 1:integrator.u.N_cells[]
             ## Only kill living cells
             if integrator.u.cell_data.volumes[i] > 0 && rand() < P_DEATH

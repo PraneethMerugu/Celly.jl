@@ -23,6 +23,10 @@ function HSTSurfaceAreaPenalty{Flex}(; eta = 1.0, FloatType = Float32)
     return HSTSurfaceAreaPenalty{Flex, Vector{FloatType}, typeof(F)}(FloatType[], F)
 end
 
+# ConstructionBase Overloads
+ConstructionBase.constructorof(::Type{<:HSTSurfaceAreaPenalty{Trait}}) where {Trait} = HSTSurfaceAreaPenalty{Trait}
+HSTSurfaceAreaPenalty{Trait}(lambdas, eta) where {Trait} = HSTSurfaceAreaPenalty{Trait, typeof(lambdas), typeof(eta)}(lambdas, eta)
+
 lambda_field(::HSTSurfaceAreaPenalty) = Val{:surface_area_lambdas}()
 hst_state_field(::HSTSurfaceAreaPenalty) = Val{:tensions}()
 hst_value_field(::HSTSurfaceAreaPenalty) = Val{:surface_areas}()

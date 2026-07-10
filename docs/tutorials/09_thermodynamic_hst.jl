@@ -34,7 +34,7 @@ using Statistics: mean, std, var
 # ## Cell Types
 
 CellA = CellType(:CellA)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Classical System (Reference)
 #
@@ -42,8 +42,8 @@ Medium = CellType(:Medium)
 # We use this as the baseline against which HST is compared.
 
 sys_classical = PottsSystem(
-    [CellA, Medium],
-    [
+    cell_types = [Medium, CellA],
+    penalties  = [
         VolumeComponent(CellA => (λ = 5.0f0, target = 200)),
         AdhesionComponent(
             (CellA, CellA) => 2.0f0,
@@ -65,8 +65,8 @@ sys_classical = PottsSystem(
 # giving a more realistic mechanical phenotype.
 
 sys_hst = PottsSystem(
-    [CellA, Medium],
-    [
+    cell_types = [Medium, CellA],
+    penalties  = [
         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = 1.0),
         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
         AdhesionComponent(
@@ -153,8 +153,8 @@ fig = explore_cpm(
             action = (prob, alg, val) -> begin
                 ## Rebuild the HST system with the new eta value
                 new_sys = PottsSystem(
-                    [CellA, Medium],
-                    [
+                    cell_types = [Medium, CellA],
+                    penalties  = [
                         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = val),
                         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
                         AdhesionComponent(

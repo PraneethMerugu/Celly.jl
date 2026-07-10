@@ -6,17 +6,22 @@ export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaCompon
 using CorePotts: FlexibilityTrait, Rigid, Flex
 
 """
-    CellType(name::Symbol)
+    CellType(name::Symbol; is_background::Bool=false)
 
 Abstract representation of a cell's identity.
 """
 struct CellType
     name::Symbol
+    is_background::Bool
+end
+
+function CellType(name::Symbol; is_background::Bool=false)
+    return CellType(name, is_background)
 end
 
 # To allow using CellTypes as Dict keys cleanly
-Base.hash(c::CellType, h::UInt) = hash(c.name, h)
-Base.:(==)(a::CellType, b::CellType) = a.name == b.name
+Base.hash(c::CellType, h::UInt) = hash((c.name, c.is_background), h)
+Base.:(==)(a::CellType, b::CellType) = a.name == b.name && a.is_background == b.is_background
 
 abstract type AbstractComponent end
 
@@ -128,8 +133,7 @@ function AdhesionComponent(pairs::Pair{Tuple{CellType, CellType}, <:Real}...;
     for (types, val) in pairs
         # Adhesion is symmetric, store canonical ordering
         t1, t2 = types
-        # sort by name string to ensure canonical key
-        canonical_key = string(t1.name) < string(t2.name) ? (t1, t2) : (t2, t1)
+        canonical_key = hash(t1) < hash(t2) ? (t1, t2) : (t2, t1)
         dict[canonical_key] = Float32(val)
     end
     FlexType = flex ? Flex : Rigid
@@ -138,12 +142,27 @@ end
 
 """
     PottsSystem(; cell_types::Vector{CellType}, penalties::Vector{Any})
+    PottsSystem(args...)
 
 Collects the abstract logical rules and components defining a Cellular Potts Model.
+The varargs constructor separates `CellType` instances from penalty components automatically.
 """
 Base.@kwdef struct PottsSystem
     cell_types::Vector{CellType}
     penalties::Vector{Any}
+end
+
+function PottsSystem(args...)
+    types = CellType[]
+    pens = Any[]
+    for arg in args
+        if arg isa CellType
+            push!(types, arg)
+        else
+            push!(pens, arg)
+        end
+    end
+    return PottsSystem(types, pens)
 end
 
 end

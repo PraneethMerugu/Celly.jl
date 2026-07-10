@@ -24,7 +24,7 @@ using SciMLBase
 # ## Cell Type
 
 Progenitor = CellType(:Progenitor)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy Model
 #
@@ -33,8 +33,8 @@ Medium = CellType(:Medium)
 # division.
 
 sys = PottsSystem(
-    [Progenitor, Medium],
-    [
+    cell_types = [Medium, Progenitor],
+    penalties  = [
         VolumeComponent(Progenitor => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Progenitor, Progenitor) => 2.0f0,

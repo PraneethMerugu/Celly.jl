@@ -1,9 +1,9 @@
 using CairoMakie
 CairoMakie.activate!()
 
-# # The PottsToolkit DSL
+# # The PottsToolkit Modeling API
 #
-# PottsToolkit provides a **declarative domain-specific language** for building
+# PottsToolkit provides a **declarative modeling API** for building
 # Cellular Potts Models.  Rather than subclassing types or overriding methods,
 # you compose named *components* into a `PottsSystem`, and the toolkit compiles
 # them into an efficient energy-evaluation kernel.  This tutorial is the
@@ -27,7 +27,7 @@ using Statistics
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Step 2: Build components
 #
@@ -110,8 +110,8 @@ chem = ChemotaxisComponent(
 # energy kernel.
 
 sys = PottsSystem(
-    [A, B, Medium],
-    [vol, surf, adh, len]
+    cell_types = [Medium, A, B],
+    penalties  = [vol, surf, adh, len]
 )
 
 # ## Step 4: Build the problem
@@ -170,6 +170,7 @@ record_potts(
         types = Array(u.cell_data.cell_types)
         vols = Array(u.cell_data.volumes)
         n = u.N_cells[]
+        ## type ID 1 = first non-background type (A, in declaration order)
         idx = findall(==(1), types[1:n])
         isempty(idx) ? 0.0 : mean(vols[idx])
     end,

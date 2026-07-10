@@ -245,25 +245,23 @@ function run_dashboard()
             VolumeComponent(tissue => (λ = 5.0f0, target = initial_area)),
             SurfaceAreaComponent(tissue => (λ = 2.0f0, target = 4.0f0*sqrt(initial_area))),
             AdhesionComponent(
-                (medium, tissue) => 10.0f0, 
-                (tissue, tissue) => 2.0f0
+                (medium, tissue) => 0.0f0, 
+                (tissue, tissue) => 0.0f0
             ),
             ConnectivityConstraint(),     # Prevent fragmentation topologically!
             MonolayerGrowthComponent(initial_area, initial_div_thresh)    # Custom plugin API for allocating required properties!
         ]
     )
     
-    # Declarative initial counts (1 tissue cell)
-    u0_counts = Dict(tissue => 1)
+    # Declarative explicit layout primitive!
+    layout = HypersphereLayout(tissue, (400, 400), Int(round(R)))
 
     # Using the new extended PottsProblem with MTK-style declarative initialization!
-    prob = PottsProblem(sys, u0_counts, grid_size; 
+    prob = PottsProblem(sys, layout, grid_size; 
                         max_cells = 250_000, 
                         tspan=(0, 2000),
-                        topology = CorePotts.NoFluxMooreTopology{2}(),
-                        seed_center = (400, 400),
-                        seed_radius = Int(round(R)))
-    alg = CheckerboardMetropolis(T=2.0f0, active_fraction=1.0f0/10.0f0)
+                        topology = CorePotts.NoFluxMooreTopology{2}())
+    alg = CheckerboardMetropolis(T=20.0f0, active_fraction=1.0f0/10.0f0)
     
     # Dynamic controls
     beta_ref = Ref(0.8f0)
@@ -305,8 +303,8 @@ function run_dashboard()
             end
         ),
         "Temperature (T)" => (
-            range = 1.0:0.5:5.0,
-            start = 2.0,
+            range = 1.0:1.0:50.0,
+            start = 20.0,
             action = (p, a, val) -> begin
                 return CorePotts.CheckerboardMetropolis(
                     sampler = a.sampler,

@@ -1,5 +1,6 @@
 import Adapt
 import Functors
+import ConstructionBase
 
 abstract type AbstractPenalty{Trait <: FlexibilityTrait} end
 abstract type AbstractNeuralPenalty{Trait} <: AbstractPenalty{Trait} end
@@ -26,7 +27,7 @@ end
 function Functors.functor(::Type{<:AbstractPenalty}, x)
     props = propertynames(x)
     children = NamedTuple{props}(getproperty.(Ref(x), props))
-    reconstruct(children) = Base.typename(typeof(x)).wrapper(values(children)...)
+    reconstruct(children) = ConstructionBase.constructorof(typeof(x))(values(children)...)
     return children, reconstruct
 end
 

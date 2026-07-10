@@ -4,6 +4,8 @@ using CorePotts
 using StructArrays
 using Random
 using ..System
+using ..Layouts
+import ..Layouts: AbstractLayout
 
 export PottsProblem
 
@@ -12,7 +14,9 @@ export PottsProblem
 
 Returns `(compiled_penalty, required_trackers, initial_props)`.
 """
-function compile_component end
+function compile_component(pen::AbstractComponent, type_to_id::Dict{CellType, UInt8}, num_types::Int)
+    error("NotImplementedError: compile_component is not implemented for $(typeof(pen)). Please implement compile_component to return (compiled_penalty, required_trackers, initial_props).")
+end
 
 function compile_component(pen::VolumeComponent, type_to_id::Dict{CellType, UInt8}, num_types::Int)
     FlexType = typeof(pen).parameters[1]
@@ -179,62 +183,41 @@ function compile_penalties(sys::PottsSystem, type_to_id::Dict{CellType, UInt8}, 
 end
 
 """
-    build_initial_state(u0_counts::Dict{CellType, Int}, 
+    build_initial_state(layout::AbstractLayout, 
                         type_to_id::Dict{CellType, UInt8}, 
                         initial_props::Dict{UInt8, Dict{Symbol, Any}},
-                        grid_size::Tuple)
+                        custom_vars::NamedTuple,
+                        grid_size::Tuple;
+                        max_cells::Union{Int, Nothing} = nothing)
 
-Constructs the grid and StructArray for the PottsState.
+Constructs the grid and StructArray for the PottsState using a declarative layout.
 """
-function build_initial_state(u0_counts::Dict{CellType, Int},
+function build_initial_state(layout::AbstractLayout,
         type_to_id::Dict{CellType, UInt8},
         initial_props::Dict{UInt8, Dict{Symbol, Any}},
         custom_vars::NamedTuple,
         grid_size::Tuple;
-        max_cells::Union{Int, Nothing} = nothing,
-        seed_center::Union{Tuple, Nothing} = nothing,
-        seed_radius::Union{Int, Nothing} = nothing)
-    grid = zeros(Int32, grid_size...)
+        max_cells::Union{Int, Nothing} = nothing)
+    
+    ctx = Layouts.LayoutContext(grid_size, type_to_id)
+    Layouts.build_layout!(layout, ctx)
 
-    total_cells = sum(values(u0_counts))
+    total_cells = ctx.next_cell_id - 1
+    allocated_cells = max_cells === nothing ? total_cells : max_cells
 
-    # We will randomly seed the cells in the grid, each starting with volume 1
-    cell_id = 1
-    available_indices = shuffle(1:length(grid))
-    idx_counter = 1
-
-    volumes = zeros(Int32, total_cells + 1)
-    cell_types = zeros(UInt8, total_cells + 1)
-
-    volumes[1] = prod(grid_size) - total_cells
-    cell_types[1] = 0
-
-    for (ct, count) in u0_counts
-        if ct.name == :Medium
-            continue # Already handled
-        end
-
-        type_id = type_to_id[ct]
-
-        for _ in 1:count
-            cell_id += 1
-
-            if seed_center !== nothing && seed_radius !== nothing && total_cells == 1
-                CorePotts.spawn_hypersphere!(grid, grid_size, seed_center, seed_radius, UInt32(cell_id))
-                volumes[cell_id] = 0 # Will be synced automatically later by sync_cell_data!
-            else
-                # Place exactly 1 pixel
-                linear_idx = available_indices[idx_counter]
-                idx_counter += 1
-                grid[linear_idx] = cell_id
-                volumes[cell_id] = 1
-            end
-            
-            cell_types[cell_id] = type_id
+    volumes = zeros(Int32, allocated_cells)
+    for px in ctx.grid
+        if px > 0 && px <= allocated_cells
+            volumes[px] += 1
         end
     end
 
-    allocated_cells = max_cells === nothing ? total_cells + 1 : max_cells
+    cell_types = zeros(UInt8, allocated_cells)
+    for (cell_id, type_id) in ctx.cell_type_map
+        if cell_id > 0 && cell_id <= allocated_cells
+            cell_types[cell_id] = type_id
+        end
+    end
     
     # Allocate MTK-style custom kwargs
     custom_kwargs = Dict{Symbol, Any}()
@@ -243,14 +226,13 @@ function build_initial_state(u0_counts::Dict{CellType, Int},
     end
 
     # Use CorePotts's initialization to safely create all required tracking fields 
-    # (pressures, tensions, anchors, etc.) to guarantee compatibility with all physics rules.
-    cell_data = CorePotts.build_cell_data(grid, allocated_cells; FloatType = Float32, IntType = Int32, custom_kwargs...)
+    cell_data = CorePotts.build_cell_data(ctx.grid, allocated_cells; FloatType = Float32, IntType = Int32, custom_kwargs...)
 
-    cell_data.volumes[1:(total_cells + 1)] .= volumes
-    cell_data.cell_types[1:(total_cells + 1)] .= cell_types
+    cell_data.volumes[1:total_cells] .= volumes[1:total_cells]
+    cell_data.cell_types[1:total_cells] .= cell_types[1:total_cells]
 
     # Apply initial property map
-    for i in 1:(total_cells + 1)
+    for i in 1:total_cells
         ct_id = cell_data.cell_types[i]
         props = get(initial_props, ct_id, nothing)
         if props !== nothing
@@ -263,33 +245,35 @@ function build_initial_state(u0_counts::Dict{CellType, Int},
     # Empty free list. Mitosis will just bump u.N_cells[] up to the allocated capacity!
     free_list = UInt32[]
 
-    return PottsState(grid, cell_data, Ref(total_cells + 1), free_list)
+    return PottsState(convert(Array{UInt32}, ctx.grid), cell_data, Ref(total_cells), free_list)
 end
 
 function CorePotts.PottsProblem(sys::PottsSystem,
-        u0_counts::Dict{CellType, Int},
+        layout::AbstractLayout,
         grid_size::Tuple;
         tspan = (0, 10),
         topology = VonNeumannTopology{2}(),
         trackers = (),
-        max_cells = nothing,
-        seed_center = nothing,
-        seed_radius = nothing)
+        max_cells = nothing)
 
     # 1. Map CellTypes to IDs
-    # Ensure Medium is always ID 0
+    # Ensure background types (is_background = true) are mapped to ID 0
     type_to_id = Dict{CellType, UInt8}()
-    medium_ct = CellType(:Medium)
+    
+    for ct in sys.cell_types
+        if ct.is_background
+            type_to_id[ct] = 0
+        end
+    end
 
-    type_to_id[medium_ct] = 0
     current_id = 1
     for ct in sys.cell_types
-        if ct != medium_ct && !haskey(type_to_id, ct)
+        if !ct.is_background && !haskey(type_to_id, ct)
             type_to_id[ct] = current_id
             current_id += 1
         end
     end
-    num_types = length(type_to_id)
+    num_types = current_id
 
     # 2. Compile Penalties and gather initial properties, along with dynamically required trackers
     compiled_penalties, required_trackers, initial_props, custom_vars = compile_penalties(sys, type_to_id, num_types)
@@ -306,28 +290,44 @@ function CorePotts.PottsProblem(sys::PottsSystem,
     all_trackers = tuple(unique_trackers...)
 
     # 3. Build Initial State
-    state = build_initial_state(u0_counts, type_to_id, initial_props, custom_vars, grid_size; 
-                                max_cells = max_cells, seed_center = seed_center, seed_radius = seed_radius)
+    state = build_initial_state(layout, type_to_id, initial_props, custom_vars, grid_size; 
+                                max_cells = max_cells)
 
     # 4. Construct Problem
     p = PottsParameters(topology, compiled_penalties, all_trackers)
 
+    # 5. Strictly synchronize all physics trackers to match the layout
+    # set_targets = false because target_volumes/areas are already initialized from initial_props!
+    cache = CorePotts.PottsCache(state, topology)
+    CorePotts.sync_cell_data!(state, p, cache, state.N_cells[]; set_targets = false)
+
     return PottsProblem(state, tspan, p)
+end
+
+function CorePotts.PottsProblem(sys::PottsSystem,
+        u0_counts::Dict{CellType, Int},
+        grid_size::Tuple;
+        kwargs...)
+    return CorePotts.PottsProblem(sys, Layouts.RandomLayout(u0_counts), grid_size; kwargs...)
 end
 
 function CorePotts.PottsProblem(sys::PottsSystem, state::PottsState; tspan=(0, 10), trackers=())
     type_to_id = Dict{CellType, UInt8}()
-    medium_ct = CellType(:Medium)
+    
+    for ct in sys.cell_types
+        if ct.is_background
+            type_to_id[ct] = 0
+        end
+    end
 
-    type_to_id[medium_ct] = 0
     current_id = 1
     for ct in sys.cell_types
-        if ct != medium_ct && !haskey(type_to_id, ct)
+        if !ct.is_background && !haskey(type_to_id, ct)
             type_to_id[ct] = current_id
             current_id += 1
         end
     end
-    num_types = length(type_to_id)
+    num_types = current_id
 
     compiled_penalties, required_trackers, initial_props = compile_penalties(sys, type_to_id, num_types)
 

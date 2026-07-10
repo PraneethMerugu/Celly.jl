@@ -100,6 +100,9 @@ end
 struct LengthFlexTracker <: AbstractTracker end
 struct AdhesionFlexTracker <: AbstractTracker end
 
+function initialize_metrics!(::LengthFlexTracker, cell_data, grid, topo, dims) end
+function initialize_metrics!(::AdhesionFlexTracker, cell_data, grid, topo, dims) end
+
 # Utilities
 @inline evaluate_all_trackers(::Tuple{}, ctx) = ()
 @inline evaluate_all_trackers(trackers::Tuple, ctx) = (

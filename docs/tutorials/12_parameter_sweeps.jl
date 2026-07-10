@@ -24,11 +24,11 @@ CairoMakie.activate!()   # or GLMakie / WGLMakie
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
-    [A, B, Medium],
-    [
+    cell_types = [Medium, A, B],
+    penalties  = [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
             B => (λ = 5.0f0, target = 500)
@@ -65,16 +65,18 @@ temperatures = [0.5f0, 1.0f0, 2.0f0, 4.0f0]
 
 function output_func(sol, i)
     ## Compute a scalar sorting metric: mean size of contiguous same-type clusters.
-    ## Here we use a simple proxy: standard deviation of type-A local density.
-    final_lattice = sol.u[end].grid
-    ## Count A pixels per 20x20 tile as a proxy for cluster coarsening
-    Nx, Ny = size(final_lattice)
+    ## type ID 1 = A (first non-background type, in declaration order)
+    final_state = sol.u[end]
+    n = final_state.N_cells[]
+    types = Array(final_state.cell_data.cell_types)
+    a_cell_ids = Set(findall(==(1), types[1:n]))
+    grid = Array(final_state.grid)
+    Nx, Ny = size(grid)
     tile = 20
     densities = Float64[]
     for ix in 1:tile:(Nx - tile), iy in 1:tile:(Ny - tile)
-
-        block = final_lattice[ix:(ix + tile - 1), iy:(iy + tile - 1)]
-        push!(densities, mean(block .== 1))   ## cell type index 1 = A
+        block = grid[ix:(ix + tile - 1), iy:(iy + tile - 1)]
+        push!(densities, mean(x -> x ∈ a_cell_ids, block))
     end
     metric = std(densities)   ## higher std → more sorted
     return (metric, false)

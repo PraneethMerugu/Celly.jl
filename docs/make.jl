@@ -94,7 +94,7 @@ makedocs(
             "12: Parameter Sweeps" => "tutorials/12_parameter_sweeps.md",
             "13: Boundary Conditions" => "tutorials/13_boundary_conditions.md",
             "14: Interactive Exploration" => "tutorials/14_interactive_exploration.md",
-            "15: PottsToolkit DSL" => "tutorials/15_pottstoolkit_dsl.md",
+            "15: PottsToolkit Modeling API" => "tutorials/15_pottstoolkit_dsl.md",
             "16: Visualization" => "tutorials/16_visualization.md",
             "17: Neural EBM" => "tutorials/17_neural_ebm.md"
         ]

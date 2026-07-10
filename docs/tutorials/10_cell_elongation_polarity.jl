@@ -24,7 +24,7 @@ using Statistics
 # Medium.  A single CellType call registers the label in the system.
 
 Fib = CellType(:Fib)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy components
 #
@@ -63,8 +63,8 @@ components = [
 # 800 MCS.  VonNeumannTopology{2}() gives the standard 4-connected neighbourhood.
 
 sys = PottsSystem(
-    [Fib, Medium],
-    components
+    cell_types = [Medium, Fib],
+    penalties  = components
 )
 
 prob = PottsProblem(

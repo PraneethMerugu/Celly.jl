@@ -28,7 +28,7 @@ using Statistics: mean, std
 # A single epithelial cell type plus the background medium.
 
 Epithelial = CellType(:Epithelial)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Energy Model — Volume, Surface Area, and Adhesion
 #
@@ -48,8 +48,8 @@ Medium = CellType(:Medium)
 # made larger, the sheet would fragment into isolated rounded-up cells.
 
 sys = PottsSystem(
-    [Epithelial, Medium],
-    [
+    cell_types = [Medium, Epithelial],
+    penalties  = [
         VolumeComponent(
             Epithelial => (λ = 5.0f0, target = 100),
         ),

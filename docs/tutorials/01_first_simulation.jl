@@ -24,7 +24,7 @@ using MakiePotts
 # represent this with `CellType` objects that carry a symbolic name.
 
 TypeA = CellType(:TypeA)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 # ## Building the Energy Model
 #
@@ -41,8 +41,8 @@ Medium = CellType(:Medium)
 # than spreading into the medium.
 
 sys = PottsSystem(
-    [TypeA, Medium],
-    [
+    cell_types = [Medium, TypeA],
+    penalties  = [
         VolumeComponent(TypeA => (λ = 5.0f0, target = 100)),
         AdhesionComponent(
             (TypeA, Medium) => 20.0f0,
@@ -56,7 +56,7 @@ sys = PottsSystem(
 # `PottsProblem` binds a system to an initial cell count, a grid geometry, and
 # a time span. The grid is 100 × 100 lattice sites. `tspan = (0, 300)` means
 # we will run for 300 Monte Carlo Steps (MCS); one MCS is one full sweep of
-# the lattice. We seed 10 TypeA cells placed randomly at t = 0.
+# the lattice. We seed 10 TypeA cells placed as compact circular blobs on a regular sub-grid at t = 0.
 
 prob = PottsProblem(
     sys,
