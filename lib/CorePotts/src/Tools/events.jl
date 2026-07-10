@@ -39,7 +39,8 @@ end
 
 function (growth::LinearGrowthCallback)(integrator)
     targets = Array(integrator.u.cell_data.target_volumes)
-    for i in 1:integrator.u.N_cells[]
+    N = Int(Array(integrator.u.N_cells)[])
+    for i in 1:N
         if targets[i] > 0
             if rand() < growth.rate
                 targets[i] += 1
@@ -233,8 +234,9 @@ function populate_dividing_parents!(u::AbstractPottsState, cache::PottsCache, tr
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _kernel_check_generic_triggers!(backend, cache.block_size)
     max_cap = UInt32(length(ws.dev_parents))
-    kernel(ws.dev_parents, ws.dev_division_count, UInt32(u.N_cells[]),
-        u.cell_data, trigger, max_cap, ndrange = u.N_cells[])
+    N = Int(Array(u.N_cells)[])
+    kernel(ws.dev_parents, ws.dev_division_count, UInt32(N),
+        u.cell_data, trigger, max_cap, ndrange = N)
     KernelAbstractions.synchronize(backend)
 
     count_arr = Array(ws.dev_division_count)
@@ -792,9 +794,10 @@ function _reset_hst_fields_inner!(
     lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
 
     backend = KernelAbstractions.get_backend(u.grid)
+    N = Int(Array(u.N_cells)[])
     k = _kernel_reset_hst_fields!(backend, cache.block_size)
     k(states, values, targets, u.cell_data.cell_types, lambdas,
-        pen.lambdas, is_flex, UInt32(u.N_cells[]), ndrange = u.N_cells[])
+        pen.lambdas, is_flex, UInt32(N), ndrange = N)
     KernelAbstractions.synchronize(backend)
     return nothing
 end
