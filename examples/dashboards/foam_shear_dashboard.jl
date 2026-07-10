@@ -90,7 +90,7 @@ end
 # 3. System Definition
 # ------------------------------------------------------------------
 Foam = CellType(:Foam)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 shear_penalty = BulkShearPenalty(0.0f0)
 
@@ -111,11 +111,7 @@ sys = PottsSystem(
 # ------------------------------------------------------------------
 # 200x200 grid, densely packed with 160 Foam cells
 # We use a RectangleLayout to create a brick-wall pattern automatically
-layout = RectangleLayout(
-    Dict(Foam => 160),
-    (200, 200);
-    grid_size = (16, 10)
-)
+layout = RandomLayout(Dict(Foam => 1000))
 
 prob = PottsProblem(
     sys,

@@ -24,7 +24,7 @@ using MakiePotts
 # represent this with `CellType` objects that carry a symbolic name.
 
 TypeA = CellType(:TypeA)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Building the Energy Model
 #
@@ -42,7 +42,7 @@ Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
     cell_types = [Medium, TypeA],
-    penalties  = [
+    penalties = [
         VolumeComponent(TypeA => (λ = 5.0f0, target = 100)),
         AdhesionComponent(
             (TypeA, Medium) => 20.0f0,

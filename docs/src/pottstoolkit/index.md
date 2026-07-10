@@ -61,13 +61,20 @@ sys = PottsSystem(
         VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
         AdhesionComponent((A, Medium) => 15.0f0, (A, B) => 10.0f0, (A, A) => 2.0f0,
                           (B, Medium) => 15.0f0, (B, B) => 2.0f0),
-    ]
+    ],
+    events = [
+        # See the Biological Events API guide for details on how to configure
+        # Apoptosis, Mitosis, and Transitions!
+    ],
+    check_interval = 10
 )
 ```
 
 `PottsSystem` performs compile-time validation: it checks that all cell-type pairs
 referenced in `AdhesionComponent` are declared, that parameter types are consistent,
 and that conflicting components are not combined.
+
+For more information on the new declarative event system for modeling discrete topological changes like death and division, see the [Biological Events API](events.md) guide.
 
 ---
 

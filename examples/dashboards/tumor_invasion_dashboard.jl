@@ -107,13 +107,7 @@ function sciml_clock_advance_callback()
 end
 
 # 1.4 Tumor Mitosis Trigger and Post-Division Cleanup
-struct TumorMitosisTrigger end
-function CorePotts.required_fields(::TumorMitosisTrigger)
-    (:cell_types, :volumes, :is_proliferation_competent,
-        :mitotic_timers, :mitotic_thresholds)
-end
-
-function (trigger::TumorMitosisTrigger)(cell_id, cell_data)
+function tumor_mitosis_trigger(cell_id, cell_data, u, cache)
     # Type IDs: Medium=0, Leader=1, Follower=2 (Medium is forced to 0 by PottsProblem constructor)
     if cell_data.cell_types[cell_id] != 2 # Only Followers proliferate
         return false
@@ -150,43 +144,23 @@ end
     end
 end
 
-function sciml_tumor_mitosis_callback(vol_pen)
-    ws_ref = Ref{CorePotts.MitosisWorkspace}()
-    trigger = TumorMitosisTrigger()
+function tumor_post_division_action(u, p, cache, ws, num_divisions)
+    vol_pen = p.penalties[1] # The HSTVolumePenalty
+    CorePotts.reset_hst_fields_after_division!(u, cache, vol_pen)
 
-    condition(u, t, integrator) = true
-    function affect!(integrator)
-        u = integrator.u
-        cache = integrator.cache
-
-        if !isassigned(ws_ref)
-            max_c = length(u.cell_data.volumes)
-            ws_ref[] = CorePotts.MitosisWorkspace(u.grid, max_c)
-        end
-
-        CorePotts.process_mitosis_events!(
-            u, integrator.p, cache, ws_ref[]; trigger = trigger,
-            orientation = CorePotts.RandomOrientation(),
-            inheritance_rules = (target_volumes = CorePotts.Split(0.5f0),))
-        CorePotts.reset_hst_fields_after_division!(u, cache, vol_pen)
-
-        cache.step_counter[] += 1
-        backend = KernelAbstractions.get_backend(u.grid)
-        k = _kernel_reset_mitotic_timers!(backend, cache.block_size)
-        k(u.cell_data.volumes, u.cell_data.is_proliferation_competent,
-            u.cell_data.mitotic_timers, u.cell_data.mitotic_thresholds,
-            cache.step_counter[], UInt32(u.N_cells[]), ndrange = u.N_cells[])
-        KernelAbstractions.synchronize(backend)
-    end
-    return SciMLBase.DiscreteCallback(condition, affect!)
+    backend = KernelAbstractions.get_backend(u.grid)
+    k = _kernel_reset_mitotic_timers!(backend, cache.block_size)
+    k(u.cell_data.volumes, u.cell_data.is_proliferation_competent,
+        u.cell_data.mitotic_timers, u.cell_data.mitotic_thresholds,
+        cache.step_counter[], UInt32(u.N_cells[]), ndrange = u.N_cells[])
+    KernelAbstractions.synchronize(backend)
 end
-
 # ==========================================
 # 2. Main Dashboard Execution
 # ==========================================
 Leader = CellType(:Leader)
 Follower = CellType(:Follower)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 width, height = 500, 300
 chem_field = Float32[Float32(y) for x in 1:width, y in 1:height]
@@ -204,7 +178,16 @@ sys = PottsSystem(
             (Leader, Medium) => 2.0f0,
             (Follower, Medium) => 10.0f0
         )
-    ]
+    ],
+    events = [
+        MitosisEvent(Follower,
+        trigger = CustomTrigger(tumor_mitosis_trigger),
+        orientation = CorePotts.RandomOrientation(),
+        inheritance = (target_volumes = CorePotts.Split(0.5f0),),
+        action = tumor_post_division_action
+    )
+    ],
+    check_interval = 1 # We want to evaluate the mitosis trigger every step like the original script
 )
 
 # 1/4th Leaders, 3/4ths Followers
@@ -274,11 +257,9 @@ for i in 1:prob.u0.N_cells[]
 end
 
 # Assemble callbacks
-vol_pen = prob.p.penalties[1] # The HSTVolumePenalty
 cb_set = SciMLBase.CallbackSet(
     sciml_stochastic_growth_callback(0.015f0),
     sciml_clock_advance_callback(),
-    sciml_tumor_mitosis_callback(vol_pen),
     CorePotts.DeathCallback(max_cells = 20000)
 )
 

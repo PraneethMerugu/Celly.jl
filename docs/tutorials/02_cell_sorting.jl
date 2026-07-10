@@ -28,7 +28,7 @@ using Statistics: mean
 
 TypeA = CellType(:TypeA)
 TypeB = CellType(:TypeB)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Adhesion Matrix — the Key DAH Parameter
 #
@@ -48,7 +48,7 @@ Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
     cell_types = [Medium, TypeA, TypeB],
-    penalties  = [
+    penalties = [
         VolumeComponent(
             TypeA => (λ = 5.0f0, target = 150),
             TypeB => (λ = 5.0f0, target = 150)

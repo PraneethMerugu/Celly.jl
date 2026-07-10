@@ -4,18 +4,26 @@ version = "0.1.0"
 authors = ["PraneethMerugu <merugufam@gmail.com>"]
 
 [deps]
+AcceleratedKernels = "6a4ca0a5-0e36-4168-a932-d9be78d558f1"
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [extensions]
 PottsToolkitMermaidExt = "Mermaid"
 
 [compat]
+AcceleratedKernels = "0.4.3"
+Adapt = "4.7.0"
+KernelAbstractions = "0.9.42"
 Mermaid = "0.1.0"
+SciMLBase = "3.33.0"
 
 [extras]
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"

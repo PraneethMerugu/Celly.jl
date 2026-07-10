@@ -21,11 +21,11 @@ using SciMLBase
 
     # Spawn 3 cells
     for i in 1:3
-        u0.N_cells[] += 1
+        u0.N_cells[1] += 1
         spawn_hypersphere!(u0.grid, cache.grid_dims, (10 + i*20, 10 + i*20), 8, UInt32(i))
         u0.cell_data.cell_types[i] = 1
     end
-    sync_cell_data!(u0, p_sys, cache, u0.N_cells[])
+    sync_cell_data!(u0, p_sys, cache, u0.N_cells[1])
 
     # Artificially inflate their target volumes to trigger growth callback
     for i in 1:3
@@ -40,10 +40,11 @@ using SciMLBase
     @test integrator.u.cell_data.target_volumes[1] == 11
 
     # Trigger mitosis, all 3 cells should divide. Total cells will become 6.
-    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(
+        integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = RandomOrientation())
 
-    @test integrator.u.N_cells[] == 6
+    @test integrator.u.N_cells[1] == 6
     @test length(integrator.u.cell_data.volumes) >= 6
     @test integrator.u.cell_data.volumes[6] > 0
 
@@ -54,29 +55,31 @@ using SciMLBase
 
     process_death_events!(integrator.u, cache, ws)
     @test integrator.u.cell_data.cell_types[2] == 0
-    @test integrator.u.free_list[1] == UInt32(2)
+    @test Array(integrator.u.free_list_count)[1] == 1
+    @test Array(integrator.u.free_list)[1] == UInt32(2)
 
     # Set targets so ONLY cell 1 divides
-    for i in 1:integrator.u.N_cells[]
+    for i in 1:integrator.u.N_cells[1]
         integrator.u.cell_data.target_volumes[i] = 10000
     end
     integrator.u.cell_data.target_volumes[1] = 5
 
     # Trigger another division for cell 1
-    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(
+        integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = RandomOrientation())
 
     # The child should reuse ID 2
-    @test integrator.u.N_cells[] == 6 # Still 6 max N_cells used!
+    @test integrator.u.N_cells[1] == 6 # Still 6 max N_cells used!
     @test integrator.u.cell_data.volumes[2] > 0
     @test integrator.u.cell_data.cell_types[2] == 1
-    @test isempty(integrator.u.free_list)
+    @test Array(integrator.u.free_list_count)[1] == 0
 
     # 3. Test Oriented Mitosis (MajorAxisOrientation)
     # Reset grid and data
     fill!(integrator.u.grid, UInt32(0))
-    integrator.u.N_cells[] = 1
-    empty!(integrator.u.free_list)
+    integrator.u.N_cells[1] = 1
+    fill!(integrator.u.free_list_count, Int32(0))
 
     # Spawn a highly elongated cell (Major Axis is Y axis)
     for x in 40:60
@@ -89,7 +92,8 @@ using SciMLBase
     # Target volume small to force division
     integrator.u.cell_data.target_volumes[1] = 100
 
-    process_mitosis_events!(integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+    process_mitosis_events!(
+        integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
         orientation = MajorAxisOrientation())
 
     # If the cleavage plane normal is the minor axis (X), the cut goes through the major axis.
@@ -119,7 +123,7 @@ using SciMLBase
     cache_2 = PottsCache(u0_2, p_sys_2.topology)
     ws_2 = CorePotts.MitosisWorkspace(grid, 10)
 
-    u0_2.N_cells[] = 1
+    u0_2.N_cells[1] = 1
     u0_2.cell_data.target_volumes[1] = 100
     u0_2.cell_data.proteins[1] = 100.0f0 # Triggers division
     u0_2.cell_data.cell_types[1] = 42
@@ -131,7 +135,7 @@ using SciMLBase
         inheritance_rules = rules, orientation = RandomOrientation())
 
     sync_cell_data!(u0_2, p_sys_2, cache_2, 2)
-    @test u0_2.N_cells[] == 2
+    @test u0_2.N_cells[1] == 2
 
     # Check inheritance
     vol_1 = u0_2.cell_data.volumes[1]

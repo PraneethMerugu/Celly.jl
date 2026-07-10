@@ -26,18 +26,26 @@ using Statistics: mean
 # ## Cell Types
 
 Epithelial = CellType(:Epithelial)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Energy Model
 
 sys = PottsSystem(
     cell_types = [Medium, Epithelial],
-    penalties  = [
+    penalties = [
         VolumeComponent(Epithelial => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Epithelial, Epithelial) => 2.0f0,
             (Epithelial, Medium) => 18.0f0
         )
+    ],
+    events = [
+        MitosisEvent(Epithelial,
+            trigger = VolumeRatioTrigger(2.0f0),
+            orientation = MajorAxisOrientation(),
+            inheritance = (target_volumes = Split(0.5f0),)
+        ),
+        ApoptosisEvent(Epithelial, trigger = ProbabilityTrigger(0.005f0))
     ]
 )
 
@@ -48,44 +56,12 @@ sys = PottsSystem(
 # so each daughter must grow anew before its next division.
 
 growth_cb = LinearGrowthCallback(0.25f0)
-trigger = VolumeThresholdTrigger(2.0f0)
-mitosis_cb = MitosisCallback(trigger;
-    orientation = MajorAxisOrientation(),
-    inheritance_rules = (target_volumes = Split(0.5f0),)
-)
 
-# ## Death Callback — Stochastic Apoptosis
+# ## Death Callback
 #
-# # cells shrink to zero and disappear. Wait, `DeathCallback` in `CorePotts` automatically removes
-# any cell whose `target_volume <= 0`. So to trigger death, we just use a standard
-# `DiscreteCallback` to randomly set `target_volume = 0` for a few cells each step.
-#
-# Here we implement *stochastic apoptosis*: each cell has a small per-MCS
-# probability p_death = 0.002 of dying, independently of its neighbours or
-# internal state. At steady state the expected death rate is p_death × N_cells
-# per MCS. Because the mitosis rate scales with the number of cells that are
-# large enough to divide, the population stabilises at the N* where the two
-# rates balance.
-#
-# The `rand()` call inside the predicate is evaluated independently for each
-# living cell at each callback invocation, producing uncorrelated apoptosis
-# events — a reasonable approximation to intrinsic stochastic apoptosis
-# in the absence of extrinsic death signals.
-
-const P_DEATH = 0.005f0
-
-random_death_cb = SciMLBase.DiscreteCallback(
-    (u, t, integrator) -> true,
-    function (integrator)
-        ## i is a 1-based cell ID; cell_data arrays are indexed from 1
-        for i in 1:integrator.u.N_cells[]
-            ## Only kill living cells
-            if integrator.u.cell_data.volumes[i] > 0 && rand() < P_DEATH
-                integrator.u.cell_data.target_volumes[i] = 0
-            end
-        end
-    end
-)
+# Any cell whose `target_volume <= 0` is automatically removed by the `DeathCallback` in `CorePotts`.
+# Since our `ApoptosisEvent` natively sets the target volume of triggered cells to zero, the
+# `DeathCallback` will subsequently reap the cell ID to recycle memory safely.
 
 death_cb = DeathCallback()
 
@@ -93,8 +69,6 @@ death_cb = DeathCallback()
 
 cb = SciMLBase.CallbackSet(
     SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb,
-    random_death_cb,
     death_cb
 )
 

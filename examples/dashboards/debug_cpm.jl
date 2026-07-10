@@ -1,7 +1,7 @@
 using CorePotts
 using PottsToolkit
 
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 Epithelial = CellType(:Epithelial)
 Mesenchymal = CellType(:Mesenchymal)
 

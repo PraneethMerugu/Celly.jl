@@ -364,7 +364,7 @@ uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -1365,7 +1365,7 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.PottsToolkit]]
-deps = ["CommonSolve", "CorePotts", "Mermaid", "Random", "Reexport", "StructArrays"]
+deps = ["AcceleratedKernels", "Adapt", "CommonSolve", "CorePotts", "KernelAbstractions", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
 path = "../../lib/PottsToolkit"
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"

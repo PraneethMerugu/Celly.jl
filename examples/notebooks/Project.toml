@@ -1,0 +1,10 @@
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
+MakiePotts = "95794c00-c762-4965-bf31-de18bcca2bc9"
+Potts = "15ba70d5-27dc-4a83-b627-d79984c8d986"
+PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"

@@ -1,12 +1,17 @@
 function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...;
         saveat = Int[], save_everystep = isempty(saveat),
         save_start = true, save_end = true, callback = nothing, kwargs...)
-    cb_set = if callback === nothing
+    # Merge callbacks from the problem definition (prob.kwargs) and solve call (kwargs)
+    prob_cb = get(prob.kwargs, :callback, nothing)
+
+    cb_set = if callback === nothing && prob_cb === nothing
         SciMLBase.CallbackSet()
-    elseif callback isa SciMLBase.AbstractDiscreteCallback
-        SciMLBase.CallbackSet(callback)
+    elseif callback === nothing
+        prob_cb isa SciMLBase.CallbackSet ? prob_cb : SciMLBase.CallbackSet(prob_cb)
+    elseif prob_cb === nothing
+        callback isa SciMLBase.CallbackSet ? callback : SciMLBase.CallbackSet(callback)
     else
-        callback
+        SciMLBase.CallbackSet(callback, prob_cb)
     end
 
     t_end = prob.tspan[2]
@@ -28,7 +33,8 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     cache = PottsCache(prob.u0, prob.p.topology, block_size)
 
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
-    return PottsIntegrator(deepcopy(prob.u0), prob.p, prob.tspan[1], alg, cache, opts, sol_u,
+    return PottsIntegrator(
+        deepcopy(prob.u0), prob.p, prob.tspan[1], alg, cache, opts, sol_u,
         sol_t, saveat_vec, save_everystep, save_start, save_end)
 end
 

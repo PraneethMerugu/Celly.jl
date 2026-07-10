@@ -24,7 +24,7 @@ using SciMLBase
 # ## Cell Type
 
 Progenitor = CellType(:Progenitor)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Energy Model
 #
@@ -34,12 +34,20 @@ Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
     cell_types = [Medium, Progenitor],
-    penalties  = [
+    penalties = [
         VolumeComponent(Progenitor => (λ = 5.0f0, target = 150)),
         AdhesionComponent(
             (Progenitor, Progenitor) => 2.0f0,
             (Progenitor, Medium) => 18.0f0
         )
+    ],
+    events = [
+        MitosisEvent(
+        Progenitor,
+        trigger = VolumeRatioTrigger(2.0f0),
+        orientation = CorePotts.RandomOrientation(),
+        inheritance = (target_volumes = CorePotts.Split(0.5f0),)
+    )
     ]
 )
 
@@ -54,7 +62,7 @@ growth_cb = LinearGrowthCallback(0.3f0)
 
 # ## Mitosis Trigger and Callback
 #
-# `VolumeThresholdTrigger(factor)` fires when a cell's actual volume exceeds
+# `VolumeRatioTrigger(factor)` fires when a cell's actual volume exceeds
 # `factor × target_volume`. Using `factor = 2.0` means division is triggered
 # when the cell has grown to twice its initial target — a standard G2/M
 # checkpoint proxy.
@@ -69,29 +77,14 @@ growth_cb = LinearGrowthCallback(0.3f0)
 #   Useful for immutable identifiers such as lineage labels or receptor counts
 #   that should be preserved, not divided.
 #
-# `MitosisCallback` also accepts an `orientation` argument controlling the
+# `MitosisEvent` also accepts an `orientation` argument controlling the
 # division plane. `RandomOrientation()` chooses a uniformly random axis each
 # time, producing isotropic growth. `MajorAxisOrientation()` aligns the
 # division plane with the long axis of the mother cell, which is
 # biologically realistic for many epithelial lineages.
 
-trigger = VolumeThresholdTrigger(2.0f0)
-
-mitosis_cb = MitosisCallback(trigger;
-    orientation = RandomOrientation(),
-    inheritance_rules = (target_volumes = Split(0.5f0),)
-)
-
-# ## Combining Callbacks with SciMLBase
-#
-# Potts callbacks conform to the SciML callback interface. A `CallbackSet`
-# bundles any number of callbacks that fire together at each step. The growth
-# callback is wrapped in a `DiscreteCallback` with a condition that always
-# returns `true` (fire every step).
-
 cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb
+    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
 )
 
 # ## Problem and Algorithm

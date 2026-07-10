@@ -10,7 +10,7 @@ function run_showcase()
     println("Setting up the Cellular Potts Model...")
 
     # 1. Define Cell Types
-    Medium = CellType(:Medium, is_background=true)
+    Medium = CellType(:Medium, is_background = true)
     Epithelial = CellType(:Epithelial)
     Mesenchymal = CellType(:Mesenchymal)
 

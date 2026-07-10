@@ -23,11 +23,11 @@ using Statistics
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 sys = PottsSystem(
     cell_types = [Medium, A, B],
-    penalties  = [
+    penalties = [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
             B => (λ = 5.0f0, target = 500)
@@ -114,7 +114,7 @@ parameters = [
             ## Rebuild the system with the new heterotypic adhesion energy
             new_sys = PottsSystem(
                 cell_types = [Medium, A, B],
-                penalties  = [
+                penalties = [
                     VolumeComponent(
                         A => (λ = 5.0f0, target = 500),
                         B => (λ = 5.0f0, target = 500)

@@ -43,7 +43,7 @@ function build_layout!(layout::RandomLayout, ctx::LayoutContext)
     # Find all currently empty spaces (ID == 0)
     empty_indices = findall(==(0), ctx.grid)
     shuffle!(empty_indices)
-    
+
     idx_counter = 1
     for (ct, count) in layout.counts
         if ct.is_background
@@ -56,10 +56,10 @@ function build_layout!(layout::RandomLayout, ctx::LayoutContext)
             end
             linear_idx = empty_indices[idx_counter]
             idx_counter += 1
-            
+
             cell_id = ctx.next_cell_id
             ctx.next_cell_id += 1
-            
+
             ctx.grid[linear_idx] = cell_id
             ctx.cell_type_map[cell_id] = type_id
         end
@@ -75,12 +75,13 @@ struct HypersphereLayout{N} <: AbstractLayout
     radius::Int
 end
 
-function build_layout!(layout::HypersphereLayout{N}, ctx::LayoutContext{N}) where N
+function build_layout!(layout::HypersphereLayout{N}, ctx::LayoutContext{N}) where {N}
     type_id = ctx.type_to_id[layout.cell_type]
     cell_id = ctx.next_cell_id
     ctx.next_cell_id += 1
-    
-    CorePotts.spawn_hypersphere!(ctx.grid, size(ctx.grid), layout.center, layout.radius, UInt32(cell_id))
+
+    CorePotts.spawn_hypersphere!(
+        ctx.grid, size(ctx.grid), layout.center, layout.radius, UInt32(cell_id))
     ctx.cell_type_map[cell_id] = type_id
 end
 
@@ -93,16 +94,16 @@ struct RectangleLayout{N} <: AbstractLayout
     bottom_right::NTuple{N, Int}
 end
 
-function build_layout!(layout::RectangleLayout{N}, ctx::LayoutContext{N}) where N
+function build_layout!(layout::RectangleLayout{N}, ctx::LayoutContext{N}) where {N}
     type_id = ctx.type_to_id[layout.cell_type]
     cell_id = ctx.next_cell_id
     ctx.next_cell_id += 1
-    
+
     ranges = ntuple(i -> layout.top_left[i]:layout.bottom_right[i], N)
-    
+
     # Safely clamp ranges to grid boundaries
     safe_ranges = ntuple(i -> max(1, ranges[i][1]):min(size(ctx.grid, i), ranges[i][end]), N)
-    
+
     ctx.grid[safe_ranges...] .= cell_id
     ctx.cell_type_map[cell_id] = type_id
 end

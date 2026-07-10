@@ -26,7 +26,8 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
     state_obs = plot[1]
 
     color_map_obs = lift(state_obs, plot.type_colors, plot.slice, plot.draw_boundaries,
-        plot.boundary_color, plot.color_property, plot.color_offset) do u, colors, slice_idx, draw_b, b_color, c_prop, c_offset
+        plot.boundary_color, plot.color_property,
+        plot.color_offset) do u, colors, slice_idx, draw_b, b_color, c_prop, c_offset
         cmap = Makie.to_colormap(colors)
         b_c = Makie.to_color(b_color)
         N_col = length(cmap)

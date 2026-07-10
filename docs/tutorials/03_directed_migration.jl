@@ -23,7 +23,7 @@ using MakiePotts
 # medium toward a chemoattractant source at the right edge of the domain.
 
 Neutrophil = CellType(:Neutrophil)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Chemical Gradient Field
 #
@@ -51,7 +51,7 @@ gradient_field = Float32[j / W for i in 1:H, j in 1:W]
 
 sys = PottsSystem(
     cell_types = [Medium, Neutrophil],
-    penalties  = [
+    penalties = [
         VolumeComponent(Neutrophil => (λ = 8.0f0, target = 200)),
         AdhesionComponent(
             (Neutrophil, Medium) => 20.0f0,

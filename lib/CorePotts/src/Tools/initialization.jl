@@ -114,7 +114,7 @@ Scans the grid and calculates the actual volumes and centroids for all cells fro
 If `set_targets` is true, sets `target_volume` to match the initial volume.
 """
 function sync_cell_data!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
-        num_cells::Int; set_targets::Bool = true)
+        num_cells::Integer; set_targets::Bool = true)
     # 1. Use existing trackers to physically count the pixels currently on the grid
     grid = u.grid
     initialize_all_metrics!(p.trackers, u.cell_data, grid, p.topology, cache.grid_dims)
@@ -149,7 +149,8 @@ end
 A utility to manually count cell volumes from the `grid` and set them in `cell_data`.
 Sets both `volumes` and `target_volumes` to the counted value.
 """
-function sync_cell_data!(grid::AbstractArray, cell_data, num_cells::Int)
+function sync_cell_data!(grid::AbstractArray{T, N}, cell_data::StructArray,
+        num_cells::Integer; set_targets::Bool = true) where {T, N}
     volumes = zeros(eltype(cell_data.volumes), num_cells)
     grid_cpu = Array(grid)
     for I in CartesianIndices(grid_cpu)

@@ -22,8 +22,12 @@ function HSTVolumePenalty{Flex}(; eta = 1.0, FloatType = Float32)
 end
 
 # ConstructionBase Overloads
-ConstructionBase.constructorof(::Type{<:HSTVolumePenalty{Trait}}) where {Trait} = HSTVolumePenalty{Trait}
-HSTVolumePenalty{Trait}(lambdas, eta) where {Trait} = HSTVolumePenalty{Trait, typeof(lambdas), typeof(eta)}(lambdas, eta)
+function ConstructionBase.constructorof(::Type{<:HSTVolumePenalty{Trait}}) where {Trait}
+    HSTVolumePenalty{Trait}
+end
+function HSTVolumePenalty{Trait}(lambdas, eta) where {Trait}
+    HSTVolumePenalty{Trait, typeof(lambdas), typeof(eta)}(lambdas, eta)
+end
 
 lambda_field(::HSTVolumePenalty) = Val{:volume_lambdas}()
 hst_state_field(::HSTVolumePenalty) = Val{:pressures}()
@@ -62,7 +66,9 @@ function VolumePenalty{Flex}(; FloatType = Float32)
 end
 
 # ConstructionBase Overloads
-ConstructionBase.constructorof(::Type{<:VolumePenalty{Trait}}) where {Trait} = VolumePenalty{Trait}
+function ConstructionBase.constructorof(::Type{<:VolumePenalty{Trait}}) where {Trait}
+    VolumePenalty{Trait}
+end
 VolumePenalty{Trait}(lambdas) where {Trait} = VolumePenalty{Trait, typeof(lambdas)}(lambdas)
 
 lambda_field(::VolumePenalty) = Val{:volume_lambdas}()

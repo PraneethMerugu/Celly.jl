@@ -24,11 +24,11 @@ CairoMakie.activate!()   # or GLMakie / WGLMakie
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 sys = PottsSystem(
     cell_types = [Medium, A, B],
-    penalties  = [
+    penalties = [
         VolumeComponent(
             A => (λ = 5.0f0, target = 500),
             B => (λ = 5.0f0, target = 500)
@@ -75,6 +75,7 @@ function output_func(sol, i)
     tile = 20
     densities = Float64[]
     for ix in 1:tile:(Nx - tile), iy in 1:tile:(Ny - tile)
+
         block = grid[ix:(ix + tile - 1), iy:(iy + tile - 1)]
         push!(densities, mean(x -> x ∈ a_cell_ids, block))
     end

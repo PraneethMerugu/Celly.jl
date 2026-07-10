@@ -28,7 +28,7 @@ using Zarr
 # ## Cell Type
 
 Tumor = CellType(:Tumor)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Energy Model
 #
@@ -41,7 +41,7 @@ Medium = CellType(:Medium, is_background=true)
 
 sys = PottsSystem(
     cell_types = [Medium, Tumor],
-    penalties  = [
+    penalties = [
         VolumeComponent(Tumor => (λ = 5.0f0, target = 65)),
         AdhesionComponent(
             (Tumor, Tumor) => 2.0f0,

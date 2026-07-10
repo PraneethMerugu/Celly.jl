@@ -20,4 +20,6 @@ function LocalNeuralPenalty{Flex}(m, w, s)
 end
 
 # ConstructionBase Overloads
-ConstructionBase.constructorof(::Type{<:LocalNeuralPenalty{Trait}}) where {Trait} = LocalNeuralPenalty{Trait}
+function ConstructionBase.constructorof(::Type{<:LocalNeuralPenalty{Trait}}) where {Trait}
+    LocalNeuralPenalty{Trait}
+end

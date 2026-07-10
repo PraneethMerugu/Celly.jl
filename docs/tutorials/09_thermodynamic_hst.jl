@@ -34,7 +34,7 @@ using Statistics: mean, std, var
 # ## Cell Types
 
 CellA = CellType(:CellA)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Classical System (Reference)
 #
@@ -43,7 +43,7 @@ Medium = CellType(:Medium, is_background=true)
 
 sys_classical = PottsSystem(
     cell_types = [Medium, CellA],
-    penalties  = [
+    penalties = [
         VolumeComponent(CellA => (λ = 5.0f0, target = 200)),
         AdhesionComponent(
             (CellA, CellA) => 2.0f0,
@@ -66,7 +66,7 @@ sys_classical = PottsSystem(
 
 sys_hst = PottsSystem(
     cell_types = [Medium, CellA],
-    penalties  = [
+    penalties = [
         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = 1.0),
         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
         AdhesionComponent(
@@ -154,7 +154,7 @@ fig = explore_cpm(
                 ## Rebuild the HST system with the new eta value
                 new_sys = PottsSystem(
                     cell_types = [Medium, CellA],
-                    penalties  = [
+                    penalties = [
                         HSTVolumeComponent(CellA => (λ = 5.0f0, target = 200); eta = val),
                         SurfaceAreaComponent(CellA => (λ = 1.0f0, target = 60)),
                         AdhesionComponent(

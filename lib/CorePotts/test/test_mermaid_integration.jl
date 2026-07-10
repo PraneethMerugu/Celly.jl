@@ -73,7 +73,7 @@ using SciMLBase
     integrator.integrator.u.cell_data.volumes[2] = 0
     # Simulate a new cell 3 being born
     integrator.integrator.u.cell_data.volumes[3] = 10
-    integrator.integrator.u.N_cells[] = 3
+    integrator.integrator.u.N_cells[1] = 3
 
     # Now active cells are 1 and 3. "#ids" should return [1, 3]
     active_ids = Mermaid.getstate(integrator, Mermaid.ConnectedVariable("Tissue", "#ids", nothing, nothing))

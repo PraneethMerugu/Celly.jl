@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "cc582cdb47559551115bca121a6df24588abb7e5"
+project_hash = "782a68db6bfaa4241c3b947c43480bf6c871d8c5"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -189,7 +189,7 @@ version = "1.6.0"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -393,7 +393,7 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.6"
 
 [[deps.PottsToolkit]]
-deps = ["CommonSolve", "CorePotts", "Mermaid", "Random", "Reexport", "StructArrays"]
+deps = ["AcceleratedKernels", "CommonSolve", "CorePotts", "KernelAbstractions", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
 path = "."
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
@@ -513,9 +513,9 @@ version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "Random", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLLogging", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "a4a3caa5612dcd4ff0925a98b3820654c663cd9c"
+git-tree-sha1 = "efe313cd6ec7ec80301c889b21734ba6b062f9ee"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "3.31.0"
+version = "3.33.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"

@@ -85,7 +85,7 @@ end
 # 3. System Definition
 # ------------------------------------------------------------------
 Foam = CellType(:Foam)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 shear_rate_mtl = MtlArray(Float32[0.0f0])
 shear_penalty = BulkShearPenalty(shear_rate_mtl)
@@ -106,11 +106,7 @@ sys = PottsSystem(
 # 4. Problem Setup
 # ------------------------------------------------------------------
 println("Generating Brick-Wall partition for 500x500...")
-layout = RectangleLayout(
-    Dict(Foam => 1000),
-    (500, 500);
-    grid_size = (40, 25)
-)
+layout = RandomLayout(Dict(Foam => 1000))
 
 # Create CPU problem first to compile penalties and allocate cell data
 prob_cpu = PottsProblem(

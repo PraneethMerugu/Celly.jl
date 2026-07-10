@@ -27,7 +27,7 @@ using Statistics
 
 A = CellType(:A)
 B = CellType(:B)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Step 2: Build components
 #
@@ -111,7 +111,7 @@ chem = ChemotaxisComponent(
 
 sys = PottsSystem(
     cell_types = [Medium, A, B],
-    penalties  = [vol, surf, adh, len]
+    penalties = [vol, surf, adh, len]
 )
 
 # ## Step 4: Build the problem
@@ -156,7 +156,7 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 # import CorePotts: AbstractPenalty, delta_H
 # struct MyCustomPenalty <: AbstractPenalty end
 # CorePotts.delta_H(p::MyCustomPenalty, src, dst, state) = 0.0f0  # your logic
-# sys = PottsSystem([A, Medium], [vol, adh, MyCustomPenalty()])
+# sys = PottsSystem(cell_types=[Medium, A], penalties=[vol, adh, MyCustomPenalty()])
 # ```
 
 # ## Solve and visualise

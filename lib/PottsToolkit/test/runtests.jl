@@ -5,7 +5,7 @@ using CommonSolve
 using SciMLBase
 
 @testset "PottsToolkit Test Suite" begin
-    Medium = CellType(:Medium, is_background=true)
+    Medium = CellType(:Medium, is_background = true)
     Epithelial = CellType(:Epithelial)
     Mesenchymal = CellType(:Mesenchymal)
 
@@ -87,11 +87,11 @@ using SciMLBase
 
         # Check Cell Data Properties Injection
         cd = prob.u0.cell_data
-        
+
         # Find cell IDs dynamically since Dict iteration order is non-deterministic
         epi_idx = findfirst(==(1), cd.cell_types)
         mes_idx = findfirst(==(2), cd.cell_types)
-        
+
         @test cd.target_volumes[epi_idx] == 50
         @test cd.target_surface_areas[mes_idx] == 200
         @test cd.target_lengths[epi_idx] == 15.0f0
@@ -119,4 +119,6 @@ using SciMLBase
 
     include("test_flex_traits.jl")
     include("test_layouts.jl")
+    include("test_events.jl")
+    include("test_gpu_closures.jl")
 end

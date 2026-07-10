@@ -27,7 +27,8 @@ using CorePotts
     CorePotts.process_death_events!(u0, cache, ws)
 
     # Check that cell 2 is in free list
-    @test 2 in u0.free_list
+    free_list_cpu = Array(u0.free_list)[1:Array(u0.free_list_count)[1]]
+    @test 2 in free_list_cpu
 
     # Check type is zeroed
     types_cpu = Array(u0.cell_data.cell_types)
@@ -35,5 +36,5 @@ using CorePotts
     @test types_cpu[1] == 1
 
     # Count should be 1
-    @test length(u0.free_list) == 1
+    @test Array(u0.free_list_count)[1] == 1
 end

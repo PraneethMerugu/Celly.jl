@@ -12,7 +12,7 @@ using CorePotts
 
     topo = MooreTopology{2}()
     penalty = ConnectivityConstraint()
-    
+
     # Test 1: Medium fragmentation (should always accept)
     ctx1 = MockContext(topo, 0, (1, 0, 1, 0, 1, 0, 1, 0))
     @test CorePotts.evaluate_penalty(penalty, ctx1) == 0.0f0
@@ -33,7 +33,7 @@ using CorePotts
     # E=1, W=1
     ctx4 = MockContext(topo, 1, (1, 0, 0, 0, 1, 0, 0, 0))
     @test CorePotts.evaluate_penalty(penalty, ctx4) == typemax(Float32)
-    
+
     # Test 5: Diagonal break
     # NE=1, SW=1
     ctx5 = MockContext(topo, 1, (0, 1, 0, 0, 0, 1, 0, 0))

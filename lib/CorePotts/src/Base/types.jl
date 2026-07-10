@@ -34,15 +34,18 @@ Contains the grid, cell properties, and cell ID tracking structures.
 """
 abstract type AbstractPottsState end
 
-struct PottsState{Grid, CellData} <: AbstractPottsState
+struct PottsState{Grid, CellData, Scalar, FreeList} <: AbstractPottsState
     grid::Grid
     cell_data::CellData
-    N_cells::Base.RefValue{Int}
-    free_list::Vector{UInt32}
+    N_cells::Scalar
+    free_list::FreeList
+    free_list_count::Scalar
 end
 function Functors.functor(::Type{<:PottsState}, x)
-    children = (grid = x.grid, cell_data = x.cell_data)
-    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.grid, y.cell_data, x.N_cells, x.free_list)
+    children = (grid = x.grid, cell_data = x.cell_data, N_cells = x.N_cells,
+        free_list = x.free_list, free_list_count = x.free_list_count)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(
+        y.grid, y.cell_data, y.N_cells, y.free_list, y.free_list_count)
     return children, reconstruct
 end
 function Adapt.adapt_structure(to, x::PottsState)
@@ -51,14 +54,19 @@ function Adapt.adapt_structure(to, x::PottsState)
 end
 
 function PottsState(grid::AbstractArray{T, N}, cell_data::StructArray,
-        N_cells::Int = Int(maximum(grid))) where {T, N}
+        N_cells::Union{Integer, AbstractArray} = [Int32(maximum(grid))],
+        free_list::AbstractArray = zeros(UInt32, length(cell_data.volumes)),
+        free_list_count::AbstractArray = [Int32(0)]) where {T, N}
     @argcheck length(grid) > 0 "Grid cannot be empty"
     required_fields = (:volumes, :target_volumes, :cell_types, :anchor_x, :anchor_y)
     for field in required_fields
         @argcheck hasproperty(cell_data, field) "cell_data is missing required field: `$field`. Use `build_cell_data`."
     end
+    N_cells_arr = N_cells isa Integer ? Int32[N_cells] : N_cells
 
-    return PottsState(grid, cell_data, Ref(N_cells), UInt32[])
+    return PottsState{
+        typeof(grid), typeof(cell_data), typeof(N_cells_arr), typeof(free_list)}(
+        grid, cell_data, N_cells_arr, free_list, free_list_count)
 end
 
 """
@@ -171,14 +179,18 @@ A SciML-compatible problem definition for a Cellular Potts Model.
 - `tspan`: A tuple `(t_start, t_end)` defining the simulation duration in Monte Carlo steps.
 - `p`: The simulation parameters (`PottsParameters`).
 """
-struct PottsProblem{uType, tType, pType} <: AbstractPottsProblem
+struct PottsProblem{uType, tType, pType, KType} <: AbstractPottsProblem
     u0::uType
     tspan::Tuple{tType, tType}
     p::pType
+    kwargs::KType
+end
+function PottsProblem(u0, tspan, p; kwargs...)
+    return PottsProblem(u0, tspan, p, kwargs)
 end
 function Functors.functor(::Type{<:PottsProblem}, x)
     children = (u0 = x.u0, p = x.p)
-    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.u0, x.tspan, y.p)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.u0, x.tspan, y.p, x.kwargs)
     return children, reconstruct
 end
 function Adapt.adapt_structure(to, x::PottsProblem)

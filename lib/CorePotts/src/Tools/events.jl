@@ -162,6 +162,24 @@ end
     end
 end
 
+@kernel function _kernel_allocate_mitosis_ids!(
+        dev_children, free_list, free_list_count, N_cells, count)
+    i = @index(Global, Linear)
+    if i <= count
+        # Attempt to get an ID from the free list (new_count is the value AFTER subtraction)
+        new_count = Atomix.@atomic free_list_count[1] -= Int32(1)
+        if new_count >= 0
+            # We successfully claimed a slot
+            dev_children[i] = free_list[new_count + 1]
+        else
+            # We must restore the count (since it went negative) and get a new ID from N_cells
+            Atomix.@atomic free_list_count[1] += Int32(1)
+            new_id = Atomix.@atomic N_cells[1] += Int32(1)
+            dev_children[i] = UInt32(new_id)
+        end
+    end
+end
+
 @kernel function _kernel_mark_is_modified!(dev_is_modified, dev_parents, dev_children, count)
     i = @index(Global, Linear)
     if i <= count
@@ -566,21 +584,17 @@ function process_mitosis_events!(
         return
     end
 
-    available_slots = length(u.free_list) + (length(u.cell_data.volumes) - u.N_cells[])
+    current_free = Array(u.free_list_count)[1]
+    current_N = Array(u.N_cells)[1]
+    available_slots = current_free + (length(u.cell_data.volumes) - current_N)
     if available_slots < num_divisions
         error("Capacity exceeded! Max cells reached. Pre-allocate a larger cell_data array.")
     end
 
-    dividing_children = Vector{UInt32}()
-    for i in 1:num_divisions
-        if !isempty(u.free_list)
-            push!(dividing_children, pop!(u.free_list))
-        else
-            u.N_cells[] += 1
-            push!(dividing_children, UInt32(u.N_cells[]))
-        end
-    end
-    copyto!(ws.dev_children, 1, dividing_children, 1, num_divisions)
+    k_alloc = _kernel_allocate_mitosis_ids!(backend, cache.block_size)
+    k_alloc(ws.dev_children, u.free_list, u.free_list_count,
+        u.N_cells, UInt32(num_divisions), ndrange = num_divisions)
+    KernelAbstractions.synchronize(backend)
 
     # Run Inherit Kernels
     for field in propertynames(u.cell_data)
@@ -705,12 +719,15 @@ function process_mitosis_events!(
 end
 
 @kernel function _kernel_find_dead_cells!(
-        volumes, target_volumes, cell_types, dead_cells, dead_count)
+        volumes, target_volumes, cell_types, free_list, free_list_count)
     i = @index(Global, Linear)
     if i <= length(volumes)
         if volumes[i] == 0 && target_volumes[i] == 0 && cell_types[i] > 0
-            idx = Atomix.@atomic dead_count[1] += UInt32(1)
-            dead_cells[idx] = UInt32(i)
+            # Atomix.@atomic returns the old value for += but wait... 
+            # Atomix.@atomic x += 1 returns the NEW value in our test. 
+            # So if old was 0, it returns 1. We want to write to index 1.
+            idx = Atomix.@atomic free_list_count[1] += Int32(1)
+            free_list[idx] = UInt32(i)
             cell_types[i] = UInt32(0)
         end
     end
@@ -724,23 +741,12 @@ These cells are killed (removed from the grid) and their IDs are recycled for fu
 """
 function process_death_events!(u::AbstractPottsState, cache::PottsCache, ws::MitosisWorkspace)
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)
-    N = u.N_cells[]
-
-    fill!(ws.dev_dead_count, UInt32(0))
+    current_N = Array(u.N_cells)[1]
 
     k_dead = _kernel_find_dead_cells!(backend, cache.block_size)
     k_dead(u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.cell_types,
-        ws.dev_dead_cells, ws.dev_dead_count, ndrange = N)
+        u.free_list, u.free_list_count, ndrange = current_N)
     KernelAbstractions.synchronize(backend)
-
-    # Copy only the count scalar to CPU
-    count_arr = Array(ws.dev_dead_count)
-    dead_count = count_arr[1]
-
-    if dead_count > 0
-        dead_cells_cpu = Array(ws.dev_dead_cells)[1:dead_count]
-        append!(u.free_list, dead_cells_cpu)
-    end
 end
 
 """

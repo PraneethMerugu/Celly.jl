@@ -3,6 +3,15 @@ module System
 export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
+export required_variables
+
+"""
+    required_variables(obj)
+
+Returns a NamedTuple of required variables (and their types) for a component or trigger.
+Fallback returns `nothing` or empty NamedTuple.
+"""
+function required_variables end
 using CorePotts: FlexibilityTrait, Rigid, Flex
 
 """
@@ -15,13 +24,15 @@ struct CellType
     is_background::Bool
 end
 
-function CellType(name::Symbol; is_background::Bool=false)
+function CellType(name::Symbol; is_background::Bool = false)
     return CellType(name, is_background)
 end
 
 # To allow using CellTypes as Dict keys cleanly
 Base.hash(c::CellType, h::UInt) = hash((c.name, c.is_background), h)
-Base.:(==)(a::CellType, b::CellType) = a.name == b.name && a.is_background == b.is_background
+function Base.:(==)(a::CellType, b::CellType)
+    a.name == b.name && a.is_background == b.is_background
+end
 
 abstract type AbstractComponent end
 
@@ -147,12 +158,24 @@ end
 Collects the abstract logical rules and components defining a Cellular Potts Model.
 The varargs constructor separates `CellType` instances from penalty components automatically.
 """
-Base.@kwdef struct PottsSystem
+struct PottsSystem{E <: Tuple}
     cell_types::Vector{CellType}
     penalties::Vector{Any}
+    events::E
+    check_interval::Int
+
+    function PottsSystem(cell_types::Vector{CellType}, penalties::Vector,
+            events::E, check_interval::Int) where {E <: Tuple}
+        new{E}(cell_types, Any[p for p in penalties], events, check_interval)
+    end
 end
 
-function PottsSystem(args...)
+function PottsSystem(args...; events = (), check_interval = 10, kwargs...)
+    # Convert Vector of events to Tuple if user passes a Vector
+    if events isa Vector
+        events = Tuple(events)
+    end
+
     types = CellType[]
     pens = Any[]
     for arg in args
@@ -162,7 +185,19 @@ function PottsSystem(args...)
             push!(pens, arg)
         end
     end
-    return PottsSystem(types, pens)
+
+    if haskey(kwargs, :cell_types)
+        types = kwargs[:cell_types]
+    end
+    if haskey(kwargs, :penalties)
+        pens = kwargs[:penalties]
+    end
+
+    if haskey(kwargs, :check_interval)
+        check_interval = kwargs[:check_interval]
+    end
+
+    return PottsSystem(types, pens, events, check_interval)
 end
 
 end

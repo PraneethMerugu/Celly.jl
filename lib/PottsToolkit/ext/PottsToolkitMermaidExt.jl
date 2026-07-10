@@ -24,7 +24,8 @@ function CorePotts.PottsComponent(sys::PottsSystem,
         grid_size::Tuple,
         alg::AbstractPottsAlgorithm;
         kwargs...)
-    return CorePotts.PottsComponent(sys, Layouts.RandomLayout(u0_counts), grid_size, alg; kwargs...)
+    return CorePotts.PottsComponent(
+        sys, Layouts.RandomLayout(u0_counts), grid_size, alg; kwargs...)
 end
 
 end

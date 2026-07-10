@@ -25,7 +25,7 @@ function cell_sorting_problem(;
 )
     A = CellType(:A)
     B = CellType(:B)
-    Medium = CellType(:Medium, is_background=true)
+    Medium = CellType(:Medium, is_background = true)
 
     sys = PottsSystem([A, B, Medium],
         [
@@ -56,7 +56,7 @@ function young_laplace_droplet(;
         isotropic = false
 )
     Cell = CellType(:Cell)
-    Medium = CellType(:Medium, is_background=true)
+    Medium = CellType(:Medium, is_background = true)
 
     sys = PottsSystem([Cell, Medium],
         [
@@ -90,7 +90,7 @@ function single_cell_fluctuation(;
         topology = MooreTopology{2}()
 )
     Cell = CellType(:Cell)
-    Medium = CellType(:Medium, is_background=true)
+    Medium = CellType(:Medium, is_background = true)
 
     sys = PottsSystem([Cell, Medium],
         [
@@ -117,7 +117,7 @@ function ising_model(;
 )
     Up = CellType(:Up)
     Down = CellType(:Down)
-    Medium = CellType(:Medium, is_background=true) # We won't use Medium, but it's required
+    Medium = CellType(:Medium, is_background = true) # We won't use Medium, but it's required
 
     sys = PottsSystem([Up, Down, Medium],
         [

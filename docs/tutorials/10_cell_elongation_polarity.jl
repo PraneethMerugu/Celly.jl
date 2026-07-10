@@ -24,7 +24,7 @@ using Statistics
 # Medium.  A single CellType call registers the label in the system.
 
 Fib = CellType(:Fib)
-Medium = CellType(:Medium, is_background=true)
+Medium = CellType(:Medium, is_background = true)
 
 # ## Energy components
 #
@@ -64,7 +64,7 @@ components = [
 
 sys = PottsSystem(
     cell_types = [Medium, Fib],
-    penalties  = components
+    penalties = components
 )
 
 prob = PottsProblem(

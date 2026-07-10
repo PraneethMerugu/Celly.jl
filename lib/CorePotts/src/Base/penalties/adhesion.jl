@@ -22,8 +22,13 @@ end
 
 # ConstructionBase Overloads
 struct AdhesionReconstructor{Trait, Iso} end
-(::AdhesionReconstructor{Trait, Iso})(J) where {Trait, Iso} = AdhesionPenalty{Trait, typeof(J), Iso}(J)
-ConstructionBase.constructorof(::Type{<:AdhesionPenalty{Trait, MatrixT, Iso}}) where {Trait, MatrixT, Iso} = AdhesionReconstructor{Trait, Iso}()
+function (::AdhesionReconstructor{Trait, Iso})(J) where {Trait, Iso}
+    AdhesionPenalty{Trait, typeof(J), Iso}(J)
+end
+function ConstructionBase.constructorof(::Type{<:AdhesionPenalty{
+        Trait, MatrixT, Iso}}) where {Trait, MatrixT, Iso}
+    AdhesionReconstructor{Trait, Iso}()
+end
 
 @inline function get_adhesion_modifier(p::AdhesionPenalty{Rigid}, ctx, cell_id)
     return one(eltype(p.J))

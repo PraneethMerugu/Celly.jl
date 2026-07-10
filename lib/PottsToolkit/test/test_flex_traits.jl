@@ -5,11 +5,11 @@ using PottsToolkit
 @testset "Flex Traits Tests" begin
     # 1. Define a system with Flex traits
     sys = PottsSystem(
-        cell_types = [CellType(:Medium, is_background=true), CellType(:A)],
+        cell_types = [CellType(:Medium, is_background = true), CellType(:A)],
         penalties = [
             VolumeComponent(CellType(:A) => (target = 100.0, λ = 5.0), flex = true),
             AdhesionComponent((CellType(:A), CellType(:A)) => 10.0,
-                (CellType(:A), CellType(:Medium, is_background=true)) => 5.0,
+                (CellType(:A), CellType(:Medium, is_background = true)) => 5.0,
                 flex = true)
         ]
     )

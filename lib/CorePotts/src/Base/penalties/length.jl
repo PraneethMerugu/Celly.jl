@@ -27,8 +27,12 @@ function HSTLengthPenalty{Flex}(; eta = 1.0, FloatType = Float32)
 end
 
 # ConstructionBase Overloads
-ConstructionBase.constructorof(::Type{<:HSTLengthPenalty{Trait}}) where {Trait} = HSTLengthPenalty{Trait}
-HSTLengthPenalty{Trait}(lambdas, eta) where {Trait} = HSTLengthPenalty{Trait, typeof(lambdas), typeof(eta)}(lambdas, eta)
+function ConstructionBase.constructorof(::Type{<:HSTLengthPenalty{Trait}}) where {Trait}
+    HSTLengthPenalty{Trait}
+end
+function HSTLengthPenalty{Trait}(lambdas, eta) where {Trait}
+    HSTLengthPenalty{Trait, typeof(lambdas), typeof(eta)}(lambdas, eta)
+end
 
 function HSTLengthPenalty{Flex}(eta)
     return HSTLengthPenalty{Flex}(; eta = eta)
