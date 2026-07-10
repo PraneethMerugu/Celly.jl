@@ -1,1 +1,1 @@
-{"dtype":"<i4","filters":null,"shape":[83,50,50,50],"order":"C","zarr_format":2,"node_type":"array","chunks":[1,50,50,50],"fill_value":0,"dimension_separator":".","compressor":{"blocksize":0,"id":"blosc","clevel":5,"cname":"lz4","shuffle":1}}
+{"dtype":"<u4","filters":null,"shape":[83,50,50,50],"order":"C","zarr_format":2,"node_type":"array","chunks":[1,50,50,50],"fill_value":0,"dimension_separator":".","compressor":{"blocksize":0,"id":"blosc","clevel":5,"cname":"lz4","shuffle":1}}
