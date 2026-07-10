@@ -35,6 +35,13 @@ function build_layout! end
 # ==============================================================================
 # RandomLayout
 # ==============================================================================
+"""
+    RandomLayout(counts::Dict{CellType, Int})
+
+A layout that randomly scatters cells across the empty spaces of the simulation grid.
+This is the default fallback if a dictionary is passed directly to `PottsProblem`.
+It is useful for unstructured initialization, such as cell sorting assays.
+"""
 struct RandomLayout <: AbstractLayout
     counts::Dict{CellType, Int}
 end
@@ -69,6 +76,13 @@ end
 # ==============================================================================
 # HypersphereLayout
 # ==============================================================================
+"""
+    HypersphereLayout(cell_type::CellType, center::NTuple{N, Int}, radius::Int)
+
+Seeds a solid N-dimensional sphere (a circle in 2D, a sphere in 3D) of `cell_type`
+at the specified `center` coordinate with the given `radius`.
+Extremely useful for initializing tumor spheroids or expanding clonal colonies.
+"""
 struct HypersphereLayout{N} <: AbstractLayout
     cell_type::CellType
     center::NTuple{N, Int}
@@ -88,6 +102,14 @@ end
 # ==============================================================================
 # RectangleLayout
 # ==============================================================================
+"""
+    RectangleLayout(cell_type::CellType, top_left::NTuple{N, Int}, bottom_right::NTuple{N, Int})
+
+Fills a rectangular bounding box entirely with the specified `cell_type`.
+The bounding box is defined by the `top_left` and `bottom_right` corners.
+If the box exceeds the grid dimensions, it safely clamps to the boundaries.
+Ideal for establishing confluent epithelial sheets or migration barrier models.
+"""
 struct RectangleLayout{N} <: AbstractLayout
     cell_type::CellType
     top_left::NTuple{N, Int}
@@ -111,6 +133,13 @@ end
 # ==============================================================================
 # CompositeLayout
 # ==============================================================================
+"""
+    CompositeLayout(layouts::AbstractLayout...)
+
+An aggregator layout that allows multiple layouts to be stacked sequentially.
+The component layouts are drawn onto the grid in the exact order they are provided.
+Useful for building complex multi-tissue geometries (e.g. a spheroid on top of a monolayer).
+"""
 struct CompositeLayout <: AbstractLayout
     layouts::Vector{AbstractLayout}
 end

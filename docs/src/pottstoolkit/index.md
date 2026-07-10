@@ -97,8 +97,8 @@ prob = PottsProblem(
 
 **Under the hood**, `PottsProblem` does the following:
 
-1. Converts `Dict(CellType => count)` into a `HypersphereLayout` — compact circular
-   blobs (2D) or spheres (3D) arranged on a regular sub-grid.
+1. Converts `Dict(CellType => count)` into a `RandomLayout` — which uniformly scatters
+   the requested number of cells across the grid randomly.
 2. Calls `build_initial_state` to populate the lattice from the layout, assigning
    cell IDs sequentially from `1`.
 3. Calls `initialize_metrics!` to perform a single O(|Λ|) scan that syncs all
@@ -110,8 +110,8 @@ prob = PottsProblem(
 
 ### Custom Layouts
 
-By default `PottsProblem` places cells via `HypersphereLayout`, which distributes
-compact blobs on a regular sub-grid. For fine-grained control, pass a layout directly:
+By default `PottsProblem` places cells via `RandomLayout`, which distributes
+them randomly. For structured initialization (like spheroids or confluent sheets), pass an explicit layout:
 
 ```julia
 using PottsToolkit: HypersphereLayout
