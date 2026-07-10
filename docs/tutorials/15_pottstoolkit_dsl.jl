@@ -130,9 +130,20 @@ sys = PottsSystem(
 # | `ExtendedVonNeumannTopology{2,2}()` | 12-conn | periodic   |
 # | `VonNeumannTopology{3}()`      | 6-connected  | periodic 3D|
 
+# ### Initial Layout
+# 
+# While passing a dictionary (e.g., `Dict(A => 20)`) automatically uses a `RandomLayout` 
+# to distribute 20 cells evenly, you can precisely control spatial initialization
+# using the `AbstractLayout` API. Here we compose two rectangles.
+
+layout = CompositeLayout(
+    RectangleLayout(A, (50, 50), (100, 150)),
+    RectangleLayout(B, (100, 50), (150, 150))
+)
+
 prob = PottsProblem(
     sys,
-    Dict(A => 20, B => 20),
+    layout,
     (200, 200);
     tspan = (0, 600),
     topology = VonNeumannTopology{2}(),

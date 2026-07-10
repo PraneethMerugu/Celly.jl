@@ -56,11 +56,14 @@ sys = PottsSystem(
 # constructs a 3D lattice. `VonNeumannTopology{3}()` gives 6-connectivity
 # (the six face-adjacent voxels), which is the 3D analogue of the 4-connected
 # 2D neighbourhood and the appropriate choice for isotropic diffusion-limited
-# problems. We seed 20 tumour cells distributed on a regular 3D sub-grid and run for 400 MCS.
+# problems.
+#
+# To accurately model a spheroid, we seed a single dense tumour mass in the centre
+# of the grid using `HypersphereLayout`, rather than randomly distributing cells.
 
 prob = PottsProblem(
     sys,
-    Dict(Tumor => 20),
+    HypersphereLayout(Tumor, (25, 25, 25), 10),
     (50, 50, 50);
     tspan = (0, 400),
     topology = VonNeumannTopology{3}()

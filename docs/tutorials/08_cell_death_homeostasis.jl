@@ -74,14 +74,13 @@ cb = SciMLBase.CallbackSet(
 
 # ## Problem
 #
-# We start with 30 cells — below the expected homeostatic population — to
-# observe the system grow toward steady state and then fluctuate around it.
-# A 150 × 150 grid comfortably accommodates up to ~100 cells of target
-# volume 150 before crowding effects dominate.
+# We start with a tissue that completely fills the entire 150x150 grid
+# using `RectangleLayout`. This allows us to observe mature tissue turnover
+# immediately, rather than waiting for the simulation to grow to steady state.
 
 prob = PottsProblem(
     sys,
-    Dict(Epithelial => 30),
+    RectangleLayout(Epithelial, (1, 1), (150, 150)),
     (150, 150);
     tspan = (0, 2000),
     topology = VonNeumannTopology{2}(),

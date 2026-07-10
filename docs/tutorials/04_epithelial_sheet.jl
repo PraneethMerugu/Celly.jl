@@ -65,14 +65,14 @@ sys = PottsSystem(
 
 # ## Problem — Dense Monolayer
 #
-# 180 cells on a 150 × 150 grid gives an average spacing consistent with a
-# confluent monolayer (coverage fraction ≈ 180 × 100 / 22500 ≈ 0.8). We run
-# for 800 MCS to allow the initial random seed to relax to a tessellation.
+# We initialise the sheet covering exactly the bottom half of a 100 × 100 grid using
+# `RectangleLayout`. This perfectly sets up a scratch wound assay, where the cells
+# collectively migrate upwards to fill the empty space.
 
 prob = PottsProblem(
     sys,
-    Dict(Epithelial => 180),
-    (150, 150);
+    RectangleLayout(Epithelial, (1, 1), (100, 50)),
+    (100, 100);
     tspan = (0, 800),
     topology = VonNeumannTopology{2}()
 )

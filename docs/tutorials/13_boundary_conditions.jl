@@ -48,7 +48,7 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
 prob_periodic = PottsProblem(
     sys,
-    Dict(Cell => 20),
+    HypersphereLayout(Cell, (200, 100), 20),
     (200, 200);
     tspan = (0, 600),
     topology = VonNeumannTopology{2}()
@@ -67,7 +67,7 @@ sol_periodic = solve(prob_periodic, alg; saveat = 20)
 
 prob_noflux = PottsProblem(
     sys,
-    Dict(Cell => 20),
+    HypersphereLayout(Cell, (200, 100), 20),
     (200, 200);
     tspan = (0, 600),
     topology = NoFluxVonNeumannTopology{2}()

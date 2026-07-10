@@ -63,12 +63,14 @@ sys = PottsSystem(
 
 # ## Problem
 #
-# We place 5 neutrophils near the left edge of a 200 × 100 grid and run for
-# 600 MCS. `saveat = 5` gives smooth playback at 24 fps.
+# We place a small cluster of neutrophils near the far left edge of a 200 × 100 grid 
+# using `RectangleLayout`. This mimics a transwell assay, where cells must migrate
+# entirely across the grid to reach the chemical source on the right.
+# `saveat = 5` gives smooth playback at 24 fps.
 
 prob = PottsProblem(
     sys,
-    Dict(Neutrophil => 5),
+    RectangleLayout(Neutrophil, (10, 45), (20, 55)),
     (H, W);
     tspan = (0, 1500),
     topology = VonNeumannTopology{2}()
