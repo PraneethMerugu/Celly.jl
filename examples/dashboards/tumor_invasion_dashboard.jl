@@ -186,14 +186,14 @@ end
 # ==========================================
 Leader = CellType(:Leader)
 Follower = CellType(:Follower)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 width, height = 500, 300
 chem_field = Float32[Float32(y) for x in 1:width, y in 1:height]
 
 sys = PottsSystem(
-    [Medium, Leader, Follower], # Medium=0, Leader=1, Follower=2 (IDs assigned by PottsProblem constructor)
-    [
+    cell_types = [Medium, Leader, Follower], # Medium=0, Leader=1, Follower=2 (IDs assigned by PottsProblem constructor)
+    penalties = [
         HSTVolumeComponent(Leader => (λ = 2.0f0, target = 10.0),
             Follower => (λ = 2.0f0, target = 10.0); eta = 5.0f0),
         ChemotaxisComponent(Leader => 20.0f0, Follower => 0.0f0; chemical_field = chem_field),

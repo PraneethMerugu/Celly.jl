@@ -1,7 +1,7 @@
 using CorePotts
 using PottsToolkit
 
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 Epithelial = CellType(:Epithelial)
 Mesenchymal = CellType(:Mesenchymal)
 
@@ -19,7 +19,8 @@ adh = AdhesionComponent(
 
 sys = PottsSystem(cell_types = [Medium, Epithelial, Mesenchymal], penalties = [vol, adh])
 counts = Dict(Epithelial => 40, Mesenchymal => 40)
-prob = PottsProblem(sys, counts, (100, 100); tspan = (1, 500))
+layout = HypersphereLayout(counts, (100, 100))
+prob = PottsProblem(sys, layout, (100, 100); tspan = (1, 500))
 
 println("Vol lambdas: ", prob.p.penalties[1].lambdas)
 println("Cell 2 target vol: ", prob.u0.cell_data.target_volumes[2])

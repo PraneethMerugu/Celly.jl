@@ -10,7 +10,7 @@ function run_showcase()
     println("Setting up the Cellular Potts Model...")
 
     # 1. Define Cell Types
-    Medium = CellType(:Medium)
+    Medium = CellType(:Medium, is_background=true)
     Epithelial = CellType(:Epithelial)
     Mesenchymal = CellType(:Mesenchymal)
 
@@ -32,9 +32,10 @@ function run_showcase()
     sys = PottsSystem(cell_types = [Medium, Epithelial, Mesenchymal], penalties = [
         vol, adh])
 
-    # Randomly initialize a mixture of cells
+    # Randomly initialize a mixture of cells via layout
     counts = Dict(Epithelial => 80, Mesenchymal => 80)
-    prob = PottsProblem(sys, counts, (100, 100); tspan = (1, 500))
+    layout = HypersphereLayout(counts, (100, 100))
+    prob = PottsProblem(sys, layout, (100, 100); tspan = (1, 500))
     alg = SequentialMetropolis(sweeps_per_step = 100, T = 20.0) # 100 MCS per evaluation is enough
 
     # 3. Define the UI Dials (Parameter Sliders)

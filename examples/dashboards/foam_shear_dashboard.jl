@@ -90,12 +90,12 @@ end
 # 3. System Definition
 # ------------------------------------------------------------------
 Foam = CellType(:Foam)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 shear_penalty = BulkShearPenalty(0.0f0)
 
 sys = PottsSystem(
-    cell_types = [Foam, Medium],
+    cell_types = [Medium, Foam],
     penalties = [
         VolumeComponent(Foam => (λ = 2.0f0, target = 250)),
         AdhesionComponent(
@@ -110,46 +110,20 @@ sys = PottsSystem(
 # 4. Problem Setup
 # ------------------------------------------------------------------
 # 200x200 grid, densely packed with 160 Foam cells
+# We use a RectangleLayout to create a brick-wall pattern automatically
+layout = RectangleLayout(
+    Dict(Foam => 160),
+    (200, 200);
+    grid_size = (16, 10)
+)
+
 prob = PottsProblem(
     sys,
-    Dict(Foam => 160),
+    layout,
     (200, 200);
     tspan = (0, 5000),
     topology = PeriodicXNoFluxYExtendedMooreTopology{2, 2}()
 )
-
-# ------------------------------------------------------------------
-# 4.5 Custom Initialization (Brick-Wall)
-# ------------------------------------------------------------------
-function brick_wall_init!(grid::Matrix{Int32}, n_cols::Int, n_rows::Int, dims::NTuple{
-        2, Int})
-    w, h = dims
-    cell_w = w / n_cols
-    cell_h = h / n_rows
-
-    for y in 1:h
-        row = Int(floor((y - 1) / cell_h))
-        # Alternating offset in every other row
-        x_offset = (row % 2 == 1) ? (cell_w / 2) : 0.0
-
-        for x in 1:w
-            shifted_x = (x - 1 + x_offset) % w
-            col = Int(floor(shifted_x / cell_w))
-
-            # Map to unique cell ID (1-indexed)
-            cell_id = row * n_cols + col + 1
-            grid[x, y] = Int32(cell_id)
-        end
-    end
-end
-
-println("Generating Brick-Wall partition...")
-brick_wall_init!(prob.u0.grid, 16, 10, (200, 200))
-
-# Sync the target volumes to match the exact brick-wall calculated sizes
-dummy_cache = CorePotts.PottsCache(prob.u0, prob.p.topology, 128)
-CorePotts.sync_cell_data!(prob.u0, prob.p, dummy_cache, 160; set_targets = true)
-
 alg = SequentialMetropolis(T = 1.5f0, sweeps_per_step = 5)
 
 # ------------------------------------------------------------------

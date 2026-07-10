@@ -85,13 +85,13 @@ end
 # 3. System Definition
 # ------------------------------------------------------------------
 Foam = CellType(:Foam)
-Medium = CellType(:Medium)
+Medium = CellType(:Medium, is_background=true)
 
 shear_rate_mtl = MtlArray(Float32[0.0f0])
 shear_penalty = BulkShearPenalty(shear_rate_mtl)
 
 sys = PottsSystem(
-    cell_types = [Foam, Medium],
+    cell_types = [Medium, Foam],
     penalties = [
         VolumeComponent(Foam => (λ = 2.0f0, target = 250)),
         AdhesionComponent(
@@ -103,45 +103,23 @@ sys = PottsSystem(
 )
 
 # ------------------------------------------------------------------
-# 4. Custom Initialization (Brick-Wall) & Problem Setup
+# 4. Problem Setup
 # ------------------------------------------------------------------
-function brick_wall_init!(grid::AbstractMatrix, n_cols::Int, n_rows::Int, dims::NTuple{
-        2, Int})
-    w, h = dims
-    cell_w = w / n_cols
-    cell_h = h / n_rows
-
-    for y in 1:h
-        row = Int(floor((y - 1) / cell_h))
-        x_offset = (row % 2 == 1) ? (cell_w / 2) : 0.0
-
-        for x in 1:w
-            shifted_x = (x - 1 + x_offset) % w
-            col = Int(floor(shifted_x / cell_w))
-
-            cell_id = row * n_cols + col + 1
-            grid[x, y] = eltype(grid)(cell_id)
-        end
-    end
-end
-
 println("Generating Brick-Wall partition for 500x500...")
+layout = RectangleLayout(
+    Dict(Foam => 1000),
+    (500, 500);
+    grid_size = (40, 25)
+)
+
 # Create CPU problem first to compile penalties and allocate cell data
 prob_cpu = PottsProblem(
     sys,
-    Dict(Foam => 1000),
+    layout,
     (500, 500);
     tspan = (0, 500),
     topology = PeriodicXNoFluxYExtendedMooreTopology{2, 2}()
 )
-
-cpu_grid = zeros(UInt32, 500, 500)
-brick_wall_init!(cpu_grid, 40, 25, (500, 500))
-prob_cpu.u0.grid .= cpu_grid
-
-# Sync the target volumes to match the exact brick-wall calculated sizes
-dummy_cache = CorePotts.PottsCache(prob_cpu.u0, prob_cpu.p.topology, 128)
-CorePotts.sync_cell_data!(prob_cpu.u0, prob_cpu.p, dummy_cache, 1000; set_targets = true)
 
 # Convert to GPU State
 println("Transferring state to Metal GPU...")

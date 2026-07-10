@@ -237,11 +237,12 @@ function run_dashboard()
     initial_div_thresh = floor(Int32, initial_area * X1)
 
     # Declarative PottsSystem for physics compilation!
-    medium = CellType(:Medium)
+    medium = CellType(:Medium, is_background=true)
     tissue = CellType(:Tissue)
     
-    sys = PottsSystem([medium, tissue],
-        [
+    sys = PottsSystem(
+        cell_types = [medium, tissue],
+        penalties = [
             VolumeComponent(tissue => (λ = 5.0f0, target = initial_area)),
             SurfaceAreaComponent(tissue => (λ = 2.0f0, target = 4.0f0*sqrt(initial_area))),
             AdhesionComponent(
