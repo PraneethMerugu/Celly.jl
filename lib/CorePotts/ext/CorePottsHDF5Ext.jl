@@ -87,7 +87,7 @@ function CorePotts.save_state!(integrator, backend::CorePotts.HDF5Backend)
     end
 
     HDF5.set_extent_dims(hc.hdf5_N_cells, (idx,))
-    hc.hdf5_N_cells[idx] = integrator.u.N_cells[]
+    hc.hdf5_N_cells[idx] = Int(Array(integrator.u.N_cells)[])
 
     push!(integrator.sol_t, integrator.t)
 end

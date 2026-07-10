@@ -17,7 +17,7 @@ function save_state!(integrator, ::MemoryBackend)
     cpu_grid = deepcopy(Adapt.adapt(Array, integrator.u.grid))
     cpu_cell_data = deepcopy(Adapt.adapt(Array, integrator.u.cell_data))
     push!(integrator.sol_u, (
-        grid = cpu_grid, cell_data = cpu_cell_data, N_cells = Ref(integrator.u.N_cells[])))
+        grid = cpu_grid, cell_data = cpu_cell_data, N_cells = Ref(Int(Array(integrator.u.N_cells)[]))))
     push!(integrator.sol_t, integrator.t)
 end
 

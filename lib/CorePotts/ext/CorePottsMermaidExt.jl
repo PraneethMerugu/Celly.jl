@@ -45,7 +45,7 @@ function init(c::_PottsComponent)
     getters["#grid"] = (intg) -> intg.u.grid
 
     getters["#ids"] = (intg) -> begin
-        N = intg.u.N_cells[]
+        N = Int(Array(intg.u.N_cells)[])
         vols = Adapt.adapt(Array, intg.u.cell_data.volumes)
         return findall(i -> vols[i] > 0, 1:N)
     end
@@ -110,7 +110,7 @@ function Mermaid.getstate(compInt::_PottsComponentIntegrator, key::ConnectedVari
     if isnothing(key.variableindex)
         # If it's cell data, bound it by N_cells
         if hasproperty(compInt.integrator.u.cell_data, Symbol(var))
-            N = compInt.integrator.u.N_cells[]
+            N = Int(Array(compInt.integrator.u.N_cells)[])
             vols = Adapt.adapt(Array, compInt.integrator.u.cell_data.volumes)
             # Return actively bound slice. If returning an array that can be written to, 
             # returning a view is better, but getstate implies reading. We'll return an array of active.
@@ -154,7 +154,7 @@ function Mermaid.setstate!(compInt::_PottsComponentIntegrator, key::ConnectedVar
         if data_col isa AbstractArray
             if hasproperty(compInt.integrator.u.cell_data, Symbol(var))
                 cpu_data = Adapt.adapt(Array, data_col)
-                N = compInt.integrator.u.N_cells[]
+                N = Int(Array(compInt.integrator.u.N_cells)[])
                 vols = Adapt.adapt(Array, compInt.integrator.u.cell_data.volumes)
                 active_ids = findall(i -> vols[i] > 0, 1:N)
 

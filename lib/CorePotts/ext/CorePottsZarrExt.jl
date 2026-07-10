@@ -78,7 +78,7 @@ function CorePotts.save_state!(integrator, backend::CorePotts.ZarrBackend)
         zc.cell_data_group[field][:, idx] = array
     end
 
-    zc.zarr_N_cells[idx] = integrator.u.N_cells[]
+    zc.zarr_N_cells[idx] = Int(Array(integrator.u.N_cells)[])
 
     push!(integrator.sol_t, integrator.t)
 end
