@@ -8,6 +8,6 @@ Note that `PottsToolkit` re-exports CorePotts's public API; the symbols listed h
 ---
 
 ```@autodocs
-Modules = [PottsToolkit, PottsToolkit.System, PottsToolkit.Problem]
+Modules = [PottsToolkit, PottsToolkit.System, PottsToolkit.Problem, PottsToolkit.Layouts, PottsToolkit.Events, PottsToolkit.TestProblems]
 Order   = [:type, :function]
 ```

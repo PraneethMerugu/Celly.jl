@@ -43,7 +43,7 @@ sys = PottsSystem(
         MitosisEvent(Epithelial,
             trigger = VolumeRatioTrigger(2.0f0),
             orientation = MajorAxisOrientation(),
-            inheritance = (target_volumes = Split(0.5f0),)
+            inheritance = (;)
         ),
         ApoptosisEvent(Epithelial, trigger = ProbabilityTrigger(0.005f0))
     ]
@@ -51,9 +51,10 @@ sys = PottsSystem(
 
 # ## Growth and Mitosis
 #
-# As in Tutorial 07, cells grow linearly and divide when they reach twice
-# their target volume. `Split(0.5f0)` halves the target volume at division
-# so each daughter must grow anew before its next division.
+# As in Tutorial 07, cells grow linearly and divide when their physical volume
+# reaches twice their target volume. Since we do not split target volumes, each
+# daughter cell inherits a target volume of 150, but starts with a physical volume
+# of ~75. They must then grow anew before their next division.
 
 growth_cb = LinearGrowthCallback(0.25f0)
 

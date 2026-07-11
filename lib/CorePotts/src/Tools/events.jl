@@ -149,7 +149,7 @@ end
     if i <= N_cells
         vol = cell_volumes[i]
         tgt = cell_targets[i]
-        if vol >= tgt * multiplier && vol > 0
+        if tgt > 0 && vol >= tgt * multiplier && vol > 0
             idx = Atomix.@atomic dev_division_count[1] += UInt32(1)
             dev_parents[idx] = UInt32(i)
         end

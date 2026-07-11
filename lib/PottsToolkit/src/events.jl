@@ -100,7 +100,7 @@ using AcceleratedKernels
 # Evaluate Triggers
 @inline _evaluate_trigger(trigger::AbstractTrigger, cell_id::Integer, cell_data) = false
 @inline _evaluate_trigger(trigger::VolumeRatioTrigger, cell_id::Integer,
-    cell_data) = cell_data.volumes[cell_id] >=
+    cell_data) = cell_data.target_volumes[cell_id] > 0 && cell_data.volumes[cell_id] >=
                  (trigger.factor * cell_data.target_volumes[cell_id])
 @inline _evaluate_trigger(trigger::AgeTrigger, cell_id::Integer, cell_data) = cell_data.cell_ages[cell_id] >=
                                                                               trigger.max_age
@@ -115,7 +115,6 @@ using AcceleratedKernels
     evt = first(events)
     if is_apoptosis(evt) && t_id == get_cell_type_id(evt)
         if _evaluate_trigger(evt.trigger, i, cell_data)
-            cell_data.cell_types[i] = 0
             if hasproperty(cell_data, :target_volumes)
                 cell_data.target_volumes[i] = 0
             end
@@ -305,11 +304,13 @@ function CorePotts.evaluate_event!(evt::ResolvedApoptosisEvent, u, p, cache, t, 
     end
     cd = u.cell_data
     
-    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size, dependencies=deps) do i
+    if !isempty(deps)
+        KernelAbstractions.wait(deps[1])
+    end
+    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size) do i
         t_id = cd.cell_types[i]
         if t_id == evt.type_id
             if _evaluate_trigger(evt.trigger, i, cd)
-                cd.cell_types[i] = 0
                 if hasproperty(cd, :target_volumes)
                     cd.target_volumes[i] = 0
                 end
@@ -324,7 +325,10 @@ function CorePotts.evaluate_event!(evt::ResolvedTransitionEvent, u, p, cache, t,
     end
     cd = u.cell_data
     
-    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size, dependencies=deps) do i
+    if !isempty(deps)
+        KernelAbstractions.wait(deps[1])
+    end
+    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size) do i
         t_id = cd.cell_types[i]
         if t_id == evt.from_id
             if _evaluate_trigger(evt.trigger, i, cd)

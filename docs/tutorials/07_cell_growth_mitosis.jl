@@ -43,11 +43,11 @@ sys = PottsSystem(
     ],
     events = [
         MitosisEvent(
-        Progenitor,
-        trigger = VolumeRatioTrigger(2.0f0),
-        orientation = CorePotts.RandomOrientation(),
-        inheritance = (target_volumes = CorePotts.Split(0.5f0),)
-    )
+            Progenitor,
+            trigger = VolumeRatioTrigger(2.0f0),
+            orientation = CorePotts.RandomOrientation(),
+            inheritance = (;)
+        )
     ]
 )
 
