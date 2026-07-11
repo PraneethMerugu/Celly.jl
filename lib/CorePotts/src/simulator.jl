@@ -68,25 +68,41 @@ function SciMLBase.step!(integrator::PottsIntegrator)
     cache = integrator.cache
     alg = integrator.alg
 
+    # Phase 1: Pre-step auxiliary updates
+    _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
+    _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+
+    current_event = nothing
     for _ in 1:alg.sweeps_per_step
-        # Phase 1: Pre-sweep global auxiliary field updates (Gibbs exact draw + COM tracking)
-        _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-        _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+        # Phase 2: Pre-sweep auxiliary field updates
         _update_sweep_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
         _update_sweep_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
 
-        # Phase 2: Local grid updates (MC Sweeps)
-        execute_step!(u, p, cache, alg)
+        # Phase 3: Local grid updates (MC Sweeps)
+        current_event = execute_step!(u, p, cache, alg, current_event)
 
-        # Phase 3: Post-sweep updates
-        _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-        _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+        # Phase 4: Post-sweep updates
         _update_sweep_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
         _update_sweep_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
     end
 
+    # Phase 5: Post-step auxiliary updates
+    _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
+    _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+
+    # Phase 6: Core Events (AbstractEvent)
+    for ev in p.events
+        deps = current_event === nothing ? () : (current_event,)
+        res = evaluate_event!(ev, u, p, cache, integrator.t, deps)
+        if res !== nothing
+            current_event = res
+        end
+        # If res is nothing, we maintain the previous current_event.
+    end
+
     integrator.t += 1
 end
+
 
 """
     SciMLBase.solve!(integrator::PottsIntegrator)
@@ -109,6 +125,7 @@ function SciMLBase.solve!(integrator::PottsIntegrator)
 
         # Evaluate standard SciML discrete callbacks purely at the end of each MCS
         if has_cbs
+            KernelAbstractions.synchronize(KernelAbstractions.get_backend(integrator.u.grid))
             cb_set = integrator.opts.callback
             foreach(cb_set.discrete_callbacks) do cb
                 if cb.condition(integrator.u, integrator.t, integrator)
@@ -118,12 +135,14 @@ function SciMLBase.solve!(integrator::PottsIntegrator)
         end
 
         if integrator.save_everystep || integrator.t in integrator.saveat
+            KernelAbstractions.synchronize(KernelAbstractions.get_backend(integrator.u.grid))
             save_state!(integrator, integrator.opts.backend)
         end
     end
 
     if integrator.save_end &&
        (isempty(integrator.sol_t) || integrator.sol_t[end] != integrator.t)
+        KernelAbstractions.synchronize(KernelAbstractions.get_backend(integrator.u.grid))
         save_state!(integrator, integrator.opts.backend)
     end
 

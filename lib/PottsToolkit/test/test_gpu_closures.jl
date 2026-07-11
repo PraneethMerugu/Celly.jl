@@ -25,11 +25,12 @@ using Adapt
     type_to_id = Dict(medium => UInt8(0), cell => UInt8(1))
     comp_pens, req_trackers, init_props,
     custom_vars = PottsToolkit.Problem.compile_penalties(sys, type_to_id, 2)
-    cb_set, event_reqs, master_cb = PottsToolkit.Events.compile_events(sys.events, sys, type_to_id, 10)
+    cb_set, event_reqs = PottsToolkit.Events.compile_events(sys.events, sys, type_to_id, 10)
 
     # The MitosisTriggerWrapper must be Adapt-compatible to become an isbits type
     # We can mock a ResolvedMitosisEvent
     res_mit = PottsToolkit.Events.ResolvedMitosisEvent(
+        10,
         UInt8(1),
         VolumeRatioTrigger(0.5f0),
         CorePotts.RandomOrientation(),

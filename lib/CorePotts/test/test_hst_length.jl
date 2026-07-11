@@ -37,7 +37,7 @@ using CorePotts, SciMLBase
     CorePotts.sync_cell_data!(u0, p_sys, cache, 1)
 
     # Run auxiliary field update (this should populate current_lengths, major_axis, length_pressures)
-    CorePotts.update_step_auxiliary!(penalty, u0, p_sys, cache, 1.0f0, 0.01f0)
+    CorePotts.update_sweep_auxiliary!(penalty, u0, p_sys, cache, 1.0f0, 0.01f0)
 
     # Check that lengths were calculated correctly
     L_calc = cell_data.current_lengths[1]
@@ -88,7 +88,7 @@ end
     p_sys = PottsParameters(MooreTopology{2}(), (penalty,), (VolumeTracker(),))
     cache = PottsCache(u0, p_sys.topology)
     CorePotts.sync_cell_data!(u0, p_sys, cache, 1)
-    CorePotts.update_step_auxiliary!(penalty, u0, p_sys, cache, 1.0f0, 0.01f0)
+    CorePotts.update_sweep_auxiliary!(penalty, u0, p_sys, cache, 1.0f0, 0.01f0)
 
     expected_L_approx = sqrt((40^2 - 1) / 12)
     @test isapprox(cell_data.current_lengths[1], expected_L_approx, atol = 0.1)
@@ -128,7 +128,7 @@ end
     solve!(integrator)
     CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, 1)
 
-    CorePotts.update_step_auxiliary!(
+    CorePotts.update_sweep_auxiliary!(
         len_pen, integrator.u, integrator.p, integrator.cache, 10.0f0, 0.1f0)
     final_L = cell_data.current_lengths[1]
 

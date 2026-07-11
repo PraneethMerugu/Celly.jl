@@ -47,7 +47,7 @@ Every event requires a **Trigger**, which is a logical predicate evaluated to de
 - **`VolumeRatioTrigger(factor)`**: Fires when `actual_volume >= target_volume * factor`. Commonly used for G2/M size checkpoints (e.g., `factor = 2.0`).
 - **`AgeTrigger(max_age)`**: Fires when `cell_ages >= max_age`.
 - **`ProbabilityTrigger(prob)`**: Fires randomly with probability `prob` at every check interval. Useful for stochastic transitions or cell death.
-- **`CustomTrigger(func, required_vars)`**: Allows arbitrary trigger logic. The function must have the signature `(cell_id::Integer, cell_data, u, cache) -> Bool`.
+- **`CustomTrigger(func)`**: Allows arbitrary trigger logic. The function must have the signature `(cell_id::Integer, cell_data) -> Bool`.
 
 ## Event Execution Architecture
 
@@ -60,4 +60,4 @@ To prevent race conditions and physical inconsistencies, the internal callback l
 
 ## Memory Safety
 
-The `MitosisEvent` natively interacts with the `max_cells` static allocation limit defined in `PottsProblem`. If a burst of division events pushes the population beyond the pre-allocated GPU memory footprint, the toolkit will cleanly halt the excess divisions and issue a soft `@warn` instead of crashing the Julia process.
+The `MitosisEvent` natively interacts with the `max_cells` static allocation limit defined in `PottsProblem`. If a burst of division events pushes the population beyond the pre-allocated GPU memory footprint, the toolkit will throw a hard `error` and crash the simulation to prevent memory corruption. It is highly recommended to pre-allocate a sufficiently large `max_cells` when setting up stochastic growth models to prevent unexpected aborts.

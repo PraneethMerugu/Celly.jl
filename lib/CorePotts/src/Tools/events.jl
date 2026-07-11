@@ -824,7 +824,7 @@ end
     end
 end
 
-function update_step_auxiliary!(pen::AbstractHSTPenalty{FlexType}, u::AbstractPottsState,
+function update_sweep_auxiliary!(pen::AbstractHSTPenalty{FlexType}, u::AbstractPottsState,
         p::PottsParameters, cache::PottsCache, T_val, dt) where {FlexType}
     state_val = hst_state_field(pen)
     val_val = hst_value_field(pen)

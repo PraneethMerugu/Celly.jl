@@ -527,7 +527,7 @@ end
     end
 end
 
-function update_step_auxiliary!(p::HSTLengthPenalty{FlexType}, u::AbstractPottsState,
+function update_sweep_auxiliary!(p::HSTLengthPenalty{FlexType}, u::AbstractPottsState,
         p_sys::PottsParameters, cache::PottsCache, T_val, dt) where {FlexType}
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)
     N = length(u.cell_data.volumes)

@@ -201,15 +201,11 @@ function explore_cpm(prob, alg;
             recompute_btn.label[] = "Computing..."
             yield()
 
-            # Restore base state FIRST (in-place because PottsProblem and PottsState are immutable structs)
-            prob.u0.grid .= base_u0.grid
-            for k in propertynames(base_u0.cell_data)
-                getproperty(prob.u0.cell_data, k) .= getproperty(base_u0.cell_data, k)
-            end
-            prob.u0.N_cells[] = base_u0.N_cells[]
+            # Restore base state perfectly by deepcopying
+            restored_u0 = deepcopy(base_u0)
 
             # Apply slider parameters to the freshly restored problem
-            current_prob = prob
+            current_prob = CorePotts.PottsProblem(restored_u0, prob.tspan, prob.p, prob.kwargs)
             current_alg = alg
             for (i, (p_name, p_spec)) in enumerate(parameters)
                 val = sg.sliders[i].value[]

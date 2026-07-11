@@ -173,7 +173,7 @@ end
 Executes a single Monte Carlo Sweep (MCS) across the grid using a deterministic checkerboard algorithm.
 """
 function execute_step!(u::AbstractPottsState, p::PottsParameters,
-        cache::PottsCache, alg::CheckerboardMetropolis)
+        cache::PottsCache, alg::CheckerboardMetropolis, prev_event=nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler
@@ -182,31 +182,41 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters,
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
 
-    cache.step_counter[] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[])
+    cache.step_counter[1] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[1])
 
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _checkerboard_sweep_kernel!(backend, cache.block_size)
 
     num_colors = checkerboard_colors(p.topology)
 
+    current_event = prev_event
     for color_pass in 1:num_colors
         offset = cache.color_offsets[color_pass]
         next_offset = cache.color_offsets[color_pass + 1]
         num_active_pixels = next_offset - offset
 
         if num_active_pixels > 0
-            kernel(
-                u.grid, cache.grid_dims, p.topology, u.cell_data,
-                p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-                cache.color_indices, offset, num_active_pixels,
-                ndrange = num_active_pixels
-            )
-            KernelAbstractions.synchronize(backend)
+            if current_event === nothing
+                current_event = kernel(
+                    u.grid, cache.grid_dims, p.topology, u.cell_data,
+                    p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
+                    cache.color_indices, offset, num_active_pixels,
+                    ndrange = num_active_pixels
+                )
+            else
+                current_event = kernel(
+                    u.grid, cache.grid_dims, p.topology, u.cell_data,
+                    p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
+                    cache.color_indices, offset, num_active_pixels,
+                    ndrange = num_active_pixels,
+                    dependencies = (current_event,)
+                )
+            end
         end
     end
 
-    return nothing
+    return current_event
 end
 
 """
@@ -214,7 +224,7 @@ end
 
 Executes a single Monte Carlo Sweep (MCS) across the grid using the stochastic lottery algorithm.
 """
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::ParallelMetropolis)
+function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::ParallelMetropolis, prev_event=nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler
@@ -223,18 +233,27 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
 
-    cache.step_counter[] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[])
+    cache.step_counter[1] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[1])
 
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _local_lottery_sweep_kernel!(backend, cache.block_size)
 
-    kernel(
-        u.grid, cache.grid_dims, p.topology, u.cell_data,
-        p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-        ndrange = length(u.grid)
-    )
-    return nothing
+    if prev_event === nothing
+        current_event = kernel(
+            u.grid, cache.grid_dims, p.topology, u.cell_data,
+            p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
+            ndrange = length(u.grid)
+        )
+    else
+        current_event = kernel(
+            u.grid, cache.grid_dims, p.topology, u.cell_data,
+            p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
+            ndrange = length(u.grid),
+            dependencies = (prev_event,)
+        )
+    end
+    return current_event
 end
 
 """
@@ -242,7 +261,7 @@ end
 
 Executes a single Monte Carlo Sweep (MCS) sequentially on the CPU without atomic locks.
 """
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::SequentialMetropolis)
+function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::SequentialMetropolis, prev_event=nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler
@@ -251,11 +270,16 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
 
-    cache.step_counter[] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[])
+    cache.step_counter[1] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[1])
 
     N = length(u.grid)
     num_updates = round(Int, N * active_fraction)
+
+    # If there's a previous event on a GPU, we must sync the CPU thread before doing sequential work
+    if prev_event !== nothing
+        KernelAbstractions.wait(prev_event)
+    end
 
     # We execute this entirely sequentially on a single thread.
     for i in 1:num_updates

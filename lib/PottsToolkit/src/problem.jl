@@ -301,7 +301,7 @@ function CorePotts.PottsProblem(sys::PottsSystem,
         sys, type_to_id, num_types)
 
     # 2.5 Compile Events
-    event_cb_set, event_reqs, master_cb = Events.compile_events(sys.events, sys, type_to_id, sys.check_interval)
+    resolved_events, event_reqs = Events.compile_events(sys.events, sys, type_to_id, sys.check_interval)
 
     # Merge event reqs into custom_vars
     merged_custom_vars = Dict{Symbol, DataType}()
@@ -331,14 +331,14 @@ function CorePotts.PottsProblem(sys::PottsSystem,
         max_cells = max_cells)
 
     # 4. Construct Problem
-    p = PottsParameters(topology, compiled_penalties, all_trackers)
+    p = PottsParameters(topology, compiled_penalties, all_trackers, resolved_events)
 
     # 5. Strictly synchronize all physics trackers to match the layout
     # set_targets = false because target_volumes/areas are already initialized from initial_props!
     cache = CorePotts.PottsCache(state, topology)
     CorePotts.sync_cell_data!(state, p, cache, state.N_cells[]; set_targets = false)
 
-    return PottsProblem(state, tspan, p; callback = event_cb_set)
+    return PottsProblem(state, tspan, p)
 end
 
 function CorePotts.PottsProblem(sys::PottsSystem,

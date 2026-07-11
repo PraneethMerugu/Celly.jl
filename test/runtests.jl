@@ -9,4 +9,5 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
 @testset "Potts.jl Integrated Test Suite" begin
     include("test_thermodynamics.jl")
     include("test_biophysics.jl")
+    include("test_events.jl")
 end

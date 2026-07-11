@@ -42,7 +42,7 @@ using CorePotts
     CorePotts.initialize_com_anchors!(u0, p, cache)
 
     # Pre-simulate update auxiliary fields to test 3D COM and Inertia logic
-    CorePotts.update_step_auxiliary!(penalties[2], u0, p, cache, T_val, 1.0f0)
+    CorePotts.update_sweep_auxiliary!(penalties[2], u0, p, cache, T_val, 1.0f0)
 
     L_initial = u0.cell_data.current_lengths[1]
 

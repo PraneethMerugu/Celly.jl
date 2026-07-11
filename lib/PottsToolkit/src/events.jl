@@ -16,7 +16,7 @@ export MitosisEvent, ApoptosisEvent, TransitionEvent
 # 1. Abstract Types
 # ------------------------------------------------------------------
 abstract type AbstractTrigger end
-abstract type AbstractEvent end
+abstract type AbstractEvent <: CorePotts.AbstractEvent end
 abstract type AbstractAction end
 
 # ------------------------------------------------------------------
@@ -191,12 +191,14 @@ end
 # Internal Wrappers with Resolved IDs
 # ------------------------------------------------------------------
 struct ResolvedApoptosisEvent{T} <: AbstractEvent
+    check_interval::Int
     type_id::UInt8
     trigger::T
 end
 @inline is_apoptosis(::ResolvedApoptosisEvent) = true
 
 struct ResolvedTransitionEvent{T} <: AbstractEvent
+    check_interval::Int
     from_id::UInt8
     to_id::UInt8
     trigger::T
@@ -204,6 +206,7 @@ end
 @inline is_transition(::ResolvedTransitionEvent) = true
 
 struct ResolvedMitosisEvent{T, O, I, A} <: AbstractEvent
+    check_interval::Int
     type_id::UInt8
     trigger::T
     orientation::O
@@ -211,6 +214,33 @@ struct ResolvedMitosisEvent{T, O, I, A} <: AbstractEvent
     action::A
 end
 @inline is_mitosis(::ResolvedMitosisEvent) = true
+
+function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
+    resolved = []
+    for evt in events
+        if evt isa ApoptosisEvent
+            if haskey(type_to_id, evt.cell_type)
+                push!(resolved, ResolvedApoptosisEvent(check_interval, type_to_id[evt.cell_type], evt.trigger))
+            end
+        elseif evt isa TransitionEvent
+            if haskey(type_to_id, evt.transition.first) &&
+               haskey(type_to_id, evt.transition.second)
+                push!(resolved,
+                    ResolvedTransitionEvent(check_interval, type_to_id[evt.transition.first],
+                        type_to_id[evt.transition.second], evt.trigger))
+            end
+        elseif evt isa MitosisEvent
+            if haskey(type_to_id, evt.cell_type)
+                push!(resolved,
+                    ResolvedMitosisEvent(check_interval, type_to_id[evt.cell_type], evt.trigger,
+                        evt.orientation, evt.inheritance, evt.action))
+            end
+        elseif evt isa CorePotts.AbstractEvent
+            push!(resolved, evt)
+        end
+    end
+    return Tuple(resolved)
+end
 
 function resolve_events(events::Tuple, type_to_id::Dict)
     resolved = []
@@ -232,6 +262,8 @@ function resolve_events(events::Tuple, type_to_id::Dict)
                     ResolvedMitosisEvent(type_to_id[evt.cell_type], evt.trigger,
                         evt.orientation, evt.inheritance, evt.action))
             end
+        elseif evt isa CorePotts.AbstractEvent
+            push!(resolved, evt)
         end
     end
     return Tuple(resolved)
@@ -240,9 +272,11 @@ end
 function compile_events(events::Tuple, sys::PottsSystem, type_to_id::Dict, check_interval::Int = 10)
     reqs = []
     for evt in events
-        req_trigger = required_variables(evt.trigger)
-        if req_trigger !== nothing
-            push!(reqs, req_trigger)
+        if hasproperty(evt, :trigger)
+            req_trigger = required_variables(evt.trigger)
+            if req_trigger !== nothing
+                push!(reqs, req_trigger)
+            end
         end
         req_action = required_variables(hasproperty(evt, :action) ? evt.action : nothing)
         if req_action !== nothing
@@ -257,58 +291,81 @@ function compile_events(events::Tuple, sys::PottsSystem, type_to_id::Dict, check
         end
     end
 
-    resolved_events = resolve_events(events, type_to_id)
-    if isempty(resolved_events)
-        return SciMLBase.CallbackSet(), reqs, nothing
+    resolved_events = resolve_events(events, type_to_id, check_interval)
+    return resolved_events, reqs
+end
+
+# ------------------------------------------------------------------
+# 5. CorePotts evaluate_event! Implementations
+# ------------------------------------------------------------------
+
+function CorePotts.evaluate_event!(evt::ResolvedApoptosisEvent, u, p, cache, t, deps)
+    if t % evt.check_interval != 0
+        return nothing
     end
-
-    ws_ref = Ref{CorePotts.MitosisWorkspace}()
-    condition(u, t, integrator) = (t % check_interval == 0)
-
-    mitosis_evt = get_first_mitosis_event(resolved_events)
-
-    function affect!(integrator)
-        u = integrator.u
-        p = integrator.p
-        cache = integrator.cache
-        cd = u.cell_data
-
-        # Phase 1 & 2: Apoptosis and Transitions (GPU/CPU native)
-        AcceleratedKernels.foreachindex(cd.cell_types; block_size = cache.block_size) do i
-            t_id = cd.cell_types[i]
-            if t_id != 0
-                if !evaluate_apoptosis!(resolved_events, t_id, cd, i)
-                    evaluate_transitions!(resolved_events, t_id, cd, i)
-                end
-            end
-        end
-        KernelAbstractions.synchronize(KernelAbstractions.get_backend(u.grid))
-
-        # Phase 3: Mitosis
-        if mitosis_evt !== nothing
-            if !isassigned(ws_ref)
-                ws_ref[] = CorePotts.MitosisWorkspace(u.grid, length(u.cell_data.volumes))
-            end
-
-            trigger_wrapper = MitosisTriggerWrapper(resolved_events, u.cell_data.cell_types)
-            num_divisions = CorePotts.populate_dividing_parents!(u, cache, trigger_wrapper, ws_ref[])
-
-            if num_divisions > 0
-                CorePotts.process_mitosis_events!(
-                    u, p, cache, ws_ref[];
-                    trigger = trigger_wrapper,
-                    orientation = mitosis_evt.orientation,
-                    inheritance_rules = mitosis_evt.inheritance
-                )
-                if mitosis_evt.action !== nothing
-                    mitosis_evt.action(u, p, cache, ws_ref[], num_divisions)
+    cd = u.cell_data
+    
+    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size, dependencies=deps) do i
+        t_id = cd.cell_types[i]
+        if t_id == evt.type_id
+            if _evaluate_trigger(evt.trigger, i, cd)
+                cd.cell_types[i] = 0
+                if hasproperty(cd, :target_volumes)
+                    cd.target_volumes[i] = 0
                 end
             end
         end
     end
+end
 
-    cb = SciMLBase.DiscreteCallback(condition, affect!, save_positions = (false, false))
-    return SciMLBase.CallbackSet(cb), reqs, (mitosis_evt !== nothing ? ws_ref : nothing)
+function CorePotts.evaluate_event!(evt::ResolvedTransitionEvent, u, p, cache, t, deps)
+    if t % evt.check_interval != 0
+        return nothing
+    end
+    cd = u.cell_data
+    
+    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size, dependencies=deps) do i
+        t_id = cd.cell_types[i]
+        if t_id == evt.from_id
+            if _evaluate_trigger(evt.trigger, i, cd)
+                cd.cell_types[i] = evt.to_id
+            end
+        end
+    end
+end
+
+function CorePotts.evaluate_event!(evt::ResolvedMitosisEvent, u, p, cache, t, deps)
+    if t % evt.check_interval != 0
+        return nothing
+    end
+    
+    # Mitosis modifies global structures (free lists, N_cells) and spawns dynamically.
+    # It must synchronize before and after its host-side logic.
+    if !isempty(deps)
+        KernelAbstractions.wait(deps[1])
+    end
+    
+    if !haskey(cache.scratch, :mitosis_workspace)
+        cache.scratch[:mitosis_workspace] = CorePotts.MitosisWorkspace(u.grid, length(u.cell_data.volumes))
+    end
+    ws = cache.scratch[:mitosis_workspace]
+
+    trigger_wrapper = MitosisTriggerWrapper((evt,), u.cell_data.cell_types)
+    num_divisions = CorePotts.populate_dividing_parents!(u, cache, trigger_wrapper, ws)
+
+    if num_divisions > 0
+        CorePotts.process_mitosis_events!(
+            u, p, cache, ws;
+            trigger = trigger_wrapper,
+            orientation = evt.orientation,
+            inheritance_rules = evt.inheritance
+        )
+        if evt.action !== nothing
+            evt.action(u, p, cache, ws, num_divisions)
+        end
+    end
+    
+    return nothing # Implicit sync due to host-side logic
 end
 
 end

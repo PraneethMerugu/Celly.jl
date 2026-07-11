@@ -23,7 +23,7 @@ AcceleratedKernels = "0.4.3"
 Adapt = "4.7.0"
 KernelAbstractions = "0.9.42"
 Mermaid = "0.1.0"
-SciMLBase = "3.33.0"
+SciMLBase = "3"
 
 [extras]
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"

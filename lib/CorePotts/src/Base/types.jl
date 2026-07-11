@@ -70,18 +70,63 @@ function PottsState(grid::AbstractArray{T, N}, cell_data::StructArray,
 end
 
 """
-    PottsParameters{Topo, P, Tr}
+    AbstractEvent
+
+The base type for native engine events in the Potts simulation. Events derived from
+`AbstractEvent` can be integrated directly into the `PottsParameters` and evaluated 
+as part of the native sweep loop (Phase 6 of an MCS step), avoiding CPU/GPU synchronization
+overheads that arise when using standard SciML `DiscreteCallback`s.
+
+Any custom event should subtype `AbstractEvent` and provide a corresponding method for:
+`CorePotts.evaluate_event!(evt, u, p, cache, t, deps)`
+which evaluates the event and optionally returns a `KernelAbstractions.Event` or `nothing`.
+"""
+abstract type AbstractEvent end
+
+"""
+    evaluate_event!(evt::AbstractEvent, u, p, cache, t, deps)
+
+Evaluates an event natively during the engine sweep loop (Phase 6).
+
+The argument `deps` is a tuple containing the previous event chain pointer. This is passed to handle implicit execution queues, but **you do not need to pass `dependencies=deps` to your kernel calls anymore** if using KernelAbstractions >= v0.9 (since implicit synchronization is handled backend-side).
+
+### Returns
+Should return a `KernelAbstractions.Event` (if returning from an older style kernel) or `nothing`.
+By default, this falls back to returning `nothing` gracefully, so developers do not need to implement boilerplate if their event does not return a kernel pointer.
+
+### Example
+```julia
+struct MyCustomEvent <: CorePotts.AbstractEvent end
+
+function CorePotts.evaluate_event!(evt::MyCustomEvent, u, p, cache, t, deps)
+    backend = KernelAbstractions.get_backend(u.grid)
+    k = _my_gpu_kernel!(backend, cache.block_size)
+    k(u.cell_data.volumes, ndrange = u.N_cells[])
+    return nothing # The engine handles the return gracefully
+end
+```
+"""
+evaluate_event!(evt::AbstractEvent, u, p, cache, t, deps) = nothing
+
+"""
+    PottsParameters{Topo, P, Tr, Ev}
 
 The physics definition parameters `p` for a Cellular Potts Model simulation.
 """
-struct PottsParameters{Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple}
+struct PottsParameters{Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple, Ev <: Tuple}
     topology::Topo
     penalties::P
     trackers::Tr
+    events::Ev
 end
+
+function PottsParameters(topology, penalties, trackers)
+    return PottsParameters(topology, penalties, trackers, ())
+end
+
 function Functors.functor(::Type{<:PottsParameters}, x)
-    children = (topology = x.topology, penalties = x.penalties, trackers = x.trackers)
-    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.topology, y.penalties, y.trackers)
+    children = (topology = x.topology, penalties = x.penalties, trackers = x.trackers, events = x.events)
+    reconstruct(y) = Base.typename(typeof(x)).wrapper(y.topology, y.penalties, y.trackers, y.events)
     return children, reconstruct
 end
 function Adapt.adapt_structure(to, x::PottsParameters)
@@ -96,8 +141,8 @@ The algorithmic workspace and cache used during Monte Carlo execution.
 """
 struct PottsCache{N, ArrayT, IdxArrayT}
     grid_dims::NTuple{N, Int}
-    step_counter::Base.RefValue{UInt64}
-    noise_counter::Base.RefValue{UInt64}
+    step_counter::Vector{UInt64}
+    noise_counter::Vector{UInt64}
     block_size::Int
     sin_lut_x::ArrayT
     cos_lut_x::ArrayT
@@ -107,6 +152,7 @@ struct PottsCache{N, ArrayT, IdxArrayT}
     cos_lut_z::ArrayT
     color_indices::IdxArrayT
     color_offsets::Vector{Int}
+    scratch::Dict{Symbol, Any}
 end
 
 function PottsCache(u::AbstractPottsState, topology::AbstractTopology, block_size::Int = 256)
@@ -161,9 +207,9 @@ function PottsCache(u::AbstractPottsState, topology::AbstractTopology, block_siz
     device_indices = Adapt.adapt(Base.typename(typeof(grid)).wrapper, flat_indices)
 
     return PottsCache{N, ArrayT, IdxArrayT}(
-        grid_dims, Ref(UInt64(0)), Ref(UInt64(0)), block_size,
+        grid_dims, [UInt64(0)], [UInt64(0)], block_size,
         sin_lut_x, cos_lut_x, sin_lut_y, cos_lut_y, sin_lut_z,
-        cos_lut_z, device_indices, color_offsets)
+        cos_lut_z, device_indices, color_offsets, Dict{Symbol, Any}())
 end
 
 abstract type AbstractPottsProblem <: SciMLBase.AbstractSciMLProblem end

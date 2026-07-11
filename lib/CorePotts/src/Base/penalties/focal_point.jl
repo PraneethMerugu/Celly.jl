@@ -266,7 +266,7 @@ end
     end
 end
 
-function update_step_auxiliary!(pen::HSTFocalPointPenalty, u::AbstractPottsState,
+function update_sweep_auxiliary!(pen::HSTFocalPointPenalty, u::AbstractPottsState,
         p::PottsParameters, cache::PottsCache, T_val, dt)
     cache.step_counter[] += UInt64(1)
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)

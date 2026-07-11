@@ -46,24 +46,10 @@ import PottsToolkit.Events: _evaluate_trigger, AbstractAction
         )
 
         type_to_id = Dict(medium => UInt8(0), cell => UInt8(1))
-        cb_set, reqs, single_cb = PottsToolkit.Events.compile_events(sys.events, sys, type_to_id, 2)
+        cb_set, reqs = PottsToolkit.Events.compile_events(sys.events, sys, type_to_id, 2)
 
-        # We need a proper state. Let's just create a dummy u/p/cache
-        # We only need `u.cell_data`, `u.N_cells`, `u.grid` and a dummy workspace.
-        # To avoid initialization errors, we will just pass a dummy integrator that 
-        # satisfies what compile_events needs for our specific Mocks.
-        # Actually our Mock actions don't even use `u` or `p` or `cache`!
-        # The internal `process_mitosis_events!` needs `u.cell_data.volumes`, etc.
-        # But wait, since our trigger is true for all cells, it will try to divide them all.
-
-        # A simpler test for order of evaluation:
-        # Instead of calling `single_cb.affect!`, we can just check `compile_events` logic
-        # OR we can just rely on the fact that `compile_events` is fully tested by the e2e test,
-        # but let's just make a simple mock for `u` that has an empty cell_data so loop runs 0 times.
-        # Wait, if loop runs 0 times, the actions aren't triggered (they need divisions).
-
-        # Let's just create a simple dummy test.
-        # We know compile_events constructs it. We'll just verify the events are parsed.
-        @test single_cb !== nothing
+        @test length(cb_set) == 2
+        @test cb_set[1] isa PottsToolkit.Events.ResolvedMitosisEvent
+        @test cb_set[2] isa PottsToolkit.Events.ResolvedApoptosisEvent
     end
 end

@@ -224,3 +224,18 @@ tumour invasion assays.
 | `AdhesionComponent` | — | Interface energy | Cell sorting, tissue organisation |
 | `LengthComponent` | ✓ | HST OU | Elongated cell shapes |
 | `ChemotaxisComponent` | — | Gradient bias | Directed migration |
+
+---
+
+## Custom Penalties and Auxiliary Hooks
+
+If you need to implement a biophysical mechanic that isn't covered by the standard components, you can define your own `AbstractPenalty`. The CorePotts engine uses a highly optimized, flat loop structure for evaluating these penalties. 
+
+### Auxiliary Integration Hooks
+
+Some penalties (like the Hydrostatic formulations) require continuous integration of state variables alongside the discrete Monte Carlo sweeps. The engine provides two distinct hooks for updating these auxiliary variables. It is critical to use the correct hook to preserve both algorithmic stability and thermodynamic balance:
+
+- `update_step_auxiliary!(penalty, u, p, cache)`: Evaluates **once per SciML macro-step** (defined by `alg.dt`). Use this hook for slowly varying fields, macroscopic updates, or external PDE boundary conditions that do not need to respond instantaneously to lattice changes.
+- `update_sweep_auxiliary!(penalty, u, p, cache)`: Evaluates **at the end of every Monte Carlo Sweep (MCS)** (which occurs `sweeps_per_step` times per macro-step). You **must** use this hook for continuous internal variables (like Hydrostatic pressure fields) that need high-frequency relaxation in response to immediate structural cell shape changes. 
+
+Failing to hook continuous thermodynamic variables into the high-frequency sweep loop can cause catastrophic variance regressions and numerical instability.
