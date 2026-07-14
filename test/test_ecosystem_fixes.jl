@@ -62,7 +62,7 @@ using MakiePotts
         prob = PottsProblem(sys, Dict(Cell => 1), (10, 10))
         alg = SequentialMetropolis()
         
-        fig = explore_cpm(prob, alg)
+        fig = explore_potts(prob, alg)
         @test typeof(fig).name.name == :Figure
     end
 end

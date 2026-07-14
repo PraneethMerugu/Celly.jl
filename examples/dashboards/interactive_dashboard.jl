@@ -134,7 +134,7 @@ function run_showcase()
 
     if !haskey(ENV, "TESTING")
         println("Launching Interactive Dashboard...")
-        fig = explore_cpm(prob, alg; metrics = my_metrics, parameters = my_parameters)
+        fig = explore_potts(prob, alg; metrics = my_metrics, parameters = my_parameters)
         display(fig)
         return fig
     else

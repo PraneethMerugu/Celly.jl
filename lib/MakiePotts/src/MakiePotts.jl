@@ -7,7 +7,7 @@ import Random
 import SciMLBase
 
 export pottsplot, pottsplot!
-export explore_cpm, record_potts
+export explore_potts, record_potts
 
 @recipe(PottsPlot, state) do scene
     Attributes(
@@ -83,7 +83,8 @@ function Makie.plot!(plot::PottsPlot{<:Tuple{<:Any}})
     return plot
 end
 
-function explore_cpm(prob, alg;
+function explore_potts(prob, alg;
+        title::String = "Potts Grid",
         metrics::Vector{<:Pair} = Pair{String, Any}[],
         parameters::Vector{<:Pair} = Pair{String, NamedTuple}[],
         resolution = (1400, 900),
@@ -101,7 +102,7 @@ function explore_cpm(prob, alg;
     time_obs = Observable(1)
 
     # ----- Left Panel (Grid View) -----
-    ax_grid = Axis(fig[1, 1], title = "Potts Grid", aspect = DataAspect())
+    ax_grid = Axis(fig[1, 1], title = title, aspect = DataAspect())
     hidespines!(ax_grid)
     hidedecorations!(ax_grid)
 
@@ -235,6 +236,7 @@ function explore_cpm(prob, alg;
 end
 
 function record_potts(filename::String, sol::PottsSolution;
+        title::String = "Potts Grid",
         metrics::Vector{<:Pair} = Pair{String, Any}[],
         resolution = (1400, 900),
         framerate = 30,
@@ -246,7 +248,7 @@ function record_potts(filename::String, sol::PottsSolution;
     time_obs = Observable(1)
 
     # ----- Left Panel (Grid View) -----
-    ax_grid = Axis(fig[1, 1], title = "Potts Grid", aspect = DataAspect())
+    ax_grid = Axis(fig[1, 1], title = title, aspect = DataAspect())
     hidespines!(ax_grid)
     hidedecorations!(ax_grid)
 

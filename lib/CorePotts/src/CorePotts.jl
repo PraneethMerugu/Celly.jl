@@ -79,5 +79,7 @@ export VolumeThresholdTrigger, LinearGrowthCallback, required_fields
 export DivisionOrientation, RandomOrientation, MajorAxisOrientation, MinorAxisOrientation,
        VectorOrientation
 export InheritanceRule, Clone, Split
+export process_event!, get_event_kernel, get_event_args, get_event_ndrange
+export AbstractMultiEvent, get_sub_events
 
 end

@@ -11,9 +11,9 @@ CairoMakie.activate!()
 # mitosis is triggered: the cell is split into two daughters that inherit
 # specified fractions of the parent's properties.
 #
-# This tutorial assembles a `CallbackSet` that couples linear growth to
-# threshold-triggered mitosis, producing exponential population expansion
-# from a small founder population.
+# This tutorial couples a continuous linear growth callback to
+# a threshold-triggered native `MitosisEvent`, producing exponential population
+# expansion from a small founder population.
 
 # ## Packages
 
@@ -60,7 +60,10 @@ sys = PottsSystem(
 
 growth_cb = LinearGrowthCallback(0.3f0)
 
-# ## Mitosis Trigger and Callback
+# ## Mitosis Native Event
+#
+# While growth is continuous and stochastic, division is a discrete topological change. 
+# We declare it natively in the `PottsSystem` using a `MitosisEvent`.
 #
 # `VolumeRatioTrigger(factor)` fires when a cell's actual volume exceeds
 # `factor × target_volume`. Using `factor = 2.0` means division is triggered
@@ -104,11 +107,11 @@ sol = solve(prob, alg; saveat = 8, callback = cb)
 
 # ## Interactive Dashboard
 #
-# `explore_cpm` lets you scrub through time while the N Cells metric
+# `explore_potts` lets you scrub through time while the N Cells metric
 # demonstrates exponential population growth. The temperature slider lets
 # you observe how thermal noise affects the regularity of division timing.
 
-fig = explore_cpm(
+fig = explore_potts(
     prob, alg;
     metrics = [
         "N Cells" => u -> u.N_cells[],

@@ -205,7 +205,7 @@ if !haskey(ENV, "TESTING")
     println("Launching interactive dashboard...")
     GLMakie.activate!()
 
-    fig = explore_cpm(
+    fig = explore_potts(
         prob_burned, alg;
         draw_boundaries = true,
         metrics = [

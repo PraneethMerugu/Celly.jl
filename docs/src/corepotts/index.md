@@ -2,7 +2,7 @@
 
 CorePotts is the low-level physics engine that underpins the entire Potts.jl ecosystem.
 It provides the lattice representation, Monte Carlo algorithms, incremental penalty
-evaluation, cell-event callbacks, and I/O backends.
+evaluation, native mask-driven events, and I/O backends.
 
 > [!IMPORTANT]
 > **CorePotts is an internal library.** End users should always import
@@ -25,8 +25,7 @@ evaluation, cell-event callbacks, and I/O backends.
 - **Monte Carlo engines** — `CheckerboardMetropolis`, `ParallelMetropolis`,
   `SequentialMetropolis`, `SparseLotteryMetropolis`
   (see [Algorithms](@ref corepotts-engine)).
-- **Cell events** — growth callbacks, mitosis callbacks, death callbacks, composable via
-  the SciML `CallbackSet` interface.
+- **Native events** — structurally composable `AbstractEvent` and `AbstractMultiEvent` types that execute via zero-allocation static unrolling on the GPU.
 - **Backends** — `MemoryBackend`, `ZarrBackend`, `HDF5Backend`
   (see [Backends](@ref corepotts-backends)).
 - **SciML integration** — `PottsProblem` / `init` / `step!` / `solve` follow the
@@ -47,7 +46,7 @@ CorePotts is structured in three layers:
 │  ─────────────────────── │  ──────────────────────────  │
 │  • Lattice types         │  • Penalty definitions       │
 │  • Tracker primitives    │  • Component constructors    │
-│  • Topology types        │  • Cell-event callbacks      │
+│  • Topology types        │  • Native event interfaces   │
 │  • Backend interfaces    │  • SciML problem/integrator  │
 ├──────────────────────────┴──────────────────────────────┤
 │  Engine + Simulator                                     │

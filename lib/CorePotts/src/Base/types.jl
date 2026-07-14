@@ -84,29 +84,76 @@ which evaluates the event and optionally returns a `KernelAbstractions.Event` or
 abstract type AbstractEvent end
 
 """
-    evaluate_event!(evt::AbstractEvent, u, p, cache, t, deps)
+    get_event_kernel(evt::AbstractEvent, backend, block_size)
 
-Evaluates an event natively during the engine sweep loop (Phase 6).
-
-The argument `deps` is a tuple containing the previous event chain pointer. This is passed to handle implicit execution queues, but **you do not need to pass `dependencies=deps` to your kernel calls anymore** if using KernelAbstractions >= v0.9 (since implicit synchronization is handled backend-side).
-
-### Returns
-Should return a `KernelAbstractions.Event` (if returning from an older style kernel) or `nothing`.
-By default, this falls back to returning `nothing` gracefully, so developers do not need to implement boilerplate if their event does not return a kernel pointer.
-
-### Example
-```julia
-struct MyCustomEvent <: CorePotts.AbstractEvent end
-
-function CorePotts.evaluate_event!(evt::MyCustomEvent, u, p, cache, t, deps)
-    backend = KernelAbstractions.get_backend(u.grid)
-    k = _my_gpu_kernel!(backend, cache.block_size)
-    k(u.cell_data.volumes, ndrange = u.N_cells[])
-    return nothing # The engine handles the return gracefully
-end
-```
+Returns the compiled `@kernel` function for the given event. Users defining custom events 
+must implement this method and return the kernel instance initialized with the `backend` and `block_size`.
 """
-evaluate_event!(evt::AbstractEvent, u, p, cache, t, deps) = nothing
+function get_event_kernel(evt::AbstractEvent, backend, block_size)
+    error("`get_event_kernel` not implemented for custom event $(typeof(evt)). " *
+          "Please implement `CorePotts.get_event_kernel(::$(typeof(evt)), backend, block_size)`.")
+end
+
+"""
+    get_event_args(evt::AbstractEvent, mask, u::AbstractPottsState, p::PottsParameters, cache::PottsCache, t)
+
+Returns a tuple of arguments to be splatted into the event's kernel function. Users defining 
+custom events must implement this method. Returning a tuple of exactly what the kernel needs 
+prevents massive memory closures and GPU compiler crashes on `Metal.jl`.
+
+Note that `mask` is passed directly. If your kernel requires the `mask` as its first argument, 
+you must explicitly include it in the returned tuple, e.g. `return (mask, u.cell_data.volumes)`.
+
+If the event should not run during the current step (e.g. `t % check_interval != 0`), 
+return `nothing` to skip kernel execution.
+"""
+function get_event_args(evt::AbstractEvent, mask, u, p, cache, t)
+    error("`get_event_args` not implemented for custom event $(typeof(evt)). " *
+          "Please implement `CorePotts.get_event_args(::$(typeof(evt)), mask, u, p, cache, t)`.")
+end
+
+"""
+    get_event_ndrange(evt::AbstractEvent, mask, u)
+
+Returns the size of the iteration space for this event's kernel. 
+By default, this sweeps over all cells (`length(mask)`).
+"""
+get_event_ndrange(evt::AbstractEvent, mask, u) = length(mask)
+
+"""
+    AbstractMultiEvent <: AbstractEvent
+
+An abstract type for events composed of multiple sub-events. 
+Subtypes must implement `get_sub_events(evt)`.
+"""
+abstract type AbstractMultiEvent <: AbstractEvent end
+
+"""
+    get_sub_events(evt::AbstractMultiEvent)
+
+Returns a tuple of the single-kernel events that compose this `AbstractMultiEvent`.
+"""
+function get_sub_events(evt::AbstractMultiEvent)
+    error("`get_sub_events` not implemented for custom event $(typeof(evt)). " *
+          "Please implement `CorePotts.get_sub_events(::$(typeof(evt)))`.")
+end
+
+"""
+    has_device_trigger(evt::AbstractEvent)
+
+Returns `true` if this event provides a device-side `evaluate_trigger` function 
+that should be evaluated in the unified event kernel to generate a boolean mask.
+By default, this is `false`.
+"""
+has_device_trigger(::AbstractEvent) = false
+
+"""
+    evaluate_trigger(evt::AbstractEvent, i::Int, cell_data, t)
+
+Evaluates the event trigger for cell `i` on the device. Only called if 
+`has_device_trigger(evt)` returns `true`. Should return a `Bool`.
+"""
+@inline evaluate_trigger(evt::AbstractEvent, i, cell_data, t) = false
 
 """
     PottsParameters{Topo, P, Tr, Ev}
@@ -395,7 +442,7 @@ include("backends.jl")
 The result of a completed simulation. Contains the saved grid states and cell property states over time.
 Accessible like an array: `sol[i]` returns the state at time `sol.t[i]`.
 """
-struct PottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, Any, Any}
+struct PottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, 1, Any}
     u::T
     t::Vector{Int}
     prob::P

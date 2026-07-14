@@ -83,14 +83,14 @@ sol = solve(prob, alg; saveat = 8)
 
 # ## Interactive Exploration
 #
-# `explore_cpm` launches a live dashboard where you can scrub through
+# `explore_potts` launches a live dashboard where you can scrub through
 # simulation time and watch metrics update in real time. The volume standard
 # deviation is a useful mechanical readout: a small σ_V indicates a
 # mechanically homogeneous sheet, while large σ_V suggests force
 # heterogeneity or cell-size polydispersity — both biologically relevant
 # in diseased epithelia.
 
-fig = explore_cpm(
+fig = explore_potts(
     prob, alg;
     metrics = [
         "N Cells" => u -> u.N_cells[],

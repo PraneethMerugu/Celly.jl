@@ -31,6 +31,15 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     # Initialize algorithmic cache
     block_size = get(kwargs, :block_size, DEFAULT_BLOCK_SIZE)
     cache = PottsCache(prob.u0, prob.p.topology, block_size)
+    
+    # Initialize event masks for zero-allocation mask-driven events
+    cache.scratch[:event_masks] = map(prob.p.events) do ev
+        if has_device_trigger(ev)
+            similar(prob.u0.cell_data.volumes, Bool)
+        else
+            nothing
+        end
+    end
 
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
     return PottsIntegrator(
@@ -91,18 +100,19 @@ function SciMLBase.step!(integrator::PottsIntegrator)
     _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
 
     # Phase 6: Core Events (AbstractEvent)
-    for ev in p.events
+    if !isempty(p.events)
         deps = current_event === nothing ? () : (current_event,)
-        res = evaluate_event!(ev, u, p, cache, integrator.t, deps)
-        if res !== nothing
-            current_event = res
-        end
-        # If res is nothing, we maintain the previous current_event.
+        masks = cache.scratch[:event_masks]::Tuple
+        current_event = _evaluate_all_events!(p.events, masks, u, p, cache, integrator.t, deps)
     end
 
     integrator.t += 1
 end
 
+
+function SciMLBase.terminate!(integrator::PottsIntegrator, retcode = SciMLBase.ReturnCode.Terminated)
+    integrator.opts = merge(integrator.opts, (; t_end = integrator.t))
+end
 
 """
     SciMLBase.solve!(integrator::PottsIntegrator)
@@ -111,8 +121,6 @@ In-place execution of the Potts simulation. Steps the `integrator` forward in ti
 the end of the problem's timespan. Useful for manual loop control and avoiding memory reallocation.
 """
 function SciMLBase.solve!(integrator::PottsIntegrator)
-    t_end = integrator.opts.t_end
-
     has_cbs = haskey(integrator.opts, :callback)
 
     if integrator.save_start || integrator.save_everystep ||
@@ -120,7 +128,7 @@ function SciMLBase.solve!(integrator::PottsIntegrator)
         save_state!(integrator, integrator.opts.backend)
     end
 
-    while integrator.t < t_end
+    while integrator.t < integrator.opts.t_end
         SciMLBase.step!(integrator)
 
         # Evaluate standard SciML discrete callbacks purely at the end of each MCS
@@ -168,4 +176,81 @@ allocates engine structures, executes the full simulation, and returns a `PottsS
 """
 function SciMLBase.solve(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
     return SciMLBase.__solve(prob, alg, args...; kwargs...)
+end
+
+# ------------------------------------------------------------------
+# Event Evaluation (Mask-Driven & Statically Unrolled)
+# ------------------------------------------------------------------
+
+@inline _any_device_trigger(events::Tuple{}) = false
+@inline _any_device_trigger(events::Tuple) = has_device_trigger(first(events)) || _any_device_trigger(Base.tail(events))
+
+@inline _evaluate_trigger_tuple!(::Tuple{}, ::Tuple{}, i, cd, t) = nothing
+
+@inline function _evaluate_trigger_tuple!(events::Tuple, masks::Tuple, i, cd, t)
+    evt = first(events)
+    mask = first(masks)
+    if mask !== nothing
+        mask[i] = evaluate_trigger(evt, i, cd, t)
+    end
+    _evaluate_trigger_tuple!(Base.tail(events), Base.tail(masks), i, cd, t)
+end
+
+@kernel function evaluate_all_triggers_kernel!(events, masks, cell_data, t)
+    i = @index(Global, Linear)
+    _evaluate_trigger_tuple!(events, masks, i, cell_data, t)
+end
+
+@inline _process_events_recursive(events::Tuple{}, masks::Tuple{}, u, p, cache, t, deps) = deps
+
+function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
+    args = get_event_args(evt, mask, u, p, cache, t)
+    if args === nothing
+        return deps
+    end
+
+    backend = KernelAbstractions.get_backend(u.grid)
+    k = get_event_kernel(evt, backend, cache.block_size)
+    nd = get_event_ndrange(evt, mask, u)
+    
+    if isempty(deps)
+        ev = k(args..., ndrange=nd)
+    else
+        ev = k(args..., ndrange=nd, dependencies=deps)
+    end
+    return ev === nothing ? deps : (ev,)
+end
+
+@inline function process_event!(evt::AbstractMultiEvent, mask, u, p, cache, t, deps)
+    for sub_evt in get_sub_events(evt)
+        res = process_event!(sub_evt, mask, u, p, cache, t, deps)
+        if res !== nothing
+            deps = res
+        end
+    end
+    return deps
+end
+
+@inline function _process_events_recursive(events::Tuple, masks::Tuple, u, p, cache, t, deps)
+    evt = first(events)
+    mask = first(masks)
+    new_deps = process_event!(evt, mask, u, p, cache, t, deps)
+    deps_next = new_deps === nothing ? deps : new_deps
+    return _process_events_recursive(Base.tail(events), Base.tail(masks), u, p, cache, t, deps_next)
+end
+
+function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps)
+    if _any_device_trigger(events)
+        backend = KernelAbstractions.get_backend(u.grid)
+        k = evaluate_all_triggers_kernel!(backend, cache.block_size)
+        if isempty(deps)
+            ev = k(events, masks, u.cell_data, t, ndrange=length(u.cell_data.volumes))
+        else
+            ev = k(events, masks, u.cell_data, t, ndrange=length(u.cell_data.volumes), dependencies=deps)
+        end
+        deps = ev === nothing ? deps : (ev,)
+    end
+    
+    new_deps = _process_events_recursive(events, masks, u, p, cache, t, deps)
+    return isempty(new_deps) ? nothing : new_deps[1]
 end

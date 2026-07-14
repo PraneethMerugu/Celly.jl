@@ -154,36 +154,41 @@ The solution object `sol` supports:
 
 ---
 
-## Cell-Event Callbacks
+## Continuous vs Discrete Biological Events
 
-Growth, mitosis, and death are modelled as SciML callbacks composed with
-`SciMLBase.CallbackSet`:
+Biological events generally fall into two categories in PottsToolkit:
+
+### 1. Continuous Stochastic Events (SciML Callbacks)
+Stochastic continuous changes — like gradual volume growth — are modeled using SciML `DiscreteCallback`s and passed to `solve`:
 
 ```julia
 using SciMLBase
 
-growth_cb = LinearGrowthCallback(0.5f0)    # +0.5 volume/MCS
-
-trigger    = VolumeThresholdTrigger(2.0f0)
-mitosis_cb = MitosisCallback(trigger;
-    orientation       = RandomOrientation(),
-    inheritance_rules = (target_volumes = Split(0.5f0),),
-)
-
-# Type IDs are 1-based and assigned to non-background types in declaration order.
-# With `cell_types = [Medium, A, B]`: A has type ID 1, B has type ID 2.
-death_cb = DeathCallback((cell_id, cell_data) ->
-    cell_data.cell_types[cell_id] == 2     # kill cells of type B (type ID = 2)
-)
-
-cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb,
-    death_cb,
-)
+# Linearly increase target_volume by 0.5 per MCS
+growth_cb = LinearGrowthCallback(0.5f0)
+cb = SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
 
 sol = solve(prob, alg; saveat = 10, callback = cb)
 ```
+
+### 2. Discrete Topological Events (Native Mask-Driven Events)
+Discrete structural changes — like cell division (mitosis), death (apoptosis), and phenotype transitions — are built natively into the engine using mask-driven evaluation. Instead of manually assembling callbacks, you declare them directly in the `PottsSystem` using the `events` kwarg:
+
+```julia
+sys = PottsSystem(
+    cell_types = [Medium, A, B],
+    penalties  = [...],
+    events = [
+        # Automatically divides cells when volume >= 2.0 * target_volume
+        MitosisEvent(A, trigger=VolumeRatioTrigger(2.0f0), inheritance=(;)),
+        
+        # Kill cells of type B based on some condition
+        ApoptosisEvent(B, trigger=...)
+    ]
+)
+```
+
+The native events are extremely fast because they use GPU-accelerated boolean masks to evaluate triggers and are statically unrolled directly into the simulation loop with zero heap allocations.
 
 ---
 

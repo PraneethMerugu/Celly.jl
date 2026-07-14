@@ -1,10 +1,10 @@
 using CairoMakie
 CairoMakie.activate!()
 
-# # Interactive Dashboard with explore_cpm
+# # Interactive Dashboard with explore_potts
 #
 # Writing code, re-running a simulation, and squinting at a static plot is a
-# slow feedback loop for parameter tuning.  `explore_cpm` replaces this cycle
+# slow feedback loop for parameter tuning.  `explore_potts` replaces this cycle
 # with a live, reactive dashboard: adjust a slider, and the full simulation
 # re-runs automatically while metric plots update in real time.  This tutorial
 # builds a cell-sorting model and walks through every feature of the dashboard.
@@ -136,7 +136,7 @@ parameters = [
 
 # ## Dashboard layout
 #
-# The explore_cpm window is organised as follows:
+# The explore_potts window is organised as follows:
 #
 # ┌─────────────────────────────────┐
 # │       Lattice (grid view)       │
@@ -147,13 +147,13 @@ parameters = [
 # │  Adhesion J   [===●======]      │
 # └─────────────────────────────────┘
 #
-# Note: explore_cpm uses MemoryBackend internally.  Out-of-core backends
+# Note: explore_potts uses MemoryBackend internally.  Out-of-core backends
 # (ZarrBackend, HDF5Backend) are not supported in interactive mode because
 # the dashboard needs to replay saved frames in random order.
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
-fig = explore_cpm(
+fig = explore_potts(
     prob, alg;
     metrics = metrics,
     parameters = parameters

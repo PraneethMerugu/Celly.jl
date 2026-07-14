@@ -7,7 +7,7 @@ It offers three main entry points:
 | Function | Purpose |
 |----------|---------|
 | `pottsplot` / `pottsplot!` | Static plot of a single simulation state |
-| `explore_cpm` | Interactive dashboard with live re-simulation |
+| `explore_potts` | Interactive dashboard with live re-simulation |
 | `record_potts` | Render a simulation solution to a video file |
 
 ```julia
@@ -17,7 +17,7 @@ using MakiePotts
 > [!NOTE]
 > MakiePotts uses Makie's backend-agnostic recipe system. Load a Makie backend
 > (`using GLMakie`, `using CairoMakie`, or `using WGLMakie`) before calling MakiePotts
-> functions. For interactive features (`explore_cpm`) you need `GLMakie` or `WGLMakie`.
+> functions. For interactive features (`explore_potts`) you need `GLMakie` or `WGLMakie`.
 
 ---
 
@@ -101,16 +101,16 @@ record_potts("growth.mp4", sol;
 
 ---
 
-## `explore_cpm` — Interactive Dashboard
+## `explore_potts` — Interactive Dashboard
 
-`explore_cpm` launches a live interactive Makie window where you can adjust simulation
+`explore_potts` launches a live interactive Makie window where you can adjust simulation
 parameters with sliders or menus and immediately see the effect on the simulation,
 all without leaving Julia.
 
 ```julia
 using GLMakie, MakiePotts, Statistics
 
-fig = explore_cpm(prob, alg;
+fig = explore_potts(prob, alg;
     metrics = [
         "Mean Volume" => u -> mean(Array(u.cell_data.volumes)[1:u.N_cells[]]),
         "N Cells"     => u -> u.N_cells[],
@@ -144,11 +144,11 @@ fig = explore_cpm(prob, alg;
 - Metrics panels update in real time.
 
 > [!TIP]
-> `explore_cpm` requires a GPU-compatible or multi-threaded Makie backend (`GLMakie`
+> `explore_potts` requires a GPU-compatible or multi-threaded Makie backend (`GLMakie`
 > recommended). It is not available with `CairoMakie` (which is non-interactive).
 
 > [!IMPORTANT]
-> `explore_cpm` re-runs the simulation from scratch each time a parameter changes.
+> `explore_potts` re-runs the simulation from scratch each time a parameter changes.
 > For large grids or long `tspan` values this can be slow. Consider using a smaller
 > grid (e.g. 100×100) and short `tspan` for interactive exploration, then running the
 > full simulation with `solve` once you have settled on parameters.

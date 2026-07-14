@@ -134,5 +134,7 @@ medium, or during initialisation before many cells are seeded.
 > `T ≈ 0.1 × λ_V × V_{\rm target}^{2/3}`.
 
 > [!NOTE]
-> All four algorithms support the `callback` keyword in `solve` for growth, mitosis, and
-> death events — see the [Getting Started](@ref getting-started) guide for examples.
+> All four algorithms natively evaluate and execute `AbstractEvent`s registered on the 
+> `PottsSystem` inside their inner loops using zero-allocation mask-driven GPU kernels. 
+> Standard continuous SciML callbacks (e.g. `LinearGrowthCallback`) can also be passed via 
+> the `callback` keyword in `solve`.

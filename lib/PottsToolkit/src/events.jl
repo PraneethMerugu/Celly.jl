@@ -295,50 +295,82 @@ function compile_events(events::Tuple, sys::PottsSystem, type_to_id::Dict, check
 end
 
 # ------------------------------------------------------------------
-# 5. CorePotts evaluate_event! Implementations
+# 5. CorePotts process_event! Implementations
 # ------------------------------------------------------------------
 
-function CorePotts.evaluate_event!(evt::ResolvedApoptosisEvent, u, p, cache, t, deps)
-    if t % evt.check_interval != 0
-        return nothing
-    end
-    cd = u.cell_data
-    
-    if !isempty(deps)
-        KernelAbstractions.wait(deps[1])
-    end
-    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size) do i
+CorePotts.has_device_trigger(::ResolvedApoptosisEvent) = true
+@inline function CorePotts.evaluate_trigger(evt::ResolvedApoptosisEvent, i, cd, t)
+    if t % evt.check_interval == 0
         t_id = cd.cell_types[i]
         if t_id == evt.type_id
-            if _evaluate_trigger(evt.trigger, i, cd)
-                if hasproperty(cd, :target_volumes)
-                    cd.target_volumes[i] = 0
-                end
-            end
+            return _evaluate_trigger(evt.trigger, i, cd)
         end
+    end
+    return false
+end
+
+@kernel function apoptosis_kernel!(mask, target_volumes)
+    i = @index(Global, Linear)
+    if mask[i]
+        target_volumes[i] = 0
     end
 end
 
-function CorePotts.evaluate_event!(evt::ResolvedTransitionEvent, u, p, cache, t, deps)
+CorePotts.get_event_kernel(::ResolvedApoptosisEvent, backend, block_size) = apoptosis_kernel!(backend, block_size)
+
+function CorePotts.get_event_args(evt::ResolvedApoptosisEvent, mask, u, p, cache, t)
+    if t % evt.check_interval != 0 || !hasproperty(u.cell_data, :target_volumes)
+        return nothing
+    end
+    return (mask, u.cell_data.target_volumes)
+end
+
+CorePotts.has_device_trigger(::ResolvedTransitionEvent) = true
+@inline function CorePotts.evaluate_trigger(evt::ResolvedTransitionEvent, i, cd, t)
+    if t % evt.check_interval == 0
+        t_id = cd.cell_types[i]
+        if t_id == evt.from_id
+            return _evaluate_trigger(evt.trigger, i, cd)
+        end
+    end
+    return false
+end
+
+@kernel function transition_kernel!(mask, cell_types, to_id)
+    i = @index(Global, Linear)
+    if mask[i]
+        cell_types[i] = to_id
+    end
+end
+
+CorePotts.get_event_kernel(::ResolvedTransitionEvent, backend, block_size) = transition_kernel!(backend, block_size)
+
+function CorePotts.get_event_args(evt::ResolvedTransitionEvent, mask, u, p, cache, t)
     if t % evt.check_interval != 0
         return nothing
     end
-    cd = u.cell_data
-    
-    if !isempty(deps)
-        KernelAbstractions.wait(deps[1])
-    end
-    return AcceleratedKernels.foreachindex(cd.cell_types; block_size=cache.block_size) do i
-        t_id = cd.cell_types[i]
-        if t_id == evt.from_id
-            if _evaluate_trigger(evt.trigger, i, cd)
-                cd.cell_types[i] = evt.to_id
-            end
-        end
-    end
+    return (mask, u.cell_data.cell_types, evt.to_id)
 end
 
-function CorePotts.evaluate_event!(evt::ResolvedMitosisEvent, u, p, cache, t, deps)
+struct MaskTrigger{M}
+    mask::M
+end
+@inline (mt::MaskTrigger)(i, cd) = mt.mask[i]
+import Adapt
+Adapt.adapt_structure(to, x::MaskTrigger) = MaskTrigger(Adapt.adapt(to, x.mask))
+
+CorePotts.has_device_trigger(::ResolvedMitosisEvent) = true
+@inline function CorePotts.evaluate_trigger(evt::ResolvedMitosisEvent, i, cd, t)
+    if t % evt.check_interval == 0
+        t_id = cd.cell_types[i]
+        if t_id == evt.type_id
+            return _evaluate_trigger(evt.trigger, i, cd)
+        end
+    end
+    return false
+end
+
+function CorePotts.process_event!(evt::ResolvedMitosisEvent, mask, u, p, cache, t, deps)
     if t % evt.check_interval != 0
         return nothing
     end
@@ -354,7 +386,7 @@ function CorePotts.evaluate_event!(evt::ResolvedMitosisEvent, u, p, cache, t, de
     end
     ws = cache.scratch[:mitosis_workspace]
 
-    trigger_wrapper = MitosisTriggerWrapper((evt,), u.cell_data.cell_types)
+    trigger_wrapper = MaskTrigger(mask)
     num_divisions = CorePotts.populate_dividing_parents!(u, cache, trigger_wrapper, ws)
 
     if num_divisions > 0

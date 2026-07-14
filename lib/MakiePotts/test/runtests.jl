@@ -39,8 +39,8 @@ using Random
         "Temperature" => (range = 0.1:0.1:50.0, start = 20.0, action = (p, a, val) -> a)
     ]
 
-    # ensure explore_cpm successfully constructs without crashing
-    dashboard_fig = explore_cpm(prob, ParallelMetropolis(sweeps_per_step = 20);
+    # ensure explore_potts successfully constructs without crashing
+    dashboard_fig = explore_potts(prob, ParallelMetropolis(sweeps_per_step = 20);
         metrics = metrics, parameters = parameters)
     @test dashboard_fig isa Figure
 end

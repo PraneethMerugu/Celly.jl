@@ -103,12 +103,12 @@ end
 # | Feature                 | MemoryBackend | ZarrBackend | HDF5Backend |
 # |-------------------------|:-------------:|:-----------:|:-----------:|
 # | RAM usage               | full          | tiny        | tiny        |
-# | explore_cpm support     | ✓             | ✗           | ✗           |
+# | explore_potts support     | ✓             | ✗           | ✗           |
 # | record_potts from file    | ✓             | ✓           | ✓           |
 # | Cloud / parallel writes | ✗             | ✓ (N5/S3)   | partial     |
 # | Ecosystem compatibility | Julia only    | Python/Julia | universal  |
 #
-# Because the backends stream to disk, `explore_cpm` (which needs a live
+# Because the backends stream to disk, `explore_potts` (which needs a live
 # integrator + MemoryBackend) is not available.  Use `record_potts` with the
 # returned PottsSolution for post-hoc visualisation.
 

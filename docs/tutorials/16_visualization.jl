@@ -2,7 +2,7 @@
 #
 # MakiePotts is the dedicated visualisation layer for Potts.jl.  It
 # provides three complementary tools: `pottsplot` for quick static snapshots,
-# `record_potts` for polished video output, and `explore_cpm` for fully
+# `record_potts` for polished video output, and `explore_potts` for fully
 # interactive parameter exploration.  All three are backend-agnostic — they
 # work with GLMakie (native window), CairoMakie (publication PDFs/PNGs), and
 # WGLMakie (Pluto/Jupyter notebooks).
@@ -129,15 +129,15 @@ record_potts(
 # <video autoplay loop muted playsinline controls src="../cell_sorting.mp4" width="100%"></video>
 # ```
 
-# ## 4. explore_cpm — interactive dashboard
+# ## 4. explore_potts — interactive dashboard
 #
-# `explore_cpm` launches a live window (requires a GPU-capable backend such
+# `explore_potts` launches a live window (requires a GPU-capable backend such
 # as GLMakie or WGLMakie).  Sliders trigger automatic re-solves; metric plots
 # update in real time.  Only works with MemoryBackend.
 #
 # ```julia
 # using GLMakie
-# fig = explore_cpm(
+# fig = explore_potts(
 #     prob, alg;
 #     metrics = [
 #         "Mean Volume" => u -> mean(Array(u.cell_data.volumes)[2:end]),
@@ -156,7 +156,7 @@ record_potts(
 
 # ## Backend compatibility summary
 #
-# | Backend    | pottsplot | record_potts | explore_cpm |
+# | Backend    | pottsplot | record_potts | explore_potts |
 # |------------|:-------:|:----------:|:-----------:|
 # | GLMakie    |    ✓    |     ✓      |      ✓      |
 # | CairoMakie |    ✓    |     ✓      |      ✗*     |

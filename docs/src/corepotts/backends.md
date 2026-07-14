@@ -22,7 +22,7 @@ It requires no additional packages and gives instant random access to any frame 
 **Pros:**
 - Zero-dependency, works everywhere.
 - Immediate in-memory access — ideal for post-processing in the same Julia session.
-- Compatible with all MakiePotts functions (`pottsplot`, `record_potts`, `explore_cpm`).
+- Compatible with all MakiePotts functions (`pottsplot`, `record_potts`, `explore_potts`).
 
 **Cons:**
 - Memory usage grows linearly with the number of saved frames and grid size.

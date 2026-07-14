@@ -115,7 +115,7 @@ sol_hst = solve(prob_hst, alg; saveat = 6)
 #
 # At T = 3.0 and λ = 5.0, the predicted HST variance is 3.0 / 10.0 = 0.3
 # sites² — very tight, confirming that the penalty is stiff. Increasing T
-# in the explore_cpm slider makes this difference more visible.
+# in the explore_potts slider makes this difference more visible.
 
 # ## Interactive Dashboard
 #
@@ -124,7 +124,7 @@ sol_hst = solve(prob_hst, alg; saveat = 6)
 # variance that tracks the Boltzmann prediction T/(2λ), while the classical
 # system deviates, especially at high T.
 
-fig = explore_cpm(
+fig = explore_potts(
     prob_hst, alg;
     metrics = [
         "N Cells" => u -> u.N_cells[],

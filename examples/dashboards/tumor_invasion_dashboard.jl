@@ -45,69 +45,51 @@ end
     return CorePotts.coord_to_idx((new_x, new_y), dims)
 end
 
-# 1.2 Stochastic Growth
-struct StochasticGrowthCallback
+# 1.2 Stochastic Growth Event
+struct StochasticGrowthEvent <: CorePotts.AbstractEvent
     prob::Float32
 end
 
-@kernel function _kernel_stochastic_growth!(
-        volumes, target_volumes, prob, step_counter, N_cells)
+CorePotts.has_device_trigger(::StochasticGrowthEvent) = true
+@inline function CorePotts.evaluate_trigger(evt::StochasticGrowthEvent, i, cd, t)
+    if cd.volumes[i] > 0
+        seed = UInt64(t) + UInt64(i)
+        u = Float32(CorePotts.pcg_hash(seed) >> 32) * 2.3283064f-10
+        return u < evt.prob
+    end
+    return false
+end
+
+@kernel function stochastic_growth_kernel!(mask, target_volumes)
     i = @index(Global, Linear)
-    if i <= N_cells
-        if volumes[i] > 0
-            seed = step_counter + UInt64(i)
-            u = Float32(CorePotts.pcg_hash(seed) >> 32) * 2.3283064f-10
-            if u < prob
-                target_volumes[i] += 1
-            end
-        end
+    if mask[i]
+        target_volumes[i] += 1
     end
 end
 
-function (cb::StochasticGrowthCallback)(integrator)
-    u = integrator.u
-    cache = integrator.cache
-    cache.step_counter[] += 1
-    backend = KernelAbstractions.get_backend(u.grid)
-    k = _kernel_stochastic_growth!(backend, cache.block_size)
-    k(u.cell_data.volumes, u.cell_data.target_volumes, cb.prob,
-        cache.step_counter[], UInt32(u.N_cells[]), ndrange = u.N_cells[])
-    KernelAbstractions.synchronize(backend)
+CorePotts.get_event_kernel(::StochasticGrowthEvent, backend, block_size) = stochastic_growth_kernel!(backend, block_size)
+CorePotts.get_event_args(::StochasticGrowthEvent, mask, u, p, cache, t) = (mask, u.cell_data.target_volumes)
+
+# 1.3 Clock Advance Event
+struct ClockAdvanceEvent <: CorePotts.AbstractEvent end
+
+CorePotts.has_device_trigger(::ClockAdvanceEvent) = true
+@inline function CorePotts.evaluate_trigger(::ClockAdvanceEvent, i, cd, t)
+    return cd.volumes[i] > 0 && cd.is_proliferation_competent[i]
 end
 
-function sciml_stochastic_growth_callback(prob::Float32)
-    cb = StochasticGrowthCallback(prob)
-    condition(u, t, integrator) = true
-    affect!(integrator) = cb(integrator)
-    return SciMLBase.DiscreteCallback(condition, affect!)
-end
-
-# 1.3 Clock Advance
-@kernel function _kernel_clock_advance!(volumes, is_proliferation_competent, mitotic_timers, N_cells)
+@kernel function clock_advance_kernel!(mask, mitotic_timers)
     i = @index(Global, Linear)
-    if i <= N_cells
-        if volumes[i] > 0 && is_proliferation_competent[i]
-            mitotic_timers[i] += 1.0f0
-        end
+    if mask[i]
+        mitotic_timers[i] += 1.0f0
     end
 end
 
-function sciml_clock_advance_callback()
-    condition(u, t, integrator) = true
-    function affect!(integrator)
-        u = integrator.u
-        cache = integrator.cache
-        backend = KernelAbstractions.get_backend(u.grid)
-        k = _kernel_clock_advance!(backend, cache.block_size)
-        k(u.cell_data.volumes, u.cell_data.is_proliferation_competent,
-            u.cell_data.mitotic_timers, UInt32(u.N_cells[]), ndrange = u.N_cells[])
-        KernelAbstractions.synchronize(backend)
-    end
-    return SciMLBase.DiscreteCallback(condition, affect!)
-end
+CorePotts.get_event_kernel(::ClockAdvanceEvent, backend, block_size) = clock_advance_kernel!(backend, block_size)
+CorePotts.get_event_args(::ClockAdvanceEvent, mask, u, p, cache, t) = (mask, u.cell_data.mitotic_timers)
 
 # 1.4 Tumor Mitosis Trigger and Post-Division Cleanup
-function tumor_mitosis_trigger(cell_id, cell_data, u, cache)
+function tumor_mitosis_trigger(cell_id, cell_data)
     # Type IDs: Medium=0, Leader=1, Follower=2 (Medium is forced to 0 by PottsProblem constructor)
     if cell_data.cell_types[cell_id] != 2 # Only Followers proliferate
         return false
@@ -124,23 +106,24 @@ function tumor_mitosis_trigger(cell_id, cell_data, u, cache)
     return true
 end
 
-@kernel function _kernel_reset_mitotic_timers!(
-        volumes, is_proliferation_competent, mitotic_timers,
-        mitotic_thresholds, step_counter, N_cells)
+@kernel function tumor_post_mitosis_kernel!(dev_parents, dev_children, mitotic_timers, mitotic_thresholds, step_val, num_divisions)
     i = @index(Global, Linear)
-    if i <= N_cells
-        if volumes[i] > 0 && is_proliferation_competent[i]
-            if mitotic_timers[i] >= mitotic_thresholds[i]
-                seed1 = step_counter + UInt64(i) * UInt64(2)
-                seed2 = step_counter + UInt64(i) * UInt64(2) + UInt64(1)
+    if i <= num_divisions
+        parent_id = dev_parents[i]
+        child_id = dev_children[i]
+        step = step_val
 
-                u1 = Float32(CorePotts.pcg_hash(seed1) >> 32) * 2.3283064f-10
-                u2 = Float32(CorePotts.pcg_hash(seed2) >> 32) * 2.3283064f-10
+        # Reset parent
+        s1_p = step + UInt64(parent_id) * UInt64(2)
+        s2_p = step + UInt64(parent_id) * UInt64(2) + UInt64(1)
+        mitotic_timers[parent_id] = Float32(CorePotts.pcg_hash(s1_p) >> 32) * 2.3283064f-10 * 75.0f0
+        mitotic_thresholds[parent_id] = 25.0f0 + Float32(CorePotts.pcg_hash(s2_p) >> 32) * 2.3283064f-10 * 100.0f0
 
-                mitotic_timers[i] = u1 * 75.0f0
-                mitotic_thresholds[i] = 25.0f0 + u2 * 100.0f0
-            end
-        end
+        # Reset child
+        s1_c = step + UInt64(child_id) * UInt64(2)
+        s2_c = step + UInt64(child_id) * UInt64(2) + UInt64(1)
+        mitotic_timers[child_id] = Float32(CorePotts.pcg_hash(s1_c) >> 32) * 2.3283064f-10 * 75.0f0
+        mitotic_thresholds[child_id] = 25.0f0 + Float32(CorePotts.pcg_hash(s2_c) >> 32) * 2.3283064f-10 * 100.0f0
     end
 end
 
@@ -148,12 +131,12 @@ function tumor_post_division_action(u, p, cache, ws, num_divisions)
     vol_pen = p.penalties[1] # The HSTVolumePenalty
     CorePotts.reset_hst_fields_after_division!(u, cache, vol_pen)
 
-    backend = KernelAbstractions.get_backend(u.grid)
-    k = _kernel_reset_mitotic_timers!(backend, cache.block_size)
-    k(u.cell_data.volumes, u.cell_data.is_proliferation_competent,
-        u.cell_data.mitotic_timers, u.cell_data.mitotic_thresholds,
-        cache.step_counter[], UInt32(u.N_cells[]), ndrange = u.N_cells[])
-    KernelAbstractions.synchronize(backend)
+    # Use native KernelAbstractions to update just the parent and child cells on VRAM
+    # avoiding a global synchronization.
+    backend = CorePotts.KernelAbstractions.get_backend(u.grid)
+    k = tumor_post_mitosis_kernel!(backend, cache.block_size)
+    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.mitotic_timers, u.cell_data.mitotic_thresholds, cache.step_counter[1], num_divisions, ndrange=length(ws.dev_parents))
+    return ev
 end
 # ==========================================
 # 2. Main Dashboard Execution
@@ -180,12 +163,14 @@ sys = PottsSystem(
         )
     ],
     events = [
+        StochasticGrowthEvent(0.015f0),
+        ClockAdvanceEvent(),
         MitosisEvent(Follower,
-        trigger = CustomTrigger(tumor_mitosis_trigger),
-        orientation = CorePotts.RandomOrientation(),
-        inheritance = (target_volumes = CorePotts.Split(0.5f0),),
-        action = tumor_post_division_action
-    )
+            trigger = CustomTrigger(tumor_mitosis_trigger),
+            orientation = CorePotts.RandomOrientation(),
+            inheritance = (target_volumes = CorePotts.Split(0.5f0),),
+            action = tumor_post_division_action
+        )
     ],
     check_interval = 1 # We want to evaluate the mitosis trigger every step like the original script
 )
@@ -256,12 +241,7 @@ for i in 1:prob.u0.N_cells[]
     end
 end
 
-# Assemble callbacks
-cb_set = SciMLBase.CallbackSet(
-    sciml_stochastic_growth_callback(0.015f0),
-    sciml_clock_advance_callback(),
-    CorePotts.DeathCallback(max_cells = 20000)
-)
+# No cb_set needed anymore!
 
 alg = CheckerboardMetropolis(sweeps_per_step = 10, active_fraction = 0.1f0, T = 10.0f0)
 
@@ -344,9 +324,8 @@ parameters = [
 
 if !haskey(ENV, "TESTING")
     println("Launching Tumor Invasion Dashboard...")
-    fig = explore_cpm(prob, alg;
+    fig = explore_potts(prob, alg;
         parameters = parameters,
-        solve_kwargs = (; callback = cb_set),
         type_colors = ["#1C1C1E", "blue", "green"],
         draw_boundaries = false)
     display(fig)
@@ -355,6 +334,6 @@ if !haskey(ENV, "TESTING")
     readline()
 else
     println("TESTING=true, running headless pre-solve...")
-    sol = CommonSolve.solve(prob, alg; callback = cb_set)
+    sol = CommonSolve.solve(prob, alg)
     println("Successfully finished headless solve!")
 end

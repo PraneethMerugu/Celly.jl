@@ -12,8 +12,8 @@ CairoMakie.activate!()
 # N* are restored by density-dependent feedback loops.
 #
 # In this tutorial we implement both sides of the balance:
-# MitosisCallback drives growth and division, while DeathCallback applies
-# stochastic apoptosis. We use `explore_cpm` to watch the population stabilise
+# `MitosisEvent` drives division, while `ApoptosisEvent` applies
+# stochastic apoptosis. We use `explore_potts` to watch the population stabilise
 # around the homeostatic fixed point.
 
 # ## Packages
@@ -100,7 +100,7 @@ sol = solve(prob, alg; saveat = 10, callback = cb)
 # the distribution of cell sizes, which modulates the effective mitosis rate
 # and shifts the homeostatic setpoint slightly.
 
-fig = explore_cpm(
+fig = explore_potts(
     prob, alg;
     metrics = [
         "N Cells" => u -> u.N_cells[],

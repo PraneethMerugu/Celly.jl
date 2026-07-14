@@ -64,7 +64,14 @@ components = [
 
 sys = PottsSystem(
     cell_types = [Medium, Fib],
-    penalties = components
+    penalties = components,
+    events = [
+        MitosisEvent(Fib,
+            trigger = VolumeRatioTrigger(2.0f0),
+            orientation = MajorAxisOrientation(),
+            inheritance = (target_volumes = CorePotts.Split(0.5f0),)
+        )
+    ]
 )
 
 prob = PottsProblem(
@@ -76,27 +83,19 @@ prob = PottsProblem(
     trackers = ()
 )
 
-# ## Growth and mitosis callbacks
+# ## Growth and Mitosis Native Event
 #
 # LinearGrowthCallback slowly inflates the target volume (0.3 area units / MCS).
-# Once a cell reaches twice its initial target volume, MitosisCallback fires.
+# Once a cell reaches twice its initial target volume, the native `MitosisEvent` fires.
 # MajorAxisOrientation places the division plane *perpendicular* to the long
 # axis, so each daughter inherits an elongated shape — exactly as seen in
 # oriented cell divisions in vivo.
 
 growth_cb = LinearGrowthCallback(0.3f0)
 
-trigger = VolumeThresholdTrigger(2.0f0)
-mitosis_cb = MitosisCallback(
-    trigger;
-    orientation = MajorAxisOrientation(),
-    inheritance_rules = (target_volumes = Split(0.5f0),)
-)
-
 using SciMLBase
 cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    mitosis_cb
+    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
 )
 
 # ## Algorithm
@@ -105,12 +104,12 @@ alg = CheckerboardMetropolis(T = 2.5f0, sweeps_per_step = 10)
 
 # ## Interactive exploration
 #
-# explore_cpm opens a live dashboard.  The "Mean Major Length" metric is
+# explore_potts opens a live dashboard.  The "Mean Major Length" metric is
 # computed directly from the integrator state at every saved frame.  The
 # Temperature slider triggers a full re-solve so you can observe how lower T
 # freezes elongation while higher T disorders the tissue.
 
-fig = explore_cpm(
+fig = explore_potts(
     prob, alg;
     metrics = [
         "Mean Major Length" =>

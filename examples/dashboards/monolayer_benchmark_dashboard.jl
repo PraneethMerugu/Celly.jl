@@ -11,10 +11,10 @@ using CorePotts.KernelAbstractions
 using CorePotts.Atomix
 using PottsToolkit
 using MakiePotts
-
-# Make sure we don't duplicate imports from the test script, 
-# so we'll just strip the first 25 lines of the test script where it sets up the ephemeral environment
-
+import Adapt
+# ==========================================
+# 1. Custom Monolayer Component
+# ==========================================
 struct MonolayerPenalty <: CorePotts.AbstractPenalty{CorePotts.Rigid} end
 CorePotts.evaluate_penalty(::MonolayerPenalty, ctx) = 0.0f0
 
@@ -56,41 +56,50 @@ function compile_component(
 end
 
 # ==========================================
-# 2. Custom Callbacks for Growth
+# 2. 100% GPU Native Continuous Growth Callback
 # ==========================================
+struct MonolayerGrowthEvent <: CorePotts.AbstractMultiEvent
+    alpha::Base.RefValue{Float32}
+    beta::Base.RefValue{Float32}
+    gamma::Base.RefValue{Float32}
+    dt::Float32
+    max_cells::Int
+end
 
-@kernel function _kernel_compute_free_surfaces!(free_surfaces, grid, topo, dims)
+@kernel function reset_free_surfaces_kernel!(free_surfaces)
+    i = @index(Global, Linear)
+    free_surfaces[i] = Int32(0)
+end
+
+@kernel function accumulate_free_surfaces_kernel!(grid, free_surfaces, grid_dims, topology)
     i = @index(Global, Linear)
     cell_id = grid[i]
     if cell_id > 0
-        coords = CorePotts.idx_to_coord(UInt32(i), dims)
+        coords = CorePotts.idx_to_coord(UInt32(i), grid_dims)
         n_med = Int32(0)
-        for d in 1:length(CorePotts.offsets(topo))
-            n_idx = CorePotts.get_neighbor_by_coord(topo, coords, UInt32(d), dims)
+        for d in 1:length(CorePotts.offsets(topology))
+            n_idx = CorePotts.get_neighbor_by_coord(topology, coords, UInt32(d), grid_dims)
             if grid[n_idx] == 0
                 n_med += Int32(1)
             end
         end
         if n_med > 0
-            Atomix.@atomic free_surfaces[cell_id] += n_med
+            CorePotts.Atomix.@atomic free_surfaces[cell_id] += n_med
         end
     end
 end
 
-@kernel function _kernel_monolayer_growth!(
-        volumes, target_volumes, target_volumes_float,
-        surface_areas, target_surface_areas, free_surfaces, inhibition_states,
-        alpha, beta, gamma, dt, N_cells)
+@kernel function monolayer_growth_kernel!(volumes, target_volumes, target_volumes_float, target_surface_areas, surface_areas, free_surfaces, inhibition_states, N_cells, evt_alpha, evt_beta, evt_gamma, evt_dt)
     i = @index(Global, Linear)
-    if i <= N_cells
+    if i <= N_cells[1]
         v = volumes[i]
         if v > 0
             tv = target_volumes[i]
-            inhibited_type1 = (Float32(v) / Float32(tv)) < beta
+            inhibited_type1 = (Float32(v) / Float32(tv)) < evt_beta
 
             fi = surface_areas[i] > 0 ?
                  (Float32(free_surfaces[i]) / Float32(surface_areas[i])) : 0.0f0
-            inhibited_type2 = fi < gamma
+            inhibited_type2 = fi < evt_gamma
 
             state = UInt8(0)
             if inhibited_type1
@@ -102,10 +111,10 @@ end
             inhibition_states[i] = state
 
             if state == 0
-                target_volumes_float[i] += alpha * dt
+                target_volumes_float[i] += evt_alpha * evt_dt
                 target_volumes[i] = floor(Int32, target_volumes_float[i])
-                target_surface_areas[i] = floor(Int32, 4.0f0 *
-                                                       sqrt(target_volumes_float[i]))
+                target_surface_areas[i] = floor(
+                    Int32, 4.0f0 * sqrt(target_volumes_float[i]))
             end
         else
             inhibition_states[i] = UInt8(0)
@@ -113,39 +122,35 @@ end
     end
 end
 
-struct MonolayerGrowthCallback
-    alpha::Float32
+struct ResetFreeSurfacesEvent <: CorePotts.AbstractEvent end
+CorePotts.get_event_kernel(::ResetFreeSurfacesEvent, backend, block_size) = reset_free_surfaces_kernel!(backend, block_size)
+CorePotts.get_event_args(::ResetFreeSurfacesEvent, mask, u, p, cache, t) = (u.cell_data.free_surfaces,)
+CorePotts.get_event_ndrange(::ResetFreeSurfacesEvent, mask, u) = length(u.cell_data.free_surfaces)
+
+struct AccumulateFreeSurfacesEvent <: CorePotts.AbstractEvent end
+CorePotts.get_event_kernel(::AccumulateFreeSurfacesEvent, backend, block_size) = accumulate_free_surfaces_kernel!(backend, block_size)
+CorePotts.get_event_args(::AccumulateFreeSurfacesEvent, mask, u, p, cache, t) = (u.grid, u.cell_data.free_surfaces, cache.grid_dims, p.topology)
+CorePotts.get_event_ndrange(::AccumulateFreeSurfacesEvent, mask, u) = length(u.grid)
+
+struct ApplyMonolayerGrowthEvent <: CorePotts.AbstractEvent
+    alpha::Base.RefValue{Float32}
     beta::Base.RefValue{Float32}
     gamma::Base.RefValue{Float32}
     dt::Float32
 end
+CorePotts.get_event_kernel(::ApplyMonolayerGrowthEvent, backend, block_size) = monolayer_growth_kernel!(backend, block_size)
+CorePotts.get_event_args(evt::ApplyMonolayerGrowthEvent, mask, u, p, cache, t) = (u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.target_volumes_float, u.cell_data.target_surface_areas, u.cell_data.surface_areas, u.cell_data.free_surfaces, u.cell_data.inhibition_states, u.N_cells, evt.alpha[], evt.beta[], evt.gamma[], evt.dt)
+CorePotts.get_event_ndrange(::ApplyMonolayerGrowthEvent, mask, u) = length(u.cell_data.volumes)
 
-function (cb::MonolayerGrowthCallback)(integrator)
-    u = integrator.u
-    cache = integrator.cache
-    backend = KernelAbstractions.get_backend(u.grid)
+CorePotts.get_sub_events(evt::MonolayerGrowthEvent) = (
+    ResetFreeSurfacesEvent(),
+    AccumulateFreeSurfacesEvent(),
+    ApplyMonolayerGrowthEvent(evt.alpha, evt.beta, evt.gamma, evt.dt)
+)
 
-    fill!(u.cell_data.free_surfaces, Int32(0))
-    KernelAbstractions.synchronize(backend)
-
-    k1 = _kernel_compute_free_surfaces!(backend, cache.block_size)
-    k1(u.cell_data.free_surfaces, u.grid, integrator.p.topology,
-        cache.grid_dims, ndrange = length(u.grid))
-    KernelAbstractions.synchronize(backend)
-
-    k2 = _kernel_monolayer_growth!(backend, cache.block_size)
-    k2(u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.target_volumes_float,
-        u.cell_data.surface_areas, u.cell_data.target_surface_areas,
-        u.cell_data.free_surfaces, u.cell_data.inhibition_states,
-        cb.alpha, cb.beta[], cb.gamma[], cb.dt, UInt32(u.N_cells[]), ndrange = u.N_cells[])
-    KernelAbstractions.synchronize(backend)
-end
-
-function sciml_monolayer_growth_callback(alpha, beta_ref, gamma_ref, dt)
-    cb = MonolayerGrowthCallback(alpha, beta_ref, gamma_ref, dt)
-    return SciMLBase.DiscreteCallback((u, t, integrator) -> true, cb)
-end
-
+# ==========================================
+# 3. 100% GPU Native Mitosis Actions (PCG Noise)
+# ==========================================
 function monolayer_mitosis_trigger(cell_id, cell_data)
     if cell_data.volumes[cell_id] > 0 &&
        cell_data.volumes[cell_id] >= cell_data.division_threshold_volumes[cell_id]
@@ -154,97 +159,54 @@ function monolayer_mitosis_trigger(cell_id, cell_data)
     return false
 end
 
+@kernel function monolayer_post_mitosis_kernel!(dev_parents, dev_children, target_volumes, division_threshold_volumes, current_seed, num_divisions)
+    i = @index(Global, Linear)
+    if i <= num_divisions
+        parent_id = dev_parents[i]
+        child_id = dev_children[i]
+
+        p_seed = current_seed + UInt64(parent_id) * 0x0000000000000001
+        c_seed = current_seed + UInt64(child_id) * 0x0000000000000001
+
+        noise_parent = CorePotts.randn_pcg(p_seed, p_seed + UInt64(0x12345678))
+        noise_child = CorePotts.randn_pcg(c_seed, c_seed + UInt64(0x87654321))
+
+        X2 = 2.0f0 + 0.4f0 * noise_parent
+        X3 = 2.0f0 + 0.4f0 * noise_child
+
+        parent_new_target = Float32(target_volumes[parent_id])
+        child_new_target = Float32(target_volumes[child_id])
+
+        division_threshold_volumes[parent_id] = floor(Int32, parent_new_target * X2)
+        division_threshold_volumes[child_id] = floor(Int32, child_new_target * X3)
+    end
+end
+
 function monolayer_post_mitosis_action(u, p, cache, ws, num_divisions)
-    # The parent and child IDs are in ws.dev_parents and ws.dev_children
-    dev_parents = ws.dev_parents[1:num_divisions]
-    dev_children = ws.dev_children[1:num_divisions]
-
-    # We update the threshold for parents and children (X2 and X3 noise)
-    # Generate on CPU, then upload to GPU
-    X2_cpu = max.(1.1f0, 2.0f0 .+ 0.4f0 .* randn(Float32, num_divisions))
-    X3_cpu = max.(1.1f0, 2.0f0 .+ 0.4f0 .* randn(Float32, num_divisions))
-
-    X2 = similar(ws.dev_parents, Float32, num_divisions)
-    X3 = similar(ws.dev_parents, Float32, num_divisions)
-    copyto!(X2, X2_cpu)
-    copyto!(X3, X3_cpu)
-
-    # Target volume split was handled by inheritance trait. 
-    # Here we just apply the threshold noise multiplier to the NEW target volume.
-    u.cell_data.division_threshold_volumes[dev_parents] .= round.(
-        Int32, u.cell_data.target_volumes[dev_parents] .* X2)
-    u.cell_data.division_threshold_volumes[dev_children] .= round.(
-        Int32, u.cell_data.target_volumes[dev_children] .* X3)
+    current_seed = UInt64(time_ns())
+    backend = CorePotts.KernelAbstractions.get_backend(u.grid)
+    k = monolayer_post_mitosis_kernel!(backend, cache.block_size)
+    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.target_volumes, u.cell_data.division_threshold_volumes, current_seed, num_divisions, ndrange=length(ws.dev_parents))
+    return ev
 end
 
 # ==========================================
-# 4. Setup and Run (2000x2000 grid)
+# 4. Setup and Run
 # ==========================================
-
-println("Setting up the Monolayer Benchmark Model on GPU...")
-
-grid_size = (1200, 1200)
-R = 5.0f0
-initial_area = Float32(pi * R^2)
-alpha = initial_area / 20.0f0 # cell area growth rate
-X1 = max(1.1f0, 2.0f0 + 0.4f0 * randn(Float32))
-initial_div_thresh = floor(Int32, initial_area * X1)
-
-medium = CellType(:Medium, is_background = true)
-tissue = CellType(:Tissue)
-
-sys = PottsSystem(
-    cell_types = [medium, tissue],
-    penalties = [
-        VolumeComponent(tissue => (λ = 5.0f0, target = initial_area)),
-        SurfaceAreaComponent(tissue => (λ = 0.5f0, target = 4.0f0*sqrt(initial_area))),
-        AdhesionComponent(
-            (medium, tissue) => 0.0f0,
-            (tissue, tissue) => 0.0f0
-        ),
-        ConnectivityConstraint(),
-        MonolayerGrowthComponent(initial_area, initial_div_thresh)
-    ],
-    events = (
-        MitosisEvent(tissue,
-        trigger = CustomTrigger(monolayer_mitosis_trigger),
-        inheritance = (
-            target_volumes = CorePotts.Split(0.5f0),
-            division_threshold_volumes = CorePotts.Split(0.5f0)
-        ),
-        action = monolayer_post_mitosis_action
-    ),
-    )
-)
-
-layout = HypersphereLayout(tissue, (600, 600), Int(round(R)))
-
-prob = PottsProblem(sys, layout, grid_size;
-    max_cells = 17_000,
-    tspan = (0, 1200),
-    topology = CorePotts.NoFluxMooreTopology{2}())
-
-import Adapt
-prob = Adapt.adapt(Array, prob)
-
-alg = CheckerboardMetropolis(T = 20.0f0, active_fraction = 1.0f0)
-
-beta_ref = Ref(0.8f0)
-gamma_ref = Ref(0.2f0)
-
-println("Starting Simulation for 1,200 steps...")
-growth_cb = sciml_monolayer_growth_callback(alpha, beta_ref, gamma_ref, 1.0f0)
 function run_dashboard()
     println("Setting up the Monolayer Benchmark Model...")
 
     grid_size = (800, 800)
     R = 5.0f0
     initial_area = Float32(pi * R^2)
-    alpha = initial_area / 20.0f0 # cell area growth rate (doubles in 20 units)
+    alpha_ref = Ref(initial_area / 26520.0f0) # Calibrated alpha!
+    beta_ref = Ref(0.8f0)
+    gamma_ref = Ref(0.2f0)
     X1 = max(1.1f0, 2.0f0 + 0.4f0 * randn(Float32))
     initial_div_thresh = floor(Int32, initial_area * X1)
 
-    # Declarative PottsSystem for physics compilation!
+    max_cells = 250_000
+
     medium = CellType(:Medium, is_background = true)
     tissue = CellType(:Tissue)
 
@@ -252,65 +214,51 @@ function run_dashboard()
         cell_types = [medium, tissue],
         penalties = [
             VolumeComponent(tissue => (λ = 5.0f0, target = initial_area)),
-            SurfaceAreaComponent(tissue => (λ = 2.0f0, target = 4.0f0*sqrt(initial_area))),
+            SurfaceAreaComponent(tissue => (λ = 0.5f0, target = 4.0f0 * sqrt(initial_area))),
             AdhesionComponent(
                 (medium, tissue) => 0.0f0,
                 (tissue, tissue) => 0.0f0
             ),
-            ConnectivityConstraint(),     # Prevent fragmentation topologically!
-            MonolayerGrowthComponent(initial_area, initial_div_thresh)    # Custom plugin API for allocating required properties!
+            ConnectivityConstraint(),
+            MonolayerGrowthComponent(initial_area, initial_div_thresh)
         ],
-        events = [
+        check_interval = 1,
+        events = (
             MitosisEvent(tissue,
-            trigger = CustomTrigger(monolayer_mitosis_trigger),
-            inheritance = (
-                target_volumes = CorePotts.Split(0.5f0),
-                target_volumes_float = CorePotts.Split(0.5f0)
+                trigger = CustomTrigger(monolayer_mitosis_trigger),
+                inheritance = (
+                    target_volumes = CorePotts.Split(0.5f0),
+                    target_volumes_float = CorePotts.Split(0.5f0),
+                    division_threshold_volumes = CorePotts.Split(0.5f0)
+                ),
+                action = monolayer_post_mitosis_action
             ),
-            action = monolayer_post_mitosis_action
+            MonolayerGrowthEvent(alpha_ref, beta_ref, gamma_ref, 1.0f0, max_cells)
         )
-        ]
     )
 
-    # Declarative explicit layout primitive!
     layout = HypersphereLayout(tissue, (400, 400), Int(round(R)))
 
     # Using the new extended PottsProblem with MTK-style declarative initialization!
     prob = PottsProblem(sys, layout, grid_size;
-        max_cells = 250_000,
+        max_cells = max_cells,
         tspan = (0, 2000),
         topology = CorePotts.NoFluxMooreTopology{2}())
-    alg = CheckerboardMetropolis(T = 20.0f0, active_fraction = 1.0f0/10.0f0)
 
-    # Dynamic controls
-    beta_ref = Ref(0.8f0)
-    gamma_ref = Ref(0.2f0)
+    # We leave ArrayType adaptation out here so the user can just use CPU arrays for explore_potts
+    # since explore_potts requires CPU arrays. Wait, they might want GPU. 
+    # Let's check how MakiePotts handles it. Usually `explore_potts` expects a CPU array 
+    # or you can adapt it to GPU if MakiePotts supports GPU arrays.
+    # Actually, let's keep it as is, or let the user decide. MakiePotts does not support GPU arrays out of the box yet?
+    # Actually, in the old file, they had `prob = Adapt.adapt(Array, prob)` before explore_potts!
+    prob = Adapt.adapt(Array, prob)
 
-    # Callbacks
-    growth_cb = sciml_monolayer_growth_callback(alpha, beta_ref, gamma_ref, 1.0f0)
-    callbacks = SciMLBase.CallbackSet(growth_cb)
+    alg = CheckerboardMetropolis(T = 20.0f0, active_fraction = 1.0f0)
 
-    # Dashboard parameter controls
     parameters = [
-        "Type 1 Thresh (β)" => (
-            range = 0.0:0.05:1.0,
-            start = 0.8,
-            action = (p, a, val) -> begin
-                beta_ref[] = Float32(val)
-                return nothing
-            end
-        ),
-        "Type 2 Thresh (γ)" => (
-            range = 0.0:0.05:1.0,
-            start = 0.2,
-            action = (p, a, val) -> begin
-                gamma_ref[] = Float32(val)
-                return nothing
-            end
-        ),
         "Sweeps per Step" => (
             range = 1:1:20,
-            start = 10,
+            start = 1,
             action = (p, a, val) -> begin
                 return CorePotts.CheckerboardMetropolis(
                     sampler = a.sampler,
@@ -332,11 +280,26 @@ function run_dashboard()
                 )
             end
         ),
+        "Growth Rate (α)" => (
+            range = 0.0:0.2:1.0,
+            start = alpha_ref[],
+            action = (p, a, val) -> begin
+                alpha_ref[] = Float32(val)
+                return nothing
+            end
+        ),
+        "Type 1 Thresh (β)" => (
+            range = 0.0:0.05:1.0,
+            start = beta_ref[],
+            action = (p, a, val) -> begin
+                beta_ref[] = Float32(val)
+                return nothing
+            end
+        ),
         "Perimeter Constraint (λp)" => (
             range = 0.0:0.5:10.0,
-            start = 2.0,
+            start = 0.5,
             action = (p, a, val) -> begin
-                # Look for the HSTSurfaceAreaPenalty in the penalty tuple
                 for pen in p.p.penalties
                     if pen isa CorePotts.HSTSurfaceAreaPenalty
                         pen.lambdas[2] = Float32(val)
@@ -356,10 +319,10 @@ function run_dashboard()
 
     if !haskey(ENV, "TESTING")
         println("Launching Monolayer Dashboard...")
-        fig = explore_cpm(prob, alg;
+        fig = explore_potts(prob, alg;
             parameters = parameters,
             metrics = metrics,
-            solve_kwargs = (; callback = callbacks, saveat = 5),
+            solve_kwargs = (; saveat = 5),
             type_colors = colors,
             color_property = :inhibition_states,
             color_offset = 1,
@@ -372,7 +335,7 @@ function run_dashboard()
         readline()
     else
         println("TESTING=true, running headless pre-solve...")
-        sol = CommonSolve.solve(prob, alg; callback = callbacks)
+        sol = CommonSolve.solve(prob, alg)
         println("Successfully finished headless solve!")
     end
 end

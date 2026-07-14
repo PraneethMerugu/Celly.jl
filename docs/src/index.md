@@ -18,7 +18,7 @@ wound healing, and developmental patterning.
 |---------|------|
 | **CorePotts** | The physics engine — lattice representation, Monte Carlo algorithms, penalty evaluation, trackers, and I/O backends. Intended as an internal library; end users rarely import it directly. |
 | **PottsToolkit** | A declarative, user-facing modeling API that lets you define cell types, attach biological components, build a [`PottsProblem`](@ref), and `solve` it in a few lines of Julia. Re-exports everything from CorePotts. |
-| **MakiePotts** | Visualization layer built on Makie.jl — static plots, interactive dashboards (`explore_cpm`), and video recording (`record_potts`). |
+| **MakiePotts** | Visualization layer built on Makie.jl — static plots, interactive dashboards (`explore_potts`), and video recording (`record_potts`). |
 | **NeuralPotts** | Energy-based model training: replace hand-crafted penalties with a Lux.jl neural network trained via Persistent Contrastive Divergence. |
 
 ---
