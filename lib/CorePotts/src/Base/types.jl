@@ -356,6 +356,35 @@ function Base.getproperty(
 end
 
 """
+    IntrinsicCheckerboardMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
+
+An experimental warp-level intrinsically optimized checkerboard engine. Leverages Apple AIR and NVIDIA PTX assembly via KernelIntrinsics.jl for massive speedups on Volume updates.
+"""
+struct IntrinsicCheckerboardMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
+    sampler::S
+    T::FloatT
+    active_fraction::FloatT
+    sweeps_per_step::IntT
+end
+function IntrinsicCheckerboardMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
+    return IntrinsicCheckerboardMetropolis{typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+end
+
+function Base.getproperty(
+        alg::IntrinsicCheckerboardMetropolis{
+            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
+    if sym === :FloatType
+        return FloatT
+    elseif sym === :IntType
+        return IntT
+    else
+        return getfield(alg, sym)
+    end
+end
+
+"""
     SparseLotteryMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
 
 A sparse block-based stochastic engine. Used as a fallback for extended topologies where graph coloring fails.

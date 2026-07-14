@@ -134,6 +134,65 @@ end
     apply_tx_deltas_direct!(src, tgt, Base.tail(tx_deltas), Base.tail(trackers), cell_data)
 end
 
+@inline function apply_warp_reduction!(lane, active_mask, is_accepted, src, tgt, delta_src, delta_tgt, tracker::AbstractTracker, cell_data)
+    ws = KernelIntrinsics._warpsize()
+
+    # Process SRC (Losses)
+    active_src = is_accepted && (src > 0)
+    
+    # 1. Group everyone modifying the same cell instantly (reinterpret to Unsigned for @match)
+    match_mask_src = KernelIntrinsics.@match(KernelIntrinsics.MatchAny, reinterpret(UInt32, src))
+    logical_mask_src = KernelIntrinsics.@vote(KernelIntrinsics.Ballot, active_src)
+    valid_mask_src = match_mask_src & logical_mask_src
+    
+    # 2. Pick the lowest lane as the leader
+    leader_lane_src = trailing_zeros(valid_mask_src) + 1
+
+    # 3. Branchless summation of deltas
+    total_delta_src = zero(delta_src)
+    for i in 1:ws
+        peer_delta = KernelIntrinsics.@shfl(KernelIntrinsics.Idx, delta_src, i)
+        if (valid_mask_src & (1 << (i - 1))) != 0
+            total_delta_src += peer_delta
+        end
+    end
+
+    # 4. Only the leader executes the atomic write
+    if active_src && lane == leader_lane_src
+        commit_direct!(tracker, cell_data, src, total_delta_src)
+    end
+
+    # Process TGT (Gains)
+    active_tgt = is_accepted && (tgt > 0)
+    
+    match_mask_tgt = KernelIntrinsics.@match(KernelIntrinsics.MatchAny, reinterpret(UInt32, tgt))
+    logical_mask_tgt = KernelIntrinsics.@vote(KernelIntrinsics.Ballot, active_tgt)
+    valid_mask_tgt = match_mask_tgt & logical_mask_tgt
+    
+    leader_lane_tgt = trailing_zeros(valid_mask_tgt) + 1
+
+    total_delta_tgt = zero(delta_tgt)
+    for i in 1:ws
+        peer_delta = KernelIntrinsics.@shfl(KernelIntrinsics.Idx, delta_tgt, i)
+        if (valid_mask_tgt & (1 << (i - 1))) != 0
+            total_delta_tgt += peer_delta
+        end
+    end
+
+    if active_tgt && lane == leader_lane_tgt
+        commit_direct!(tracker, cell_data, tgt, total_delta_tgt)
+    end
+end
+
+@inline apply_warp_reductions!(lane, active_mask, is_accepted, src, tgt, ::Tuple{}, ::Tuple{}, cell_data) = nothing
+@inline function apply_warp_reductions!(
+        lane, active_mask, is_accepted, src, tgt, tx_deltas::Tuple, trackers::Tuple, cell_data)
+    delta_src, delta_tgt = tx_deltas[1]
+    t = trackers[1]
+    apply_warp_reduction!(lane, active_mask, is_accepted, src, tgt, delta_src, delta_tgt, t, cell_data)
+    apply_warp_reductions!(lane, active_mask, is_accepted, src, tgt, Base.tail(tx_deltas), Base.tail(trackers), cell_data)
+end
+
 function initialize_all_metrics!(trackers::Tuple, cell_data, grid, topo, dims)
     _initialize_metrics!(trackers, cell_data, grid, topo, dims, Val(1))
 end
