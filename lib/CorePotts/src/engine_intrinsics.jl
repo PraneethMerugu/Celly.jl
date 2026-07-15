@@ -86,19 +86,19 @@ end
         active_fraction, global_seed, color_indices, color_offset, num_active_pixels)
     i = @index(Global, Linear)
     lane = KernelIntrinsics.@laneid()
-    
+
     is_active_thread = i <= num_active_pixels
-    
+
     # Defaults
     accept = false
     target_val = Int32(0)
     src_val = Int32(0)
-    
+
     # We must compute a dummy delta for type stability even if thread is inactive
     dummy_ctx = (; grid = grid, grid_dims = grid_dims, topology = topology,
         cell_data = cell_data, trackers = trackers,
         idx = UInt32(1), src = Int32(0), tgt = Int32(0), T = T_val,
-        spatial_coords = ntuple(d -> UInt32(0), Val(length(grid_dims))), 
+        spatial_coords = ntuple(d -> UInt32(0), Val(length(grid_dims))),
         source_coords = ntuple(d -> UInt32(0), Val(length(grid_dims))),
         neighbors = ntuple(d -> Int32(0), num_dirs(topology)), n_src = Int32(0), n_tgt = Int32(0))
     tx_deltas = evaluate_all_trackers(trackers, dummy_ctx)
@@ -116,7 +116,7 @@ end
             accept, target_val, src_val, tx_deltas = _intrinsic_site_eval!(
                 coords, grid, grid_dims, topology, cell_data, penalties,
                 trackers, sampler, T_val, active_fraction, rng_state)
-                
+
             if accept
                 grid[idx] = src_val
             end
@@ -125,10 +125,12 @@ end
 
     # Phase 3: Subgroup Reduction by Key (Quarantine Architecture)
     active_mask = KernelIntrinsics.@vote(KernelIntrinsics.Ballot, is_active_thread)
-    apply_warp_reductions!(lane, active_mask, accept, target_val, src_val, tx_deltas, trackers, cell_data)
+    apply_warp_reductions!(
+        lane, active_mask, accept, target_val, src_val, tx_deltas, trackers, cell_data)
 end
 
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::IntrinsicCheckerboardMetropolis, prev_event=nothing)
+function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
+        alg::IntrinsicCheckerboardMetropolis, prev_event = nothing)
     grid = u.grid
     grid_dims = size(grid)
     backend = KernelAbstractions.get_backend(grid)

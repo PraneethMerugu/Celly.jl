@@ -67,8 +67,12 @@ end
     end
 end
 
-CorePotts.get_event_kernel(::StochasticGrowthEvent, backend, block_size) = stochastic_growth_kernel!(backend, block_size)
-CorePotts.get_event_args(::StochasticGrowthEvent, mask, u, p, cache, t) = (mask, u.cell_data.target_volumes)
+function CorePotts.get_event_kernel(::StochasticGrowthEvent, backend, block_size)
+    stochastic_growth_kernel!(backend, block_size)
+end
+function CorePotts.get_event_args(::StochasticGrowthEvent, mask, u, p, cache, t)
+    (mask, u.cell_data.target_volumes)
+end
 
 # 1.3 Clock Advance Event
 struct ClockAdvanceEvent <: CorePotts.AbstractEvent end
@@ -85,8 +89,12 @@ end
     end
 end
 
-CorePotts.get_event_kernel(::ClockAdvanceEvent, backend, block_size) = clock_advance_kernel!(backend, block_size)
-CorePotts.get_event_args(::ClockAdvanceEvent, mask, u, p, cache, t) = (mask, u.cell_data.mitotic_timers)
+function CorePotts.get_event_kernel(::ClockAdvanceEvent, backend, block_size)
+    clock_advance_kernel!(backend, block_size)
+end
+function CorePotts.get_event_args(::ClockAdvanceEvent, mask, u, p, cache, t)
+    (mask, u.cell_data.mitotic_timers)
+end
 
 # 1.4 Tumor Mitosis Trigger and Post-Division Cleanup
 function tumor_mitosis_trigger(cell_id, cell_data)
@@ -106,7 +114,8 @@ function tumor_mitosis_trigger(cell_id, cell_data)
     return true
 end
 
-@kernel function tumor_post_mitosis_kernel!(dev_parents, dev_children, mitotic_timers, mitotic_thresholds, step_val, num_divisions)
+@kernel function tumor_post_mitosis_kernel!(dev_parents, dev_children, mitotic_timers,
+        mitotic_thresholds, step_val, num_divisions)
     i = @index(Global, Linear)
     if i <= num_divisions
         parent_id = dev_parents[i]
@@ -116,14 +125,20 @@ end
         # Reset parent
         s1_p = step + UInt64(parent_id) * UInt64(2)
         s2_p = step + UInt64(parent_id) * UInt64(2) + UInt64(1)
-        mitotic_timers[parent_id] = Float32(CorePotts.pcg_hash(s1_p) >> 32) * 2.3283064f-10 * 75.0f0
-        mitotic_thresholds[parent_id] = 25.0f0 + Float32(CorePotts.pcg_hash(s2_p) >> 32) * 2.3283064f-10 * 100.0f0
+        mitotic_timers[parent_id] = Float32(CorePotts.pcg_hash(s1_p) >> 32) *
+                                    2.3283064f-10 * 75.0f0
+        mitotic_thresholds[parent_id] = 25.0f0 +
+                                        Float32(CorePotts.pcg_hash(s2_p) >> 32) *
+                                        2.3283064f-10 * 100.0f0
 
         # Reset child
         s1_c = step + UInt64(child_id) * UInt64(2)
         s2_c = step + UInt64(child_id) * UInt64(2) + UInt64(1)
-        mitotic_timers[child_id] = Float32(CorePotts.pcg_hash(s1_c) >> 32) * 2.3283064f-10 * 75.0f0
-        mitotic_thresholds[child_id] = 25.0f0 + Float32(CorePotts.pcg_hash(s2_c) >> 32) * 2.3283064f-10 * 100.0f0
+        mitotic_timers[child_id] = Float32(CorePotts.pcg_hash(s1_c) >> 32) * 2.3283064f-10 *
+                                   75.0f0
+        mitotic_thresholds[child_id] = 25.0f0 +
+                                       Float32(CorePotts.pcg_hash(s2_c) >> 32) *
+                                       2.3283064f-10 * 100.0f0
     end
 end
 
@@ -135,7 +150,9 @@ function tumor_post_division_action(u, p, cache, ws, num_divisions)
     # avoiding a global synchronization.
     backend = CorePotts.KernelAbstractions.get_backend(u.grid)
     k = tumor_post_mitosis_kernel!(backend, cache.block_size)
-    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.mitotic_timers, u.cell_data.mitotic_thresholds, cache.step_counter[1], num_divisions, ndrange=length(ws.dev_parents))
+    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.mitotic_timers,
+        u.cell_data.mitotic_thresholds, cache.step_counter[1],
+        num_divisions, ndrange = length(ws.dev_parents))
     return ev
 end
 # ==========================================

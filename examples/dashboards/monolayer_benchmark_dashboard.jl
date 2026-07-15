@@ -89,7 +89,9 @@ end
     end
 end
 
-@kernel function monolayer_growth_kernel!(volumes, target_volumes, target_volumes_float, target_surface_areas, surface_areas, free_surfaces, inhibition_states, N_cells, evt_alpha, evt_beta, evt_gamma, evt_dt)
+@kernel function monolayer_growth_kernel!(
+        volumes, target_volumes, target_volumes_float, target_surface_areas, surface_areas,
+        free_surfaces, inhibition_states, N_cells, evt_alpha, evt_beta, evt_gamma, evt_dt)
     i = @index(Global, Linear)
     if i <= N_cells[1]
         v = volumes[i]
@@ -123,13 +125,23 @@ end
 end
 
 struct ResetFreeSurfacesEvent <: CorePotts.AbstractEvent end
-CorePotts.get_event_kernel(::ResetFreeSurfacesEvent, backend, block_size) = reset_free_surfaces_kernel!(backend, block_size)
-CorePotts.get_event_args(::ResetFreeSurfacesEvent, mask, u, p, cache, t) = (u.cell_data.free_surfaces,)
-CorePotts.get_event_ndrange(::ResetFreeSurfacesEvent, mask, u) = length(u.cell_data.free_surfaces)
+function CorePotts.get_event_kernel(::ResetFreeSurfacesEvent, backend, block_size)
+    reset_free_surfaces_kernel!(backend, block_size)
+end
+function CorePotts.get_event_args(::ResetFreeSurfacesEvent, mask, u, p, cache, t)
+    (u.cell_data.free_surfaces,)
+end
+function CorePotts.get_event_ndrange(::ResetFreeSurfacesEvent, mask, u)
+    length(u.cell_data.free_surfaces)
+end
 
 struct AccumulateFreeSurfacesEvent <: CorePotts.AbstractEvent end
-CorePotts.get_event_kernel(::AccumulateFreeSurfacesEvent, backend, block_size) = accumulate_free_surfaces_kernel!(backend, block_size)
-CorePotts.get_event_args(::AccumulateFreeSurfacesEvent, mask, u, p, cache, t) = (u.grid, u.cell_data.free_surfaces, cache.grid_dims, p.topology)
+function CorePotts.get_event_kernel(::AccumulateFreeSurfacesEvent, backend, block_size)
+    accumulate_free_surfaces_kernel!(backend, block_size)
+end
+function CorePotts.get_event_args(::AccumulateFreeSurfacesEvent, mask, u, p, cache, t)
+    (u.grid, u.cell_data.free_surfaces, cache.grid_dims, p.topology)
+end
 CorePotts.get_event_ndrange(::AccumulateFreeSurfacesEvent, mask, u) = length(u.grid)
 
 struct ApplyMonolayerGrowthEvent <: CorePotts.AbstractEvent
@@ -138,15 +150,26 @@ struct ApplyMonolayerGrowthEvent <: CorePotts.AbstractEvent
     gamma::Base.RefValue{Float32}
     dt::Float32
 end
-CorePotts.get_event_kernel(::ApplyMonolayerGrowthEvent, backend, block_size) = monolayer_growth_kernel!(backend, block_size)
-CorePotts.get_event_args(evt::ApplyMonolayerGrowthEvent, mask, u, p, cache, t) = (u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.target_volumes_float, u.cell_data.target_surface_areas, u.cell_data.surface_areas, u.cell_data.free_surfaces, u.cell_data.inhibition_states, u.N_cells, evt.alpha[], evt.beta[], evt.gamma[], evt.dt)
-CorePotts.get_event_ndrange(::ApplyMonolayerGrowthEvent, mask, u) = length(u.cell_data.volumes)
+function CorePotts.get_event_kernel(::ApplyMonolayerGrowthEvent, backend, block_size)
+    monolayer_growth_kernel!(backend, block_size)
+end
+function CorePotts.get_event_args(evt::ApplyMonolayerGrowthEvent, mask, u, p, cache, t)
+    (u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.target_volumes_float,
+        u.cell_data.target_surface_areas, u.cell_data.surface_areas,
+        u.cell_data.free_surfaces, u.cell_data.inhibition_states,
+        u.N_cells, evt.alpha[], evt.beta[], evt.gamma[], evt.dt)
+end
+function CorePotts.get_event_ndrange(::ApplyMonolayerGrowthEvent, mask, u)
+    length(u.cell_data.volumes)
+end
 
-CorePotts.get_sub_events(evt::MonolayerGrowthEvent) = (
-    ResetFreeSurfacesEvent(),
-    AccumulateFreeSurfacesEvent(),
-    ApplyMonolayerGrowthEvent(evt.alpha, evt.beta, evt.gamma, evt.dt)
-)
+function CorePotts.get_sub_events(evt::MonolayerGrowthEvent)
+    (
+        ResetFreeSurfacesEvent(),
+        AccumulateFreeSurfacesEvent(),
+        ApplyMonolayerGrowthEvent(evt.alpha, evt.beta, evt.gamma, evt.dt)
+    )
+end
 
 # ==========================================
 # 3. 100% GPU Native Mitosis Actions (PCG Noise)
@@ -159,7 +182,8 @@ function monolayer_mitosis_trigger(cell_id, cell_data)
     return false
 end
 
-@kernel function monolayer_post_mitosis_kernel!(dev_parents, dev_children, target_volumes, division_threshold_volumes, current_seed, num_divisions)
+@kernel function monolayer_post_mitosis_kernel!(dev_parents, dev_children, target_volumes,
+        division_threshold_volumes, current_seed, num_divisions)
     i = @index(Global, Linear)
     if i <= num_divisions
         parent_id = dev_parents[i]
@@ -186,7 +210,9 @@ function monolayer_post_mitosis_action(u, p, cache, ws, num_divisions)
     current_seed = UInt64(time_ns())
     backend = CorePotts.KernelAbstractions.get_backend(u.grid)
     k = monolayer_post_mitosis_kernel!(backend, cache.block_size)
-    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.target_volumes, u.cell_data.division_threshold_volumes, current_seed, num_divisions, ndrange=length(ws.dev_parents))
+    ev = k(ws.dev_parents, ws.dev_children, u.cell_data.target_volumes,
+        u.cell_data.division_threshold_volumes, current_seed,
+        num_divisions, ndrange = length(ws.dev_parents))
     return ev
 end
 
@@ -214,7 +240,8 @@ function run_dashboard()
         cell_types = [medium, tissue],
         penalties = [
             VolumeComponent(tissue => (λ = 5.0f0, target = initial_area)),
-            SurfaceAreaComponent(tissue => (λ = 0.5f0, target = 4.0f0 * sqrt(initial_area))),
+            SurfaceAreaComponent(tissue =>
+                (λ = 0.5f0, target = 4.0f0 * sqrt(initial_area))),
             AdhesionComponent(
                 (medium, tissue) => 0.0f0,
                 (tissue, tissue) => 0.0f0

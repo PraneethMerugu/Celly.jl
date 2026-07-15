@@ -200,7 +200,8 @@ function PottsSystem(args...; events = (), check_interval = 10, kwargs...)
     return PottsSystem(types, pens, events, check_interval)
 end
 
-function PottsSystem(types::Vector{CellType}, pens::Vector; events = (), check_interval = 10, kwargs...)
+function PottsSystem(
+        types::Vector{CellType}, pens::Vector; events = (), check_interval = 10, kwargs...)
     if events isa Vector
         events = Tuple(events)
     end

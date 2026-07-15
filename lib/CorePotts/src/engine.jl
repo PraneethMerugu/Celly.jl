@@ -173,7 +173,7 @@ end
 Executes a single Monte Carlo Sweep (MCS) across the grid using a deterministic checkerboard algorithm.
 """
 function execute_step!(u::AbstractPottsState, p::PottsParameters,
-        cache::PottsCache, alg::CheckerboardMetropolis, prev_event=nothing)
+        cache::PottsCache, alg::CheckerboardMetropolis, prev_event = nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler
@@ -224,7 +224,8 @@ end
 
 Executes a single Monte Carlo Sweep (MCS) across the grid using the stochastic lottery algorithm.
 """
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::ParallelMetropolis, prev_event=nothing)
+function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
+        alg::ParallelMetropolis, prev_event = nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler
@@ -261,7 +262,8 @@ end
 
 Executes a single Monte Carlo Sweep (MCS) sequentially on the CPU without atomic locks.
 """
-function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache, alg::SequentialMetropolis, prev_event=nothing)
+function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCache,
+        alg::SequentialMetropolis, prev_event = nothing)
     T = alg.T
     active_fraction = alg.active_fraction
     sampler = alg.sampler

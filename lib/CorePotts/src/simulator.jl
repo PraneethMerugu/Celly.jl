@@ -31,7 +31,7 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     # Initialize algorithmic cache
     block_size = get(kwargs, :block_size, DEFAULT_BLOCK_SIZE)
     cache = PottsCache(prob.u0, prob.p.topology, block_size)
-    
+
     # Initialize event masks for zero-allocation mask-driven events
     cache.scratch[:event_masks] = map(prob.p.events) do ev
         if has_device_trigger(ev)
@@ -103,12 +103,12 @@ function SciMLBase.step!(integrator::PottsIntegrator)
     if !isempty(p.events)
         deps = current_event === nothing ? () : (current_event,)
         masks = cache.scratch[:event_masks]::Tuple
-        current_event = _evaluate_all_events!(p.events, masks, u, p, cache, integrator.t, deps)
+        current_event = _evaluate_all_events!(
+            p.events, masks, u, p, cache, integrator.t, deps)
     end
 
     integrator.t += 1
 end
-
 
 function SciMLBase.terminate!(integrator::PottsIntegrator, retcode = SciMLBase.ReturnCode.Terminated)
     integrator.opts = merge(integrator.opts, (; t_end = integrator.t))
@@ -183,7 +183,8 @@ end
 # ------------------------------------------------------------------
 
 @inline _any_device_trigger(events::Tuple{}) = false
-@inline _any_device_trigger(events::Tuple) = has_device_trigger(first(events)) || _any_device_trigger(Base.tail(events))
+@inline _any_device_trigger(events::Tuple) = has_device_trigger(first(events)) ||
+                                             _any_device_trigger(Base.tail(events))
 
 @inline _evaluate_trigger_tuple!(::Tuple{}, ::Tuple{}, i, cd, t) = nothing
 
@@ -201,7 +202,8 @@ end
     _evaluate_trigger_tuple!(events, masks, i, cell_data, t)
 end
 
-@inline _process_events_recursive(events::Tuple{}, masks::Tuple{}, u, p, cache, t, deps) = deps
+@inline _process_events_recursive(
+    events::Tuple{}, masks::Tuple{}, u, p, cache, t, deps) = deps
 
 function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
     args = get_event_args(evt, mask, u, p, cache, t)
@@ -212,11 +214,11 @@ function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
     backend = KernelAbstractions.get_backend(u.grid)
     k = get_event_kernel(evt, backend, cache.block_size)
     nd = get_event_ndrange(evt, mask, u)
-    
+
     if isempty(deps)
-        ev = k(args..., ndrange=nd)
+        ev = k(args..., ndrange = nd)
     else
-        ev = k(args..., ndrange=nd, dependencies=deps)
+        ev = k(args..., ndrange = nd, dependencies = deps)
     end
     return ev === nothing ? deps : (ev,)
 end
@@ -231,12 +233,14 @@ end
     return deps
 end
 
-@inline function _process_events_recursive(events::Tuple, masks::Tuple, u, p, cache, t, deps)
+@inline function _process_events_recursive(
+        events::Tuple, masks::Tuple, u, p, cache, t, deps)
     evt = first(events)
     mask = first(masks)
     new_deps = process_event!(evt, mask, u, p, cache, t, deps)
     deps_next = new_deps === nothing ? deps : new_deps
-    return _process_events_recursive(Base.tail(events), Base.tail(masks), u, p, cache, t, deps_next)
+    return _process_events_recursive(
+        Base.tail(events), Base.tail(masks), u, p, cache, t, deps_next)
 end
 
 function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps)
@@ -244,13 +248,14 @@ function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps
         backend = KernelAbstractions.get_backend(u.grid)
         k = evaluate_all_triggers_kernel!(backend, cache.block_size)
         if isempty(deps)
-            ev = k(events, masks, u.cell_data, t, ndrange=length(u.cell_data.volumes))
+            ev = k(events, masks, u.cell_data, t, ndrange = length(u.cell_data.volumes))
         else
-            ev = k(events, masks, u.cell_data, t, ndrange=length(u.cell_data.volumes), dependencies=deps)
+            ev = k(events, masks, u.cell_data, t,
+                ndrange = length(u.cell_data.volumes), dependencies = deps)
         end
         deps = ev === nothing ? deps : (ev,)
     end
-    
+
     new_deps = _process_events_recursive(events, masks, u, p, cache, t, deps)
     return isempty(new_deps) ? nothing : new_deps[1]
 end

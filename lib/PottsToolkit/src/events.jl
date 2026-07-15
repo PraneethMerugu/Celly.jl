@@ -100,7 +100,8 @@ using AcceleratedKernels
 # Evaluate Triggers
 @inline _evaluate_trigger(trigger::AbstractTrigger, cell_id::Integer, cell_data) = false
 @inline _evaluate_trigger(trigger::VolumeRatioTrigger, cell_id::Integer,
-    cell_data) = cell_data.target_volumes[cell_id] > 0 && cell_data.volumes[cell_id] >=
+    cell_data) = cell_data.target_volumes[cell_id] > 0 &&
+                 cell_data.volumes[cell_id] >=
                  (trigger.factor * cell_data.target_volumes[cell_id])
 @inline _evaluate_trigger(trigger::AgeTrigger, cell_id::Integer, cell_data) = cell_data.cell_ages[cell_id] >=
                                                                               trigger.max_age
@@ -225,13 +226,15 @@ function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
             if haskey(type_to_id, evt.transition.first) &&
                haskey(type_to_id, evt.transition.second)
                 push!(resolved,
-                    ResolvedTransitionEvent(check_interval, type_to_id[evt.transition.first],
+                    ResolvedTransitionEvent(
+                        check_interval, type_to_id[evt.transition.first],
                         type_to_id[evt.transition.second], evt.trigger))
             end
         elseif evt isa MitosisEvent
             if haskey(type_to_id, evt.cell_type)
                 push!(resolved,
-                    ResolvedMitosisEvent(check_interval, type_to_id[evt.cell_type], evt.trigger,
+                    ResolvedMitosisEvent(
+                        check_interval, type_to_id[evt.cell_type], evt.trigger,
                         evt.orientation, evt.inheritance, evt.action))
             end
         elseif evt isa CorePotts.AbstractEvent
@@ -316,7 +319,9 @@ end
     end
 end
 
-CorePotts.get_event_kernel(::ResolvedApoptosisEvent, backend, block_size) = apoptosis_kernel!(backend, block_size)
+function CorePotts.get_event_kernel(::ResolvedApoptosisEvent, backend, block_size)
+    apoptosis_kernel!(backend, block_size)
+end
 
 function CorePotts.get_event_args(evt::ResolvedApoptosisEvent, mask, u, p, cache, t)
     if t % evt.check_interval != 0 || !hasproperty(u.cell_data, :target_volumes)
@@ -343,7 +348,9 @@ end
     end
 end
 
-CorePotts.get_event_kernel(::ResolvedTransitionEvent, backend, block_size) = transition_kernel!(backend, block_size)
+function CorePotts.get_event_kernel(::ResolvedTransitionEvent, backend, block_size)
+    transition_kernel!(backend, block_size)
+end
 
 function CorePotts.get_event_args(evt::ResolvedTransitionEvent, mask, u, p, cache, t)
     if t % evt.check_interval != 0
@@ -374,13 +381,13 @@ function CorePotts.process_event!(evt::ResolvedMitosisEvent, mask, u, p, cache, 
     if t % evt.check_interval != 0
         return nothing
     end
-    
+
     # Mitosis modifies global structures (free lists, N_cells) and spawns dynamically.
     # It must synchronize before and after its host-side logic.
     if !isempty(deps)
         KernelAbstractions.wait(deps[1])
     end
-    
+
     if !haskey(cache.scratch, :mitosis_workspace)
         cache.scratch[:mitosis_workspace] = CorePotts.MitosisWorkspace(u.grid, length(u.cell_data.volumes))
     end
@@ -400,7 +407,7 @@ function CorePotts.process_event!(evt::ResolvedMitosisEvent, mask, u, p, cache, 
             evt.action(u, p, cache, ws, num_divisions)
         end
     end
-    
+
     return nothing # Implicit sync due to host-side logic
 end
 

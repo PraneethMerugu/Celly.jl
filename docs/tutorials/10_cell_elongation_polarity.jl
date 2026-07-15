@@ -67,10 +67,10 @@ sys = PottsSystem(
     penalties = components,
     events = [
         MitosisEvent(Fib,
-            trigger = VolumeRatioTrigger(2.0f0),
-            orientation = MajorAxisOrientation(),
-            inheritance = (target_volumes = CorePotts.Split(0.5f0),)
-        )
+        trigger = VolumeRatioTrigger(2.0f0),
+        orientation = MajorAxisOrientation(),
+        inheritance = (target_volumes = CorePotts.Split(0.5f0),)
+    )
     ]
 )
 

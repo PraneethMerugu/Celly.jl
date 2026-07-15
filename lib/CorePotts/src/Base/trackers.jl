@@ -134,17 +134,19 @@ end
     apply_tx_deltas_direct!(src, tgt, Base.tail(tx_deltas), Base.tail(trackers), cell_data)
 end
 
-@inline function apply_warp_reduction!(lane, active_mask, is_accepted, src, tgt, delta_src, delta_tgt, tracker::AbstractTracker, cell_data)
+@inline function apply_warp_reduction!(lane, active_mask, is_accepted, src, tgt, delta_src,
+        delta_tgt, tracker::AbstractTracker, cell_data)
     ws = KernelIntrinsics._warpsize()
 
     # Process SRC (Losses)
     active_src = is_accepted && (src > 0)
-    
+
     # 1. Group everyone modifying the same cell instantly (reinterpret to Unsigned for @match)
-    match_mask_src = KernelIntrinsics.@match(KernelIntrinsics.MatchAny, reinterpret(UInt32, src))
+    match_mask_src = KernelIntrinsics.@match(KernelIntrinsics.MatchAny,
+        reinterpret(UInt32, src))
     logical_mask_src = KernelIntrinsics.@vote(KernelIntrinsics.Ballot, active_src)
     valid_mask_src = match_mask_src & logical_mask_src
-    
+
     # 2. Pick the lowest lane as the leader
     leader_lane_src = trailing_zeros(valid_mask_src) + 1
 
@@ -164,11 +166,12 @@ end
 
     # Process TGT (Gains)
     active_tgt = is_accepted && (tgt > 0)
-    
-    match_mask_tgt = KernelIntrinsics.@match(KernelIntrinsics.MatchAny, reinterpret(UInt32, tgt))
+
+    match_mask_tgt = KernelIntrinsics.@match(KernelIntrinsics.MatchAny,
+        reinterpret(UInt32, tgt))
     logical_mask_tgt = KernelIntrinsics.@vote(KernelIntrinsics.Ballot, active_tgt)
     valid_mask_tgt = match_mask_tgt & logical_mask_tgt
-    
+
     leader_lane_tgt = trailing_zeros(valid_mask_tgt) + 1
 
     total_delta_tgt = zero(delta_tgt)
@@ -184,13 +187,16 @@ end
     end
 end
 
-@inline apply_warp_reductions!(lane, active_mask, is_accepted, src, tgt, ::Tuple{}, ::Tuple{}, cell_data) = nothing
+@inline apply_warp_reductions!(
+    lane, active_mask, is_accepted, src, tgt, ::Tuple{}, ::Tuple{}, cell_data) = nothing
 @inline function apply_warp_reductions!(
         lane, active_mask, is_accepted, src, tgt, tx_deltas::Tuple, trackers::Tuple, cell_data)
     delta_src, delta_tgt = tx_deltas[1]
     t = trackers[1]
-    apply_warp_reduction!(lane, active_mask, is_accepted, src, tgt, delta_src, delta_tgt, t, cell_data)
-    apply_warp_reductions!(lane, active_mask, is_accepted, src, tgt, Base.tail(tx_deltas), Base.tail(trackers), cell_data)
+    apply_warp_reduction!(
+        lane, active_mask, is_accepted, src, tgt, delta_src, delta_tgt, t, cell_data)
+    apply_warp_reductions!(lane, active_mask, is_accepted, src, tgt,
+        Base.tail(tx_deltas), Base.tail(trackers), cell_data)
 end
 
 function initialize_all_metrics!(trackers::Tuple, cell_data, grid, topo, dims)
