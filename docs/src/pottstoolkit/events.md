@@ -131,10 +131,10 @@ CorePotts.get_sub_events(::MyComplexEvent) = (ResetEvent(), ApplyEvent())
 
 `PottsToolkit` includes a highly sophisticated pure-closure engine for updating continuous cellular properties (like `volumes`, `target_volumes`, `mitotic_timers`, or custom fields) directly inside the event loop, without requiring users to write low-level GPU kernels.
 
-You can declare a `GenericEvent` (or `PropertyUpdateEvent`) that modifies cellular properties using the `@rule` macro. The macro acts as a Domain-Specific Language (DSL) that seamlessly translates standard Julia syntax into high-performance, zero-allocation GPU kernels.
+You can declare a `PropertyUpdateEvent` that modifies cellular properties using the `@rule` macro. The macro acts as a Domain-Specific Language (DSL) that seamlessly translates standard Julia syntax into high-performance, zero-allocation GPU kernels.
 
 ```julia
-GenericEvent(Epithelial, (
+PropertyUpdateEvent(Epithelial, (
     target_volumes = @rule(cell.target_volumes + 2.0f0),
     mitotic_timers = @rule(cell.mitotic_timers - 1.0f0),
     flags = @rule(UInt8(1))
@@ -166,7 +166,7 @@ You can build deeply nested rules that dynamically calculate spatial features an
 
 ```julia
 events = [
-    GenericEvent(Epithelial, (
+    PropertyUpdateEvent(Epithelial, (
         target_volumes = @rule(
             if contact(0) < 50
                 cell.target_volumes + 2.0f0
@@ -178,5 +178,5 @@ events = [
 ]
 ```
 
-**Under the Hood**: When `PottsProblem` is constructed, the macro is parsed. If any Spatial Rules (like `contact`) are detected, the system dynamically allocates a flattened, strided `spatial_buffer` on the GPU. At runtime, the Map-Reduce spatial evaluator sweeps the grid, reduces the boundaries into the buffer perfectly mapped per-cell to avoid race conditions, and then triggers the `GenericEvent` kernel to evaluate your pure closure—completely abstracting the memory and kernel management away from you while delivering maximum performance.
+**Under the Hood**: When `PottsProblem` is constructed, the macro is parsed. If any Spatial Rules (like `contact`) are detected, the system dynamically allocates a flattened, strided `spatial_buffer` on the GPU. At runtime, the Map-Reduce spatial evaluator sweeps the grid, reduces the boundaries into the buffer perfectly mapped per-cell to avoid race conditions, and then triggers the `PropertyUpdateEvent` kernel to evaluate your pure closure—completely abstracting the memory and kernel management away from you while delivering maximum performance.
 
