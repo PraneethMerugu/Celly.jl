@@ -13,7 +13,30 @@ sol = solve(prob, alg; saveat = 10)
 
 ---
 
-## CheckerboardMetropolis *(recommended)*
+## IntrinsicCheckerboardMetropolis *(recommended for massive scale)*
+
+```julia
+alg = IntrinsicCheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
+```
+
+**How it works:**
+
+This is the flagship, hardware-accelerated engine of the `Potts.jl` ecosystem. Standard GPU Cellular Potts Models suffer from the **Global Volume Paradox**: maintaining exact thermodynamics (Detailed Balance) requires perfectly tracking the global volume of every cell. If thousands of threads attempt to update the volume of the same cell simultaneously, the GPU is forced to lock global memory with `@atomic` operations, causing massive contention and bottlenecking performance.
+
+`IntrinsicCheckerboardMetropolis` solves this paradox by utilizing branchless **SIMT Subgroup Reductions** via `KernelIntrinsics.jl`. Instead of locking global memory, it uses low-level hardware intrinsics (like NVIDIA's PTX `@shfl` and `@match` instructions, or Apple Silicon's `air.simd_ballot`) to instantaneously aggregate volume changes inside the hardware registers of the 32-thread warp. A single elected "Leader" thread then performs an $O(1)$ atomic write to global memory.
+
+**Properties:**
+- ✅ **Mathematically Exact:** Perfectly preserves rigorous Detailed Balance by ensuring no volume updates are lost.
+- ✅ **Maximally Parallel:** Completely eliminates global memory locking and atomic contention serialization.
+- ✅ **Hardware Native:** Compiles directly down to native Metal shading language (Apple Silicon) or PTX (NVIDIA) subgroup instructions.
+- ⚠️ Requires a backend that supports subgroup intrinsics (e.g., `MetalBackend` or `CUDABackend`). It will not run on standard CPU threads.
+
+**When to use:** Whenever running large-scale biological simulations (e.g., millions of cells) on a GPU.
+
+---
+
+## CheckerboardMetropolis
+
 
 ```julia
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
