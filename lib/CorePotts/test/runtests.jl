@@ -230,7 +230,8 @@ include("test_event_gpu_sync.jl")
 include("test_length_3d.jl")
 @testset "Events" begin
     include("test_mitosis_overhaul.jl")
-    include("test_multi_events.jl")
+    include("test_inheritance_rules.jl")
+    include("test_property_updates.jl")
 end
 
 @testset "Connectivity" begin

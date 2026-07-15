@@ -101,6 +101,9 @@ function SciMLBase.step!(integrator::PottsIntegrator)
 
     # Phase 6: Core Events (AbstractEvent)
     if !isempty(p.events)
+        if !isbits(p.events)
+            throw(ArgumentError("One or more events capture non-bitstype variables! Ensure @rule closures only interpolate scalar primitives (like Float32, Int32) and do not capture full structs (like evt or CellType)."))
+        end
         deps = current_event === nothing ? () : (current_event,)
         masks = cache.scratch[:event_masks]::Tuple
         current_event = _evaluate_all_events!(
@@ -215,22 +218,8 @@ function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
     k = get_event_kernel(evt, backend, cache.block_size)
     nd = get_event_ndrange(evt, mask, u)
 
-    if isempty(deps)
-        ev = k(args..., ndrange = nd)
-    else
-        ev = k(args..., ndrange = nd, dependencies = deps)
-    end
+    ev = dispatch_kernel!(k, args...; ndrange = nd, dependencies = deps)
     return ev === nothing ? deps : (ev,)
-end
-
-@inline function process_event!(evt::AbstractMultiEvent, mask, u, p, cache, t, deps)
-    for sub_evt in get_sub_events(evt)
-        res = process_event!(sub_evt, mask, u, p, cache, t, deps)
-        if res !== nothing
-            deps = res
-        end
-    end
-    return deps
 end
 
 @inline function _process_events_recursive(
@@ -247,12 +236,8 @@ function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps
     if _any_device_trigger(events)
         backend = KernelAbstractions.get_backend(u.grid)
         k = evaluate_all_triggers_kernel!(backend, cache.block_size)
-        if isempty(deps)
-            ev = k(events, masks, u.cell_data, t, ndrange = length(u.cell_data.volumes))
-        else
-            ev = k(events, masks, u.cell_data, t,
-                ndrange = length(u.cell_data.volumes), dependencies = deps)
-        end
+        ev = dispatch_kernel!(k, events, masks, u.cell_data, t;
+            ndrange = length(u.cell_data.volumes), dependencies = deps)
         deps = ev === nothing ? deps : (ev,)
     end
 

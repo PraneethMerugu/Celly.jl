@@ -9,12 +9,14 @@ include("layouts.jl")
 include("events.jl")
 include("problem.jl")
 include("TestProblems.jl")
+include("macros.jl")
 
 using .System
 using .Layouts
 using .Events
 using .Problem
 using .TestProblems
+using .RuleMacros
 
 export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
@@ -25,5 +27,6 @@ export AbstractEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, AgeTr
        ProbabilityTrigger, CustomTrigger
 export MitosisEvent, ApoptosisEvent, TransitionEvent
 export TestProblems
+export @rule
 
 end

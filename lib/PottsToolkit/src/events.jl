@@ -12,6 +12,16 @@ export AbstractEvent, AbstractTrigger, AbstractAction
 export VolumeRatioTrigger, AgeTrigger, ProbabilityTrigger, CustomTrigger
 export MitosisEvent, ApoptosisEvent, TransitionEvent
 
+# Inheritance rules re-exported from CorePotts
+export Reset, ResetChild, AsymmetricReset, Add, Multiply, RandomUniform, RandomNormal
+
+# Continuous Property Update rules
+export None, SetProperty, Read, Map, If, Equals, And, Or, CompressionInhibition,
+       ContactInhibition
+export Subtract, Divide, Min, Max, Clamp, Decay, Time, Age, CountNeighbors,
+       NeighborPropertySum, RandomPoisson
+export PropertyUpdateEvent
+
 # ------------------------------------------------------------------
 # 1. Abstract Types
 # ------------------------------------------------------------------
@@ -215,6 +225,15 @@ struct ResolvedMitosisEvent{T, O, I, A} <: AbstractEvent
 end
 @inline is_mitosis(::ResolvedMitosisEvent) = true
 
+struct ResolvedPropertyUpdateEvent{R} <: AbstractEvent
+    check_interval::Int
+    type_id::UInt8
+    rules::R
+    function ResolvedPropertyUpdateEvent(check_interval::Int, type_id::UInt8, rules::R) where {R}
+        new{R}(check_interval, type_id, rules)
+    end
+end
+
 function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
     resolved = []
     for evt in events
@@ -237,6 +256,15 @@ function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
                         check_interval, type_to_id[evt.cell_type], evt.trigger,
                         evt.orientation, evt.inheritance, evt.action))
             end
+        elseif evt isa CorePotts.PropertyUpdateEvent
+            if haskey(type_to_id, evt.cell_type)
+                compiled_rules = map(CorePotts.build_rule, evt.rules)
+                push!(resolved,
+                    ResolvedPropertyUpdateEvent(check_interval, type_to_id[evt.cell_type], compiled_rules))
+            end
+
+        elseif evt isa CorePotts.AbstractMultiEvent
+            append!(resolved, resolve_events(CorePotts.get_sub_events(evt), type_to_id, check_interval))
         elseif evt isa CorePotts.AbstractEvent
             push!(resolved, evt)
         end
@@ -264,6 +292,14 @@ function resolve_events(events::Tuple, type_to_id::Dict)
                     ResolvedMitosisEvent(type_to_id[evt.cell_type], evt.trigger,
                         evt.orientation, evt.inheritance, evt.action))
             end
+        elseif evt isa CorePotts._PropertyUpdateEvent
+            if haskey(type_to_id, evt.cell_type)
+                # If no check_interval is passed, default to 1
+                compiled_rules = map(CorePotts.build_rule, evt.rules)
+                push!(resolved, ResolvedPropertyUpdateEvent(1, type_to_id[evt.cell_type], compiled_rules))
+            end
+        elseif evt isa CorePotts.AbstractMultiEvent
+            append!(resolved, resolve_events(CorePotts.get_sub_events(evt), type_to_id))
         elseif evt isa CorePotts.AbstractEvent
             push!(resolved, evt)
         end
@@ -409,6 +445,39 @@ function CorePotts.process_event!(evt::ResolvedMitosisEvent, mask, u, p, cache, 
     end
 
     return nothing # Implicit sync due to host-side logic
+end
+
+CorePotts.has_device_trigger(::ResolvedPropertyUpdateEvent) = false
+
+function CorePotts.process_event!(
+        evt::ResolvedPropertyUpdateEvent, mask, u, p, cache, t, deps)
+    if t % evt.check_interval != 0
+        return deps
+    end
+    backend = KernelAbstractions.get_backend(u.grid)
+    all_spatial = CorePotts.extract_spatial_rules(evt.rules)
+
+    spatial_buffer = nothing
+    if length(all_spatial) > 0
+        spatial_buffer, ev_spatial = CorePotts.populate_spatial_buffer!(
+            u, p.topology, cache, all_spatial, deps)
+        if ev_spatial !== nothing
+            deps = (deps..., ev_spatial)
+        end
+    else
+        spatial_buffer = haskey(cache.scratch, :spatial_buffer) ?
+                         cache.scratch[:spatial_buffer] : nothing
+    end
+
+    ctx = (t = t, step_counter = cache.step_counter[], spatial_buffer = spatial_buffer)
+    k_prop = CorePotts._kernel_property_update!(backend, cache.block_size)
+    nd_prop = Int(Array(u.N_cells)[1])
+
+    ev_prop = CorePotts.dispatch_kernel!(
+        k_prop, u.cell_data, evt.rules, u.N_cells, evt.type_id, ctx;
+        ndrange = nd_prop, dependencies = deps)
+
+    return ev_prop === nothing ? deps : (ev_prop,)
 end
 
 end

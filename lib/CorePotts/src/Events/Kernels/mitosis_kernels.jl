@@ -1,105 +1,3 @@
-import Atomix
-import AcceleratedKernels
-import KernelAbstractions
-using KernelAbstractions: @kernel, @index, @localmem, @synchronize
-using LinearAlgebra
-using StaticArrays
-
-# Trigger API
-required_fields(trigger) = ()
-
-"""
-    VolumeThresholdTrigger(multiplier=2.0)
-
-A callable trigger that evaluates to `true` when a cell's current volume is greater than 
-or equal to `multiplier * target_volume`. Used to trigger mitosis.
-"""
-struct VolumeThresholdTrigger
-    multiplier::Float32
-end
-VolumeThresholdTrigger() = VolumeThresholdTrigger(2.0f0)
-required_fields(::VolumeThresholdTrigger) = (:volumes, :target_volumes)
-
-function (trigger::VolumeThresholdTrigger)(cell_id, cell_data)
-    return cell_data.volumes[cell_id] >=
-           (cell_data.target_volumes[cell_id] * trigger.multiplier) &&
-           cell_data.target_volumes[cell_id] > 0
-end
-
-"""
-    LinearGrowthCallback(rate)
-
-A SciML-compatible discrete callback that stochastically grows each cell's `target_volume`.
-Each MCS, every live cell's target volume increases by 1 with probability `rate` ∈ [0, 1].
-For a deterministic fixed increment use `rate = 1.0`.
-"""
-struct LinearGrowthCallback
-    rate::Float32
-end
-
-function (growth::LinearGrowthCallback)(integrator)
-    targets = Array(integrator.u.cell_data.target_volumes)
-    N = Int(Array(integrator.u.N_cells)[])
-    for i in 1:N
-        if targets[i] > 0
-            if rand() < growth.rate
-                targets[i] += 1
-            end
-        end
-    end
-    copyto!(integrator.u.cell_data.target_volumes, targets)
-end
-
-abstract type DivisionOrientation end
-"""
-    RandomOrientation <: DivisionOrientation
-
-Cell division occurs along a completely random axis.
-"""
-struct RandomOrientation <: DivisionOrientation end
-
-"""
-    MajorAxisOrientation <: DivisionOrientation
-
-Cell division occurs perpendicular to the cell's major (longest) axis.
-"""
-struct MajorAxisOrientation <: DivisionOrientation end
-
-"""
-    MinorAxisOrientation <: DivisionOrientation
-
-Cell division occurs perpendicular to the cell's minor (shortest) axis.
-"""
-struct MinorAxisOrientation <: DivisionOrientation end
-
-"""
-    VectorOrientation(nx, ny, nz) <: DivisionOrientation
-
-Cell division occurs perpendicular to the specified normal vector.
-"""
-struct VectorOrientation <: DivisionOrientation
-    v::Vector{Float32}
-end
-
-abstract type InheritanceRule end
-"""
-    Clone <: InheritanceRule
-
-The child cell receives an exact copy of the parent cell's property (e.g. `target_volume`).
-"""
-struct Clone <: InheritanceRule end
-
-"""
-    Split(ratio=0.5) <: InheritanceRule
-
-The parent cell's property is split between the parent and child according to the `ratio`.
-For example, `Split(0.5)` splits the `target_volume` in half.
-"""
-struct Split <: InheritanceRule
-    fraction::Float32
-end
-Split() = Split(0.5f0)
-
 struct MitosisWorkspace{ArrayUInt32, ArrayInt32, ArrayFloat32, ArrayBool}
     dev_parents::ArrayUInt32
     dev_children::ArrayUInt32
@@ -149,7 +47,7 @@ end
     if i <= N_cells
         vol = cell_volumes[i]
         tgt = cell_targets[i]
-        if tgt > 0 && vol >= tgt * multiplier && vol > 0
+        if tgt > 0 && vol >= ctx.tgt * multiplier && vol > 0
             idx = Atomix.@atomic dev_division_count[1] += UInt32(1)
             dev_parents[idx] = UInt32(i)
         end
@@ -200,10 +98,11 @@ end
 
 @inline safe_convert(::Type{T}, x::Float32) where {T <: Signed} = Core.Intrinsics.fptosi(T, x +
                                                                                             0.5f0)
-@inline safe_convert(::Type{T}, x::Float32) where {T <: Unsigned} = Core.Intrinsics.fptoui(T, x +
-                                                                                              0.5f0)
-@inline safe_convert(::Type{Float32}, x::Float32) = x
-@inline safe_convert(::Type{Bool}, x::Float32) = x >= 0.5f0
+@inline safe_convert(::Type{T}, x::Float32) where {T <: Unsigned} = Core.Intrinsics.fptoui(
+    T, x + 0.5f0)
+@inline safe_convert(::Type{T}, x::Float32) where {T <: AbstractFloat} = T(x)
+@inline safe_convert(::Type{T}, x::T) where {T} = x
+@inline safe_convert(::Type{T}, x) where {T} = T(x)
 
 @kernel function _kernel_inherit_split!(array, dev_parents, dev_children, fraction, count)
     i = @index(Global, Linear)
@@ -216,17 +115,156 @@ end
     end
 end
 
-@kernel function _kernel_check_generic_triggers!(
-        dev_parents, dev_division_count, N_cells, cell_data, trigger, max_capacity)
+@kernel function _kernel_inherit_reset!(array, dev_parents, dev_children, value, count)
     i = @index(Global, Linear)
-    if i <= N_cells
-        if trigger(i, cell_data)
-            idx = Atomix.@atomic dev_division_count[1] += UInt32(1)
-            if idx <= max_capacity
-                dev_parents[idx] = UInt32(i)
-            end
-        end
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+        val = safe_convert(eltype(array), Float32(value))
+        array[p] = val
+        array[c] = val
     end
+end
+
+@kernel function _kernel_inherit_asymmetric_reset!(
+        array, dev_parents, dev_children, p_val, c_val, count)
+    i = @index(Global, Linear)
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+        array[p] = safe_convert(eltype(array), Float32(p_val))
+        array[c] = safe_convert(eltype(array), Float32(c_val))
+    end
+end
+
+@kernel function _kernel_inherit_reset_child!(
+        array, dev_parents, dev_children, value, count)
+    i = @index(Global, Linear)
+    if i <= count
+        c = dev_children[i]
+        array[c] = safe_convert(eltype(array), Float32(value))
+    end
+end
+
+@kernel function _kernel_inherit_add!(array, dev_parents, dev_children, value, count)
+    i = @index(Global, Linear)
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+        val = Float32(value)
+        array[p] = safe_convert(eltype(array), Float32(array[p]) + val)
+        array[c] = safe_convert(eltype(array), Float32(array[c]) + val)
+    end
+end
+
+@kernel function _kernel_inherit_multiply!(array, dev_parents, dev_children, value, count)
+    i = @index(Global, Linear)
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+        val = Float32(value)
+        array[p] = safe_convert(eltype(array), Float32(array[p]) * val)
+        array[c] = safe_convert(eltype(array), Float32(array[c]) * val)
+    end
+end
+
+@kernel function _kernel_inherit_random_uniform!(
+        array, dev_parents, dev_children, min_val, max_val, step, count)
+    i = @index(Global, Linear)
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+
+        s_p = step + UInt64(p)
+        r_p = Float32(pcg_hash(s_p) >> 32) * 2.3283064f-10
+        val_p = Float32(min_val) + r_p * Float32(max_val - min_val)
+
+        s_c = step + UInt64(c)
+        r_c = Float32(pcg_hash(s_c) >> 32) * 2.3283064f-10
+        val_c = Float32(min_val) + r_c * Float32(max_val - min_val)
+
+        array[p] = safe_convert(eltype(array), val_p)
+        array[c] = safe_convert(eltype(array), val_c)
+    end
+end
+
+@kernel function _kernel_inherit_random_normal!(
+        array, dev_parents, dev_children, mean_val, std_val, step, count)
+    i = @index(Global, Linear)
+    if i <= count
+        p = dev_parents[i]
+        c = dev_children[i]
+
+        s_p1 = step + UInt64(p)
+        s_p2 = s_p1 + 9999991
+        u1_p = Float32(pcg_hash(s_p1) >> 32) * 2.3283064f-10 + 1.0f-7
+        u2_p = Float32(pcg_hash(s_p2) >> 32) * 2.3283064f-10
+        z_p = sqrt(-2.0f0 * log(u1_p)) * cos(2.0f0 * 3.14159265f0 * u2_p)
+        val_p = Float32(mean_val) + z_p * Float32(std_val)
+
+        s_c1 = step + UInt64(c)
+        s_c2 = s_c1 + 9999991
+        u1_c = Float32(pcg_hash(s_c1) >> 32) * 2.3283064f-10 + 1.0f-7
+        u2_c = Float32(pcg_hash(s_c2) >> 32) * 2.3283064f-10
+        z_c = sqrt(-2.0f0 * log(u1_c)) * cos(2.0f0 * 3.14159265f0 * u2_c)
+        val_c = Float32(mean_val) + z_c * Float32(std_val)
+
+        array[p] = safe_convert(eltype(array), val_p)
+        array[c] = safe_convert(eltype(array), val_c)
+    end
+end
+
+function apply_inheritance_rule!(rule::Clone, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_clone!(backend, cache.block_size)
+    k_inh(array, ws.dev_parents, ws.dev_children, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::Split, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_split!(backend, cache.block_size)
+    k_inh(array, ws.dev_parents, ws.dev_children,
+        rule.fraction, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::Reset, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_reset!(backend, cache.block_size)
+    k_inh(
+        array, ws.dev_parents, ws.dev_children, rule.value, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::AsymmetricReset, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_asymmetric_reset!(backend, cache.block_size)
+    k_inh(array, ws.dev_parents, ws.dev_children, rule.parent_value,
+        rule.child_value, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::ResetChild, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_reset_child!(backend, cache.block_size)
+    k_inh(
+        array, ws.dev_parents, ws.dev_children, rule.value, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::InheritAdd, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_add!(backend, cache.block_size)
+    k_inh(
+        array, ws.dev_parents, ws.dev_children, rule.value, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::InheritMultiply, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_multiply!(backend, cache.block_size)
+    k_inh(
+        array, ws.dev_parents, ws.dev_children, rule.value, UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::RandomUniform, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_random_uniform!(backend, cache.block_size)
+    k_inh(array, ws.dev_parents, ws.dev_children, rule.min, rule.max,
+        cache.step_counter[], UInt32(count), ndrange = count)
+end
+
+function apply_inheritance_rule!(rule::RandomNormal, array, ws, count, backend, cache)
+    k_inh = _kernel_inherit_random_normal!(backend, cache.block_size)
+    k_inh(array, ws.dev_parents, ws.dev_children, rule.mean, rule.std,
+        cache.step_counter[], UInt32(count), ndrange = count)
 end
 
 function populate_dividing_parents!(u::AbstractPottsState, cache::PottsCache, trigger, ws)
@@ -604,18 +642,7 @@ function process_mitosis_events!(
         default_rule = field === :volumes ? Split(0.5f0) : Clone()
         rule = haskey(inheritance_rules, field) ? inheritance_rules[field] : default_rule
 
-        is_split = rule isa Split
-        fraction = is_split ? rule.fraction : 0.0f0
-
-        if is_split
-            k_inh = _kernel_inherit_split!(backend, cache.block_size)
-            k_inh(array, ws.dev_parents, ws.dev_children, fraction,
-                UInt32(num_divisions), ndrange = num_divisions)
-        else
-            k_inh = _kernel_inherit_clone!(backend, cache.block_size)
-            k_inh(array, ws.dev_parents, ws.dev_children,
-                UInt32(num_divisions), ndrange = num_divisions)
-        end
+        apply_inheritance_rule!(rule, array, ws, num_divisions, backend, cache)
     end
     KernelAbstractions.synchronize(backend)
 
@@ -720,143 +747,6 @@ function process_mitosis_events!(
         p.trackers, u.cell_data, u.grid, p.topology, cache.grid_dims, ws.dev_is_modified)
 end
 
-@kernel function _kernel_find_dead_cells!(
-        volumes, target_volumes, cell_types, free_list, free_list_count)
-    i = @index(Global, Linear)
-    if i <= length(volumes)
-        if volumes[i] == 0 && target_volumes[i] == 0 && cell_types[i] > 0
-            # Atomix.@atomic returns the old value for += but wait... 
-            # Atomix.@atomic x += 1 returns the NEW value in our test. 
-            # So if old was 0, it returns 1. We want to write to index 1.
-            idx = Atomix.@atomic free_list_count[1] += Int32(1)
-            free_list[idx] = UInt32(i)
-            cell_types[i] = UInt32(0)
-        end
-    end
-end
-
-"""
-    process_death_events!(engine)
-
-Scans the grid for any cells whose `target_volume` is less than or equal to 0. 
-These cells are killed (removed from the grid) and their IDs are recycled for future use.
-"""
-function process_death_events!(u::AbstractPottsState, cache::PottsCache, ws::MitosisWorkspace)
-    backend = KernelAbstractions.get_backend(u.cell_data.volumes)
-    current_N = Array(u.N_cells)[1]
-
-    k_dead = _kernel_find_dead_cells!(backend, cache.block_size)
-    k_dead(u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.cell_types,
-        u.free_list, u.free_list_count, ndrange = current_N)
-    KernelAbstractions.synchronize(backend)
-end
-
-"""
-    reset_hst_fields_after_division!(engine, pen::AbstractHSTPenalty)
-
-Resets the stochastic auxiliary field for all live cells to its thermodynamic mean
-immediately after a mitosis event, preventing O(1/η) MCS transients.
-"""
-@kernel function _kernel_reset_hst_fields!(
-        states, values, targets, ctypes, lambdas, p_lambdas, is_flex, N_cells)
-    i = @index(Global, Linear)
-    if i <= N_cells
-        ct = ctypes[i]
-        if ct > 0 && values[i] > 0
-            F = eltype(states)
-            val = F(values[i])
-            tgt = F(targets[i])
-            lam = is_flex ? F(lambdas[i]) : F(p_lambdas[ct + 1])
-            states[i] = F(2.0) * lam * (val - tgt)
-        end
-    end
-end
-
-function reset_hst_fields_after_division!(u::AbstractPottsState, cache::PottsCache,
-        pen::AbstractHSTPenalty{FlexType}) where {FlexType}
-    state_val = hst_state_field(pen)
-    val_val = hst_value_field(pen)
-    tgt_val = hst_target_field(pen)
-    lam_val = lambda_field(pen)
-
-    _reset_hst_fields_inner!(
-        u, cache, pen, FlexType === Flex, state_val, val_val, tgt_val, lam_val)
-end
-
-function _reset_hst_fields_inner!(
-        u, cache, pen, is_flex, ::Val{S}, ::Val{V}, ::Val{T}, ::Val{L}) where {S, V, T, L}
-    if !hasproperty(u.cell_data, S)
-        return
-    end
-    states = getproperty(u.cell_data, S)
-    values = getproperty(u.cell_data, V)
-    targets = getproperty(u.cell_data, T)
-    lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
-
-    backend = KernelAbstractions.get_backend(u.grid)
-    N = Int(Array(u.N_cells)[])
-    k = _kernel_reset_hst_fields!(backend, cache.block_size)
-    k(states, values, targets, u.cell_data.cell_types, lambdas,
-        pen.lambdas, is_flex, UInt32(N), ndrange = N)
-    KernelAbstractions.synchronize(backend)
-    return nothing
-end
-
-@kernel function _update_hst_generic_kernel!(
-        states, values, tgts, ctypes, vlambdas, p_lambdas, is_flex, eta, T_val, seed, dt)
-    i = @index(Global, Linear)
-    if i <= length(values)
-        c_type = ctypes[i]
-        if c_type > 0
-            F = eltype(states)
-            v_true = F(values[i])
-            if v_true > zero(F)
-                lam = is_flex ? F(vlambdas[i]) : F(p_lambdas[c_type + 1])
-                mean_p = F(2.0) * lam * (v_true - F(tgts[i]))
-                alpha = exp(-eta * dt)
-                noise_std = sqrt(max(zero(F), F(2.0) * lam * F(T_val) * (one(F) - alpha^2)))
-                noise = noise_std * F(randn_pcg(seed + UInt64(i), seed + UInt64(i + 12345)))
-                states[i] = alpha * states[i] + (one(F) - alpha) * mean_p + noise
-            else
-                states[i] = zero(F)
-            end
-        end
-    end
-end
-
-function update_sweep_auxiliary!(pen::AbstractHSTPenalty{FlexType}, u::AbstractPottsState,
-        p::PottsParameters, cache::PottsCache, T_val, dt) where {FlexType}
-    state_val = hst_state_field(pen)
-    val_val = hst_value_field(pen)
-    tgt_val = hst_target_field(pen)
-    lam_val = lambda_field(pen)
-
-    _update_hst_inner!(
-        u, cache, pen, FlexType === Flex, T_val, dt, state_val, val_val, tgt_val, lam_val)
-end
-
-function _update_hst_inner!(u, cache, pen, is_flex, T_val, dt, ::Val{S},
-        ::Val{V}, ::Val{T}, ::Val{L}) where {S, V, T, L}
-    if !hasproperty(u.cell_data, S)
-        return
-    end
-    states = getproperty(u.cell_data, S)
-    values = getproperty(u.cell_data, V)
-    targets = getproperty(u.cell_data, T)
-    lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
-
-    cache.noise_counter[] += UInt64(1)
-    backend = KernelAbstractions.get_backend(states)
-    seed = pcg_hash(cache.noise_counter[])
-
-    kernel = _update_hst_generic_kernel!(backend, cache.block_size)
-    kernel(states, values, targets, u.cell_data.cell_types, lambdas, pen.lambdas,
-        is_flex, pen.eta, T_val, seed, dt, ndrange = length(states))
-    KernelAbstractions.synchronize(backend)
-end
-
-import SciMLBase
-
 function MitosisCallback(
         trigger = VolumeThresholdTrigger(); orientation = RandomOrientation(),
         inheritance_rules = NamedTuple(), max_cells = nothing)
@@ -870,23 +760,9 @@ function MitosisCallback(
             ws_ref[] = MitosisWorkspace(integrator.u.grid, max_c)
         end
         process_mitosis_events!(
-            integrator.u, integrator.p, integrator.cache, ws_ref[]; trigger = trigger,
+            integrator.u, integrator.p, integrator.cache, ws_ref[]; trigger = ctx.trigger,
             orientation = orientation, inheritance_rules = inheritance_rules)
     end
 
-    return SciMLBase.DiscreteCallback(condition, affect!)
-end
-
-function DeathCallback(; max_cells = nothing)
-    ws_ref = Ref{MitosisWorkspace}()
-    condition(u, t, integrator) = true
-    function affect!(integrator)
-        if !isassigned(ws_ref)
-            max_c = max_cells === nothing ? length(integrator.u.cell_data.volumes) :
-                    max_cells
-            ws_ref[] = MitosisWorkspace(integrator.u.grid, max_c)
-        end
-        process_death_events!(integrator.u, integrator.cache, ws_ref[])
-    end
     return SciMLBase.DiscreteCallback(condition, affect!)
 end

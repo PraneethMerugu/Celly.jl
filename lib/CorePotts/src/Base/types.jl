@@ -121,24 +121,6 @@ By default, this sweeps over all cells (`length(mask)`).
 get_event_ndrange(evt::AbstractEvent, mask, u) = length(mask)
 
 """
-    AbstractMultiEvent <: AbstractEvent
-
-An abstract type for events composed of multiple sub-events. 
-Subtypes must implement `get_sub_events(evt)`.
-"""
-abstract type AbstractMultiEvent <: AbstractEvent end
-
-"""
-    get_sub_events(evt::AbstractMultiEvent)
-
-Returns a tuple of the single-kernel events that compose this `AbstractMultiEvent`.
-"""
-function get_sub_events(evt::AbstractMultiEvent)
-    error("`get_sub_events` not implemented for custom event $(typeof(evt)). " *
-          "Please implement `CorePotts.get_sub_events(::$(typeof(evt)))`.")
-end
-
-"""
     has_device_trigger(evt::AbstractEvent)
 
 Returns `true` if this event provides a device-side `evaluate_trigger` function 

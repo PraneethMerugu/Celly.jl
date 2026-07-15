@@ -197,22 +197,13 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters,
         num_active_pixels = next_offset - offset
 
         if num_active_pixels > 0
-            if current_event === nothing
-                current_event = kernel(
-                    u.grid, cache.grid_dims, p.topology, u.cell_data,
-                    p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-                    cache.color_indices, offset, num_active_pixels,
-                    ndrange = num_active_pixels
-                )
-            else
-                current_event = kernel(
-                    u.grid, cache.grid_dims, p.topology, u.cell_data,
-                    p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-                    cache.color_indices, offset, num_active_pixels,
-                    ndrange = num_active_pixels,
-                    dependencies = (current_event,)
-                )
-            end
+            deps = current_event === nothing ? () : (current_event,)
+            current_event = dispatch_kernel!(kernel,
+                u.grid, cache.grid_dims, p.topology, u.cell_data,
+                p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
+                cache.color_indices, offset, num_active_pixels;
+                ndrange = num_active_pixels, dependencies = deps
+            )
         end
     end
 
@@ -240,20 +231,12 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _local_lottery_sweep_kernel!(backend, cache.block_size)
 
-    if prev_event === nothing
-        current_event = kernel(
-            u.grid, cache.grid_dims, p.topology, u.cell_data,
-            p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-            ndrange = length(u.grid)
-        )
-    else
-        current_event = kernel(
-            u.grid, cache.grid_dims, p.topology, u.cell_data,
-            p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
-            ndrange = length(u.grid),
-            dependencies = (prev_event,)
-        )
-    end
+    deps = prev_event === nothing ? () : (prev_event,)
+    current_event = dispatch_kernel!(kernel,
+        u.grid, cache.grid_dims, p.topology, u.cell_data,
+        p.penalties, p.trackers, sampler, T, active_fraction, global_seed;
+        ndrange = length(u.grid), dependencies = deps
+    )
     return current_event
 end
 

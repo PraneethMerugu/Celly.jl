@@ -120,5 +120,6 @@ using SciMLBase
     include("test_flex_traits.jl")
     include("test_layouts.jl")
     include("test_events.jl")
+    include("test_rule_macro.jl")
     include("test_gpu_closures.jl")
 end

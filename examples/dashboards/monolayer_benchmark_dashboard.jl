@@ -66,29 +66,6 @@ struct MonolayerGrowthEvent <: CorePotts.AbstractMultiEvent
     max_cells::Int
 end
 
-@kernel function reset_free_surfaces_kernel!(free_surfaces)
-    i = @index(Global, Linear)
-    free_surfaces[i] = Int32(0)
-end
-
-@kernel function accumulate_free_surfaces_kernel!(grid, free_surfaces, grid_dims, topology)
-    i = @index(Global, Linear)
-    cell_id = grid[i]
-    if cell_id > 0
-        coords = CorePotts.idx_to_coord(UInt32(i), grid_dims)
-        n_med = Int32(0)
-        for d in 1:length(CorePotts.offsets(topology))
-            n_idx = CorePotts.get_neighbor_by_coord(topology, coords, UInt32(d), grid_dims)
-            if grid[n_idx] == 0
-                n_med += Int32(1)
-            end
-        end
-        if n_med > 0
-            CorePotts.Atomix.@atomic free_surfaces[cell_id] += n_med
-        end
-    end
-end
-
 @kernel function monolayer_growth_kernel!(
         volumes, target_volumes, target_volumes_float, target_surface_areas, surface_areas,
         free_surfaces, inhibition_states, N_cells, evt_alpha, evt_beta, evt_gamma, evt_dt)
@@ -124,26 +101,6 @@ end
     end
 end
 
-struct ResetFreeSurfacesEvent <: CorePotts.AbstractEvent end
-function CorePotts.get_event_kernel(::ResetFreeSurfacesEvent, backend, block_size)
-    reset_free_surfaces_kernel!(backend, block_size)
-end
-function CorePotts.get_event_args(::ResetFreeSurfacesEvent, mask, u, p, cache, t)
-    (u.cell_data.free_surfaces,)
-end
-function CorePotts.get_event_ndrange(::ResetFreeSurfacesEvent, mask, u)
-    length(u.cell_data.free_surfaces)
-end
-
-struct AccumulateFreeSurfacesEvent <: CorePotts.AbstractEvent end
-function CorePotts.get_event_kernel(::AccumulateFreeSurfacesEvent, backend, block_size)
-    accumulate_free_surfaces_kernel!(backend, block_size)
-end
-function CorePotts.get_event_args(::AccumulateFreeSurfacesEvent, mask, u, p, cache, t)
-    (u.grid, u.cell_data.free_surfaces, cache.grid_dims, p.topology)
-end
-CorePotts.get_event_ndrange(::AccumulateFreeSurfacesEvent, mask, u) = length(u.grid)
-
 struct ApplyMonolayerGrowthEvent <: CorePotts.AbstractEvent
     alpha::Base.RefValue{Float32}
     beta::Base.RefValue{Float32}
@@ -165,8 +122,7 @@ end
 
 function CorePotts.get_sub_events(evt::MonolayerGrowthEvent)
     (
-        ResetFreeSurfacesEvent(),
-        AccumulateFreeSurfacesEvent(),
+        PropertyUpdateEvent(CellType(:Tissue, UInt8(1)), (free_surfaces = ContactArea(UInt8(0)),)),
         ApplyMonolayerGrowthEvent(evt.alpha, evt.beta, evt.gamma, evt.dt)
     )
 end

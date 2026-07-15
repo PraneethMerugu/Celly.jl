@@ -126,3 +126,57 @@ struct MyComplexEvent <: CorePotts.AbstractMultiEvent end
 # Return the sequence of sub-events
 CorePotts.get_sub_events(::MyComplexEvent) = (ResetEvent(), ApplyEvent())
 ```
+
+## Declarative Property Updates & Map-Reduce Engine
+
+`PottsToolkit` includes a highly sophisticated pure-closure engine for updating continuous cellular properties (like `volumes`, `target_volumes`, `mitotic_timers`, or custom fields) directly inside the event loop, without requiring users to write low-level GPU kernels.
+
+You can declare a `GenericEvent` (or `PropertyUpdateEvent`) that modifies cellular properties using the `@rule` macro. The macro acts as a Domain-Specific Language (DSL) that seamlessly translates standard Julia syntax into high-performance, zero-allocation GPU kernels.
+
+```julia
+GenericEvent(Epithelial, (
+    target_volumes = @rule(cell.target_volumes + 2.0f0),
+    mitotic_timers = @rule(cell.mitotic_timers - 1.0f0),
+    flags = @rule(UInt8(1))
+))
+```
+
+### The Pure-Closure DSL Guarantee (`isbits` Safety)
+
+When you write a `@rule`, `PottsToolkit` parses the expression and wraps it in a **pure anonymous closure**: `(cell_data, cell_id, ctx, current_val) -> ...`. 
+
+Because the macro statically evaluates and strictly scopes the closure, it guarantees that no non-`isbits` CPU memory (like arrays or complex structs) is accidentally captured. This completely prevents the most common cause of GPU compiler crashes in Julia, allowing you to use native Julia syntax safely:
+
+- **Full Math Support**: You can use *any* standard Julia math function natively inside the macro (`sin`, `cos`, `exp`, `log`, etc.). The Julia compiler natively maps these directly to fast GPU instructions.
+- **Control Flow**: You can write `if / else` ladders, ternary operators, and standard logical operations (`&&`, `||`).
+- **Data Access**: Use `cell.property_name` to safely read values for the current cell. The macro automatically handles the index translation for the GPU kernel.
+- **Random Generators**: Call `rand()` or `randn()` safely. The macro automatically translates these to thread-safe GPU RNG states seeded by the current Monte Carlo Step.
+
+### Spatial Map-Reduce Engine
+
+For advanced biological models (like Contact Inhibition), you often need to evaluate a cell's neighborhood. The `@rule` macro seamlessly supports **Spatial Map-Reduce Rules**, which compute localized metrics across the grid natively.
+
+- `contact(target_type_id)`: Calculates the surface area in contact with another cell type.
+- `medium_contact()`: Calculates the surface area in contact with the `Medium` (ID 0).
+- `neighbor_count(target_type_id)`: Calculates the number of neighbor cells of a specific type.
+- `neighbor_sum(:property_symbol, target_type_id)`: Sums a continuous property across a cell's neighbors.
+
+#### Example: Contact Inhibition
+You can build deeply nested rules that dynamically calculate spatial features and apply logical limits. For example, a contact inhibition rule that stops cell growth if a cell has too much contact with the Medium:
+
+```julia
+events = [
+    GenericEvent(Epithelial, (
+        target_volumes = @rule(
+            if contact(0) < 50
+                cell.target_volumes + 2.0f0
+            else
+                cell.target_volumes
+            end
+        )
+    ))
+]
+```
+
+**Under the Hood**: When `PottsProblem` is constructed, the macro is parsed. If any Spatial Rules (like `contact`) are detected, the system dynamically allocates a flattened, strided `spatial_buffer` on the GPU. At runtime, the Map-Reduce spatial evaluator sweeps the grid, reduces the boundaries into the buffer perfectly mapped per-cell to avoid race conditions, and then triggers the `GenericEvent` kernel to evaluate your pure closure—completely abstracting the memory and kernel management away from you while delivering maximum performance.
+

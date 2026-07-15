@@ -86,8 +86,7 @@ The winning site commits its update; the losing site is treated as a rejection.
 - ⚠️ Acceptance rate is slightly lower than `CheckerboardMetropolis` because of
   lottery losses.
 
-**When to use:** When you are using `ExtendedVonNeumannTopology` or
-`ExtendedMooreTopology` where a clean checkerboard colouring does not exist.
+**When to use:** Only when debugging or verifying single-threaded correctness.
 
 ---
 
@@ -161,3 +160,28 @@ medium, or during initialisation before many cells are seeded.
 > `PottsSystem` inside their inner loops using zero-allocation mask-driven GPU kernels. 
 > Standard continuous SciML callbacks (e.g. `LinearGrowthCallback`) can also be passed via 
 > the `callback` keyword in `solve`.
+
+---
+
+## Zero-Sync Execution Architecture
+
+While the Metropolis algorithms dictate how spatial updates are parallelized, CorePotts also features a specialized **Zero-Sync Event Pipeline** for biological rule updates (e.g., executing the `PottsToolkit` DSL).
+
+By default, executing hundreds of chained kernels on the GPU using `KernelAbstractions.jl` requires explicit dependency management (passing `Event` objects between kernels) and often forces the CPU to wait (`synchronize()`) before reading metrics. This CPU-GPU synchronization causes massive execution stalling, especially on Apple Silicon (`Metal.jl`).
+
+CorePotts solves this using the `dispatch_kernel!` mechanism:
+- On **CUDA** and **CPU**, `dispatch_kernel!` maintains strict explicit Directed Acyclic Graph (DAG) dependencies for standard execution.
+- On **Metal**, `dispatch_kernel!` automatically strips explicit dependencies and delegates task chaining to Metal's internal `MTLCommandQueue`. Because Metal implicitly serializes commands pushed to the same queue, we achieve **Zero-Sync** operation: the CPU never stalls to synchronize dependencies between event phases. 
+The result is that property updates evaluate in microseconds natively on the GPU without any host overhead.
+
+## RuleBuilder and `isbits` Safety
+
+A significant challenge in writing high-performance GPU kernels in Julia is the **Closure Capture Problem**. If a user writes an anonymous function that accidentally captures a non-`isbits` variable (like a `Dict`, a `String`, or a complex `struct` containing arrays) from the host CPU memory, passing that closure to the GPU will trigger a compilation failure or a hard memory crash because the GPU cannot serialize arbitrary CPU pointers.
+
+To prevent this, CorePotts utilizes the `RuleBuilder` pipeline:
+1. When a user writes a `@rule`, the macro wraps it in a standardized pure closure: `(cell_data, cell_id, ctx, current_val) -> ...`.
+2. The macro relies purely on local arguments passed during kernel execution. 
+3. During the `resolve_events` compilation phase (before the simulation begins), `RuleBuilder` strictly validates the closure signature.
+4. Because the closure is pure, `isbits(closure)` evaluates to `true`.
+
+This architecture guarantees absolute GPU safety. It allows researchers to write complex conditional logic, native math functions (`sin`, `cos`), and `for` loops within their biological rules, completely shielded from low-level GPU compilation errors.

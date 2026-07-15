@@ -1,0 +1,101 @@
+17:struct VolumeThresholdTrigger
+23:function (trigger::VolumeThresholdTrigger)(cell_id, cell_data)
+36:struct LinearGrowthCallback
+40:function (growth::LinearGrowthCallback)(integrator)
+53:abstract type DivisionOrientation end
+59:struct RandomOrientation <: DivisionOrientation end
+66:struct MajorAxisOrientation <: DivisionOrientation end
+73:struct MinorAxisOrientation <: DivisionOrientation end
+80:struct VectorOrientation <: DivisionOrientation
+84:abstract type AbstractRule end
+85:abstract type InheritanceRule <: AbstractRule end
+86:abstract type UpdateRule <: AbstractRule end
+92:struct Clone <: InheritanceRule end
+99:struct Split{T} <: InheritanceRule
+109:struct Reset{T} <: InheritanceRule
+118:struct AsymmetricReset{T} <: InheritanceRule
+129:struct ResetChild{T} <: InheritanceRule
+138:struct Add{T} <: AbstractRule
+147:struct Multiply{T} <: AbstractRule
+151:struct Subtract{T} <: AbstractRule
+155:struct Divide{T} <: AbstractRule
+159:struct Min{T} <: AbstractRule
+163:struct Max{T} <: AbstractRule
+167:struct Clamp{T} <: AbstractRule
+172:struct Decay{T} <: AbstractRule
+176:struct Time <: UpdateRule end
+177:struct Age <: UpdateRule end
+179:struct CountNeighbors{T} <: UpdateRule
+183:struct NeighborPropertySum{P, T} <: UpdateRule
+188:struct RandomPoisson{T} <: AbstractRule
+192:# ==========================================
+194:# ==========================================
+196:struct None <: UpdateRule end
+198:struct SetProperty{T} <: UpdateRule
+202:struct Read{P} <: UpdateRule end
+205:struct Map{F, R <: AbstractRule} <: UpdateRule
+210:struct If{C <: AbstractRule, T <: AbstractRule, F <: AbstractRule} <: UpdateRule
+216:struct Equals{R1 <: AbstractRule, R2 <: AbstractRule} <: UpdateRule
+221:struct And{R1 <: AbstractRule, R2 <: AbstractRule} <: UpdateRule
+226:struct Or{R1 <: AbstractRule, R2 <: AbstractRule} <: UpdateRule
+231:struct CompressionInhibition{T} <: UpdateRule
+235:struct ContactInhibition{T, R} <: UpdateRule
+245:struct RandomUniform{T} <: AbstractRule
+255:struct RandomNormal{T} <: AbstractRule
+260:struct MitosisWorkspace{ArrayUInt32, ArrayInt32, ArrayFloat32, ArrayBool}
+281:function MitosisWorkspace(grid::AbstractArray{T, N}, max_cells::Int) where {T, N}
+303:@kernel function _kernel_check_mitosis_triggers!(
+316:@kernel function _kernel_mark_is_dividing!(dev_is_dividing, dev_parents, count)
+323:@kernel function _kernel_allocate_mitosis_ids!(
+341:@kernel function _kernel_mark_is_modified!(dev_is_modified, dev_parents, dev_children, count)
+349:@kernel function _kernel_inherit_clone!(array, dev_parents, dev_children, count)
+366:@kernel function _kernel_inherit_split!(array, dev_parents, dev_children, fraction, count)
+377:@kernel function _kernel_inherit_reset!(array, dev_parents, dev_children, value, count)
+388:@kernel function _kernel_inherit_asymmetric_reset!(array, dev_parents, dev_children, p_val, c_val, count)
+398:@kernel function _kernel_inherit_reset_child!(array, dev_parents, dev_children, value, count)
+406:@kernel function _kernel_inherit_add!(array, dev_parents, dev_children, value, count)
+417:@kernel function _kernel_inherit_multiply!(array, dev_parents, dev_children, value, count)
+428:@kernel function _kernel_inherit_random_uniform!(array, dev_parents, dev_children, min_val, max_val, step, count)
+447:@kernel function _kernel_inherit_random_normal!(array, dev_parents, dev_children, mean_val, std_val, step, count)
+473:function apply_inheritance_rule!(rule::Clone, array, ws, count, backend, cache)
+478:function apply_inheritance_rule!(rule::Split, array, ws, count, backend, cache)
+483:function apply_inheritance_rule!(rule::Reset, array, ws, count, backend, cache)
+488:function apply_inheritance_rule!(rule::AsymmetricReset, array, ws, count, backend, cache)
+493:function apply_inheritance_rule!(rule::ResetChild, array, ws, count, backend, cache)
+498:function apply_inheritance_rule!(rule::Add, array, ws, count, backend, cache)
+503:function apply_inheritance_rule!(rule::Multiply, array, ws, count, backend, cache)
+508:function apply_inheritance_rule!(rule::RandomUniform, array, ws, count, backend, cache)
+513:function apply_inheritance_rule!(rule::RandomNormal, array, ws, count, backend, cache)
+518:# ==========================================
+520:# ==========================================
+522:struct UpdateContext{T, G, Top, S}
+623:struct TargetRule{P, R}
+649:struct SpatialMapReduceEvent{SR} <: AbstractEvent
+653:struct _PropertyUpdateEvent{CT, R} <: AbstractEvent
+658:struct PropertyUpdateEvent{CT, R} <: AbstractMultiEvent
+664:function get_sub_events(evt::PropertyUpdateEvent)
+676:@kernel function _kernel_property_update!(cell_data, rules, N_cells, target_type_id, ctx)
+690:@kernel function _kernel_check_generic_triggers!(
+703:function populate_dividing_parents!(u::AbstractPottsState, cache::PottsCache, trigger, ws)
+717:@kernel function _kernel_accumulate_centroids_cov!(
+760:@kernel function _kernel_compute_centroids!(
+782:@kernel function _kernel_compute_mitosis_normals_2d!(
+843:@kernel function _kernel_compute_mitosis_normals_3d!(
+937:@kernel function _kernel_compute_mitosis_normals_random!(
+976:@kernel function _kernel_compute_mitosis_normals_vector!(
+995:@kernel function _kernel_populate_child_map!(dev_child_map, dev_parents, dev_children, count)
+1002:@kernel function _kernel_split_grid!(grid, dims, dev_is_dividing, dev_centroids,
+1026:@kernel function _kernel_zero_modified_volumes!(volumes, dev_is_modified, count)
+1033:@kernel function _kernel_zero_modified_surface_areas!(surface_areas, dev_is_modified, count)
+1047:function process_mitosis_events!(
+1183:@kernel function _kernel_find_dead_cells!(
+1204:function process_death_events!(u::AbstractPottsState, cache::PottsCache, ws::MitosisWorkspace)
+1220:@kernel function _kernel_reset_hst_fields!(
+1235:function reset_hst_fields_after_division!(u::AbstractPottsState, cache::PottsCache,
+1246:function _reset_hst_fields_inner!(
+1265:@kernel function _update_hst_generic_kernel!(
+1287:function update_sweep_auxiliary!(pen::AbstractHSTPenalty{FlexType}, u::AbstractPottsState,
+1298:function _update_hst_inner!(u, cache, pen, is_flex, T_val, dt, ::Val{S},
+1320:function MitosisCallback(
+1340:function DeathCallback(; max_cells = nothing)
+1389:@kernel function spatial_mapreduce_kernel!(grid, topology, cell_data, spatial_rules, spatial_buffer, grid_dims)

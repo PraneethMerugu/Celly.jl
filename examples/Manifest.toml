@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "eb91c0dac6e35a605b9d8ec9d9e8bbbfb8066ba3"
+project_hash = "dc3fdc704b27cda86c7b125fe0811cce0c4ac2c9"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -301,9 +301,9 @@ uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.13.1"
 
 [[deps.CommonSolve]]
-git-tree-sha1 = "99ee296f88c12485402e37c2fd025f95ae097637"
+git-tree-sha1 = "eeaad7cef88554c2fa56b5a3f71cfd5cb708c662"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
-version = "0.2.9"
+version = "0.2.11"
 
 [[deps.Compat]]
 deps = ["TOML", "UUIDs"]
@@ -364,7 +364,7 @@ uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
 path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -934,6 +934,22 @@ git-tree-sha1 = "9eda8292dd3268b3b7ec9df21bbfac24e177ec52"
 uuid = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
 version = "0.6.12"
 
+[[deps.KernelIntrinsics]]
+deps = ["KernelAbstractions", "LLVM", "SIMD"]
+path = "../../KernelIntrinsics.jl"
+uuid = "f9588fbb-d238-4998-b15a-468e8766d49a"
+version = "0.1.8"
+
+    [deps.KernelIntrinsics.extensions]
+    KernelIntrinsicsAMDGPUExt = "AMDGPU"
+    KernelIntrinsicsCUDAExt = "CUDA"
+    KernelIntrinsicsMetalExt = "Metal"
+
+    [deps.KernelIntrinsics.weakdeps]
+    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
@@ -1107,6 +1123,12 @@ version = "0.24.13"
 
     [deps.Makie.weakdeps]
     DynamicQuantities = "06fc5a27-2a28-4c7c-a15d-362465fb6821"
+
+[[deps.MakiePotts]]
+deps = ["CommonSolve", "CorePotts", "Makie", "PottsToolkit", "Random", "SciMLBase", "Test"]
+path = "../lib/MakiePotts"
+uuid = "95794c00-c762-4965-bf31-de18bcca2bc9"
+version = "0.1.0"
 
 [[deps.MappedArrays]]
 git-tree-sha1 = "0ee4497a4e80dbd29c058fcee6493f5219556f40"
@@ -1359,7 +1381,7 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.PottsToolkit]]
-deps = ["AcceleratedKernels", "CommonSolve", "CorePotts", "KernelAbstractions", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
+deps = ["AcceleratedKernels", "Adapt", "CommonSolve", "CorePotts", "KernelAbstractions", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
 path = "../lib/PottsToolkit"
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
