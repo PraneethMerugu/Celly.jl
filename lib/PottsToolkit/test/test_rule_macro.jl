@@ -41,7 +41,7 @@ using CorePotts
     @test r_multi.spatial_deps[2].buffer_index == 2
 
     # Test closure execution with spatial buffer
-    ctx = CorePotts.UpdateContext(10, nothing, nothing, UInt32(0), (5, 10, 15, 20)) # spatial_buffer = (5, 10, 15, 20)
+    ctx = CorePotts.UpdateContext(10, nothing, nothing, UInt32(0), (5, 10, 15, 20), (CorePotts.ContactArea(1, 1), CorePotts.NeighborCount(2, 2))) # spatial_buffer = (5, 10, 15, 20)
 
     # Mock cell_data 
     mutable struct MockCellData

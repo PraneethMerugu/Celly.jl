@@ -4,7 +4,7 @@ export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
 export required_variables
-import CorePotts: required_variables
+import CorePotts: required_variables, AbstractPenalty
 using CorePotts: FlexibilityTrait, Rigid, Flex
 
 """
@@ -151,54 +151,50 @@ end
 Collects the abstract logical rules and components defining a Cellular Potts Model.
 The varargs constructor separates `CellType` instances from penalty components automatically.
 """
-struct PottsSystem{E <: Tuple}
+struct PottsSystem{P <: Tuple, E <: Tuple}
     cell_types::Vector{CellType}
-    penalties::Vector{Any}
+    penalties::P
     events::E
     check_interval::Int
 
-    function PottsSystem(cell_types::Vector{CellType}, penalties::Vector,
-            events::E, check_interval::Int) where {E <: Tuple}
-        new{E}(cell_types, Any[p for p in penalties], events, check_interval)
+    function PottsSystem(cell_types::Vector{CellType}, penalties::P,
+            events::E, check_interval::Int) where {P <: Tuple, E <: Tuple}
+        new{P, E}(cell_types, penalties, events, check_interval)
     end
 end
 
-function PottsSystem(args...; events = (), check_interval = 10, kwargs...)
-    # Convert Vector of events to Tuple if user passes a Vector
-    if events isa Vector
-        events = Tuple(events)
-    end
+@inline _extract_components() = ()
+@inline _extract_components(x::Union{AbstractComponent, AbstractPenalty}, rest...) = (x, _extract_components(rest...)...)
+@inline _extract_components(x, rest...) = _extract_components(rest...)
 
-    types = CellType[]
-    pens = Any[]
-    for arg in args
-        if arg isa CellType
-            push!(types, arg)
-        else
-            push!(pens, arg)
+function PottsSystem(args...; 
+        cell_types = nothing, 
+        penalties = nothing, 
+        events = (), 
+        check_interval = 10)
+    
+    events_tuple = events isa Vector ? Tuple(events) : events
+
+    # If the user passed exact positional vectors (Legacy Method 3):
+    if length(args) == 2 && args[1] isa Vector{CellType} && args[2] isa Union{Vector, Tuple}
+        types = args[1]
+        pens = Tuple(args[2])
+    else
+        types = CellType[arg for arg in args if arg isa CellType]
+        pens = _extract_components(args...)
+        
+        for arg in args
+            if !(arg isa CellType || arg isa AbstractComponent || arg isa AbstractPenalty)
+                throw(ArgumentError("Invalid argument passed to PottsSystem: $(typeof(arg)). Expected CellType, AbstractComponent, or AbstractPenalty."))
+            end
         end
     end
 
-    if haskey(kwargs, :cell_types)
-        types = kwargs[:cell_types]
-    end
-    if haskey(kwargs, :penalties)
-        pens = kwargs[:penalties]
-    end
+    # Override with kwargs if provided
+    final_types = isnothing(cell_types) ? types : cell_types
+    final_pens = isnothing(penalties) ? pens : Tuple(penalties)
 
-    if haskey(kwargs, :check_interval)
-        check_interval = kwargs[:check_interval]
-    end
-
-    return PottsSystem(types, pens, events, check_interval)
-end
-
-function PottsSystem(
-        types::Vector{CellType}, pens::Vector; events = (), check_interval = 10, kwargs...)
-    if events isa Vector
-        events = Tuple(events)
-    end
-    return PottsSystem(types, pens, events, check_interval)
+    return PottsSystem(Vector{CellType}(final_types), final_pens, events_tuple, check_interval)
 end
 
 end

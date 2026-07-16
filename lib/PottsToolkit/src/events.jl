@@ -8,7 +8,7 @@ import Random
 
 import ..System: CellType, PottsSystem, required_variables
 
-export AbstractEvent, AbstractTrigger, AbstractAction
+export PottsToolkitEvent, AbstractTrigger, AbstractAction
 export VolumeRatioTrigger, AgeTrigger, ProbabilityTrigger, CustomTrigger
 export MitosisEvent, ApoptosisEvent, TransitionEvent
 
@@ -22,7 +22,7 @@ export PropertyUpdateEvent
 # 1. Abstract Types
 # ------------------------------------------------------------------
 abstract type AbstractTrigger end
-abstract type AbstractEvent <: CorePotts.AbstractEvent end
+abstract type PottsToolkitEvent <: CorePotts.AbstractEvent end
 abstract type AbstractAction end
 
 # ------------------------------------------------------------------
@@ -54,7 +54,7 @@ end
 # ------------------------------------------------------------------
 struct MitosisEvent{
     T <: AbstractTrigger, O <: CorePotts.DivisionOrientation, I <: NamedTuple, A} <:
-       AbstractEvent
+       PottsToolkitEvent
     cell_type::CellType
     trigger::T
     orientation::O
@@ -69,7 +69,7 @@ function MitosisEvent(cell_type::CellType; trigger::AbstractTrigger,
     return MitosisEvent(cell_type, trigger, orientation, inheritance, action)
 end
 
-struct ApoptosisEvent{T <: AbstractTrigger} <: AbstractEvent
+struct ApoptosisEvent{T <: AbstractTrigger} <: PottsToolkitEvent
     cell_type::CellType
     trigger::T
 end
@@ -78,7 +78,7 @@ function ApoptosisEvent(cell_type::CellType; trigger::AbstractTrigger)
     return ApoptosisEvent(cell_type, trigger)
 end
 
-struct TransitionEvent{T <: AbstractTrigger} <: AbstractEvent
+struct TransitionEvent{T <: AbstractTrigger} <: PottsToolkitEvent
     transition::Pair{CellType, CellType}
     trigger::T
 end
@@ -93,13 +93,13 @@ end
 
 
 # Traits
-@inline is_apoptosis(::AbstractEvent) = false
+@inline is_apoptosis(::PottsToolkitEvent) = false
 @inline is_apoptosis(::ApoptosisEvent) = true
 
-@inline is_transition(::AbstractEvent) = false
+@inline is_transition(::PottsToolkitEvent) = false
 @inline is_transition(::TransitionEvent) = true
 
-@inline is_mitosis(::AbstractEvent) = false
+@inline is_mitosis(::PottsToolkitEvent) = false
 @inline is_mitosis(::MitosisEvent) = true
 
 # Evaluate Triggers
@@ -171,8 +171,7 @@ end
 @inline function (wrapper::MitosisTriggerWrapper)(i, cell_data, step)
     t_id = wrapper.types[i]
     if t_id == 0
-        ;
-        return false;
+        return false
     end
     return evaluate_mitosis(wrapper.events, t_id, cell_data, i, step)
 end
@@ -188,21 +187,21 @@ end
 end
 
 # Resolve Cell Type IDs dynamically within the Tuple wrappers
-@inline get_cell_type_id(evt::AbstractEvent) = evt.type_id
+@inline get_cell_type_id(evt::PottsToolkitEvent) = evt.type_id
 @inline get_transition_from_id(evt::TransitionEvent) = evt.from_id
 @inline get_transition_to_id(evt::TransitionEvent) = evt.to_id
 
 # ------------------------------------------------------------------
 # Internal Wrappers with Resolved IDs
 # ------------------------------------------------------------------
-struct ResolvedApoptosisEvent{T} <: AbstractEvent
+struct ResolvedApoptosisEvent{T} <: PottsToolkitEvent
     check_interval::Int
     type_id::UInt8
     trigger::T
 end
 @inline is_apoptosis(::ResolvedApoptosisEvent) = true
 
-struct ResolvedTransitionEvent{T} <: AbstractEvent
+struct ResolvedTransitionEvent{T} <: PottsToolkitEvent
     check_interval::Int
     from_id::UInt8
     to_id::UInt8
@@ -210,7 +209,7 @@ struct ResolvedTransitionEvent{T} <: AbstractEvent
 end
 @inline is_transition(::ResolvedTransitionEvent) = true
 
-struct ResolvedMitosisEvent{T, O, I, A, W} <: AbstractEvent
+struct ResolvedMitosisEvent{T, O, I, A, W} <: PottsToolkitEvent
     check_interval::Int
     type_id::UInt8
     trigger::T
@@ -221,7 +220,7 @@ struct ResolvedMitosisEvent{T, O, I, A, W} <: AbstractEvent
 end
 @inline is_mitosis(::ResolvedMitosisEvent) = true
 
-struct ResolvedPropertyUpdateEvent{R, W} <: AbstractEvent
+struct ResolvedPropertyUpdateEvent{R, W} <: PottsToolkitEvent
     check_interval::Int
     type_id::UInt8
     rules::R
@@ -260,8 +259,6 @@ function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
                     ResolvedPropertyUpdateEvent(check_interval, type_to_id[evt.cell_type], compiled_rules))
             end
 
-        elseif evt isa CorePotts.AbstractMultiEvent
-            append!(resolved, resolve_events(CorePotts.get_sub_events(evt), type_to_id, check_interval))
         elseif evt isa CorePotts.AbstractEvent
             push!(resolved, evt)
         end
@@ -303,7 +300,7 @@ function compile_events(events::Tuple, sys::PottsSystem, type_to_id::Dict, check
             req_trigger = required_variables(evt.trigger)
             push!(reqs, req_trigger)
         end
-        req_action = required_variables(hasproperty(evt, :action) ? evt.action : nothing)
+        req_action = hasproperty(evt, :action) && evt.action !== nothing ? required_variables(evt.action) : (;)
         push!(reqs, req_action)
         
         req_evt = required_variables(evt)
@@ -437,7 +434,6 @@ function CorePotts.process_event!(
     all_spatial = CorePotts.extract_spatial_rules(evt.rules)
 
     spatial_buffer = nothing
-    spatial_buffer = nothing
     if length(all_spatial) > 0
         spatial_buffer, ev_spatial = CorePotts.populate_spatial_buffer!(
             u, p.topology, cache, evt.workspace, all_spatial, deps)
@@ -450,7 +446,7 @@ function CorePotts.process_event!(
     k_prop = CorePotts._kernel_property_update!(backend, cache.block_size)
     nd_prop = length(u.cell_data.volumes)
 
-    ev_prop = CorePotts.dispatch_kernel!(
+    ev_prop = CorePotts.dispatch_kernel!(backend, 
         k_prop, u.cell_data, evt.rules, evt.type_id, ctx;
         ndrange = nd_prop, dependencies = deps)
 

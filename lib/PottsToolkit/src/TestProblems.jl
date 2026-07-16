@@ -4,7 +4,7 @@ using ..PottsToolkit
 using CorePotts
 using Random
 
-export cell_sorting_problem, young_laplace_droplet, ising_model, single_cell_fluctuation
+export cell_sorting_problem, young_laplace_droplet, young_laplace_droplet_3d, ising_model, single_cell_fluctuation
 
 """
     cell_sorting_problem(; kwargs...)
@@ -71,6 +71,42 @@ function young_laplace_droplet(;
 
     center = (grid_size[1] ÷ 2, grid_size[2] ÷ 2)
     radius = round(Int, sqrt(target_volume / pi))
+    layout = HypersphereLayout(Cell, center, radius)
+
+    return PottsProblem(sys, layout, grid_size; tspan = tspan, topology = topology)
+end
+
+"""
+    young_laplace_droplet_3d(; kwargs...)
+
+Returns a canonical PottsProblem for verifying the Young-Laplace equation for a single 3D droplet.
+"""
+function young_laplace_droplet_3d(;
+        grid_size = (64, 64, 64),
+        target_volume = 33510, # R ≈ 20
+        volume_lambda = 1.0f0,
+        volume_eta = 0.1f0,
+        gamma = 10.0f0,
+        tspan = (0, 70),
+        topology = MooreTopology{3}(),
+        isotropic = false
+)
+    Cell = CellType(:Cell)
+    Medium = CellType(:Medium, is_background = true)
+
+    sys = PottsSystem([Cell, Medium],
+        [
+            HSTVolumeComponent(Cell => (λ = volume_lambda, target = target_volume); eta = volume_eta),
+            AdhesionComponent(
+                (Cell, Cell) => 0.0f0,
+                (Cell, Medium) => gamma,
+                (Medium, Medium) => 0.0f0;
+                isotropic = isotropic
+            )
+        ])
+
+    center = (grid_size[1] ÷ 2, grid_size[2] ÷ 2, grid_size[3] ÷ 2)
+    radius = round(Int, cbrt(target_volume / (4/3 * pi)))
     layout = HypersphereLayout(Cell, center, radius)
 
     return PottsProblem(sys, layout, grid_size; tspan = tspan, topology = topology)

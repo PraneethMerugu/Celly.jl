@@ -4,6 +4,10 @@ struct ConnectivityConstraint <: AbstractPenalty{Rigid} end
     _eval_connectivity(ctx.topology, penalty, ctx)
 end
 
+@inline function _eval_connectivity(::Any, penalty, ctx)
+    error("ConnectivityConstraint is currently only supported on 2D Moore topologies.")
+end
+
 @inline function _eval_connectivity(::Union{MooreTopology{2}, NoFluxMooreTopology{2}}, penalty, ctx)
     if ctx.src == 0
         return 0.0f0
@@ -35,10 +39,5 @@ end
     return typemax(Float32)
 end
 
-@inline function _eval_connectivity(::Any, penalty, ctx)
-    # Connectivity check is only supported for 2D Moore topologies.
-    # We fallback to allowing all moves (0.0 energy penalty).
-    return 0.0f0
-end
 
 required_variables(::ConnectivityConstraint) = (;)

@@ -15,12 +15,7 @@ function Adapt.adapt_structure(to, x::AbstractTracker)
     return reconstruct(Adapt.adapt(to, children))
 end
 
-@inline tx_delta_type(::AbstractTracker) = error("Not implemented")
-@inline compute_tx_deltas(::AbstractTracker, ctx) = error("Not implemented")
-@inline commit_direct!(::AbstractTracker, cell_data, cell_id, delta) = error("Not implemented")
-function initialize_metrics!(::AbstractTracker, cell_data, grid, topo, dims)
-    error("Not implemented")
-end
+
 
 # --- Volume Tracker ---
 """
@@ -97,14 +92,7 @@ end
 
 # --- Length & Adhesion Flex Trackers (Dummy Trackers) ---
 # Used strictly as signals in the Problem compilation step
-struct LengthFlexTracker <: AbstractTracker end
-struct AdhesionFlexTracker <: AbstractTracker end
 
-required_variables(::LengthFlexTracker) = (length_lambdas = Float32,)
-required_variables(::AdhesionFlexTracker) = (adhesion_modifiers = Float32,)
-
-function initialize_metrics!(::LengthFlexTracker, cell_data, grid, topo, dims) end
-function initialize_metrics!(::AdhesionFlexTracker, cell_data, grid, topo, dims) end
 
 # Utilities
 @inline evaluate_all_trackers(::Tuple{}, ctx) = ()
@@ -153,13 +141,14 @@ end
     # 2. Pick the lowest lane as the leader
     leader_lane_src = trailing_zeros(valid_mask_src) + 1
 
-    # 3. Branchless summation of deltas
+    # 3. Branchless summation of deltas using active mask
     total_delta_src = zero(delta_src)
-    for i in 1:ws
+    active_mask_src = valid_mask_src
+    while active_mask_src != 0
+        i = trailing_zeros(active_mask_src) + 1
         peer_delta = KernelIntrinsics.@shfl(KernelIntrinsics.Idx, delta_src, i)
-        if (valid_mask_src & (1 << (i - 1))) != 0
-            total_delta_src += peer_delta
-        end
+        total_delta_src += peer_delta
+        active_mask_src &= ~(UInt32(1) << (i - 1))
     end
 
     # 4. Only the leader executes the atomic write
@@ -178,11 +167,12 @@ end
     leader_lane_tgt = trailing_zeros(valid_mask_tgt) + 1
 
     total_delta_tgt = zero(delta_tgt)
-    for i in 1:ws
+    active_mask_tgt = valid_mask_tgt
+    while active_mask_tgt != 0
+        i = trailing_zeros(active_mask_tgt) + 1
         peer_delta = KernelIntrinsics.@shfl(KernelIntrinsics.Idx, delta_tgt, i)
-        if (valid_mask_tgt & (1 << (i - 1))) != 0
-            total_delta_tgt += peer_delta
-        end
+        total_delta_tgt += peer_delta
+        active_mask_tgt &= ~(UInt32(1) << (i - 1))
     end
 
     if active_tgt && lane == leader_lane_tgt
@@ -203,36 +193,44 @@ end
 end
 
 function initialize_all_metrics!(trackers::Tuple, cell_data, grid, topo, dims)
-    _initialize_metrics!(trackers, cell_data, grid, topo, dims, Val(1))
-end
-function _initialize_metrics!(
-        trackers::Tuple, cell_data, grid, topo, dims, ::Val{I}) where {I}
-    if I <= length(trackers)
-        initialize_metrics!(trackers[I], cell_data, grid, topo, dims)
-        _initialize_metrics!(trackers, cell_data, grid, topo, dims, Val(I+1))
-    end
+    _initialize_metrics!(trackers, cell_data, grid, topo, dims)
 end
 
-function update_local_metrics!(
-        ::AbstractTracker, cell_data, grid, topo, dims, dev_is_modified)
-    # Fallback/do nothing for unknown trackers
+@inline _initialize_metrics!(::Tuple{}, cell_data, grid, topo, dims) = nothing
+@inline function _initialize_metrics!(trackers::Tuple, cell_data, grid, topo, dims)
+    initialize_metrics!(trackers[1], cell_data, grid, topo, dims)
+    _initialize_metrics!(Base.tail(trackers), cell_data, grid, topo, dims)
 end
 
+@inline zero_deltas(::Tuple{}) = ()
+@inline zero_deltas(trackers::Tuple) = (zero(tx_delta_type(trackers[1])), zero_deltas(Base.tail(trackers))...)
+
 function update_local_metrics!(
-        ::VolumeTracker, cell_data, grid, topo, dims, dev_is_modified)
-    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
+        ::AbstractTracker, cell_data, grid, topo, dims, dev_is_modified, deps)
+    return deps
+end
+
+@kernel function _kernel_update_local_volumes!(volumes, grid, dev_is_modified)
+    I = @index(Global, Linear)
+    if I <= length(grid)
         cell_id = grid[I]
         if cell_id > 0 && dev_is_modified[cell_id]
-            Atomix.@atomic cell_data.volumes[cell_id] += Int32(1)
+            Atomix.@atomic volumes[cell_id] += Int32(1)
         end
     end
 end
 
 function update_local_metrics!(
-        ::SurfaceAreaTracker, cell_data, grid, topo, dims, dev_is_modified)
-    N_dirs_val = num_dirs(topo)
-    N_dirs_int = get_val(N_dirs_val)
-    AcceleratedKernels.foreachindex(grid; block_size = DEFAULT_BLOCK_SIZE) do I
+        ::VolumeTracker, cell_data, grid, topo, dims, dev_is_modified, deps)
+    backend = KernelAbstractions.get_backend(grid)
+    k = _kernel_update_local_volumes!(backend, DEFAULT_BLOCK_SIZE)
+    return dispatch_kernel!(backend, k, cell_data.volumes, grid, dev_is_modified;
+        ndrange=length(grid), dependencies=deps)
+end
+
+@kernel function _kernel_update_local_surface_areas!(surface_areas, grid, topo, dims, dev_is_modified, N_dirs_int)
+    I = @index(Global, Linear)
+    if I <= length(grid)
         cell_id = grid[I]
         if cell_id > 0 && dev_is_modified[cell_id]
             n_other = Int32(0)
@@ -243,21 +241,30 @@ function update_local_metrics!(
                     n_other += Int32(1)
                 end
             end
-            Atomix.@atomic cell_data.surface_areas[cell_id] += n_other
+            Atomix.@atomic surface_areas[cell_id] += n_other
         end
     end
 end
 
-function update_local_all_metrics!(
-        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified)
-    _update_local_metrics!(trackers, cell_data, grid, topo, dims, dev_is_modified, Val(1))
+function update_local_metrics!(
+        ::SurfaceAreaTracker, cell_data, grid, topo, dims, dev_is_modified, deps)
+    N_dirs_val = num_dirs(topo)
+    N_dirs_int = get_val(N_dirs_val)
+    backend = KernelAbstractions.get_backend(grid)
+    k = _kernel_update_local_surface_areas!(backend, DEFAULT_BLOCK_SIZE)
+    return dispatch_kernel!(backend, k, cell_data.surface_areas, grid, topo, dims, dev_is_modified, N_dirs_int;
+        ndrange=length(grid), dependencies=deps)
 end
 
-function _update_local_metrics!(
-        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified, ::Val{I}) where {I}
-    if I <= length(trackers)
-        update_local_metrics!(trackers[I], cell_data, grid, topo, dims, dev_is_modified)
-        _update_local_metrics!(
-            trackers, cell_data, grid, topo, dims, dev_is_modified, Val(I+1))
-    end
+function update_local_all_metrics!(
+        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified, deps=())
+    return _update_local_metrics!(trackers, cell_data, grid, topo, dims, dev_is_modified, deps)
+end
+
+@inline _update_local_metrics!(::Tuple{}, cell_data, grid, topo, dims, dev_is_modified, deps) = deps
+@inline function _update_local_metrics!(
+        trackers::Tuple, cell_data, grid, topo, dims, dev_is_modified, deps)
+    new_deps = update_local_metrics!(trackers[1], cell_data, grid, topo, dims, dev_is_modified, deps)
+    return _update_local_metrics!(
+        Base.tail(trackers), cell_data, grid, topo, dims, dev_is_modified, new_deps)
 end

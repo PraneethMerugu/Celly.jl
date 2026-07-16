@@ -8,7 +8,7 @@ using SciMLBase
     # 1. Setup a simple Potts simulation
     W, H = 20, 20
     N_cells = 3
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
     grid[5:10, 5:10] .= 1
     grid[12:17, 12:17] .= 2
 

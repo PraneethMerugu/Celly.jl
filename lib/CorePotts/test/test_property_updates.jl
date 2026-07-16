@@ -32,7 +32,7 @@ using KernelAbstractions
     # 2. Test spatial map-reduce extraction
     # We will simulate a small grid to test populate_spatial_buffer!
     W, H = 5, 5
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
     # Cell 1 (type 1) in top left 2x2
     grid[1:2, 1:2] .= 1
     # Cell 2 (type 2) in bottom right 2x2

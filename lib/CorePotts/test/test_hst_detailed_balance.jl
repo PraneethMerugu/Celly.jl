@@ -6,7 +6,7 @@ using Statistics
 @testset "Hubbard-Stratonovich Detailed Balance" begin
     @testset "HST Volume Variance Convergence" begin
         W, H = 50, 50
-        grid = zeros(UInt32, W, H)
+        grid = backend_zeros(UInt32, W, H)
         target_vol = 100
         spawn_hypersphere!(
             grid, (W, H), (25, 25), round(Int, sqrt(target_vol/pi)), UInt32(1))

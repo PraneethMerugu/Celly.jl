@@ -16,13 +16,7 @@ using KernelAbstractions: @kernel, @index
     src_val = Int32(0)
 
     # We must compute a dummy delta for type stability even if thread is inactive
-    dummy_ctx = (; grid = grid, grid_dims = grid_dims, topology = topology,
-        cell_data = cell_data, trackers = trackers,
-        idx = UInt32(1), src = Int32(0), tgt = Int32(0), T = T_val,
-        spatial_coords = ntuple(d -> UInt32(0), Val(length(grid_dims))),
-        source_coords = ntuple(d -> UInt32(0), Val(length(grid_dims))),
-        neighbors = ntuple(d -> Int32(0), num_dirs(topology)), n_src = Int32(0), n_tgt = Int32(0))
-    tx_deltas = evaluate_all_trackers(trackers, dummy_ctx)
+    tx_deltas = zero_deltas(trackers)
 
     if is_active_thread
         idx = color_indices[color_offset + i - 1]
@@ -30,8 +24,8 @@ using KernelAbstractions: @kernel, @index
 
         my_ticket = pcg_hash(global_seed + UInt64(idx))
 
-        prob_active = typeof(active_fraction)(my_ticket & 0x00FFFFFF) /
-                      typeof(active_fraction)(0x01000000)
+        prob_active = typeof(active_fraction)(my_ticket & MASK_24BIT) /
+                      typeof(active_fraction)(SCALE_24BIT)
         if prob_active <= active_fraction
             rng_state = pcg_hash(my_ticket)
             accept, target_val, src_val, tx_deltas = _compute_site_proposal(
@@ -55,12 +49,14 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     grid = u.grid
     grid_dims = size(grid)
     backend = KernelAbstractions.get_backend(grid)
-    cache.step_counter[1] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[1])
+    cache.step_counter[] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[])
 
     active_fraction = alg.active_fraction
     sampler = alg.sampler
     T_val = alg.T
+
+    event = prev_event === nothing ? KernelAbstractions.Event(backend) : prev_event
 
     num_colors = checkerboard_colors(p.topology)
     for color_pass in 1:num_colors
@@ -70,15 +66,15 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
 
         if num_pixels > 0
             ndrange = num_pixels
-            _intrinsic_checkerboard_sweep_kernel!(backend, cache.block_size)(
+            event = _intrinsic_checkerboard_sweep_kernel!(backend, cache.block_size)(
                 grid, grid_dims, p.topology, u.cell_data, p.penalties, p.trackers,
                 sampler, T_val, active_fraction, global_seed,
                 cache.color_indices, offset, num_pixels,
-                ndrange = ndrange
+                ndrange = ndrange,
+                dependencies = (event,)
             )
         end
         global_seed = pcg_hash(global_seed)
     end
-    KernelAbstractions.synchronize(backend)
-    return nothing
+    return event
 end

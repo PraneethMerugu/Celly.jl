@@ -49,7 +49,12 @@ using CorePotts
     ctx7 = MockContext(topo, 1, (0, 0, 0, 0, 0, 0, 0, 0))
     @test CorePotts.evaluate_penalty(penalty, ctx7) == 0.0f0
 
-    # Test 8: Non-Moore fallback
-    ctx8 = MockContext(VonNeumannTopology{2}(), 1, (1, 0, 1, 0))
-    @test CorePotts.evaluate_penalty(penalty, ctx8) == 0.0f0
+    # Test 8: Non-Moore/3D Topology should throw ArgumentError in PottsParameters
+    # We test that the system constructor throws eagerly
+    @test_throws ArgumentError CorePotts.PottsParameters(
+        VonNeumannTopology{2}(), (ConnectivityConstraint(),), (), ()
+    )
+    @test_throws ArgumentError CorePotts.PottsParameters(
+        MooreTopology{3}(), (ConnectivityConstraint(),), (), ()
+    )
 end

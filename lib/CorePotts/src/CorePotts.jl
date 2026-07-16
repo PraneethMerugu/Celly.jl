@@ -6,7 +6,6 @@ using KernelAbstractions
 using StructArrays
 using Adapt
 using Random
-using Test
 using SciMLBase
 import Atomix
 import SciMLBase: solve
@@ -39,10 +38,7 @@ include("simulator.jl")
 export AbstractTopology, VonNeumannTopology, MooreTopology, NoFluxVonNeumannTopology,
        NoFluxMooreTopology, ExtendedVonNeumannTopology, ExtendedMooreTopology,
        NoFluxExtendedVonNeumannTopology, NoFluxExtendedMooreTopology
-export num_dirs, offsets, lottery_offsets, idx_to_coord, coord_to_idx, get_neighbor_by_dir,
-       get_neighbor_by_coord, get_val, is_noflux, checkerboard_colors, checkerboard_color
-export AbstractSampler, MetropolisSampler, evaluate_acceptance
-export pcg_hash
+export AbstractSampler, MetropolisSampler
 export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetropolis,
        CheckerboardMetropolis, SequentialMetropolis,
        IntrinsicCheckerboardMetropolis,
@@ -50,17 +46,11 @@ export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetro
        PottsSolution, PottsState, PottsParameters, PottsCache
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
 export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
-       SurfaceAreaFlexTracker, LengthFlexTracker, AdhesionFlexTracker, get_tracker_delta,
-       evaluate_all_trackers, tx_delta_type, compute_tx_deltas, commit_direct!,
-       initialize_metrics!, initialize_all_metrics!, update_local_all_metrics!,
-       apply_tx_deltas_direct!
+       SurfaceAreaFlexTracker
 export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
        compute_global_energy, VolumePenalty, HSTVolumePenalty, HSTSurfaceAreaPenalty,
        AdhesionPenalty, FocalPointSpringPenalty, HSTFocalPointPenalty, HSTLengthPenalty,
-       ChemotaxisPenalty, ConnectivityConstraint, evaluate_all_penalties, evaluate_penalty,
-       update_step_auxiliary!,
-       update_sweep_auxiliary!, initialize_com_anchors!
-export lambda_field, hst_state_field, hst_value_field, hst_target_field
+       ChemotaxisPenalty, ConnectivityConstraint
 export PottsTrainingCache, potts_loss
 export AbstractOutputBackend, MemoryBackend, ZarrBackend, HDF5Backend, initialize_backend,
        save_state!
@@ -69,22 +59,14 @@ export DEFAULT_BLOCK_SIZE
 # From Tools & Engine
 export PottsComponent
 function PottsComponent end
-export execute_step!, spawn_hypersphere!, sync_cell_data!, build_cell_data
-export process_mitosis_events!, process_death_events!, MitosisCallback, DeathCallback
-export recalculate_all_metrics!, MitosisWorkspace
-export reset_hst_fields_after_division!
+export spawn_hypersphere!, build_cell_data
+export process_mitosis_events!, process_death_events!, MitosisCallback, DeathCallback, MitosisWorkspace
 export VolumeThresholdTrigger, LinearGrowthCallback, required_fields
 export DivisionOrientation, RandomOrientation, MajorAxisOrientation, MinorAxisOrientation,
        VectorOrientation
 export InheritanceRule, Clone, Split
 export Reset, ResetChild, AsymmetricReset, InheritAdd, InheritMultiply, RandomUniform,
-       RandomNormal
-export RandomPoisson
-export CompiledRule, gpu_rand_uniform, gpu_rand_normal
-export get_center_of_mass_x, get_center_of_mass_y, get_center_of_mass_z
-export get_major_axis_length, get_minor_axis_length, get_time
-export get_contact_area, get_neighbor_count, get_neighbor_sum
+       RandomNormal, RandomPoisson
 export PropertyUpdateEvent
-export process_event!, get_event_kernel, get_event_args, get_event_ndrange
 
 end

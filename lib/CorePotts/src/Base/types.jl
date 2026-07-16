@@ -2,6 +2,13 @@
 using ArgCheck
 import Functors
 import Functors: @functor, fmap
+const UINT32_TO_FLOAT32 = 2.3283064f-10
+const MASK_24BIT = 0x00FFFFFF
+const SCALE_24BIT = 0x01000000
+const MITOSIS_SEED_OFFSET = UInt64(9999991)
+
+const TWO_PI_F32 = 2.0f0 * Float32(pi)
+
 @inline function pcg_hash(seed::UInt64)
     state = seed * 0x5851F42D4C957F2D + 0x14057B7EF767814F
     word = xor(state >> ((state >> 59) + UInt64(5)), state) * 0x5851F42D4C957F2D
@@ -11,9 +18,9 @@ end
 @inline function randn_pcg(seed1::UInt64, seed2::UInt64)
     # Modified for Metal compatibility (no Float64 support on Apple Silicon).
     # Extract the upper 32 bits to generate a Float32 in [0, 1).
-    u1 = Float32(pcg_hash(seed1) >> 32) * 2.3283064f-10 # multiply by 2^-32
-    u2 = Float32(pcg_hash(seed2) >> 32) * 2.3283064f-10
-    return sqrt(-2.0f0 * log(max(1.0f-7, u1))) * cos(2.0f0 * Float32(pi) * u2)
+    u1 = Float32(pcg_hash(seed1) >> 32) * UINT32_TO_FLOAT32
+    u2 = Float32(pcg_hash(seed2) >> 32) * UINT32_TO_FLOAT32
+    return sqrt(-2.0f0 * log(max(1.0f-7, u1))) * cos(TWO_PI_F32 * u2)
 end
 
 """
@@ -161,14 +168,18 @@ struct PottsParameters{Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple, Ev <: 
     penalties::P
     trackers::Tr
     events::Ev
+    
+    function PottsParameters(topology::Topo, penalties::P, trackers::Tr, events::Ev) where {Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple, Ev <: Tuple}
+        if any(p -> typeof(p) <: ConnectivityConstraint, penalties) &&
+           !(typeof(topology) <: Union{MooreTopology{2}, NoFluxMooreTopology{2}})
+            throw(ArgumentError("ConnectivityConstraint is only supported on 2D MooreTopology and NoFluxMooreTopology."))
+        end
+        new{Topo, P, Tr, Ev}(topology, penalties, trackers, events)
+    end
 end
 
-function PottsParameters(topology, penalties, trackers, events=())
-    if any(p -> typeof(p) <: ConnectivityConstraint, penalties) &&
-       !(typeof(topology) <: Union{MooreTopology, NoFluxMooreTopology})
-        @warn "ConnectivityConstraint is only supported on MooreTopology and NoFluxMooreTopology. It will act as a no-op."
-    end
-    return PottsParameters{typeof(topology), typeof(penalties), typeof(trackers), typeof(events)}(topology, penalties, trackers, events)
+function PottsParameters(topology, penalties, trackers)
+    return PottsParameters(topology, penalties, trackers, ())
 end
 
 function Functors.functor(::Type{<:PottsParameters}, x)
@@ -192,49 +203,35 @@ struct PottsCache{N, ArrayT, IdxArrayT, EMType}
     step_counter::Vector{UInt64}
     noise_counter::Vector{UInt64}
     block_size::Int
-    sin_lut_x::ArrayT
-    cos_lut_x::ArrayT
-    sin_lut_y::ArrayT
-    cos_lut_y::ArrayT
-    sin_lut_z::ArrayT
-    cos_lut_z::ArrayT
+    sin_luts::NTuple{N, ArrayT}
+    cos_luts::NTuple{N, ArrayT}
     color_indices::IdxArrayT
     color_offsets::Vector{Int}
     event_masks::EMType
 end
 
-function PottsCache(u::AbstractPottsState, topology::AbstractTopology, block_size::Int = 256)
-    return PottsCache(u, topology, nothing, block_size)
+function PottsCache(u::AbstractPottsState, topology::AbstractTopology; block_size::Int = 256)
+    return PottsCache(u, topology, nothing; block_size=block_size)
 end
 
-function PottsCache(u::AbstractPottsState, topology::AbstractTopology, event_masks, block_size::Int = 256)
+function PottsCache(u::AbstractPottsState, topology::AbstractTopology, event_masks; block_size::Int = 256)
     grid = u.grid
     N = ndims(grid)
     grid_dims = ntuple(i -> size(grid, i), Val(N))
     ArrayT = typeof(similar(grid, Float32, 1))
     IdxArrayT = typeof(similar(grid, UInt32, 1))
 
-    W = grid_dims[1]
-    sin_lut_x = similar(grid, Float32, W)
-    cos_lut_x = similar(grid, Float32, W)
-    sin_lut_x .= sin.(2.0f0 .* Float32(pi) .* (0:(W - 1)) ./ W)
-    cos_lut_x .= cos.(2.0f0 .* Float32(pi) .* (0:(W - 1)) ./ W)
-
-    H = grid_dims[2]
-    sin_lut_y = similar(grid, Float32, H)
-    cos_lut_y = similar(grid, Float32, H)
-    sin_lut_y .= sin.(2.0f0 .* Float32(pi) .* (0:(H - 1)) ./ H)
-    cos_lut_y .= cos.(2.0f0 .* Float32(pi) .* (0:(H - 1)) ./ H)
-
-    if N == 3
-        D = grid_dims[3]
-        sin_lut_z = similar(grid, Float32, D)
-        cos_lut_z = similar(grid, Float32, D)
-        sin_lut_z .= sin.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
-        cos_lut_z .= cos.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
-    else
-        sin_lut_z = similar(grid, Float32, 0)
-        cos_lut_z = similar(grid, Float32, 0)
+    sin_luts = ntuple(Val(N)) do i
+        D = grid_dims[i]
+        arr = similar(grid, Float32, D)
+        arr .= sin.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
+        return arr
+    end
+    cos_luts = ntuple(Val(N)) do i
+        D = grid_dims[i]
+        arr = similar(grid, Float32, D)
+        arr .= cos.(2.0f0 .* Float32(pi) .* (0:(D - 1)) ./ D)
+        return arr
     end
 
     # Precompute dense thread packing indices for CheckerboardMetropolis
@@ -260,8 +257,7 @@ function PottsCache(u::AbstractPottsState, topology::AbstractTopology, event_mas
 
     return PottsCache{N, ArrayT, IdxArrayT, typeof(event_masks)}(
         grid_dims, [UInt64(0)], [UInt64(0)], block_size,
-        sin_lut_x, cos_lut_x, sin_lut_y, cos_lut_y, sin_lut_z,
-        cos_lut_z, device_indices, color_offsets, event_masks)
+        sin_luts, cos_luts, device_indices, color_offsets, event_masks)
 end
 
 abstract type AbstractPottsProblem <: SciMLBase.AbstractSciMLProblem end
@@ -379,7 +375,7 @@ const SequentialMetropolis = MetropolisAlgorithm{SequentialStrategy}
 The active simulation state, holding `u`, `p`, `t`, `alg`, and the `cache`.
 Provides SciML-compatible continuous integration for the Potts.
 """
-mutable struct PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType, SolUType}
+mutable struct PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType, SolUType, ProbType}
     u::uType
     p::pType
     t::tType
@@ -392,6 +388,7 @@ mutable struct PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType
     save_everystep::Bool
     save_start::Bool
     save_end::Bool
+    prob::ProbType
 end
 
 include("backends.jl")

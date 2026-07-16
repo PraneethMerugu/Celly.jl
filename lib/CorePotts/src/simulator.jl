@@ -39,7 +39,7 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
 
     # Initialize algorithmic cache
     block_size = get(kwargs, :block_size, DEFAULT_BLOCK_SIZE)
-    cache = PottsCache(prob.u0, prob.p.topology, event_masks, block_size)
+    cache = PottsCache(prob.u0, prob.p.topology, event_masks; block_size = block_size)
 
     # Instantiate workspace buffers inside the events themselves
     initialized_events = map(ev -> initialize_workspace(ev, prob.u0, prob.p.topology), prob.p.events)
@@ -48,31 +48,31 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
     return PottsIntegrator(
         deepcopy(prob.u0), p_initialized, prob.tspan[1], alg, cache, opts, sol_u,
-        sol_t, saveat_vec, save_everystep, save_start, save_end)
+        sol_t, saveat_vec, save_everystep, save_start, save_end, prob)
 end
 
 @inline function _update_step_auxiliary!(
         items::Tuple, u, p::PottsParameters, cache::PottsCache,
-        T::Float32, dt::Float32, ::Val{I}) where {I}
+        T::FT, dt::FT, ::Val{I}) where {I, FT}
     if I <= length(items)
         update_step_auxiliary!(items[I], u, p, cache, T, dt)
         _update_step_auxiliary!(items, u, p, cache, T, dt, Val(I+1))
     end
 end
 @inline _update_step_auxiliary!(items::Tuple, u, p::PottsParameters, cache::PottsCache,
-    T::Float32, dt::Float32 = 1.0f0) = _update_step_auxiliary!(
+    T::FT, dt::FT = one(FT)) where {FT} = _update_step_auxiliary!(
     items, u, p, cache, T, dt, Val(1))
 
 @inline function _update_sweep_auxiliary!(
         items::Tuple, u, p::PottsParameters, cache::PottsCache,
-        T::Float32, dt::Float32, ::Val{I}) where {I}
+        T::FT, dt::FT, ::Val{I}) where {I, FT}
     if I <= length(items)
         update_sweep_auxiliary!(items[I], u, p, cache, T, dt)
         _update_sweep_auxiliary!(items, u, p, cache, T, dt, Val(I+1))
     end
 end
 @inline _update_sweep_auxiliary!(items::Tuple, u, p::PottsParameters, cache::PottsCache,
-    T::Float32, dt::Float32 = 1.0f0) = _update_sweep_auxiliary!(
+    T::FT, dt::FT = one(FT)) where {FT} = _update_sweep_auxiliary!(
     items, u, p, cache, T, dt, Val(1))
 
 function SciMLBase.step!(integrator::PottsIntegrator)
@@ -81,27 +81,31 @@ function SciMLBase.step!(integrator::PottsIntegrator)
     cache = integrator.cache
     alg = integrator.alg
 
+    # Extract the simulation float type
+    FT = typeof(alg.T)
+    half_dt = FT(0.5)
+
     # Phase 1: Pre-step auxiliary updates
-    _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-    _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+    _update_step_auxiliary!(p.penalties, u, p, cache, alg.T, half_dt)
+    _update_step_auxiliary!(p.trackers, u, p, cache, alg.T, half_dt)
 
     current_event = nothing
     for _ in 1:alg.sweeps_per_step
         # Phase 2: Pre-sweep auxiliary field updates
-        _update_sweep_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-        _update_sweep_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+        _update_sweep_auxiliary!(p.penalties, u, p, cache, alg.T, half_dt)
+        _update_sweep_auxiliary!(p.trackers, u, p, cache, alg.T, half_dt)
 
         # Phase 3: Local grid updates (MC Sweeps)
         current_event = execute_step!(u, p, cache, alg, current_event)
 
         # Phase 4: Post-sweep updates
-        _update_sweep_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-        _update_sweep_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+        _update_sweep_auxiliary!(p.penalties, u, p, cache, alg.T, half_dt)
+        _update_sweep_auxiliary!(p.trackers, u, p, cache, alg.T, half_dt)
     end
 
     # Phase 5: Post-step auxiliary updates
-    _update_step_auxiliary!(p.penalties, u, p, cache, Float32(alg.T), 0.5f0)
-    _update_step_auxiliary!(p.trackers, u, p, cache, Float32(alg.T), 0.5f0)
+    _update_step_auxiliary!(p.penalties, u, p, cache, alg.T, half_dt)
+    _update_step_auxiliary!(p.trackers, u, p, cache, alg.T, half_dt)
 
     # Phase 6: Core Events (AbstractEvent)
     if !isempty(p.events)
@@ -133,7 +137,7 @@ In-place execution of the Potts simulation. Steps the `integrator` forward in ti
 the end of the problem's timespan. Useful for manual loop control and avoiding memory reallocation.
 """
 function SciMLBase.solve!(integrator::PottsIntegrator)
-    has_cbs = haskey(integrator.opts, :callback)
+    has_cbs = !isempty(integrator.opts.callback.discrete_callbacks)
 
     if integrator.save_start || integrator.save_everystep ||
        integrator.t in integrator.saveat
@@ -167,7 +171,7 @@ function SciMLBase.solve!(integrator::PottsIntegrator)
     end
 
     # Return the standardized solution type
-    return PottsSolution(integrator.sol_u, integrator.sol_t, nothing,
+    return PottsSolution(integrator.sol_u, integrator.sol_t, integrator.prob,
         integrator.alg, SciMLBase.ReturnCode.Success)
 end
 
@@ -227,7 +231,7 @@ function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
     k = get_event_kernel(evt, backend, cache.block_size)
     nd = get_event_ndrange(evt, mask, u)
 
-    ev = dispatch_kernel!(k, args...; ndrange = nd, dependencies = deps)
+    ev = dispatch_kernel!(backend, k, args...; ndrange = nd, dependencies = deps)
     return ev === nothing ? deps : (ev,)
 end
 
@@ -245,7 +249,7 @@ function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps
     if _any_device_trigger(events)
         backend = KernelAbstractions.get_backend(u.grid)
         k = evaluate_all_triggers_kernel!(backend, cache.block_size)
-        ev = dispatch_kernel!(k, events, masks, u.cell_data, t;
+        ev = dispatch_kernel!(backend, k, events, masks, u.cell_data, t;
             ndrange = length(u.cell_data.volumes), dependencies = deps)
         deps = ev === nothing ? deps : (ev,)
     end

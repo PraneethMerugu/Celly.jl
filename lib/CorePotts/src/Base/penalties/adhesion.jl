@@ -70,14 +70,74 @@ end
     return dH
 end
 
-function compute_global_energy(p::AdhesionPenalty{FlexType, M, false}, u, params) where {
-        FlexType, M}
-    E = 0.0f0
-    # Global energy for adhesion involves summing over all pairs of neighbors in the grid.
-    # To avoid double counting, we would divide by 2 or iterate pairs uniquely.
-    # In a full SciML EBM training loop, we can just compute the sum over the grid.
-    # This will be implemented fully in the OptimizationExt or handled natively.
+import ChainRulesCore
+
+function _compute_adhesion_energy_and_gradients(p::AdhesionPenalty{FlexType}, u, params, isotropic::Bool) where {FlexType}
+    F = eltype(p.J)
+    
+    # Avoid scalar indexing on GPU by pulling data to CPU (zero allocation if already on CPU)
+    cpu_grid = u.grid isa Array ? u.grid : Array(u.grid)
+    c_types = u.cell_data.cell_types isa Array ? u.cell_data.cell_types : Array(u.cell_data.cell_types)
+    dims = size(cpu_grid)
+    
+    types_padded = vcat([1], Int.(c_types) .+ 1)
+    
+    if FlexType === Flex
+        cpu_mods = u.cell_data.adhesion_modifiers isa Array ? u.cell_data.adhesion_modifiers : Array(u.cell_data.adhesion_modifiers)
+        mods_padded = vcat([one(F)], cpu_mods)
+    else
+        mods_padded = nothing
+    end
+    
+    offs = offsets(params.topology)
+    weights = isotropic ? neighbor_weights(params.topology) : nothing
+    
+    E = zero(F)
+    dE_dJ = zeros(F, size(p.J))
+    
+    for I in CartesianIndices(cpu_grid)
+        src_val = cpu_grid[I]
+        src_type = types_padded[src_val + 1]
+        mod_src = FlexType === Flex ? mods_padded[src_val + 1] : one(F)
+        
+        for i in 1:length(offs)
+            Δ = offs[i]
+            w = isotropic ? F(weights[i]) : one(F)
+            
+            # Periodic wrapped index
+            I_n = CartesianIndex(mod1.(Tuple(I) .+ Tuple(Δ), dims))
+            n_val = cpu_grid[I_n]
+            
+            if src_val != n_val
+                n_type = types_padded[n_val + 1]
+                mod_n = FlexType === Flex ? mods_padded[n_val + 1] : one(F)
+                
+                term = w * mod_src * mod_n
+                E += F(p.J[src_type, n_type]) * term
+                dE_dJ[src_type, n_type] += term
+            end
+        end
+    end
+    
+    E /= 2
+    dE_dJ ./= 2
+    
+    return E, dE_dJ
+end
+
+function compute_global_energy(p::AdhesionPenalty{FlexType, M, Iso}, u, params) where {FlexType, M, Iso}
+    E, _ = _compute_adhesion_energy_and_gradients(p, u, params, Iso)
     return E
+end
+
+function ChainRulesCore.rrule(::typeof(compute_global_energy), p::AdhesionPenalty{FlexType, M, Iso}, u, params) where {FlexType, M, Iso}
+    E, dE_dJ = _compute_adhesion_energy_and_gradients(p, u, params, Iso)
+    function compute_global_energy_pullback(ΔE)
+        dJ = ΔE .* dE_dJ
+        dp = ChainRulesCore.Tangent{typeof(p)}(J = dJ)
+        return (ChainRulesCore.NoTangent(), dp, ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent())
+    end
+    return E, compute_global_energy_pullback
 end
 
 @inline function evaluate_penalty(p::AdhesionPenalty{FlexType, M, true}, ctx) where {

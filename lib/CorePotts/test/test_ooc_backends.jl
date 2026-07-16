@@ -6,7 +6,7 @@ using HDF5
 
 @testset "Out-Of-Core Backend Mechanics & Extensions" begin
     # 1. Setup a dummy simulation
-    grid = zeros(Int32, 50, 50)
+    grid = backend_zeros(Int32, 50, 50)
     grid[20:30, 20:30] .= 1
 
     cell_data = build_cell_data(grid, 1)

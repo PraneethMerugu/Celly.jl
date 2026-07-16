@@ -6,7 +6,7 @@ using KernelAbstractions
     backend = CPU()
     # mock ws
     max_cells = 10
-    grid = zeros(Int32, 10, 10)
+    grid = backend_zeros(Int32, 10, 10)
     ws = CorePotts.MitosisWorkspace(grid, max_cells)
 
     ws.dev_parents[1:2] .= [1, 2]

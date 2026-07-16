@@ -3,7 +3,7 @@ using CorePotts
 
 @testset "GPU Death Event Sync" begin
     W, H = 100, 100
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
 
     # Two cells
     grid[10:20, 10:20] .= 1

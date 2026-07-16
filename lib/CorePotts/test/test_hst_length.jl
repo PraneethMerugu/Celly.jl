@@ -1,10 +1,11 @@
 using Test
 using CorePotts, SciMLBase
+import CorePotts: evaluate_penalty, checkerboard_color
 
 @testset "HSTLengthPenalty Initial State and SDE" begin
     # 100x100 grid, cell size 20x40
     W, H = 100, 100
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
 
     # Create a 20x40 rectangle cell in the middle
     grid[41:60, 31:70] .= 1
@@ -65,7 +66,7 @@ end
 
 @testset "HSTLengthPenalty Periodic Boundary Wrap" begin
     W, H = 100, 100
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
 
     # 20x40 rectangle exactly centered on the x boundary
     for x in 91:100
@@ -100,7 +101,7 @@ end
 
 @testset "HSTLengthPenalty Thermodynamic Elongation" begin
     W, H = 100, 100
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
 
     # Start with a 28x32 rectangle
     grid[37:64, 35:66] .= 1

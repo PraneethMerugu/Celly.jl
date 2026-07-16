@@ -5,13 +5,13 @@ using SciMLBase
 @testset "ChemotaxisPenalty Directional Migration" begin
     # 100x100 grid
     W, H = 100, 100
-    grid = zeros(UInt32, W, H)
+    grid = backend_zeros(UInt32, W, H)
 
     # 20x20 square cell near the left edge (x = 10:29, y = 40:59)
     grid[10:29, 40:59] .= 1
 
     # Simple linear chemical gradient C(x, y) = x
-    chem_field = zeros(Float32, W, H)
+    chem_field = backend_zeros(Float32, W, H)
     for x in 1:W
         for y in 1:H
             chem_field[x, y] = Float32(x)
@@ -26,7 +26,7 @@ using SciMLBase
 
     # Add Adhesion to keep the cell cohesive
     # J[cell, medium] = 20.0, J[cell, cell] = 0.0
-    J = zeros(Float32, 2, 2)
+    J = backend_zeros(Float32, 2, 2)
     J[2, 1] = 20.0f0;
     J[1, 2] = 20.0f0
     adh_pen = AdhesionPenalty{Rigid}(J)

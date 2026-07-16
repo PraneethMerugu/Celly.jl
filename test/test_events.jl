@@ -7,7 +7,7 @@ struct DummyEvent <: CorePotts.AbstractEvent end
 CorePotts.get_event_args(::DummyEvent, mask, u, p, cache, t) = nothing
 
 # A PottsToolkit event for testing
-struct DummyToolkitEvent <: PottsToolkit.Events.AbstractEvent end
+struct DummyToolkitEvent <: PottsToolkitEvent end
 CorePotts.get_event_args(::DummyToolkitEvent, mask, u, p, cache, t) = nothing
 
 @testset "Event System Architecture" begin
@@ -22,7 +22,7 @@ CorePotts.get_event_args(::DummyToolkitEvent, mask, u, p, cache, t) = nothing
 
     @testset "Dependency Isolation" begin
         dummy_toolkit = DummyToolkitEvent()
-        # Test that the fallback works for PottsToolkit.Events.AbstractEvent too
+        # Test that the fallback works for PottsToolkitEvent too
         res = CorePotts.process_event!(
             dummy_toolkit, nothing, nothing, nothing, nothing, 0.0, nothing)
         @test res === nothing
@@ -120,5 +120,23 @@ CorePotts.get_event_args(::DummyToolkitEvent, mask, u, p, cache, t) = nothing
         @test res_2[2].check_interval == 1
         @test res_2[3].check_interval == 1
         @test res_2[4].check_interval == 1
+    end
+
+    @testset "Poisson Random Sampling" begin
+        # lambda < 15 uses Knuth
+        l1 = 5.0f0
+        samples1 = [CorePotts.gpu_rand_poisson(UInt32(i), UInt32(1), UInt32(0), l1) for i in 1:10000]
+        mean1 = sum(samples1) / length(samples1)
+        var1 = sum((x - mean1)^2 for x in samples1) / (length(samples1) - 1)
+        @test isapprox(mean1, l1; rtol=0.1)
+        @test isapprox(var1, l1; rtol=0.1)
+
+        # lambda >= 15 uses Gaussian approximation
+        l2 = 25.0f0
+        samples2 = [CorePotts.gpu_rand_poisson(UInt32(i), UInt32(1), UInt32(0), l2) for i in 1:10000]
+        mean2 = sum(samples2) / length(samples2)
+        var2 = sum((x - mean2)^2 for x in samples2) / (length(samples2) - 1)
+        @test isapprox(mean2, l2; rtol=0.1)
+        @test isapprox(var2, l2; rtol=0.1)
     end
 end

@@ -1,11 +1,12 @@
 using Test
 using CorePotts
+import CorePotts: checkerboard_color, checkerboard_colors
 
 using SciMLBase
 @testset "Checkerboard Coloring Rules" begin
     @test checkerboard_colors(VonNeumannTopology{2}()) == 2
     @test checkerboard_colors(MooreTopology{2}()) == 4
-    @test checkerboard_colors(ExtendedVonNeumannTopology{2, 3}()) == 4
+    @test checkerboard_colors(ExtendedVonNeumannTopology{2, 3}()) == 8
     @test checkerboard_colors(ExtendedMooreTopology{2, 3}()) == 16
 
     @test checkerboard_color(VonNeumannTopology{2}(), (UInt32(0), UInt32(0))) == 0

@@ -75,18 +75,18 @@ function transform_rule(expr, state::ExtractionState)
             state.count += 1
             push!(state.spatial_rules,
                 :(CorePotts.ContactArea($(transform_rule(type_id, state)), $(state.count))))
-            :(ctx.spatial_buffer[($(state.count) - 1) * length(cell_data.volumes) + cell_id])
+            :(CorePotts.get_contact_area(cell_data, cell_id, ctx, $(transform_rule(type_id, state))))
         end
         :(medium_contact()) => begin
             state.count += 1
             push!(state.spatial_rules, :(CorePotts.ContactArea(0, $(state.count))))
-            :(ctx.spatial_buffer[($(state.count) - 1) * length(cell_data.volumes) + cell_id])
+            :(CorePotts.get_contact_area(cell_data, cell_id, ctx, 0))
         end
         :(neighbor_count($type_id)) => begin
             state.count += 1
             push!(state.spatial_rules,
                 :(CorePotts.NeighborCount($(transform_rule(type_id, state)), $(state.count))))
-            :(ctx.spatial_buffer[($(state.count) - 1) * length(cell_data.volumes) + cell_id])
+            :(CorePotts.get_neighbor_count(cell_data, cell_id, ctx, $(transform_rule(type_id, state))))
         end
         :(neighbor_sum($prop, $type_id)) => begin
             state.count += 1
@@ -94,7 +94,7 @@ function transform_rule(expr, state::ExtractionState)
             push!(state.spatial_rules,
                 :(CorePotts.NeighborSum($(QuoteNode(prop_sym)),
                     $(transform_rule(type_id, state)), $(state.count))))
-            :(ctx.spatial_buffer[($(state.count) - 1) * length(cell_data.volumes) + cell_id])
+            :(CorePotts.get_neighbor_sum(cell_data, cell_id, ctx, $(QuoteNode(prop_sym)), $(transform_rule(type_id, state))))
         end
 
         # Recursively transform function arguments
@@ -113,6 +113,10 @@ function transform_rule(expr, state::ExtractionState)
 
         # Recursively transform blocks
         Expr(:block, args...) => Expr(:block, map(a -> transform_rule(a, state), args)...)
+
+        # Support assignments
+        Expr(:(=), a, b) => Expr(:(=), transform_rule(a, state), transform_rule(b, state))
+        Expr(:(:=), a, b) => Expr(:(:=), transform_rule(a, state), transform_rule(b, state))
 
         # Return primitives and literals as is
         _ => expr

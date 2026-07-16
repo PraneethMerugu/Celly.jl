@@ -117,20 +117,17 @@ end
     end
 end
 
-@generated function has_reduce_rules(rules::Tuple)
-    has_reduce = false
-    for T in rules.parameters
-        if !(T <: ContactArea)
-            has_reduce = true
-        end
-    end
-    return :($has_reduce)
-end
+@inline has_reduce_rules(rules::Tuple) = _any_reduce(rules...)
+@inline _any_reduce() = false
+@inline _any_reduce(r, rest...) = requires_edge_reduction(r) || _any_reduce(rest...)
 
 @kernel function _fill_kernel!(buffer, val)
     i = @index(Global)
     buffer[i] = val
 end
+
+@inline _filter_events() = ()
+@inline _filter_events(x, rest...) = x !== nothing ? (x, _filter_events(rest...)...) : _filter_events(rest...)
 
 function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, deps)
     backend = KernelAbstractions.get_backend(u.grid)
@@ -143,40 +140,42 @@ function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, 
     buf_size = N_cells * num_rules
     spatial_buffer = workspace.spatial_buffer
     k_fill = _fill_kernel!(backend, cache.block_size)
-    ev_fill_buf = dispatch_kernel!(
+    ev_fill_buf = dispatch_kernel!(backend, 
         k_fill, spatial_buffer, UInt32(0); ndrange = buf_size, dependencies = deps)
 
     needs_reduce = has_reduce_rules(spatial_rules)
 
-    # 2. Setup edge buffers for reduce rules (always setup to avoid type instability in kernel signature)
     max_edges = N_grid * length(CorePotts.offsets(topology))
     edge_list = workspace.edge_list
     edge_count = workspace.edge_count
-    ev_fill_count = dispatch_kernel!(
-        k_fill, edge_count, UInt32(0); ndrange = 1, dependencies = deps)
     
-    # Initialize edge_list to typemax to push empty elements to the back during sorting
-    ev_fill_edges = dispatch_kernel!(
-        k_fill, edge_list, typemax(UInt64); ndrange = max_edges, dependencies = deps)
+    ev_fill_count = nothing
+    ev_fill_edges = nothing
+
+    if needs_reduce
+        ev_fill_count = dispatch_kernel!(backend, 
+            k_fill, edge_count, UInt32(0); ndrange = 1, dependencies = deps)
+        
+        # Initialize edge_list to typemax to push empty elements to the back during sorting
+        ev_fill_edges = dispatch_kernel!(backend, 
+            k_fill, edge_list, typemax(UInt64); ndrange = max_edges, dependencies = deps)
+    end
 
     dims = size(grid)
     k_extract = _extract_spatial_edges!(backend, cache.block_size)
 
-    deps_extract = (ev_fill_buf !== nothing && ev_fill_count !== nothing && ev_fill_edges !== nothing) ?
-                   (ev_fill_buf, ev_fill_count, ev_fill_edges) :
-                   (ev_fill_buf !== nothing ? (ev_fill_buf,) :
-                    (ev_fill_count !== nothing ? (ev_fill_count,) : ())) # simplified
+    deps_extract = _filter_events(ev_fill_buf, ev_fill_count, ev_fill_edges)
 
     if !needs_reduce
         # If we don't need to reduce, we can skip edge collection entirely
-        ev_spatial = dispatch_kernel!(
+        ev_spatial = dispatch_kernel!(backend, 
             k_extract, grid, dims, topology, edge_list, edge_count,
             spatial_rules, spatial_buffer, u.cell_data, needs_reduce;
             ndrange = N_grid, dependencies = deps_extract)
         return spatial_buffer, ev_spatial
     end
 
-    ev_extract = dispatch_kernel!(k_extract, grid, dims, topology, edge_list, edge_count,
+    ev_extract = dispatch_kernel!(backend, k_extract, grid, dims, topology, edge_list, edge_count,
         spatial_rules, spatial_buffer, u.cell_data, needs_reduce;
         ndrange = N_grid, dependencies = deps_extract)
 
@@ -186,7 +185,7 @@ function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, 
     
     # Instead of slicing and launching based on exact edge count, launch over max_edges
     k_reduce = _reduce_spatial_edges!(backend, cache.block_size)
-    ev_spatial = dispatch_kernel!(k_reduce, edge_list, spatial_rules,
+    ev_spatial = dispatch_kernel!(backend, k_reduce, edge_list, spatial_rules,
         spatial_buffer, u.cell_data, max_edges; ndrange = max_edges)
 
     return spatial_buffer, ev_spatial
@@ -199,9 +198,8 @@ end
     i = @index(Global, Linear)
     if i <= length(volumes)
         if volumes[i] == 0 && target_volumes[i] == 0 && cell_types[i] > 0
-            # Atomix.@atomic returns the old value for += but wait... 
-            # Atomix.@atomic x += 1 returns the NEW value in our test. 
-            # So if old was 0, it returns 1. We want to write to index 1.
+            # Atomix.@atomic x += y returns the NEW value (post-increment) following Julia 1.7+ semantics.
+            # Because free_list is 1-indexed, we use this returned index directly.
             idx = Atomix.@atomic free_list_count[1] += Int32(1)
             free_list[idx] = UInt32(i)
             cell_types[i] = UInt32(0)

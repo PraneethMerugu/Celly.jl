@@ -7,7 +7,7 @@ using CairoMakie # For plot testing
     W, H = 20, 20
     N_cells = 5
     grid = rand(UInt32(1):UInt32(N_cells), W, H)
-    penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
+    penalties = (HSTVolumePenalty{Rigid}(backend_zeros(Float32, 256)),)
     trackers = (VolumeTracker(), SurfaceAreaTracker())
     cell_data = build_cell_data(grid, N_cells, penalties, trackers)
 

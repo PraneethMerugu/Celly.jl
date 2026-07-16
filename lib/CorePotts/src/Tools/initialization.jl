@@ -8,6 +8,10 @@ Allocates and constructs a `StructArray` on the same backend as `grid` (CPU or G
 to hold macroscopic cell properties like `:volumes`, `:target_volumes`, `:cell_types`, 
 `:pressures`, etc. 
 """
+@inline _extract_reqs(comp::Tuple) = merge(_extract_reqs(comp[1]), _extract_reqs(Base.tail(comp)))
+@inline _extract_reqs(::Tuple{}) = (;)
+@inline _extract_reqs(comp) = required_variables(comp)
+
 function build_cell_data(grid::AbstractArray, N_cells::Int, components...; FloatType = Float32,
         IntType = Int32, custom_fields...)
     alloc_zero(T, sz) = fill!(similar(grid, T, sz), zero(T))
@@ -18,24 +22,15 @@ function build_cell_data(grid::AbstractArray, N_cells::Int, components...; Float
         cell_types = alloc_zero(UInt8, N_cells),
     )
 
-    comp_fields = Dict{Symbol, Any}()
+    reqs = _extract_reqs(components)
+    unique_reqs = Base.structdiff(reqs, base_fields)
 
-    function extract_reqs(comp)
-        if comp isa Tuple
-            foreach(extract_reqs, comp)
-        else
-            for (var_name, type_sym) in pairs(required_variables(comp))
-                T = type_sym === Float32 ? FloatType : (type_sym === Int32 ? IntType : type_sym)
-                if !hasproperty(base_fields, var_name) && !haskey(comp_fields, var_name)
-                    comp_fields[var_name] = alloc_zero(T, N_cells)
-                end
-            end
-        end
+    comp_fields = map(unique_reqs) do type_sym
+        T = type_sym === Float32 ? FloatType : (type_sym === Int32 ? IntType : type_sym)
+        alloc_zero(T, N_cells)
     end
 
-    extract_reqs(components)
-
-    all_fields = merge(base_fields, NamedTuple(comp_fields), (; custom_fields...))
+    all_fields = merge(base_fields, comp_fields, (; custom_fields...))
     return StructArrays.StructArray(all_fields)
 end
 
@@ -53,7 +48,8 @@ function spawn_hypersphere!(
         coords = idx_to_coord(UInt32(I), grid_dims)
         dist_sq = 0
         for i in 1:N
-            dist_sq += (Int(coords[i]) - center[i])^2
+            # coords are 0-indexed, center is 1-indexed
+            dist_sq += (Int(coords[i]) + 1 - center[i])^2
         end
 
         # Overwrite space with the new cell

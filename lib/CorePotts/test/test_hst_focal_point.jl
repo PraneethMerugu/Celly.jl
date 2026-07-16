@@ -6,12 +6,12 @@ using Test
     for AlgType in TEST_ALGORITHMS
         @testset "$(AlgType)" begin
             grid_dims = (40, 40)
-            grid = zeros(UInt32, grid_dims...)
+            grid = backend_zeros(UInt32, grid_dims...)
             # Spawn two cells
             spawn_hypersphere!(grid, grid_dims, (15, 20), 4, UInt32(1))
             spawn_hypersphere!(grid, grid_dims, (25, 20), 4, UInt32(2))
 
-            conn = zeros(Int32, 2, 2)
+            conn = backend_zeros(Int32, 2, 2)
             conn[1, 2] = 1
             conn[2, 1] = 1
             lambdas = Float32[2.0, 2.0]

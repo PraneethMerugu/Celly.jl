@@ -9,7 +9,7 @@ using CorePotts
     N_cells = 1
 
     # Initialize a rod-shaped cell
-    grid = zeros(Int32, grid_dims)
+    grid = backend_zeros(Int32, grid_dims)
     for x in 10:22
         for y in 14:18
             for z in 14:18

@@ -6,7 +6,7 @@ using StructArrays
 @testset "Mass Conservation across Topologies" begin
     function run_mass_test(topo, grid_dims, steps = 100)
         N_cells = 1
-        grid = zeros(UInt32, grid_dims...)
+        grid = backend_zeros(UInt32, grid_dims...)
         vol_penalty = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0]) # cell_type 1 has lambda=50
         trackers = (VolumeTracker(), SurfaceAreaTracker())
 

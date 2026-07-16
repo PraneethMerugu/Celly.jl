@@ -83,28 +83,18 @@ end
             neighbors = neighbors, n_src = n_src, n_tgt = n_tgt)
 
         tx_deltas = evaluate_all_trackers(trackers, ctx)
-        ctx_with_deltas = (;
-            grid = ctx.grid, grid_dims = ctx.grid_dims, topology = ctx.topology,
-            cell_data = ctx.cell_data, trackers = ctx.trackers, idx = ctx.idx,
-            src = ctx.src, tgt = ctx.tgt, T = ctx.T, spatial_coords = ctx.spatial_coords,
-            source_coords = ctx.source_coords, neighbors = ctx.neighbors,
-            n_src = ctx.n_src, n_tgt = ctx.n_tgt, tx_deltas = tx_deltas)
+        ctx_with_deltas = merge(ctx, (; tx_deltas = tx_deltas))
         dH = evaluate_all_penalties(penalties, ctx_with_deltas)
 
         hastings_ratio = n_tgt == Int32(0) ?
                          typeof(T_val)(n_src) :
                          typeof(T_val)(n_src) / typeof(T_val)(n_tgt)
-        prob = typeof(T_val)(rng_state & 0x00FFFFFF) / typeof(T_val)(0x01000000)
+        prob = typeof(T_val)(rng_state & MASK_24BIT) / typeof(T_val)(SCALE_24BIT)
         accept = evaluate_acceptance(sampler, dH, hastings_ratio, prob, T_val)
 
         return accept, target_val, src_val, tx_deltas
     else
-        dummy_ctx = (; grid = grid, grid_dims = grid_dims, topology = topology,
-            cell_data = cell_data, trackers = trackers,
-            idx = UInt32(idx), src = target_val, tgt = src_val, T = T_val,
-            spatial_coords = coords, source_coords = coords,
-            neighbors = ntuple(d -> Int32(0), N_dirs_val), n_src = Int32(0), n_tgt = Int32(0))
-        dummy_deltas = evaluate_all_trackers(trackers, dummy_ctx)
+        dummy_deltas = zero_deltas(trackers)
         return false, Int32(0), Int32(0), dummy_deltas
     end
 end
@@ -130,8 +120,8 @@ end
     if idx <= length(grid)
         my_ticket = pcg_hash(global_seed + UInt64(idx))
 
-        prob_active = typeof(active_fraction)(my_ticket & 0x00FFFFFF) /
-                      typeof(active_fraction)(0x01000000)
+        prob_active = typeof(active_fraction)(my_ticket & MASK_24BIT) /
+                      typeof(active_fraction)(SCALE_24BIT)
         N_moore = length(lottery_offsets(topology))
         target_prob = active_fraction * typeof(active_fraction)(N_moore + 1)
         if prob_active <= target_prob
@@ -172,8 +162,8 @@ end
 
         my_ticket = pcg_hash(global_seed + UInt64(idx))
 
-        prob_active = typeof(active_fraction)(my_ticket & 0x00FFFFFF) /
-                      typeof(active_fraction)(0x01000000)
+        prob_active = typeof(active_fraction)(my_ticket & MASK_24BIT) /
+                      typeof(active_fraction)(SCALE_24BIT)
         if prob_active <= active_fraction
             rng_state = pcg_hash(my_ticket)
             _local_site_update!(idx, coords, grid, grid_dims, topology, cell_data, penalties,
@@ -197,8 +187,8 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters,
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
 
-    cache.step_counter[1] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[1])
+    cache.step_counter[] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[])
 
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _checkerboard_sweep_kernel!(backend, cache.block_size)
@@ -213,7 +203,7 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters,
 
         if num_active_pixels > 0
             deps = current_event === nothing ? () : (current_event,)
-            current_event = dispatch_kernel!(kernel,
+            current_event = dispatch_kernel!(backend, kernel,
                 u.grid, cache.grid_dims, p.topology, u.cell_data,
                 p.penalties, p.trackers, sampler, T, active_fraction, global_seed,
                 cache.color_indices, offset, num_active_pixels;
@@ -243,14 +233,14 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     max_fraction = 1.0 / (length(lottery_offsets(p.topology)) + 1)
     @argcheck active_fraction <= max_fraction "ParallelMetropolis cannot achieve an active fraction higher than $(max_fraction) for this topology. Please lower `active_fraction` and proportionally increase `sweeps_per_step`."
 
-    cache.step_counter[1] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[1])
+    cache.step_counter[] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[])
 
     backend = KernelAbstractions.get_backend(u.grid)
     kernel = _local_lottery_sweep_kernel!(backend, cache.block_size)
 
     deps = prev_event === nothing ? () : (prev_event,)
-    current_event = dispatch_kernel!(kernel,
+    current_event = dispatch_kernel!(backend, kernel,
         u.grid, cache.grid_dims, p.topology, u.cell_data,
         p.penalties, p.trackers, sampler, T, active_fraction, global_seed;
         ndrange = length(u.grid), dependencies = deps
@@ -273,8 +263,8 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
 
-    cache.step_counter[1] += UInt64(1)
-    global_seed = pcg_hash(cache.step_counter[1])
+    cache.step_counter[] += UInt64(1)
+    global_seed = pcg_hash(cache.step_counter[])
 
     N = length(u.grid)
     num_updates = round(Int, N * active_fraction)
@@ -286,9 +276,9 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
 
     # We execute this entirely sequentially on a single thread.
     for i in 1:num_updates
-        # Deterministically generate random index
-        idx_hash = pcg_hash(global_seed + UInt64(i))
-        idx = (idx_hash % UInt64(N)) + 1
+        # Deterministically generate unbiased random index
+        rng = Random.Xoshiro(global_seed + UInt64(i))
+        idx = rand(rng, 1:N)
         coords = idx_to_coord(UInt32(idx), cache.grid_dims)
 
         # Unique seed for the local update acceptance

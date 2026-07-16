@@ -27,7 +27,7 @@ using SciMLBase
         spawn_hypersphere!(u0.grid, cache.grid_dims, (10 + i*20, 10 + i*20), 8, UInt32(i))
         u0.cell_data.cell_types[i] = 1
     end
-    sync_cell_data!(u0, p_sys, cache, u0.N_cells[1])
+    CorePotts.sync_cell_data!(u0, p_sys, cache, u0.N_cells[1])
 
     # Artificially inflate their target volumes to trigger growth callback
     for i in 1:3
@@ -96,7 +96,7 @@ using SciMLBase
             integrator.u.grid[x, y] = 1
         end
     end
-    sync_cell_data!(integrator.u, p_sys, cache, 1)
+    CorePotts.sync_cell_data!(integrator.u, p_sys, cache, 1)
 
     # Target volume small to force division
     integrator.u.cell_data.target_volumes[1] = 100
@@ -111,7 +111,7 @@ using SciMLBase
     # So the cut plane is parallel to the MAJOR axis.
     # Thus, one child is on the left, one on the right.
 
-    sync_cell_data!(integrator.u, p_sys, cache, 2)
+    CorePotts.sync_cell_data!(integrator.u, p_sys, cache, 2)
     vol_1 = integrator.u.cell_data.volumes[1]
     vol_2 = integrator.u.cell_data.volumes[2]
 
@@ -144,7 +144,7 @@ using SciMLBase
     process_mitosis_events!(u0_2, p_sys_2, cache_2, ws_2; trigger = ProteinTrigger(),
         inheritance_rules = rules, orientation = RandomOrientation())
 
-    sync_cell_data!(u0_2, p_sys_2, cache_2, 2)
+    CorePotts.sync_cell_data!(u0_2, p_sys_2, cache_2, 2)
     @test u0_2.N_cells[1] == 2
 
     # Check inheritance

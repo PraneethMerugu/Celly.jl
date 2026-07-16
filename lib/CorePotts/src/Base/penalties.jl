@@ -7,10 +7,7 @@ abstract type AbstractNeuralPenalty{Trait} <: AbstractPenalty{Trait} end
 abstract type AbstractHSTPenalty{Trait} <: AbstractPenalty{Trait} end
 
 # Holy Trait interfaces for extensible parameters and fields
-lambda_field(::AbstractPenalty) = error("Not implemented")
-hst_state_field(::AbstractHSTPenalty) = error("Not implemented")
-hst_value_field(::AbstractHSTPenalty) = error("Not implemented")
-hst_target_field(::AbstractHSTPenalty) = error("Not implemented")
+# (No fallback defined, missing implementation throws a standard Julia MethodError)
 
 # Universal get_lambda for generic parameter scaling
 @inline function get_lambda(p::AbstractPenalty{Rigid}, ctx, cell_id)

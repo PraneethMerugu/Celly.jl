@@ -21,9 +21,9 @@ using .RuleMacros
 export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
-export AbstractLayout, RandomLayout, HypersphereLayout, RectangleLayout, CompositeLayout
+export AbstractLayout, RandomLayout, HypersphereLayout, ScatterSpheresLayout, RectangleLayout, CompositeLayout
 export PottsProblem, compile_component
-export AbstractEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, AgeTrigger,
+export PottsToolkitEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, AgeTrigger,
        ProbabilityTrigger, CustomTrigger
 export MitosisEvent, ApoptosisEvent, TransitionEvent
 export TestProblems

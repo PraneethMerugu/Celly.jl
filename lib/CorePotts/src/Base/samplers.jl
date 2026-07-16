@@ -8,13 +8,7 @@ struct CustomStyle <: AcceptanceStyle end
 # 2. Define Base Samplers and map to Traits
 using ArgCheck
 
-struct MetropolisSampler <: AbstractSampler
-    active_fraction::Float32
-    function MetropolisSampler(active_fraction::Float32 = 1.0f0)
-        @argcheck 0.0f0 <= active_fraction <= 1.0f0 "active_fraction must be between 0.0 and 1.0"
-        new(active_fraction)
-    end
-end
+struct MetropolisSampler <: AbstractSampler end
 @inline AcceptanceStyle(::Type{MetropolisSampler}) = MetropolisStyle()
 
 # Fallback trait map

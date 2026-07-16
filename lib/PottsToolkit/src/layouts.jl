@@ -4,7 +4,7 @@ using CorePotts
 using Random
 using ..System: CellType
 
-export AbstractLayout, RandomLayout, HypersphereLayout, RectangleLayout, CompositeLayout
+export AbstractLayout, RandomLayout, HypersphereLayout, ScatterSpheresLayout, RectangleLayout, CompositeLayout
 export LayoutContext, build_layout!
 
 abstract type AbstractLayout end
@@ -100,6 +100,56 @@ function build_layout!(layout::HypersphereLayout{N}, ctx::LayoutContext{N}) wher
 end
 
 # ==============================================================================
+# ScatterSpheresLayout
+# ==============================================================================
+"""
+    ScatterSpheresLayout(cell_type::CellType, count::Int, radius::Int)
+    ScatterSpheresLayout(cell_type::CellType, count::Int, radius::Int, top_left::NTuple{N, Int}, bottom_right::NTuple{N, Int})
+
+Randomly scatters `count` hyperspheres of `cell_type` with the specified `radius` into the simulation grid.
+If `top_left` and `bottom_right` coordinates are provided, the hyperspheres will be strictly spawned within 
+that rectangular bounding box. Otherwise, they will be scattered across the entire grid.
+
+This primitive is extremely useful for generating packed tissues, random confluent monolayers, and 
+multi-focal tumor models.
+"""
+struct ScatterSpheresLayout <: AbstractLayout
+    cell_type::CellType
+    count::Int
+    radius::Int
+    top_left::Union{Tuple, Nothing}
+    bottom_right::Union{Tuple, Nothing}
+end
+
+# Default constructor without bounding box
+ScatterSpheresLayout(cell_type::CellType, count::Int, radius::Int) = 
+    ScatterSpheresLayout(cell_type, count, radius, nothing, nothing)
+
+function build_layout!(layout::ScatterSpheresLayout, ctx::LayoutContext{N}) where {N}
+    type_id = ctx.type_to_id[layout.cell_type]
+    grid_sz = size(ctx.grid)
+    
+    # Establish valid sampling ranges based on bounding box
+    ranges = if layout.top_left !== nothing && layout.bottom_right !== nothing
+        ntuple(i -> max(1, layout.top_left[i]):min(grid_sz[i], layout.bottom_right[i]), N)
+    else
+        ntuple(i -> 1:grid_sz[i], N)
+    end
+
+    for _ in 1:layout.count
+        # Sample a random center within the ranges
+        center = ntuple(i -> rand(ranges[i]), N)
+        
+        cell_id = ctx.next_cell_id
+        ctx.next_cell_id += 1
+        
+        CorePotts.spawn_hypersphere!(
+            ctx.grid, grid_sz, center, layout.radius, UInt32(cell_id))
+        ctx.cell_type_map[cell_id] = type_id
+    end
+end
+
+# ==============================================================================
 # RectangleLayout
 # ==============================================================================
 """
@@ -118,16 +168,18 @@ end
 
 function build_layout!(layout::RectangleLayout{N}, ctx::LayoutContext{N}) where {N}
     type_id = ctx.type_to_id[layout.cell_type]
-    cell_id = ctx.next_cell_id
-    ctx.next_cell_id += 1
 
     ranges = ntuple(i -> layout.top_left[i]:layout.bottom_right[i], N)
 
     # Safely clamp ranges to grid boundaries
     safe_ranges = ntuple(i -> max(1, ranges[i][1]):min(size(ctx.grid, i), ranges[i][end]), N)
 
-    ctx.grid[safe_ranges...] .= cell_id
-    ctx.cell_type_map[cell_id] = type_id
+    for idx in CartesianIndices(safe_ranges)
+        cell_id = ctx.next_cell_id
+        ctx.next_cell_id += 1
+        ctx.grid[idx] = cell_id
+        ctx.cell_type_map[cell_id] = type_id
+    end
 end
 
 # ==============================================================================
@@ -140,12 +192,12 @@ An aggregator layout that allows multiple layouts to be stacked sequentially.
 The component layouts are drawn onto the grid in the exact order they are provided.
 Useful for building complex multi-tissue geometries (e.g. a spheroid on top of a monolayer).
 """
-struct CompositeLayout <: AbstractLayout
-    layouts::Vector{AbstractLayout}
+struct CompositeLayout{T <: Tuple} <: AbstractLayout
+    layouts::T
 end
 
 function CompositeLayout(layouts::AbstractLayout...)
-    return CompositeLayout(collect(layouts))
+    return CompositeLayout(layouts)
 end
 
 function build_layout!(layout::CompositeLayout, ctx::LayoutContext)

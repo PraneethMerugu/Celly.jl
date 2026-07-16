@@ -25,14 +25,7 @@ function NeighborSum(prop::Symbol, type_id::Integer, idx::Integer)
     NeighborSum{prop}(UInt8(type_id), Int(idx))
 end
 
-struct NeighborReduce{Op, Prop, Init} <: AbstractSpatialRule
-    type_id::UInt8
-    buffer_index::Int
-end
-function NeighborReduce(op::F, prop::Symbol, type_id::Integer, init_val::T) where {F, T}
-    NeighborReduce{F, prop, T}(UInt8(type_id), 0)
-end
-function NeighborReduce(
-        op::F, prop::Symbol, type_id::Integer, init_val::T, idx::Integer) where {F, T}
-    NeighborReduce{F, prop, T}(UInt8(type_id), Int(idx))
-end
+
+
+requires_edge_reduction(::AbstractSpatialRule) = true
+requires_edge_reduction(::ContactArea) = false

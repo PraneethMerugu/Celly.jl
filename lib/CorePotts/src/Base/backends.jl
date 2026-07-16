@@ -14,8 +14,8 @@ end
 
 function save_state!(integrator, ::MemoryBackend)
     # Adapt grid and cell_data to regular CPU Arrays to avoid holding multiple copies in GPU VRAM
-    cpu_grid = deepcopy(Adapt.adapt(Array, integrator.u.grid))
-    cpu_cell_data = deepcopy(Adapt.adapt(Array, integrator.u.cell_data))
+    cpu_grid = copy(Adapt.adapt(Array, integrator.u.grid))
+    cpu_cell_data = copy(Adapt.adapt(Array, integrator.u.cell_data))
     push!(integrator.sol_u,
         (
             grid = cpu_grid, cell_data = cpu_cell_data, N_cells = Ref(Int(Array(integrator.u.N_cells)[]))))

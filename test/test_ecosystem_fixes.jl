@@ -6,7 +6,7 @@ using MakiePotts
 
 @testset "Ecosystem Fixes" begin
     @testset "Issue 2: PottsCache RefValue elimination" begin
-        grid = zeros(UInt32, 10, 10)
+        grid = backend_zeros(UInt32, 10, 10)
         cell_data = CorePotts.build_cell_data(grid, 5)
         u = CorePotts.PottsState(grid, cell_data)
         topology = CorePotts.VonNeumannTopology{2}()

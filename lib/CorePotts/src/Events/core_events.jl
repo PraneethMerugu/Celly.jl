@@ -96,16 +96,14 @@ function process_event!(evt::PropertyUpdateEvent, mask, u, p, cache, t, deps)
     end
 
     # 2. Update properties
-    ctx = (t = t, step_counter = cache.step_counter[], spatial_buffer = spatial_buffer)
+    ctx = (t = t, step_counter = cache.step_counter[], spatial_buffer = spatial_buffer, spatial_rules = all_spatial)
     k_prop = _kernel_property_update!(backend, cache.block_size)
     nd_prop = length(u.cell_data.volumes)
 
     # evt.cell_type represents the target cell type id, default 0 means all
     target_type = UInt8(evt.cell_type isa Integer ? evt.cell_type : 0)
 
-    ev_prop = dispatch_kernel!(k_prop, u.cell_data, evt.rules, target_type, ctx;
+    ev_prop = dispatch_kernel!(backend, k_prop, u.cell_data, evt.rules, target_type, ctx;
         ndrange = nd_prop, dependencies = deps)
     return (ev_prop,)
 end
-abstract type AbstractMultiEvent <: AbstractEvent end
-function get_sub_events end

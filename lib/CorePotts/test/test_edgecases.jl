@@ -67,7 +67,7 @@ using Test
         for AlgType in TEST_ALGORITHMS
             @testset "$(AlgType)" begin
                 W, H = 20, 20
-                grid = zeros(UInt32, W, H)
+                grid = backend_zeros(UInt32, W, H)
                 grid[5:15, 5:10] .= 1;
                 grid[5:15, 11:15] .= 2
                 J = Float32[0.0 5.0 5.0; 5.0 2.0 5.0; 5.0 5.0 2.0]
@@ -92,7 +92,7 @@ using Test
 
                 function check_connectivity(g, c_id)
                     W, H = size(g)
-                    visited = zeros(Bool, W, H)
+                    visited = backend_zeros(Bool, W, H)
                     start_x, start_y = 0, 0
                     for x in 1:W, y in 1:H
 
@@ -159,7 +159,7 @@ using Test
 
                 solve!(integrator)
 
-                actual_volumes = zeros(Int, N_cells)
+                actual_volumes = backend_zeros(Int, N_cells)
                 for v in integrator.u.grid
                     if v > 0
                         actual_volumes[v] += 1

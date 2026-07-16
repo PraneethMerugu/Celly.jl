@@ -11,10 +11,10 @@ using Test
     Base.getproperty(x::MockCellData, sym::Symbol) = getfield(x, sym)
 
     cd = MockCellData([10, 20], [10.0f0, 20.0f0], [1, 2])
-    ctx = CorePotts.UpdateContext(0, nothing, nothing, UInt32(0), nothing)
+    ctx = CorePotts.UpdateContext(0, nothing, nothing, UInt32(0), nothing, ())
 
-    rule1 = CompiledRule((cell_data, cell_id, ctx) -> cell_data.volumes[cell_id] * 2.0f0)
-    rule2 = CompiledRule((cell_data, cell_id, ctx) -> cell_data.target_volumes[cell_id] +
+    rule1 = CompiledRule((cell_data, cell_id, ctx, dt) -> cell_data.volumes[cell_id] * 2.0f0)
+    rule2 = CompiledRule((cell_data, cell_id, ctx, dt) -> cell_data.target_volumes[cell_id] +
                                                       5.0f0)
 
     rules = (target_volumes = rule1, volumes = rule2)

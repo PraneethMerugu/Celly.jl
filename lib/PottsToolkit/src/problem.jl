@@ -20,9 +20,8 @@ function compile_component(pen::AbstractComponent, sys::PottsSystem,
     error("NotImplementedError: compile_component is not implemented for $(typeof(pen)). Please implement compile_component to return (compiled_penalty, required_trackers, initial_props).")
 end
 
-function compile_component(pen::VolumeComponent, sys::PottsSystem,
-        type_to_id::Dict{CellType, UInt8}, num_types::Int)
-    FlexType = typeof(pen).parameters[1]
+function compile_component(pen::VolumeComponent{FlexType}, sys::PottsSystem,
+        type_to_id::Dict{CellType, UInt8}, num_types::Int) where {FlexType}
     required_trackers = Any[CorePotts.VolumeTracker()]
     if FlexType === CorePotts.Flex
         push!(required_trackers, CorePotts.VolumeFlexTracker())
@@ -43,9 +42,8 @@ function compile_component(pen::VolumeComponent, sys::PottsSystem,
     return comp_pen, required_trackers, initial_props
 end
 
-function compile_component(pen::HSTVolumeComponent, sys::PottsSystem,
-        type_to_id::Dict{CellType, UInt8}, num_types::Int)
-    FlexType = typeof(pen).parameters[1]
+function compile_component(pen::HSTVolumeComponent{FlexType}, sys::PottsSystem,
+        type_to_id::Dict{CellType, UInt8}, num_types::Int) where {FlexType}
     required_trackers = Any[CorePotts.VolumeTracker()]
     if FlexType === CorePotts.Flex
         push!(required_trackers, CorePotts.VolumeFlexTracker())
@@ -67,9 +65,8 @@ function compile_component(pen::HSTVolumeComponent, sys::PottsSystem,
     return comp_pen, required_trackers, initial_props
 end
 
-function compile_component(pen::SurfaceAreaComponent, sys::PottsSystem,
-        type_to_id::Dict{CellType, UInt8}, num_types::Int)
-    FlexType = typeof(pen).parameters[1]
+function compile_component(pen::SurfaceAreaComponent{FlexType}, sys::PottsSystem,
+        type_to_id::Dict{CellType, UInt8}, num_types::Int) where {FlexType}
     required_trackers = Any[CorePotts.SurfaceAreaTracker()]
     if FlexType === CorePotts.Flex
         push!(required_trackers, CorePotts.SurfaceAreaFlexTracker())
@@ -91,13 +88,9 @@ function compile_component(pen::SurfaceAreaComponent, sys::PottsSystem,
     return comp_pen, required_trackers, initial_props
 end
 
-function compile_component(pen::LengthComponent, sys::PottsSystem,
-        type_to_id::Dict{CellType, UInt8}, num_types::Int)
-    FlexType = typeof(pen).parameters[1]
+function compile_component(pen::LengthComponent{FlexType}, sys::PottsSystem,
+        type_to_id::Dict{CellType, UInt8}, num_types::Int) where {FlexType}
     required_trackers = Any[]
-    if FlexType === CorePotts.Flex
-        push!(required_trackers, CorePotts.LengthFlexTracker())
-    end
     λ_vec = zeros(Float32, num_types)
     initial_props = Dict{UInt8, Dict{Symbol, Any}}()
     for (ct, vals) in pen.mappings
@@ -126,15 +119,12 @@ function compile_component(pen::ChemotaxisComponent, sys::PottsSystem,
     Dict{UInt8, Dict{Symbol, Any}}()
 end
 
-function compile_component(pen::AdhesionComponent, sys::PottsSystem,
-        type_to_id::Dict{CellType, UInt8}, num_types::Int)
-    FlexType = typeof(pen).parameters[1]
-    Isotropic = typeof(pen).parameters[2]
+function compile_component(pen::AdhesionComponent{FlexType, Isotropic}, sys::PottsSystem,
+        type_to_id::Dict{CellType, UInt8}, num_types::Int) where {FlexType, Isotropic}
     required_trackers = Any[]
     initial_props = Dict{UInt8, Dict{Symbol, Any}}()
 
     if FlexType === CorePotts.Flex
-        push!(required_trackers, CorePotts.AdhesionFlexTracker())
         for id in 1:(num_types - 1)
             initial_props[UInt8(id)] = Dict{Symbol, Any}(:adhesion_modifiers => 1.0f0)
         end
@@ -364,7 +354,7 @@ function CorePotts.PottsProblem(sys::PottsSystem,
     return CorePotts.PottsProblem(sys, Layouts.RandomLayout(u0_counts), grid_size; kwargs...)
 end
 
-function CorePotts.PottsProblem(sys::PottsSystem, state::PottsState; tspan = (0, 10), trackers = ())
+function CorePotts.PottsProblem(sys::PottsSystem, state::PottsState; tspan = (0, 10), trackers = (), topology::AbstractTopology = MooreTopology{2}())
     type_to_id = Dict{CellType, UInt8}()
 
     for ct in sys.cell_types
@@ -394,7 +384,9 @@ function CorePotts.PottsProblem(sys::PottsSystem, state::PottsState; tspan = (0,
     end
     all_trackers = tuple(unique_trackers...)
 
-    p = PottsParameters(MooreTopology{2}(), compiled_penalties, all_trackers)
+    resolved_events, _ = Events.compile_events(sys.events, sys, type_to_id, sys.check_interval)
+
+    p = PottsParameters(topology, compiled_penalties, all_trackers, resolved_events)
 
     return PottsProblem(state, tspan, p)
 end

@@ -59,6 +59,37 @@ import CorePotts
         @test ctx.cell_type_map[ctx.grid[cell_id]] == 2
     end
 
+    @testset "ScatterSpheresLayout" begin
+        ctx = LayoutContext((50, 50), type_to_id)
+        layout = ScatterSpheresLayout(A, 10, 3)
+        build_layout!(layout, ctx)
+
+        # We should have spawned 10 distinct cell IDs
+        # Background is 0, so max cell ID should be 10 (since next_cell_id starts at 1)
+        unique_cells = unique(ctx.grid)
+        @test length(unique_cells) >= 10 # Some spheres could completely overlap, but very unlikely in 50x50 with radius 3
+
+        for id in unique_cells
+            if id > 0
+                @test ctx.cell_type_map[id] == 1 # Type A
+            end
+        end
+
+        # Test bounded scatter
+        ctx_bounded = LayoutContext((50, 50), type_to_id)
+        layout_bounded = ScatterSpheresLayout(B, 5, 2, (10, 10), (20, 20))
+        build_layout!(layout_bounded, ctx_bounded)
+
+        for x in 1:50, y in 1:50
+            if ctx_bounded.grid[x, y] > 0
+                # A sphere of radius 2 centered between 10 and 20 can extend to 10-2 = 8 and 20+2 = 22
+                @test 8 <= x <= 22
+                @test 8 <= y <= 22
+                @test ctx_bounded.cell_type_map[ctx_bounded.grid[x, y]] == 2 # Type B
+            end
+        end
+    end
+
     @testset "CompositeLayout" begin
         ctx = LayoutContext((20, 20), type_to_id)
         layout = CompositeLayout([
