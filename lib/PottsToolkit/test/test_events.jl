@@ -24,8 +24,8 @@ import PottsToolkit.Events: _evaluate_trigger, AbstractAction
         # CustomTrigger
         ct = CustomTrigger((i, cd) -> cd.volumes[i] == 5)
         cd_mock = (volumes = Int32[0, 5, 20],)
-        @test _evaluate_trigger(ct, 2, cd_mock) == true
-        @test _evaluate_trigger(ct, 3, cd_mock) == false
+        @test _evaluate_trigger(ct, 2, cd_mock, 0) == true
+        @test _evaluate_trigger(ct, 3, cd_mock, 0) == false
     end
 
     @testset "Event Priority (compile_events)" begin

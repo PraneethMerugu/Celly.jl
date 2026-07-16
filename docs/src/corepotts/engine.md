@@ -88,6 +88,10 @@ The winning site commits its update; the losing site is treated as a rejection.
 
 **When to use:** Only when debugging or verifying single-threaded correctness.
 
+> [!WARNING]
+> **Topological Density Limit**
+> The stochastic lottery relies on spatial sparsity to guarantee safety. The absolute maximum `active_fraction` that `ParallelMetropolis` can theoretically process without violating isolation is `1 / (N_neighbors + 1)` (e.g. `1/9 ≈ 0.11` for a Moore topology). The engine will mathematically enforce this limit and throw an error if you try to exceed it. If you need more updates per step, lower your `active_fraction` to below this threshold and proportionally increase your `sweeps_per_step`.
+
 ---
 
 ## SequentialMetropolis
@@ -115,30 +119,7 @@ visited. This is the textbook Potts algorithm.
 - Reproducing published results that specify sequential sampling.
 - Unit tests that require exact, seed-reproducible trajectories.
 
----
 
-## SparseLotteryMetropolis
-
-```julia
-alg = SparseLotteryMetropolis(T = 2.0f0, sweeps_per_step = 10, active_fraction = 0.1f0)
-```
-
-**How it works:**
-
-A sparse variant of `ParallelMetropolis`. Instead of considering every lattice site each
-sweep, only a random fraction `active_fraction` of sites participate in each pass.
-This dramatically reduces memory bandwidth for simulations with large grids and few
-active cells.
-
-**Properties:**
-- ✅ Efficient for sparse configurations (many medium sites, few cells).
-- ✅ Works for any topology.
-- ⚠️ Introduces additional sparsity-induced bias.
-
-**When to use:** Large lattices with low cell occupancy — e.g. a few cells in a vast
-medium, or during initialisation before many cells are seeded.
-
----
 
 ## Parameter Reference
 
@@ -146,7 +127,8 @@ medium, or during initialisation before many cells are seeded.
 |-----------|-----------|-------------|---------------|
 | `T` | all | Effective temperature. Controls acceptance of energy-increasing moves. | 0.5 – 10.0 |
 | `sweeps_per_step` | all | Number of full lattice sweeps per saved time step. Governs how much "biological time" passes per frame. | 1 – 100 |
-| `active_fraction` | `SparseLotteryMetropolis` | Fraction of sites sampled per pass. | 0.01 – 1.0 |
+| `active_fraction` | all | Fraction of the grid randomly proposed for updates per sweep. Controls update density. | 0.01 – 0.5 |
+
 | `block_size` | `CheckerboardMetropolis` | GPU thread-block size (advanced). Tune for hardware. | 32, 64, 128, 256 |
 
 > [!TIP]

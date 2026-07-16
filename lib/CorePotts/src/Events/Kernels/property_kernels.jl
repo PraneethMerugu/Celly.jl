@@ -1,7 +1,7 @@
 
-@kernel function _kernel_property_update!(cell_data, rules, N_cells, target_type_id, ctx)
+@kernel function _kernel_property_update!(cell_data, rules, target_type_id, ctx)
     i = @index(Global, Linear)
-    if i <= N_cells[1]
+    if cell_data.cell_types[i] > 0
         if target_type_id == UInt8(0) || cell_data.cell_types[i] == target_type_id
             evaluate_and_assign_rules!(cell_data, UInt32(i), ctx, rules)
         end
@@ -38,21 +38,22 @@ end
 end
 
 @kernel function _reduce_spatial_edges!(
-        edge_list, edge_count, spatial_rules, spatial_buffer, cell_data)
+        edge_list, spatial_rules, spatial_buffer, cell_data, max_edges)
     i = @index(Global, Linear)
-    if i <= edge_count[1]
-        # Only process if this is the first occurrence of this edge (deduplication)
-        # edge_list is sorted, so duplicates are adjacent.
-        is_unique = (i == 1) || (edge_list[i] != edge_list[i - 1])
-        if is_unique
-            packed_edge = edge_list[i]
-            cell_id = UInt32(packed_edge >> 32)
-            n_cell_id = UInt32(packed_edge & 0xFFFFFFFF)
-            n_type = n_cell_id == 0 ? UInt8(0) : cell_data.cell_types[n_cell_id]
+    if i <= max_edges
+        packed_edge = edge_list[i]
+        if packed_edge != typemax(UInt64)
+            # Only process if this is the first occurrence of this edge (deduplication)
+            is_unique = (i == 1) || (packed_edge != edge_list[i - 1])
+            if is_unique
+                cell_id = UInt32(packed_edge >> 32)
+                n_cell_id = UInt32(packed_edge & 0xFFFFFFFF)
+                n_type = n_cell_id == 0 ? UInt8(0) : cell_data.cell_types[n_cell_id]
 
-            # Evaluate reduce-based spatial rules for this unique edge
-            evaluate_reduce_rules!(
-                spatial_rules, cell_id, n_cell_id, n_type, spatial_buffer, cell_data)
+                # Evaluate reduce-based spatial rules for this unique edge
+                evaluate_reduce_rules!(
+                    spatial_rules, cell_id, n_cell_id, n_type, spatial_buffer, cell_data)
+            end
         end
     end
 end
@@ -131,7 +132,7 @@ end
     buffer[i] = val
 end
 
-function populate_spatial_buffer!(u, topology, cache, spatial_rules, deps)
+function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, deps)
     backend = KernelAbstractions.get_backend(u.grid)
     grid = u.grid
     N_grid = length(grid)
@@ -140,11 +141,7 @@ function populate_spatial_buffer!(u, topology, cache, spatial_rules, deps)
 
     # 1. Prepare buffers
     buf_size = N_cells * num_rules
-    if !haskey(cache.scratch, :spatial_buffer) ||
-       length(cache.scratch[:spatial_buffer]) < buf_size
-        cache.scratch[:spatial_buffer] = similar(grid, UInt32, buf_size)
-    end
-    spatial_buffer = cache.scratch[:spatial_buffer]
+    spatial_buffer = workspace.spatial_buffer
     k_fill = _fill_kernel!(backend, cache.block_size)
     ev_fill_buf = dispatch_kernel!(
         k_fill, spatial_buffer, UInt32(0); ndrange = buf_size, dependencies = deps)
@@ -153,22 +150,22 @@ function populate_spatial_buffer!(u, topology, cache, spatial_rules, deps)
 
     # 2. Setup edge buffers for reduce rules (always setup to avoid type instability in kernel signature)
     max_edges = N_grid * length(CorePotts.offsets(topology))
-    if !haskey(cache.scratch, :edge_list) || length(cache.scratch[:edge_list]) < max_edges
-        cache.scratch[:edge_list] = similar(grid, UInt64, max_edges)
-        cache.scratch[:edge_count] = similar(grid, UInt32, 1)
-    end
-    edge_list = cache.scratch[:edge_list]
-    edge_count = cache.scratch[:edge_count]
+    edge_list = workspace.edge_list
+    edge_count = workspace.edge_count
     ev_fill_count = dispatch_kernel!(
         k_fill, edge_count, UInt32(0); ndrange = 1, dependencies = deps)
+    
+    # Initialize edge_list to typemax to push empty elements to the back during sorting
+    ev_fill_edges = dispatch_kernel!(
+        k_fill, edge_list, typemax(UInt64); ndrange = max_edges, dependencies = deps)
 
     dims = size(grid)
     k_extract = _extract_spatial_edges!(backend, cache.block_size)
 
-    deps_extract = (ev_fill_buf !== nothing && ev_fill_count !== nothing) ?
-                   (ev_fill_buf, ev_fill_count) :
+    deps_extract = (ev_fill_buf !== nothing && ev_fill_count !== nothing && ev_fill_edges !== nothing) ?
+                   (ev_fill_buf, ev_fill_count, ev_fill_edges) :
                    (ev_fill_buf !== nothing ? (ev_fill_buf,) :
-                    (ev_fill_count !== nothing ? (ev_fill_count,) : ()))
+                    (ev_fill_count !== nothing ? (ev_fill_count,) : ())) # simplified
 
     if !needs_reduce
         # If we don't need to reduce, we can skip edge collection entirely
@@ -183,40 +180,19 @@ function populate_spatial_buffer!(u, topology, cache, spatial_rules, deps)
         spatial_rules, spatial_buffer, u.cell_data, needs_reduce;
         ndrange = N_grid, dependencies = deps_extract)
 
-    # We still need CPU synchronization for the sort! call if needs_reduce is true.
-    # We only synchronize if ev_extract is not nothing (though Metal naturally serializes).
-    KernelAbstractions.synchronize(backend)
-
-    # 3. Deduplicate edges and evaluate reduce rules
-    total_edges = Array(edge_count)[1]
-    ev_spatial = ev_extract
-
-    if total_edges > 0
-        active_edges = view(edge_list, 1:total_edges)
-        # AcceleratedKernels.sort! works on the GPU arrays directly
-        ev_sort = AcceleratedKernels.sort!(active_edges)
-        KernelAbstractions.synchronize(backend)
-
-        k_reduce = _reduce_spatial_edges!(backend, cache.block_size)
-        ev_spatial = dispatch_kernel!(k_reduce, active_edges, edge_count, spatial_rules,
-            spatial_buffer, u.cell_data; ndrange = total_edges)
-    end
+    # 3. Deduplicate edges and evaluate reduce rules unconditionally using typemax padding
+    ev_sort = AcceleratedKernels.sort!(edge_list)
+    KernelAbstractions.synchronize(backend) # sort! still needs sync internally on most backends
+    
+    # Instead of slicing and launching based on exact edge count, launch over max_edges
+    k_reduce = _reduce_spatial_edges!(backend, cache.block_size)
+    ev_spatial = dispatch_kernel!(k_reduce, edge_list, spatial_rules,
+        spatial_buffer, u.cell_data, max_edges; ndrange = max_edges)
 
     return spatial_buffer, ev_spatial
 end
 
-@kernel function _kernel_check_generic_triggers!(
-        dev_parents, dev_division_count, N_cells, cell_data, trigger, max_capacity)
-    i = @index(Global, Linear)
-    if i <= N_cells
-        if trigger(i, cell_data)
-            idx = Atomix.@atomic dev_division_count[1] += UInt32(1)
-            if idx <= max_capacity
-                dev_parents[idx] = UInt32(i)
-            end
-        end
-    end
-end
+
 
 @kernel function _kernel_find_dead_cells!(
         volumes, target_volumes, cell_types, free_list, free_list_count)
@@ -239,13 +215,13 @@ end
 Scans the grid for any cells whose `target_volume` is less than or equal to 0. 
 These cells are killed (removed from the grid) and their IDs are recycled for future use.
 """
-function process_death_events!(u::AbstractPottsState, cache::PottsCache, ws::MitosisWorkspace)
+function process_death_events!(u::AbstractPottsState, cache::PottsCache)
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)
-    current_N = Array(u.N_cells)[1]
+    nd_cap = length(u.cell_data.volumes)
 
     k_dead = _kernel_find_dead_cells!(backend, cache.block_size)
     k_dead(u.cell_data.volumes, u.cell_data.target_volumes, u.cell_data.cell_types,
-        u.free_list, u.free_list_count, ndrange = current_N)
+        u.free_list, u.free_list_count, ndrange = nd_cap)
     KernelAbstractions.synchronize(backend)
 end
 
@@ -256,9 +232,9 @@ Resets the stochastic auxiliary field for all live cells to its thermodynamic me
 immediately after a mitosis event, preventing O(1/η) MCS transients.
 """
 @kernel function _kernel_reset_hst_fields!(
-        states, values, targets, ctypes, lambdas, p_lambdas, is_flex, N_cells)
+        states, values, targets, ctypes, lambdas, p_lambdas, is_flex)
     i = @index(Global, Linear)
-    if i <= N_cells
+    if i <= length(states)
         ct = ctypes[i]
         if ct > 0 && values[i] > 0
             F = eltype(states)
@@ -292,10 +268,10 @@ function _reset_hst_fields_inner!(
     lambdas = is_flex ? getproperty(u.cell_data, L) : pen.lambdas
 
     backend = KernelAbstractions.get_backend(u.grid)
-    N = Int(Array(u.N_cells)[])
+    nd_cap = length(states)
     k = _kernel_reset_hst_fields!(backend, cache.block_size)
     k(states, values, targets, u.cell_data.cell_types, lambdas,
-        pen.lambdas, is_flex, UInt32(N), ndrange = N)
+        pen.lambdas, is_flex, ndrange = nd_cap)
     KernelAbstractions.synchronize(backend)
     return nothing
 end
@@ -355,16 +331,3 @@ end
 
 import SciMLBase
 
-function DeathCallback(; max_cells = nothing)
-    ws_ref = Ref{MitosisWorkspace}()
-    condition(u, t, integrator) = true
-    function affect!(integrator)
-        if !isassigned(ws_ref)
-            max_c = max_cells === nothing ? length(integrator.u.cell_data.volumes) :
-                    max_cells
-            ws_ref[] = MitosisWorkspace(integrator.u.grid, max_c)
-        end
-        process_death_events!(integrator.u, integrator.cache, ws_ref[])
-    end
-    return SciMLBase.DiscreteCallback(condition, affect!)
-end

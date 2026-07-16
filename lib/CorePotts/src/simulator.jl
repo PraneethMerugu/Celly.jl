@@ -28,12 +28,8 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
         saveat = saveat_vec, save_everystep = save_everystep,
         save_start = save_start, save_end = save_end, kwargs...)
 
-    # Initialize algorithmic cache
-    block_size = get(kwargs, :block_size, DEFAULT_BLOCK_SIZE)
-    cache = PottsCache(prob.u0, prob.p.topology, block_size)
-
     # Initialize event masks for zero-allocation mask-driven events
-    cache.scratch[:event_masks] = map(prob.p.events) do ev
+    event_masks = map(prob.p.events) do ev
         if has_device_trigger(ev)
             similar(prob.u0.cell_data.volumes, Bool)
         else
@@ -41,9 +37,17 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
         end
     end
 
+    # Initialize algorithmic cache
+    block_size = get(kwargs, :block_size, DEFAULT_BLOCK_SIZE)
+    cache = PottsCache(prob.u0, prob.p.topology, event_masks, block_size)
+
+    # Instantiate workspace buffers inside the events themselves
+    initialized_events = map(ev -> initialize_workspace(ev, prob.u0, prob.p.topology), prob.p.events)
+    p_initialized = PottsParameters(prob.p.topology, prob.p.penalties, prob.p.trackers, initialized_events)
+
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
     return PottsIntegrator(
-        deepcopy(prob.u0), prob.p, prob.tspan[1], alg, cache, opts, sol_u,
+        deepcopy(prob.u0), p_initialized, prob.tspan[1], alg, cache, opts, sol_u,
         sol_t, saveat_vec, save_everystep, save_start, save_end)
 end
 
@@ -105,9 +109,14 @@ function SciMLBase.step!(integrator::PottsIntegrator)
             throw(ArgumentError("One or more events capture non-bitstype variables! Ensure @rule closures only interpolate scalar primitives (like Float32, Int32) and do not capture full structs (like evt or CellType)."))
         end
         deps = current_event === nothing ? () : (current_event,)
-        masks = cache.scratch[:event_masks]::Tuple
+        masks = cache.event_masks::Tuple
         current_event = _evaluate_all_events!(
             p.events, masks, u, p, cache, integrator.t, deps)
+    end
+
+    # Phase 7: Intrinsic Death Processing (Reclaim IDs for target_volume <= 0)
+    if hasproperty(u.cell_data, :target_volumes)
+        process_death_events!(u, cache)
     end
 
     integrator.t += 1

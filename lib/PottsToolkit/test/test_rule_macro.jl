@@ -41,7 +41,7 @@ using CorePotts
     @test r_multi.spatial_deps[2].buffer_index == 2
 
     # Test closure execution with spatial buffer
-    ctx = CorePotts.UpdateContext(10, nothing, nothing, UInt32(0), (5, 10)) # spatial_buffer = (5, 10)
+    ctx = CorePotts.UpdateContext(10, nothing, nothing, UInt32(0), (5, 10, 15, 20)) # spatial_buffer = (5, 10, 15, 20)
 
     # Mock cell_data 
     mutable struct MockCellData
@@ -51,7 +51,7 @@ using CorePotts
     cd = MockCellData([10, 20])
 
     val = r_multi.closure(cd, 1, ctx, nothing)
-    @test val == 15 # ctx.spatial_buffer[1] + ctx.spatial_buffer[2] = 5 + 10
+    @test val == 20 # ctx.spatial_buffer[1] + ctx.spatial_buffer[3] = 5 + 15
 
     r_time = @rule time()
     @test r_time.closure(cd, 1, ctx, nothing) == 10

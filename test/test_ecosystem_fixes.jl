@@ -45,15 +45,11 @@ using MakiePotts
         alg = SequentialMetropolis()
         import SciMLBase
         integrator = SciMLBase.init(prob, alg)
-
-        cb = prob.kwargs[:callback].discrete_callbacks[1]
-
-        @test !haskey(integrator.cache.scratch, :mitosis_workspace)
-
-        cb.affect!(integrator)
-
-        @test haskey(integrator.cache.scratch, :mitosis_workspace)
-        @test integrator.cache.scratch[:mitosis_workspace] isa CorePotts.MitosisWorkspace
+        
+        # Test that workspace is attached to the MitosisEvent inside the integrator
+        evt = integrator.p.events[1]
+        @test evt isa PottsToolkit.Events.ResolvedMitosisEvent
+        @test evt.workspace isa CorePotts.MitosisWorkspace
     end
 
     @testset "Issue 4: MakiePotts UI resets" begin

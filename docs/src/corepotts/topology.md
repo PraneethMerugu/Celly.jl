@@ -28,7 +28,7 @@ prob = PottsProblem(sys, counts, (200, 200);
 | `VonNeumannTopology{3}()` | 3D | 6 | Periodic | Extends to 3D naturally |
 | `MooreTopology{3}()` | 3D | 26 | Periodic | Dense neighbourhood |
 | `ExtendedVonNeumannTopology{2,2}()` | 2D | radius-2 VN | Periodic | Larger interaction range |
-| `ExtendedMooreTopology{2,2}()` | 2D | radius-2 Moore | Periodic | Requires `SparseLotteryMetropolis` or `ParallelMetropolis` |
+| `ExtendedMooreTopology{2,2}()` | 2D | radius-2 Moore | Periodic | Requires `ParallelMetropolis` |
 
 The two type parameters of `ExtendedVonNeumannTopology{D,R}` and
 `ExtendedMooreTopology{D,R}` are the spatial dimension $D$ and the radius $R$.
@@ -88,5 +88,5 @@ parallel. For standard 2D/3D topologies the checkerboard algorithm is always opt
 
 > [!TIP]
 > If you are using an extended topology and need high throughput, use
-> `ParallelMetropolis` or `SparseLotteryMetropolis`. These handle arbitrary neighbourhoods
+> `ParallelMetropolis`. This handles arbitrary neighbourhoods
 > via a stochastic conflict-resolution lottery.

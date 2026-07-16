@@ -12,10 +12,12 @@ using SciMLBase
     grid = fill(UInt32(0), dims)
 
     # 1. Test Dynamic Memory and Resizing
-    cell_data = build_cell_data(grid, 10) # Max capacity 10
     trackers = (VolumeTracker(),)
+    penalties = (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),)
+    trigger = VolumeThresholdTrigger(1.0f0)
+    cell_data = build_cell_data(grid, 10, penalties, trackers, trigger) # Max capacity 10
     u0 = PottsState(grid, cell_data, 0)
-    p_sys = PottsParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),), trackers)
+    p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
     cache = PottsCache(u0, p_sys.topology)
     ws = CorePotts.MitosisWorkspace(grid, 10)
 
@@ -32,16 +34,23 @@ using SciMLBase
         u0.cell_data.target_volumes[i] = 10
     end
 
-    # Apply Growth — rate=1.0f0 means probability=1.0, so every live cell always gets +1 target volume
-    growth = LinearGrowthCallback(1.0f0)
+    # Apply Growth manually for the test (equivalent to rate=1.0)
     prob = PottsProblem(u0, (0, 10), p_sys)
     integrator = init(prob, ParallelMetropolis(T = 0.0f0))
-    growth(integrator)
+    
+    targets = Array(integrator.u.cell_data.target_volumes)
+    for i in 1:length(targets)
+        if targets[i] > 0
+            targets[i] += 1
+        end
+    end
+    copyto!(integrator.u.cell_data.target_volumes, targets)
+    
     @test integrator.u.cell_data.target_volumes[1] == 11
 
     # Trigger mitosis, all 3 cells should divide. Total cells will become 6.
     process_mitosis_events!(
-        integrator.u, p_sys, cache, ws; trigger = VolumeThresholdTrigger(1.0f0),
+        integrator.u, p_sys, cache, ws; trigger = trigger,
         orientation = RandomOrientation())
 
     @test integrator.u.N_cells[1] == 6
@@ -53,7 +62,7 @@ using SciMLBase
     integrator.u.cell_data.target_volumes[2] = 0
     integrator.u.cell_data.volumes[2] = 0
 
-    process_death_events!(integrator.u, cache, ws)
+    process_death_events!(integrator.u, cache)
     @test integrator.u.cell_data.cell_types[2] == 0
     @test Array(integrator.u.free_list_count)[1] == 1
     @test Array(integrator.u.free_list)[1] == UInt32(2)
@@ -111,15 +120,16 @@ using SciMLBase
     # 4. Test Trait Triggers and Inheritance Rules
     # Define a custom trigger that uses a custom field
     struct ProteinTrigger end
-    CorePotts.required_fields(::ProteinTrigger) = (:proteins, :target_volumes)
-    function (::ProteinTrigger)(cell_id, cell_data)
+    CorePotts.required_variables(::ProteinTrigger) = (proteins = Float32, target_volumes = Int32)
+    function (::ProteinTrigger)(cell_id, cell_data, step)
         return cell_data.proteins[cell_id] > 50
     end
 
-    # Initialize engine with custom fields
-    cell_data2 = build_cell_data(grid, 5; proteins = fill!(similar(grid, Float32, 5), 0.0f0))
+    # Initialize engine with custom fields automatically allocated
+    penalties2 = (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),)
+    cell_data2 = build_cell_data(grid, 5, penalties2, trackers, ProteinTrigger())
     u0_2 = PottsState(grid, cell_data2, 0)
-    p_sys_2 = PottsParameters(MooreTopology{2}(), (HSTVolumePenalty{Rigid}(fill(1.0f0, 10)),), trackers)
+    p_sys_2 = PottsParameters(MooreTopology{2}(), penalties2, trackers)
     cache_2 = PottsCache(u0_2, p_sys_2.topology)
     ws_2 = CorePotts.MitosisWorkspace(grid, 10)
 

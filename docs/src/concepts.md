@@ -39,6 +39,15 @@ Two distinct integer spaces are used throughout the API:
 > and prefer symbolic lookup over hardcoded integers to avoid silent bugs if the
 > `cell_types` ordering changes.
 
+### Dynamic Property Allocation
+
+The `cell_data` array is **dynamically allocated** based on the specific physics components in your `PottsSystem`. Instead of a massive struct containing every possible property, `PottsState` allocates exactly and only the memory required by your instantiated `Penalties`, `Trackers`, and `Events`. 
+
+For instance, if your simulation does not include a `SurfaceAreaComponent` or a `SurfaceAreaTracker`, the `target_surface_areas` array will simply not exist. Accessing it will throw a `FieldError`.
+
+> [!NOTE]
+> If you are building custom `Penalties` or `Events`, you must define the `CorePotts.required_variables` trait for your type (e.g., `CorePotts.required_variables(::MyPenalty) = (my_custom_field = Float32,)`) so the system correctly allocates your required arrays on the GPU!
+
 ### Monte Carlo Dynamics
 
 At each **Monte Carlo step** (MCS) the following procedure is repeated $|\Lambda|$ times

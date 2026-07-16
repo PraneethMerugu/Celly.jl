@@ -572,7 +572,56 @@ function update_sweep_auxiliary!(p::HSTLengthPenalty{FlexType}, u::AbstractPotts
         u.cell_data.inertia_zz, u.cell_data.inertia_xy,
         u.cell_data.inertia_xz, u.cell_data.inertia_yz,
         u.cell_data.volumes, u.cell_data.cell_types,
-        u.cell_data.length_lambdas, p.lambdas, FlexType === Flex, p.eta, T_val, seed, dt, cache.grid_dims,
+        FlexType === Flex ? u.cell_data.length_lambdas : p.lambdas, p.lambdas, FlexType === Flex, p.eta, T_val, seed, dt, cache.grid_dims,
         ndrange = N)
     KernelAbstractions.synchronize(backend)
 end
+
+required_variables(::HSTLengthPenalty{Rigid}) = (
+    current_lengths = Float32,
+    target_lengths = Float32,
+    length_pressures = Float32,
+    anchor_x = Float32,
+    anchor_y = Float32,
+    anchor_z = Float32,
+    major_axis_x = Float32,
+    major_axis_y = Float32,
+    major_axis_z = Float32,
+    inertia_xx = Float32,
+    inertia_yy = Float32,
+    inertia_zz = Float32,
+    inertia_xy = Float32,
+    inertia_xz = Float32,
+    inertia_yz = Float32,
+    com_acc_sin_x = Float32,
+    com_acc_cos_x = Float32,
+    com_acc_sin_y = Float32,
+    com_acc_cos_y = Float32,
+    com_acc_sin_z = Float32,
+    com_acc_cos_z = Float32
+)
+
+required_variables(::HSTLengthPenalty{Flex}) = (
+    current_lengths = Float32,
+    target_lengths = Float32,
+    length_pressures = Float32,
+    length_lambdas = Float32,
+    anchor_x = Float32,
+    anchor_y = Float32,
+    anchor_z = Float32,
+    major_axis_x = Float32,
+    major_axis_y = Float32,
+    major_axis_z = Float32,
+    inertia_xx = Float32,
+    inertia_yy = Float32,
+    inertia_zz = Float32,
+    inertia_xy = Float32,
+    inertia_xz = Float32,
+    inertia_yz = Float32,
+    com_acc_sin_x = Float32,
+    com_acc_cos_x = Float32,
+    com_acc_sin_y = Float32,
+    com_acc_cos_y = Float32,
+    com_acc_sin_z = Float32,
+    com_acc_cos_z = Float32
+)

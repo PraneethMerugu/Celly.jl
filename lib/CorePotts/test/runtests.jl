@@ -64,14 +64,14 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
                 W, H = 100, 100
                 N_cells = 100
                 grid = rand(UInt32(1):UInt32(N_cells), W, H)
-                cell_data = build_cell_data(grid, N_cells)
+                penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
+                trackers = (VolumeTracker(), SurfaceAreaTracker())
+
+                cell_data = build_cell_data(grid, N_cells, penalties, trackers)
 
                 for i in 1:N_cells
                     cell_data.cell_types[i] = 1
                 end
-
-                penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
-                trackers = (VolumeTracker(), SurfaceAreaTracker())
 
                 u0 = PottsState(grid, cell_data, N_cells)
                 p = PottsParameters(VonNeumannTopology{2}(), penalties, trackers)
@@ -119,13 +119,6 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
                 W, H = 50, 50
                 N_cells = 50
                 grid = rand(UInt32(1):UInt32(N_cells), W, H)
-                cell_data = build_cell_data(grid, N_cells)
-
-                for i in 1:N_cells
-                    cell_data.cell_types[i] = i % 2 == 0 ? 1 : 2
-                    cell_data.target_volumes[i] = 25
-                end
-
                 J = fill(10.0f0, 3, 3)
                 J[2, 2] = 2.0f0 # A-A
                 J[3, 3] = 2.0f0 # B-B
@@ -135,6 +128,13 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
                 penalties = (
                     HSTVolumePenalty{Rigid}(fill(5.0f0, 256)), AdhesionPenalty{Rigid}(J))
                 trackers = (VolumeTracker(), SurfaceAreaTracker())
+
+                cell_data = build_cell_data(grid, N_cells, penalties, trackers)
+
+                for i in 1:N_cells
+                    cell_data.cell_types[i] = i % 2 == 0 ? 1 : 2
+                    cell_data.target_volumes[i] = 25
+                end
 
                 u0 = PottsState(grid, cell_data, N_cells)
                 p = PottsParameters(MooreTopology{2}(), penalties, trackers)
@@ -188,14 +188,14 @@ const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialM
         W, H = 50, 50
         N_cells = 10
         grid = rand(UInt32(1):UInt32(N_cells), W, H)
-        cell_data = build_cell_data(grid, N_cells)
+        penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
+        trackers = (VolumeTracker(), SurfaceAreaTracker())
+
+        cell_data = build_cell_data(grid, N_cells, penalties, trackers)
 
         for i in 1:N_cells
             cell_data.cell_types[i] = 1
         end
-
-        penalties = (HSTVolumePenalty{Rigid}(zeros(Float32, 256)),)
-        trackers = (VolumeTracker(), SurfaceAreaTracker())
 
         u0 = PottsState(grid, cell_data, N_cells)
         p = PottsParameters(VonNeumannTopology{2}(), penalties, trackers)

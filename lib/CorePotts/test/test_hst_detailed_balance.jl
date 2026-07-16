@@ -11,14 +11,14 @@ using Statistics
         spawn_hypersphere!(
             grid, (W, H), (25, 25), round(Int, sqrt(target_vol/pi)), UInt32(1))
 
-        cell_data = build_cell_data(grid, 1)
-        cell_data.cell_types[1] = 1
-        cell_data.target_volumes[1] = target_vol
-
         lambda_v, T_val = 5.0f0, 50.0f0
 
         penalties = (HSTVolumePenalty{Rigid}(Float32[lambda_v, lambda_v]; eta = 1.0f0),)
         trackers = (VolumeTracker(),)
+
+        cell_data = build_cell_data(grid, 1, penalties, trackers)
+        cell_data.cell_types[1] = 1
+        cell_data.target_volumes[1] = target_vol
 
         u0 = PottsState(grid, cell_data)
         p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)

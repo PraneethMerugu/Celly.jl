@@ -1,7 +1,6 @@
 module Problem
 
 using CorePotts
-using StructArrays
 using Random
 using ..System
 using ..Layouts
@@ -155,7 +154,6 @@ function compile_component(pen::AdhesionComponent, sys::PottsSystem,
     return comp_pen, required_trackers, initial_props
 end
 
-required_variables(comp) = (;)
 
 function compile_penalties(sys::PottsSystem, type_to_id::Dict{CellType, UInt8}, num_types::Int)
     compiled_penalties = []
@@ -174,16 +172,20 @@ function compile_penalties(sys::PottsSystem, type_to_id::Dict{CellType, UInt8}, 
     for pen in sys.penalties
         if pen isa CorePotts.AbstractPenalty
             push!(compiled_penalties, pen)
-        else
-            # Extract MTK-style required variables
             vars = required_variables(pen)
             for (k, v) in pairs(vars)
                 all_variables[k] = v
             end
-
+        else
             # Call the multiple dispatch hook!
             comp_pen, comp_trackers, comp_props = compile_component(pen, sys, type_to_id, num_types)
-
+            
+            # Extract MTK-style required variables from the compiled penalty
+            vars = required_variables(comp_pen)
+            for (k, v) in pairs(vars)
+                all_variables[k] = v
+            end
+            
             push!(compiled_penalties, comp_pen)
             append!(required_trackers, comp_trackers)
 
@@ -198,8 +200,16 @@ function compile_penalties(sys::PottsSystem, type_to_id::Dict{CellType, UInt8}, 
         end
     end
 
-    return tuple(compiled_penalties...), required_trackers, initial_props,
-    NamedTuple(all_variables)
+    for t in required_trackers
+        vars = required_variables(t)
+        for (k, v) in pairs(vars)
+            all_variables[k] = v
+        end
+    end
+
+    all_trackers = Tuple(unique(required_trackers))
+
+    return Tuple(compiled_penalties), all_trackers, initial_props, NamedTuple(all_variables)
 end
 
 """
@@ -309,6 +319,12 @@ function CorePotts.PottsProblem(sys::PottsSystem,
         merged_custom_vars[k] = v
     end
     for req in event_reqs
+        for (k, v) in pairs(req)
+            merged_custom_vars[k] = v
+        end
+    end
+    for t in trackers
+        req = required_variables(t)
         for (k, v) in pairs(req)
             merged_custom_vars[k] = v
         end

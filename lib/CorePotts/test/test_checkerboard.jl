@@ -29,13 +29,14 @@ end
     topo = MooreTopology{2}()
 
     N_cells = 2
-    cell_data = build_cell_data(grid, N_cells)
 
     trackers = (VolumeTracker(), SurfaceAreaTracker())
     penalties = (
         HSTVolumePenalty{Rigid}([0.0f0, 50.0f0, 50.0f0]),
         HSTSurfaceAreaPenalty{Rigid}([0.0f0, 2.0f0, 2.0f0])
     )
+
+    cell_data = build_cell_data(grid, N_cells, penalties, trackers)
 
     u0 = PottsState(grid, cell_data, N_cells)
     p = PottsParameters(topo, penalties, trackers)

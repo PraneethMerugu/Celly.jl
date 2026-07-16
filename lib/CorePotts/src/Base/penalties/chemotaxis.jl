@@ -35,3 +35,5 @@ end
     # We do NOT apply an opposite penalty for the shrinking cell (ctx.src)
     return dH
 end
+
+required_variables(::ChemotaxisPenalty) = (;)

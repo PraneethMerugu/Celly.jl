@@ -12,16 +12,16 @@ using SciMLBase
     grid[5:10, 5:10] .= 1
     grid[12:17, 12:17] .= 2
 
-    cell_data = build_cell_data(grid, N_cells)
-    cell_data.cell_types[1] = 1
-    cell_data.cell_types[2] = 2
-    cell_data.cell_types[3] = 1
-    cell_data.volumes[3] = 0 # initially dead
-
     # Test collision handling with multiple penalties of the same type
     penalties = (VolumePenalty{Rigid}(Float32[1.0, 1.0, 1.0]),
         VolumePenalty{Rigid}(Float32[2.0, 2.0, 2.0]), AdhesionPenalty(ones(Float32, 3, 3)))
     trackers = (VolumeTracker(), SurfaceAreaTracker())
+
+    cell_data = build_cell_data(grid, N_cells, penalties, trackers)
+    cell_data.cell_types[1] = 1
+    cell_data.cell_types[2] = 2
+    cell_data.cell_types[3] = 1
+    cell_data.volumes[3] = 0 # initially dead
 
     u0 = PottsState(grid, cell_data, N_cells)
     p = PottsParameters(MooreTopology{2}(), penalties, trackers)

@@ -26,7 +26,7 @@ using CorePotts
 
     # Set up engine
     T_val = 15.0f0
-    cell_data = build_cell_data(grid, N_cells)
+    cell_data = build_cell_data(grid, N_cells, penalties, ())
 
     u0 = PottsState(grid, cell_data, N_cells)
     p = PottsParameters(VonNeumannTopology{3}(), penalties, ())

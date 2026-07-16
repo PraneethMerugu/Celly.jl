@@ -52,8 +52,14 @@ using KernelAbstractions
     sr_2 = CorePotts.NeighborSum{:volumes}(1, 2)
     spatial_rules = (sr_1, sr_2)
 
+    # Create dummy workspace for test
+    ws1 = (;
+        spatial_buffer = similar(grid, Float32, 2 * N_cells),
+        edge_list = similar(grid, UInt64, length(grid) * length(CorePotts.offsets(topology))),
+        edge_count = similar(grid, UInt32, 1)
+    )
     spatial_buffer, ev = CorePotts.populate_spatial_buffer!(
-        u, topology, cache, spatial_rules, nothing)
+        u, topology, cache, ws1, spatial_rules, nothing)
     KernelAbstractions.synchronize(KernelAbstractions.get_backend(grid))
 
     # Convert to CPU for testing
@@ -70,8 +76,13 @@ using KernelAbstractions
 
     # Test ContactArea in map phase
     sr_3 = CorePotts.ContactArea(0, 1) # count contact with medium (id 0)
+    ws2 = (;
+        spatial_buffer = similar(grid, Float32, 1 * N_cells),
+        edge_list = similar(grid, UInt64, length(grid) * length(CorePotts.offsets(topology))),
+        edge_count = similar(grid, UInt32, 1)
+    )
     spatial_buffer2, ev2 = CorePotts.populate_spatial_buffer!(
-        u, topology, cache, (sr_3,), nothing)
+        u, topology, cache, ws2, (sr_3,), nothing)
     KernelAbstractions.synchronize(KernelAbstractions.get_backend(grid))
     cpu_buf2 = Array(spatial_buffer2)
 

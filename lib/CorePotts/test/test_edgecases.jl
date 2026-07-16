@@ -9,19 +9,18 @@ using Test
                 W, H = 20, 20
                 N_cells = 5
                 grid = rand(UInt32(1):UInt32(N_cells), W, H)
-                cell_data = build_cell_data(grid, N_cells)
+                J = Float32[0.0 5.0; 5.0 2.0]
+                penalties = (VolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]), AdhesionPenalty{Rigid}(J))
+                trackers = (VolumeTracker(), SurfaceAreaTracker())
+                
+                cell_data = build_cell_data(grid, N_cells, penalties, trackers)
                 for i in 1:N_cells
                     cell_data.cell_types[i] = 1
                     cell_data.target_volumes[i] = W*H/N_cells
                 end
 
-                J = Float32[0.0 5.0; 5.0 2.0]
-
-                penalties = (
-                    VolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]), AdhesionPenalty{Rigid}(J))
                 u0 = PottsState(grid, cell_data)
-                p_sys = PottsParameters(MooreTopology{2}(), penalties, (
-                    VolumeTracker(), SurfaceAreaTracker()))
+                p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
                 prob = PottsProblem(u0, (0, 100), p_sys)
                 alg = AlgType(; T = 0.0f0, active_fraction = 0.1f0, sweeps_per_step = 10)
                 integrator = init(prob, alg)
@@ -71,19 +70,20 @@ using Test
                 grid = zeros(UInt32, W, H)
                 grid[5:15, 5:10] .= 1;
                 grid[5:15, 11:15] .= 2
+                J = Float32[0.0 5.0 5.0; 5.0 2.0 5.0; 5.0 5.0 2.0]
 
-                cell_data = build_cell_data(grid, 2)
-                cell_data.cell_types[1] = 1;
+                penalties = (HSTVolumePenalty{Rigid}(Float32[0.0f0, 1.0f0, 1.0f0]),
+                    AdhesionPenalty{Rigid}(J))
+                trackers = (VolumeTracker(), SurfaceAreaTracker())
+                
+                cell_data = build_cell_data(grid, 2, penalties, trackers)
+                cell_data.cell_types[1] = 1
                 cell_data.cell_types[2] = 1
-                cell_data.target_volumes[1] = 50;
+                cell_data.target_volumes[1] = 50
                 cell_data.target_volumes[2] = 50
 
-                J = Float32[0.0 5.0 5.0; 5.0 2.0 5.0; 5.0 5.0 2.0]
                 u0 = PottsState(grid, cell_data)
-                p_sys = PottsParameters(MooreTopology{2}(),
-                    (HSTVolumePenalty{Rigid}(Float32[0.0f0, 1.0f0, 1.0f0]),
-                        AdhesionPenalty{Rigid}(J)),
-                    (VolumeTracker(),))
+                p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
                 prob = PottsProblem(u0, (0, 100), p_sys)
                 alg = AlgType(; T = 0.0f0)
                 integrator = init(prob, alg)
@@ -141,16 +141,17 @@ using Test
                 W, H = 30, 30
                 N_cells = 10
                 grid = rand(UInt32(1):UInt32(N_cells), W, H)
-                cell_data = build_cell_data(grid, N_cells)
+                penalties = (HSTVolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]),)
+                trackers = (VolumeTracker(),)
+                
+                cell_data = build_cell_data(grid, N_cells, penalties, trackers)
                 for i in 1:N_cells
                     cell_data.cell_types[i] = 1
                     cell_data.target_volumes[i] = 90
                 end
 
                 u0 = PottsState(grid, cell_data)
-                p_sys = PottsParameters(
-                    MooreTopology{2}(), (HSTVolumePenalty{Rigid}(Float32[0.0f0, 2.0f0]),),
-                    (VolumeTracker(),))
+                p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
                 prob = PottsProblem(u0, (0, 500), p_sys)
                 alg = AlgType(; T = 10.0f0)
                 integrator = init(prob, alg)

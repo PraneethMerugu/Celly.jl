@@ -1,5 +1,4 @@
-using StructArrays
-import Adapt
+
 using ArgCheck
 import Functors
 import Functors: @functor, fmap
@@ -25,6 +24,13 @@ Traits indicating whether a physical property or penalty is rigid (type-coupled)
 abstract type FlexibilityTrait end
 struct Rigid <: FlexibilityTrait end
 struct Flex <: FlexibilityTrait end
+
+"""
+    required_variables(component)
+
+Returns a NamedTuple mapping the required variables to their types for a given physics penalty or tracker.
+"""
+required_variables(comp) = (;)
 
 """
     PottsState{Grid, CellData}
@@ -58,7 +64,7 @@ function PottsState(grid::AbstractArray{T, N}, cell_data::StructArray,
         free_list::AbstractArray = zeros(UInt32, length(cell_data.volumes)),
         free_list_count::AbstractArray = [Int32(0)]) where {T, N}
     @argcheck length(grid) > 0 "Grid cannot be empty"
-    required_fields = (:volumes, :target_volumes, :cell_types, :anchor_x, :anchor_y)
+    required_fields = (:volumes, :target_volumes, :cell_types)
     for field in required_fields
         @argcheck hasproperty(cell_data, field) "cell_data is missing required field: `$field`. Use `build_cell_data`."
     end
@@ -113,6 +119,14 @@ function get_event_args(evt::AbstractEvent, mask, u, p, cache, t)
 end
 
 """
+    initialize_workspace(evt::AbstractEvent, u::AbstractPottsState, topology::AbstractTopology)
+
+Called exactly once during simulation initialization. By default, returns `evt` unmodified. 
+Custom events can override this to allocate dynamic memory workspaces.
+"""
+initialize_workspace(evt::AbstractEvent, u, topology) = evt
+
+"""
     get_event_ndrange(evt::AbstractEvent, mask, u)
 
 Returns the size of the iteration space for this event's kernel. 
@@ -149,8 +163,12 @@ struct PottsParameters{Topo <: AbstractTopology, P <: Tuple, Tr <: Tuple, Ev <: 
     events::Ev
 end
 
-function PottsParameters(topology, penalties, trackers)
-    return PottsParameters(topology, penalties, trackers, ())
+function PottsParameters(topology, penalties, trackers, events=())
+    if any(p -> typeof(p) <: ConnectivityConstraint, penalties) &&
+       !(typeof(topology) <: Union{MooreTopology, NoFluxMooreTopology})
+        @warn "ConnectivityConstraint is only supported on MooreTopology and NoFluxMooreTopology. It will act as a no-op."
+    end
+    return PottsParameters{typeof(topology), typeof(penalties), typeof(trackers), typeof(events)}(topology, penalties, trackers, events)
 end
 
 function Functors.functor(::Type{<:PottsParameters}, x)
@@ -169,7 +187,7 @@ end
 
 The algorithmic workspace and cache used during Monte Carlo execution.
 """
-struct PottsCache{N, ArrayT, IdxArrayT}
+struct PottsCache{N, ArrayT, IdxArrayT, EMType}
     grid_dims::NTuple{N, Int}
     step_counter::Vector{UInt64}
     noise_counter::Vector{UInt64}
@@ -182,10 +200,14 @@ struct PottsCache{N, ArrayT, IdxArrayT}
     cos_lut_z::ArrayT
     color_indices::IdxArrayT
     color_offsets::Vector{Int}
-    scratch::Dict{Symbol, Any}
+    event_masks::EMType
 end
 
 function PottsCache(u::AbstractPottsState, topology::AbstractTopology, block_size::Int = 256)
+    return PottsCache(u, topology, nothing, block_size)
+end
+
+function PottsCache(u::AbstractPottsState, topology::AbstractTopology, event_masks, block_size::Int = 256)
     grid = u.grid
     N = ndims(grid)
     grid_dims = ntuple(i -> size(grid, i), Val(N))
@@ -236,10 +258,10 @@ function PottsCache(u::AbstractPottsState, topology::AbstractTopology, block_siz
 
     device_indices = Adapt.adapt(Base.typename(typeof(grid)).wrapper, flat_indices)
 
-    return PottsCache{N, ArrayT, IdxArrayT}(
+    return PottsCache{N, ArrayT, IdxArrayT, typeof(event_masks)}(
         grid_dims, [UInt64(0)], [UInt64(0)], block_size,
         sin_lut_x, cos_lut_x, sin_lut_y, cos_lut_y, sin_lut_z,
-        cos_lut_z, device_indices, color_offsets, Dict{Symbol, Any}())
+        cos_lut_z, device_indices, color_offsets, event_masks)
 end
 
 abstract type AbstractPottsProblem <: SciMLBase.AbstractSciMLProblem end
@@ -274,8 +296,38 @@ function Adapt.adapt_structure(to, x::PottsProblem)
     return reconstruct(Adapt.adapt(to, children))
 end
 
+abstract type AbstractMetropolisStrategy end
+struct ParallelStrategy <: AbstractMetropolisStrategy end
+struct CheckerboardStrategy <: AbstractMetropolisStrategy end
+struct IntrinsicCheckerboardStrategy <: AbstractMetropolisStrategy end
+struct SequentialStrategy <: AbstractMetropolisStrategy end
+
+struct MetropolisAlgorithm{Strategy <: AbstractMetropolisStrategy, S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
+    sampler::S
+    T::FloatT
+    active_fraction::FloatT
+    sweeps_per_step::IntT
+end
+
+function MetropolisAlgorithm{Strategy}(; sampler = MetropolisSampler(), sweeps_per_step = 10,
+        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32) where Strategy
+    return MetropolisAlgorithm{Strategy, typeof(sampler), FloatType, IntType}(
+        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
+end
+
+function Base.getproperty(alg::MetropolisAlgorithm{Strategy, S, FloatT, IntT}, sym::Symbol) where {
+        Strategy, S, FloatT, IntT}
+    if sym === :FloatType
+        return FloatT
+    elseif sym === :IntType
+        return IntT
+    else
+        return getfield(alg, sym)
+    end
+end
+
 """
-    ParallelMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
+    ParallelMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
 
 The solver algorithm for `PottsProblem`s. Specifies how Monte Carlo Sweeps are executed.
 
@@ -285,28 +337,7 @@ The solver algorithm for `PottsProblem`s. Specifies how Monte Carlo Sweeps are e
 - `active_fraction`: Fraction of the grid proposed for updates per sweep (default 0.1).
 - `T`: The computational temperature regulating membrane fluctuation (default 1.0).
 """
-struct ParallelMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
-    sampler::S
-    T::FloatT
-    active_fraction::FloatT
-    sweeps_per_step::IntT
-end
-function ParallelMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
-        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
-    return ParallelMetropolis{typeof(sampler), FloatType, IntType}(
-        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
-end
-
-function Base.getproperty(alg::ParallelMetropolis{S, FloatT, IntT}, sym::Symbol) where {
-        S, FloatT, IntT}
-    if sym === :FloatType
-        return FloatT
-    elseif sym === :IntType
-        return IntT
-    else
-        return getfield(alg, sym)
-    end
-end
+const ParallelMetropolis = MetropolisAlgorithm{ParallelStrategy}
 
 """
     CheckerboardMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
@@ -314,29 +345,7 @@ end
 A deterministic-stochastic checkerboard engine. It calculates the mathematically perfect graph coloring
 for the topology to completely remove the random lottery and maximize GPU utilization while remaining mathematically equivalent.
 """
-struct CheckerboardMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
-    sampler::S
-    T::FloatT
-    active_fraction::FloatT
-    sweeps_per_step::IntT
-end
-function CheckerboardMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
-        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
-    return CheckerboardMetropolis{typeof(sampler), FloatType, IntType}(
-        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
-end
-
-function Base.getproperty(
-        alg::CheckerboardMetropolis{
-            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
-    if sym === :FloatType
-        return FloatT
-    elseif sym === :IntType
-        return IntT
-    else
-        return getfield(alg, sym)
-    end
-end
+const CheckerboardMetropolis = MetropolisAlgorithm{CheckerboardStrategy}
 
 """
     IntrinsicCheckerboardMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
@@ -355,89 +364,14 @@ Standard GPU Cellular Potts Models suffer from the Global Volume Paradox: mainta
 !!! warning "Hardware Requirement"
     Requires a GPU backend that supports subgroup intrinsics (e.g., `MetalBackend` or `CUDABackend`). It will throw a `MethodError` if run on standard CPU threads.
 """
-struct IntrinsicCheckerboardMetropolis{S <: AbstractSampler, FloatT, IntT} <:
-       AbstractPottsAlgorithm
-    sampler::S
-    T::FloatT
-    active_fraction::FloatT
-    sweeps_per_step::IntT
-end
-function IntrinsicCheckerboardMetropolis(;
-        sampler = MetropolisSampler(), sweeps_per_step = 10,
-        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
-    return IntrinsicCheckerboardMetropolis{typeof(sampler), FloatType, IntType}(
-        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
-end
-
-function Base.getproperty(
-        alg::IntrinsicCheckerboardMetropolis{
-            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
-    if sym === :FloatType
-        return FloatT
-    elseif sym === :IntType
-        return IntT
-    else
-        return getfield(alg, sym)
-    end
-end
-
-"""
-    SparseLotteryMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
-
-A sparse block-based stochastic engine. Used as a fallback for extended topologies where graph coloring fails.
-"""
-struct SparseLotteryMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
-    sampler::S
-    T::FloatT
-    active_fraction::FloatT
-    sweeps_per_step::IntT
-end
-function SparseLotteryMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
-        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
-    return SparseLotteryMetropolis{typeof(sampler), FloatType, IntType}(
-        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
-end
-
-function Base.getproperty(
-        alg::SparseLotteryMetropolis{
-            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
-    if sym === :FloatType
-        return FloatT
-    elseif sym === :IntType
-        return IntT
-    else
-        return getfield(alg, sym)
-    end
-end
+const IntrinsicCheckerboardMetropolis = MetropolisAlgorithm{IntrinsicCheckerboardStrategy}
 
 """
     SequentialMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
 
 A strictly sequential CPU algorithm that processes sites randomly one-by-one. No parallel contention.
 """
-struct SequentialMetropolis{S <: AbstractSampler, FloatT, IntT} <: AbstractPottsAlgorithm
-    sampler::S
-    T::FloatT
-    active_fraction::FloatT
-    sweeps_per_step::IntT
-end
-function SequentialMetropolis(; sampler = MetropolisSampler(), sweeps_per_step = 10,
-        active_fraction = 0.1, T = 1.0, FloatType = Float32, IntType = Int32)
-    return SequentialMetropolis{typeof(sampler), FloatType, IntType}(
-        sampler, FloatType(T), FloatType(active_fraction), IntType(sweeps_per_step))
-end
-
-function Base.getproperty(
-        alg::SequentialMetropolis{
-            S, FloatT, IntT}, sym::Symbol) where {S, FloatT, IntT}
-    if sym === :FloatType
-        return FloatT
-    elseif sym === :IntType
-        return IntT
-    else
-        return getfield(alg, sym)
-    end
-end
+const SequentialMetropolis = MetropolisAlgorithm{SequentialStrategy}
 
 """
     PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType}

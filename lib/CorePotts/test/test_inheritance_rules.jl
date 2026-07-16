@@ -12,6 +12,7 @@ using KernelAbstractions
     ws.dev_parents[1:2] .= [1, 2]
     ws.dev_children[1:2] .= [3, 4]
 
+    ws.dev_division_count .= 2
     count = 2
 
     # mock cache with block_size
@@ -20,7 +21,7 @@ using KernelAbstractions
     @testset "Reset" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = Reset(30.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] == 30.0f0
         @test array[2] == 30.0f0
@@ -31,7 +32,7 @@ using KernelAbstractions
     @testset "ResetChild" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = ResetChild(30.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] == 10.0f0
         @test array[2] == 20.0f0
@@ -42,7 +43,7 @@ using KernelAbstractions
     @testset "AsymmetricReset" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = AsymmetricReset(50.0f0, 60.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] == 50.0f0
         @test array[2] == 50.0f0
@@ -53,7 +54,7 @@ using KernelAbstractions
     @testset "InheritAdd" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = InheritAdd(5.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] == 15.0f0
         @test array[2] == 25.0f0
@@ -64,7 +65,7 @@ using KernelAbstractions
     @testset "InheritMultiply" begin
         array = Float32[10.0, 20.0, 2.0, 3.0, 0.0]
         rule = InheritMultiply(2.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] == 20.0f0
         @test array[2] == 40.0f0
@@ -75,7 +76,7 @@ using KernelAbstractions
     @testset "RandomUniform" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = RandomUniform(10.0f0, 20.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test 10.0f0 <= array[1] <= 20.0f0
         @test 10.0f0 <= array[2] <= 20.0f0
@@ -86,7 +87,7 @@ using KernelAbstractions
     @testset "RandomNormal" begin
         array = Float32[10.0, 20.0, 0.0, 0.0, 0.0]
         rule = RandomNormal(10.0f0, 2.0f0)
-        CorePotts.apply_inheritance_rule!(rule, array, ws, count, backend, cache)
+        CorePotts.apply_inheritance_rule!(rule, array, ws, length(array), backend, cache, ())
         KernelAbstractions.synchronize(backend)
         @test array[1] != 0.0f0
         @test array[3] != 0.0f0

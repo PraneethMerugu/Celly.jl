@@ -67,10 +67,11 @@ sys = PottsSystem(
     penalties = components,
     events = [
         MitosisEvent(Fib,
-        trigger = VolumeRatioTrigger(2.0f0),
-        orientation = MajorAxisOrientation(),
-        inheritance = (target_volumes = CorePotts.Split(0.5f0),)
-    )
+            trigger = VolumeRatioTrigger(2.0f0),
+            orientation = MajorAxisOrientation(),
+            inheritance = (target_volumes = CorePotts.Split(0.5f0),)
+        ),
+        PropertyUpdateEvent(Fib, (target_volumes = Add(1, ProbabilityTrigger(0.3f0)),))
     ]
 )
 
@@ -85,18 +86,11 @@ prob = PottsProblem(
 
 # ## Growth and Mitosis Native Event
 #
-# LinearGrowthCallback slowly inflates the target volume (0.3 area units / MCS).
+# PropertyUpdateEvent slowly inflates the target volume (0.3 area units / MCS) dynamically on the GPU.
 # Once a cell reaches twice its initial target volume, the native `MitosisEvent` fires.
 # MajorAxisOrientation places the division plane *perpendicular* to the long
 # axis, so each daughter inherits an elongated shape — exactly as seen in
 # oriented cell divisions in vivo.
-
-growth_cb = LinearGrowthCallback(0.3f0)
-
-using SciMLBase
-cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
-)
 
 # ## Algorithm
 

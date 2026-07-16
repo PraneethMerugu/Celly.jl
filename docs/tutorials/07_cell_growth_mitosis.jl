@@ -51,14 +51,7 @@ sys = PottsSystem(
     ]
 )
 
-# ## Growth Callback
-#
-# `LinearGrowthCallback(rate)` increments each cell's `target_volume` by
-# `rate` lattice sites per MCS. A rate of 0.3 means it takes roughly
-# 500 MCS for a cell to double from target 150 to 300 — a plausible
-# *in vitro* doubling time when one MCS is calibrated to ~1 minute.
 
-growth_cb = LinearGrowthCallback(0.3f0)
 
 # ## Mitosis Native Event
 #
@@ -86,9 +79,14 @@ growth_cb = LinearGrowthCallback(0.3f0)
 # division plane with the long axis of the mother cell, which is
 # biologically realistic for many epithelial lineages.
 
-cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
-)
+# A `PropertyUpdateEvent` is used to implement linear growth continuously on the GPU.
+# `Add(1, ProbabilityTrigger(0.3f0))` increments each cell's `target_volume` by
+# 1 lattice site per MCS with a 30% probability. This means it takes roughly
+# 500 MCS for a cell to double from target 150 to 300 — a plausible
+# *in vitro* doubling time when one MCS is calibrated to ~1 minute.
+
+push!(sys.events, PropertyUpdateEvent(Progenitor, (target_volumes = Add(1, ProbabilityTrigger(0.3f0)),)))
+
 
 # ## Problem and Algorithm
 
@@ -103,7 +101,7 @@ prob = PottsProblem(
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
-sol = solve(prob, alg; saveat = 8, callback = cb)
+sol = solve(prob, alg; saveat = 8)
 
 # ## Interactive Dashboard
 #

@@ -4,9 +4,11 @@ using Potts.PottsToolkit
 
 # Dummy Event for testing fallback behavior
 struct DummyEvent <: CorePotts.AbstractEvent end
+CorePotts.get_event_args(::DummyEvent, mask, u, p, cache, t) = nothing
 
 # A PottsToolkit event for testing
 struct DummyToolkitEvent <: PottsToolkit.Events.AbstractEvent end
+CorePotts.get_event_args(::DummyToolkitEvent, mask, u, p, cache, t) = nothing
 
 @testset "Event System Architecture" begin
     @testset "Fallback Verification" begin
@@ -72,5 +74,51 @@ struct DummyToolkitEvent <: PottsToolkit.Events.AbstractEvent end
 
         # The event should have triggered, setting the target volume to 0
         @test integrator.u.cell_data.target_volumes[1] == 0
+    end
+
+    @testset "Event Resolution and Fallback" begin
+        # Setup mock environment
+        A = CellType(:A)
+        B = CellType(:B)
+        C = CellType(:C)
+        type_to_id = Dict(A => UInt8(1), B => UInt8(2), C => UInt8(3))
+
+        # Create mock events
+        trigger = VolumeRatioTrigger(1.5)
+        apop = ApoptosisEvent(B, trigger=trigger)
+        trans = TransitionEvent(A => C, trigger=trigger)
+        mitosis = MitosisEvent(A, trigger=trigger)
+        prop = PropertyUpdateEvent(B, (target_volumes = CorePotts.RuleBuilder((cd, i, ctx, val) -> val),))
+
+        events_tuple = (apop, trans, mitosis, prop)
+
+        # Test 3-argument version
+        res_3 = PottsToolkit.Events.resolve_events(events_tuple, type_to_id, 10)
+        @test length(res_3) == 4
+        @test res_3[1] isa PottsToolkit.Events.ResolvedApoptosisEvent
+        @test res_3[1].check_interval == 10
+        @test res_3[1].type_id == 2
+
+        @test res_3[2] isa PottsToolkit.Events.ResolvedTransitionEvent
+        @test res_3[2].check_interval == 10
+        @test res_3[2].from_id == 1
+        @test res_3[2].to_id == 3
+
+        @test res_3[3] isa PottsToolkit.Events.ResolvedMitosisEvent
+        @test res_3[3].check_interval == 10
+        @test res_3[3].type_id == 1
+
+        @test res_3[4] isa PottsToolkit.Events.ResolvedPropertyUpdateEvent
+        @test res_3[4].check_interval == 10
+        @test res_3[4].type_id == 2
+
+        # Test 2-argument fallback version
+        # Prior to fix, this would throw MethodError or drop events
+        res_2 = PottsToolkit.Events.resolve_events(events_tuple, type_to_id)
+        @test length(res_2) == 4
+        @test res_2[1].check_interval == 1
+        @test res_2[2].check_interval == 1
+        @test res_2[3].check_interval == 1
+        @test res_2[4].check_interval == 1
     end
 end

@@ -8,18 +8,12 @@ using Adapt
 using Random
 using Test
 using SciMLBase
+import Atomix
 import SciMLBase: solve
 
 export solve, fmap
 
 const DEFAULT_BLOCK_SIZE = 256
-
-using StructArrays
-using Adapt
-using SciMLBase
-using AcceleratedKernels
-using KernelAbstractions
-import Atomix
 
 include("Base/topology.jl")
 include("Base/samplers.jl")
@@ -50,7 +44,7 @@ export num_dirs, offsets, lottery_offsets, idx_to_coord, coord_to_idx, get_neigh
 export AbstractSampler, MetropolisSampler, evaluate_acceptance
 export pcg_hash
 export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetropolis,
-       CheckerboardMetropolis, SequentialMetropolis, SparseLotteryMetropolis,
+       CheckerboardMetropolis, SequentialMetropolis,
        IntrinsicCheckerboardMetropolis,
        PottsIntegrator,
        PottsSolution, PottsState, PottsParameters, PottsCache

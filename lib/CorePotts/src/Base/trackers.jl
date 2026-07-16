@@ -1,6 +1,4 @@
-import Atomix
-import AcceleratedKernels
-import Adapt
+
 import Functors
 
 abstract type AbstractTracker end
@@ -34,6 +32,7 @@ belonging to each cell without requiring `O(N)` recalculations per step.
 struct VolumeTracker <: AbstractTracker end
 const VolumeFlexTracker = VolumeTracker
 @inline tx_delta_type(::VolumeTracker) = Int32
+required_variables(::VolumeTracker) = (volumes = Int32,)
 
 @inline function compute_tx_deltas(::VolumeTracker, ctx)
     return (Int32(-1), Int32(1))
@@ -63,6 +62,7 @@ for each cell dynamically as the grid is updated.
 struct SurfaceAreaTracker <: AbstractTracker end
 const SurfaceAreaFlexTracker = SurfaceAreaTracker
 @inline tx_delta_type(::SurfaceAreaTracker) = Int32
+required_variables(::SurfaceAreaTracker) = (surface_areas = Int32,)
 
 @inline function compute_tx_deltas(::SurfaceAreaTracker, ctx)
     N_dirs = length(ctx.neighbors)
@@ -99,6 +99,9 @@ end
 # Used strictly as signals in the Problem compilation step
 struct LengthFlexTracker <: AbstractTracker end
 struct AdhesionFlexTracker <: AbstractTracker end
+
+required_variables(::LengthFlexTracker) = (length_lambdas = Float32,)
+required_variables(::AdhesionFlexTracker) = (adhesion_modifiers = Float32,)
 
 function initialize_metrics!(::LengthFlexTracker, cell_data, grid, topo, dims) end
 function initialize_metrics!(::AdhesionFlexTracker, cell_data, grid, topo, dims) end

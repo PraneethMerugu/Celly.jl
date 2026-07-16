@@ -16,23 +16,20 @@ using CorePotts, SciMLBase
     expected_L = sqrt((40^2 - 1) / 12) # For discrete, Var(1..40) = (40^2 - 1)/12 = 133.25
     expected_L_approx = sqrt(133.25) # ~ 11.543
 
-    N_cells = 1
-    custom_fields = ()
+    lambdas = Float32[0.0f0, 50.0f0]
+    eta = 0.1f0
+    penalty = HSTLengthPenalty{Rigid}(lambdas, eta)
+    trackers = (VolumeTracker(),)
 
-    cell_data = CorePotts.build_cell_data(grid, 1)
+    cell_data = CorePotts.build_cell_data(grid, 1, penalty, trackers)
     cell_data.volumes[1] = 20 * 40
     cell_data.cell_types[1] = 1
 
     # Target length much larger than current
     cell_data.target_lengths[1] = 30.0f0
 
-    lambdas = Float32[0.0f0, 50.0f0]
-    eta = 0.1f0
-
-    penalty = HSTLengthPenalty{Rigid}(lambdas, eta)
-
     u0 = PottsState(grid, cell_data)
-    p_sys = PottsParameters(MooreTopology{2}(), (penalty,), (VolumeTracker(),))
+    p_sys = PottsParameters(MooreTopology{2}(), (penalty,), trackers)
     cache = PottsCache(u0, p_sys.topology)
     CorePotts.sync_cell_data!(u0, p_sys, cache, 1)
 
@@ -78,14 +75,16 @@ end
         grid[x, 31:70] .= 1
     end
 
-    cell_data = CorePotts.build_cell_data(grid, 1)
+    penalty = HSTLengthPenalty{Rigid}(Float32[0.0f0, 50.0f0], 0.1f0)
+    trackers = (VolumeTracker(),)
+    
+    cell_data = CorePotts.build_cell_data(grid, 1, penalty, trackers)
     cell_data.volumes[1] = 20 * 40
     cell_data.cell_types[1] = 1
     cell_data.target_lengths[1] = 30.0f0
 
-    penalty = HSTLengthPenalty{Rigid}(Float32[0.0f0, 50.0f0], 0.1f0)
     u0 = PottsState(grid, cell_data)
-    p_sys = PottsParameters(MooreTopology{2}(), (penalty,), (VolumeTracker(),))
+    p_sys = PottsParameters(MooreTopology{2}(), (penalty,), trackers)
     cache = PottsCache(u0, p_sys.topology)
     CorePotts.sync_cell_data!(u0, p_sys, cache, 1)
     CorePotts.update_sweep_auxiliary!(penalty, u0, p_sys, cache, 1.0f0, 0.01f0)
@@ -106,7 +105,14 @@ end
     # Start with a 28x32 rectangle
     grid[37:64, 35:66] .= 1
 
-    cell_data = CorePotts.build_cell_data(grid, 1)
+    vol_tracker = VolumeTracker()
+    vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 2.0f0])
+    len_pen = HSTLengthPenalty{Rigid}(Float32[0.0f0, 200.0f0], 0.1f0)
+    
+    penalties = (vol_pen, len_pen)
+    trackers = (vol_tracker,)
+
+    cell_data = CorePotts.build_cell_data(grid, 1, penalties, trackers)
     cell_data.volumes[1] = 896
     cell_data.target_volumes[1] = 896
     cell_data.cell_types[1] = 1
@@ -114,12 +120,8 @@ end
     # Initial length is sqrt(30^2/12) = 8.66. We target a much longer length
     cell_data.target_lengths[1] = 18.0f0
 
-    vol_tracker = VolumeTracker()
-    vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 2.0f0])
-    len_pen = HSTLengthPenalty{Rigid}(Float32[0.0f0, 200.0f0], 0.1f0)
-
     u0 = PottsState(grid, cell_data)
-    p_sys = PottsParameters(MooreTopology{2}(), (vol_pen, len_pen), (VolumeTracker(),))
+    p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
     problem = PottsProblem(u0, (0, 500), p_sys)
     integrator = init(problem, ParallelMetropolis(; T = 1.0f0, active_fraction = 0.1f0, sweeps_per_step = 1))
 

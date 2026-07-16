@@ -8,80 +8,37 @@ Allocates and constructs a `StructArray` on the same backend as `grid` (CPU or G
 to hold macroscopic cell properties like `:volumes`, `:target_volumes`, `:cell_types`, 
 `:pressures`, etc. 
 """
-function build_cell_data(grid::AbstractArray, N_cells::Int; FloatType = Float32,
+function build_cell_data(grid::AbstractArray, N_cells::Int, components...; FloatType = Float32,
         IntType = Int32, custom_fields...)
     alloc_zero(T, sz) = fill!(similar(grid, T, sz), zero(T))
 
     base_fields = (
         volumes = alloc_zero(IntType, N_cells),
         target_volumes = alloc_zero(IntType, N_cells),
-        surface_areas = alloc_zero(IntType, N_cells),
-        target_surface_areas = alloc_zero(IntType, N_cells),
         cell_types = alloc_zero(UInt8, N_cells),
-        pressures = alloc_zero(FloatType, N_cells),
-        tensions = alloc_zero(FloatType, N_cells),
-        anchor_x = alloc_zero(FloatType, N_cells),
-        anchor_y = alloc_zero(FloatType, N_cells),
-        anchor_z = alloc_zero(FloatType, N_cells),
-        force_x = alloc_zero(FloatType, N_cells),
-        force_y = alloc_zero(FloatType, N_cells),
-        force_z = alloc_zero(FloatType, N_cells),
-        target_lengths = alloc_zero(FloatType, N_cells),
-        current_lengths = alloc_zero(FloatType, N_cells),
-        major_axis_x = alloc_zero(FloatType, N_cells),
-        major_axis_y = alloc_zero(FloatType, N_cells),
-        major_axis_z = alloc_zero(FloatType, N_cells),
-        length_pressures = alloc_zero(FloatType, N_cells),
-        com_acc_sin_x = alloc_zero(FloatType, N_cells),
-        com_acc_cos_x = alloc_zero(FloatType, N_cells),
-        com_acc_sin_y = alloc_zero(FloatType, N_cells),
-        com_acc_cos_y = alloc_zero(FloatType, N_cells),
-        com_acc_sin_z = alloc_zero(FloatType, N_cells),
-        com_acc_cos_z = alloc_zero(FloatType, N_cells),
-        inertia_xx = alloc_zero(FloatType, N_cells),
-        inertia_yy = alloc_zero(FloatType, N_cells),
-        inertia_zz = alloc_zero(FloatType, N_cells),
-        inertia_xy = alloc_zero(FloatType, N_cells),
-        inertia_xz = alloc_zero(FloatType, N_cells),
-        inertia_yz = alloc_zero(FloatType, N_cells),
-        volume_lambdas = alloc_zero(FloatType, N_cells),
-        surface_area_lambdas = alloc_zero(FloatType, N_cells),
-        length_lambdas = alloc_zero(FloatType, N_cells),
-        adhesion_modifiers = alloc_zero(FloatType, N_cells)
     )
 
-    all_fields = merge(base_fields, (; custom_fields...))
+    comp_fields = Dict{Symbol, Any}()
+
+    function extract_reqs(comp)
+        if comp isa Tuple
+            foreach(extract_reqs, comp)
+        else
+            for (var_name, type_sym) in pairs(required_variables(comp))
+                T = type_sym === Float32 ? FloatType : (type_sym === Int32 ? IntType : type_sym)
+                if !hasproperty(base_fields, var_name) && !haskey(comp_fields, var_name)
+                    comp_fields[var_name] = alloc_zero(T, N_cells)
+                end
+            end
+        end
+    end
+
+    extract_reqs(components)
+
+    all_fields = merge(base_fields, NamedTuple(comp_fields), (; custom_fields...))
     return StructArrays.StructArray(all_fields)
 end
 
-"""
-    reallocate_cell_data!(u::AbstractPottsState, new_capacity::Int)
-
-Dynamically grows the arrays inside `u.cell_data` to accommodate more cells 
-(up to `new_capacity`), preserving existing data.
-"""
-function reallocate_cell_data!(u::AbstractPottsState, new_capacity::Int)
-    old_data = u.cell_data
-    old_capacity = length(old_data)
-
-    if new_capacity <= old_capacity
-        return
-    end
-
-    # Extract old components and create new ones with preserved types
-    old_components = StructArrays.components(old_data)
-    new_components = map(old_components) do old_arr
-        T = eltype(old_arr)
-        new_arr = similar(u.grid, T, new_capacity)
-        fill!(new_arr, zero(T))
-        copyto!(new_arr, 1, old_arr, 1, old_capacity)
-        new_arr
-    end
-
-    # Needs to mutate the original struct if possible, but StructArray is immutable on field assignment.
-    # Users will need to manually do u = PottsState(u.grid, new_cell_data, ...) if reallocating from top-level
-    error("reallocate_cell_data! is deprecated for immutable PottsState. Preallocate safely or re-construct.")
-end
 
 """
     spawn_hypersphere!(grid, grid_dims, center, radius, cell_id)

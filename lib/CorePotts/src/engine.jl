@@ -1,5 +1,4 @@
-import Atomix
-import KernelAbstractions
+
 using KernelAbstractions: @kernel, @index, @localmem, @synchronize
 using ArgCheck
 
@@ -33,10 +32,9 @@ end
     return coord_to_idx(new_coords, dims)
 end
 
-@inline function _local_site_update!(
-        coords, grid, grid_dims, topology, cell_data, penalties,
+@inline function _compute_site_proposal(
+        idx, coords, grid, grid_dims, topology, cell_data, penalties,
         trackers, sampler, T_val, active_fraction, rng_state)
-    idx = coord_to_idx(coords, grid_dims)
     target_val = grid[idx]
 
     N_dirs_val = num_dirs(topology)
@@ -78,7 +76,6 @@ end
             end
         end
 
-        # src=loser, tgt=winner
         ctx = (; grid = grid, grid_dims = grid_dims, topology = topology,
             cell_data = cell_data, trackers = trackers,
             idx = UInt32(idx), src = target_val, tgt = src_val, T = T_val,
@@ -100,10 +97,28 @@ end
         prob = typeof(T_val)(rng_state & 0x00FFFFFF) / typeof(T_val)(0x01000000)
         accept = evaluate_acceptance(sampler, dH, hastings_ratio, prob, T_val)
 
-        if accept
-            grid[idx] = src_val
-            apply_tx_deltas_direct!(target_val, src_val, tx_deltas, trackers, cell_data)
-        end
+        return accept, target_val, src_val, tx_deltas
+    else
+        dummy_ctx = (; grid = grid, grid_dims = grid_dims, topology = topology,
+            cell_data = cell_data, trackers = trackers,
+            idx = UInt32(idx), src = target_val, tgt = src_val, T = T_val,
+            spatial_coords = coords, source_coords = coords,
+            neighbors = ntuple(d -> Int32(0), N_dirs_val), n_src = Int32(0), n_tgt = Int32(0))
+        dummy_deltas = evaluate_all_trackers(trackers, dummy_ctx)
+        return false, Int32(0), Int32(0), dummy_deltas
+    end
+end
+
+@inline function _local_site_update!(
+        idx, coords, grid, grid_dims, topology, cell_data, penalties,
+        trackers, sampler, T_val, active_fraction, rng_state)
+    accept, target_val, src_val, tx_deltas = _compute_site_proposal(
+        idx, coords, grid, grid_dims, topology, cell_data, penalties,
+        trackers, sampler, T_val, active_fraction, rng_state)
+
+    if accept
+        grid[idx] = src_val
+        apply_tx_deltas_direct!(target_val, src_val, tx_deltas, trackers, cell_data)
     end
 end
 
@@ -139,7 +154,7 @@ end
             if won_lottery
                 rng_state = pcg_hash(my_ticket)
                 _local_site_update!(
-                    coords, grid, grid_dims, topology, cell_data, penalties,
+                    idx, coords, grid, grid_dims, topology, cell_data, penalties,
                     trackers, sampler, T_val, active_fraction, rng_state)
             end
         end
@@ -161,7 +176,7 @@ end
                       typeof(active_fraction)(0x01000000)
         if prob_active <= active_fraction
             rng_state = pcg_hash(my_ticket)
-            _local_site_update!(coords, grid, grid_dims, topology, cell_data, penalties,
+            _local_site_update!(idx, coords, grid, grid_dims, topology, cell_data, penalties,
                 trackers, sampler, T_val, active_fraction, rng_state)
         end
     end
@@ -224,6 +239,9 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     @argcheck T >= zero(typeof(T)) "Temperature (T) must be non-negative"
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
+              
+    max_fraction = 1.0 / (length(lottery_offsets(p.topology)) + 1)
+    @argcheck active_fraction <= max_fraction "ParallelMetropolis cannot achieve an active fraction higher than $(max_fraction) for this topology. Please lower `active_fraction` and proportionally increase `sweeps_per_step`."
 
     cache.step_counter[1] += UInt64(1)
     global_seed = pcg_hash(cache.step_counter[1])
@@ -277,7 +295,7 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
         step_seed = pcg_hash(global_seed + UInt64(i + num_updates))
 
         _local_site_update!(
-            coords, u.grid, cache.grid_dims, p.topology,
+            idx, coords, u.grid, cache.grid_dims, p.topology,
             u.cell_data, p.penalties, p.trackers,
             sampler, T, active_fraction, step_seed
         )

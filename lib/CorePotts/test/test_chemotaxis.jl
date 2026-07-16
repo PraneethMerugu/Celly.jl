@@ -18,15 +18,9 @@ using SciMLBase
         end
     end
 
-    cell_data = CorePotts.build_cell_data(grid, 1)
-    cell_data.volumes[1] = 400
-    cell_data.target_volumes[1] = 400
-    cell_data.cell_types[1] = 1
-
     vol_tracker = VolumeTracker()
-
     vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
-
+    
     # Positive lambda means it wants to move UP the gradient (towards +x)
     chem_pen = ChemotaxisPenalty(Float32[0.0f0, 200.0f0], chem_field)
 
@@ -36,6 +30,13 @@ using SciMLBase
     J[2, 1] = 20.0f0;
     J[1, 2] = 20.0f0
     adh_pen = AdhesionPenalty{Rigid}(J)
+
+    penalties = (vol_pen, chem_pen, adh_pen)
+    trackers = (vol_tracker,)
+    cell_data = CorePotts.build_cell_data(grid, 1, penalties, trackers)
+    cell_data.volumes[1] = 400
+    cell_data.target_volumes[1] = 400
+    cell_data.cell_types[1] = 1
 
     function compute_com_x(grid)
         sum_x = 0.0f0

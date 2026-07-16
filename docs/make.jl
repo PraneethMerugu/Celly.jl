@@ -64,6 +64,7 @@ makedocs(
             "Topologies" => "corepotts/topology.md",
             "Penalties" => "corepotts/penalties.md",
             "Engine & Algorithms" => "corepotts/engine.md",
+            "Custom Events" => "corepotts/custom_events.md",
             "Output Backends" => "corepotts/backends.md",
             "API Reference" => "corepotts/api.md"
         ],

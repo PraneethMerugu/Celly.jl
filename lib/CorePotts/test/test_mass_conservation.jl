@@ -12,7 +12,7 @@ using StructArrays
 
         batch_size = prod(grid_dims) # 1 update attempt per pixel per MCS on average
 
-        cell_data = build_cell_data(grid, N_cells)
+        cell_data = build_cell_data(grid, N_cells, (vol_penalty,), trackers)
 
         # Initialize an N-dimensional sphere
         center = ntuple(i -> div(grid_dims[i], 2), length(grid_dims))

@@ -45,33 +45,21 @@ sys = PottsSystem(
             orientation = MajorAxisOrientation(),
             inheritance = (;)
         ),
-        ApoptosisEvent(Epithelial, trigger = ProbabilityTrigger(0.005f0))
+        ApoptosisEvent(Epithelial, trigger = ProbabilityTrigger(0.005f0)),
+        PropertyUpdateEvent(Epithelial, (target_volumes = Add(1, ProbabilityTrigger(0.25f0)),))
     ]
 )
 
-# ## Growth and Mitosis
+# As in Tutorial 07, cells grow linearly via the `PropertyUpdateEvent`. 
+# They divide when their physical volume reaches twice their target volume. 
+# Since we do not split target volumes, each daughter cell inherits a target volume of 150, 
+# but starts with a physical volume of ~75. They must then grow anew before their next division.
 #
-# As in Tutorial 07, cells grow linearly and divide when their physical volume
-# reaches twice their target volume. Since we do not split target volumes, each
-# daughter cell inherits a target volume of 150, but starts with a physical volume
-# of ~75. They must then grow anew before their next division.
-
-growth_cb = LinearGrowthCallback(0.25f0)
-
-# ## Death Callback
+# ## Intrinsic Death Processing
 #
-# Any cell whose `target_volume <= 0` is automatically removed by the `DeathCallback` in `CorePotts`.
-# Since our `ApoptosisEvent` natively sets the target volume of triggered cells to zero, the
-# `DeathCallback` will subsequently reap the cell ID to recycle memory safely.
-
-death_cb = DeathCallback()
-
-# ## Callback Assembly
-
-cb = SciMLBase.CallbackSet(
-    SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i)),
-    death_cb
-)
+# Any cell whose `target_volume <= 0` is automatically removed natively by the Potts engine.
+# Since our `ApoptosisEvent` natively sets the target volume of triggered cells to zero, 
+# the simulator will subsequently reap the cell ID to recycle memory safely at the end of the step.
 
 # ## Problem
 #
@@ -90,7 +78,7 @@ prob = PottsProblem(
 
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 
-sol = solve(prob, alg; saveat = 10, callback = cb)
+sol = solve(prob, alg; saveat = 10)
 
 # ## Interactive Dashboard — Homeostatic Steady State
 #

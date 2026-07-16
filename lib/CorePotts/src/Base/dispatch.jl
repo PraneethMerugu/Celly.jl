@@ -12,8 +12,9 @@ Preserves dependencies for `CUDA` or `CPU` backends to ensure Zero-Sync safety.
 """
 @inline function dispatch_kernel!(
         kernel, args...; ndrange, dependencies = (), workgroupsize = nothing)
-    # Extract backend type string without explicitly depending on Metal.jl
-    is_metal = occursin("MetalBackend", string(typeof(kernel).parameters[1]))
+    # Extract backend type without string allocation or explicitly depending on Metal.jl
+    BackendType = typeof(kernel).parameters[1]
+    is_metal = nameof(BackendType) === :MetalBackend
 
     # Handle dependencies=nothing by making it an empty tuple
     actual_deps = dependencies === nothing ? () : dependencies

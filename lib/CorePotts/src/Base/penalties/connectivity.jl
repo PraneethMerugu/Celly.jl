@@ -40,3 +40,5 @@ end
     # We fallback to allowing all moves (0.0 energy penalty).
     return 0.0f0
 end
+
+required_variables(::ConnectivityConstraint) = (;)

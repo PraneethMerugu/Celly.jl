@@ -53,3 +53,6 @@ hst_target_field(::HSTSurfaceAreaPenalty) = Val{:target_surface_areas}()
 end
 
 # Generic update_step_auxiliary! handles HST tension updates via AbstractHSTPenalty.
+
+required_variables(::HSTSurfaceAreaPenalty{Rigid}) = (tensions = Float32, target_surface_areas = Int32)
+required_variables(::HSTSurfaceAreaPenalty{Flex}) = (tensions = Float32, target_surface_areas = Int32, surface_area_lambdas = Float32)

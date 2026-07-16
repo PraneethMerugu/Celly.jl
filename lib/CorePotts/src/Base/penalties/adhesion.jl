@@ -110,3 +110,6 @@ end
 
     return dH
 end
+
+required_variables(::AdhesionPenalty{Rigid}) = (;)
+required_variables(::AdhesionPenalty{Flex}) = (adhesion_modifiers = Float32,)

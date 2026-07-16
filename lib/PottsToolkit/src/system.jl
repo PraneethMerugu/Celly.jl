@@ -4,14 +4,7 @@ export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
 export required_variables
-
-"""
-    required_variables(obj)
-
-Returns a NamedTuple of required variables (and their types) for a component or trigger.
-Fallback returns `nothing` or empty NamedTuple.
-"""
-function required_variables end
+import CorePotts: required_variables
 using CorePotts: FlexibilityTrait, Rigid, Flex
 
 """

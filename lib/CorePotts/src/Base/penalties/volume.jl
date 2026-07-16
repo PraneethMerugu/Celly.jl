@@ -106,3 +106,9 @@ function compute_global_energy(p::VolumePenalty{FlexType}, u, params) where {Fle
     E_arr = (vols .> zero(F)) .* lams .* (vols .- tgts) .^ 2
     return sum(E_arr)
 end
+
+required_variables(::HSTVolumePenalty{Rigid}) = (pressures = Float32,)
+required_variables(::HSTVolumePenalty{Flex}) = (pressures = Float32, volume_lambdas = Float32)
+
+required_variables(::VolumePenalty{Rigid}) = (;)
+required_variables(::VolumePenalty{Flex}) = (volume_lambdas = Float32,)

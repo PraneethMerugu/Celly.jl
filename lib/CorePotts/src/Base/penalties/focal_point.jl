@@ -268,10 +268,9 @@ end
 
 function update_sweep_auxiliary!(pen::HSTFocalPointPenalty, u::AbstractPottsState,
         p::PottsParameters, cache::PottsCache, T_val, dt)
-    cache.step_counter[] += UInt64(1)
     backend = KernelAbstractions.get_backend(u.cell_data.volumes)
     N = length(u.cell_data.volumes)
-    seed = pcg_hash(cache.step_counter[])
+    seed = pcg_hash(cache.step_counter[] + UInt64(54321))
 
     F = eltype(u.cell_data.com_acc_sin_x)
     fill!(u.cell_data.com_acc_sin_x, zero(F))
@@ -302,3 +301,19 @@ function update_sweep_auxiliary!(pen::HSTFocalPointPenalty, u::AbstractPottsStat
         T_val, seed, dt, cache.grid_dims, p.topology, ndrange = N)
     KernelAbstractions.synchronize(backend)
 end
+
+required_variables(::FocalPointSpringPenalty) = (
+    force_x = Float32, force_y = Float32, force_z = Float32,
+    anchor_x = Float32, anchor_y = Float32, anchor_z = Float32,
+    com_acc_sin_x = Float32, com_acc_cos_x = Float32,
+    com_acc_sin_y = Float32, com_acc_cos_y = Float32,
+    com_acc_sin_z = Float32, com_acc_cos_z = Float32
+)
+
+required_variables(::HSTFocalPointPenalty) = (
+    force_x = Float32, force_y = Float32, force_z = Float32,
+    anchor_x = Float32, anchor_y = Float32, anchor_z = Float32,
+    com_acc_sin_x = Float32, com_acc_cos_x = Float32,
+    com_acc_sin_y = Float32, com_acc_cos_y = Float32,
+    com_acc_sin_z = Float32, com_acc_cos_z = Float32
+)

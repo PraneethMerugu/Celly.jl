@@ -23,7 +23,7 @@ evaluation, native mask-driven events, and I/O backends.
 - **Trackers** — $O(1)$ incremental statistics (volume, surface area, centroid, tensor
   of inertia, …).
 - **Monte Carlo engines** — `CheckerboardMetropolis`, `ParallelMetropolis`,
-  `SequentialMetropolis`, `SparseLotteryMetropolis`
+  `SequentialMetropolis`
   (see [Algorithms](@ref corepotts-engine)).
 - **Native events** — structurally composable `AbstractEvent` and `AbstractMultiEvent` types that execute via zero-allocation static unrolling on the GPU.
 - **Backends** — `MemoryBackend`, `ZarrBackend`, `HDF5Backend`

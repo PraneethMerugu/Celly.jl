@@ -9,7 +9,9 @@ using CorePotts
     grid[10:20, 10:20] .= 1
     grid[50:60, 50:60] .= 2
 
-    cell_data = CorePotts.build_cell_data(grid, 2)
+    penalty = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
+    trackers = (VolumeTracker(),)
+    cell_data = CorePotts.build_cell_data(grid, 2, (penalty,), trackers)
     cell_data.volumes[1] = 121
     cell_data.volumes[2] = 0 # Dead cell
     cell_data.target_volumes[1] = 121
@@ -17,14 +19,12 @@ using CorePotts
     cell_data.cell_types[1] = 1
     cell_data.cell_types[2] = 1
 
-    penalty = HSTVolumePenalty{Rigid}(Float32[0.0f0, 50.0f0])
-
     u0 = PottsState(grid, cell_data, 2)
     cache = PottsCache(u0, VonNeumannTopology{2}())
     ws = CorePotts.MitosisWorkspace(grid, 2)
 
     # Process death events
-    CorePotts.process_death_events!(u0, cache, ws)
+    CorePotts.process_death_events!(u0, cache)
 
     # Check that cell 2 is in free list
     free_list_cpu = Array(u0.free_list)[1:Array(u0.free_list_count)[1]]

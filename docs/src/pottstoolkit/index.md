@@ -99,13 +99,14 @@ prob = PottsProblem(
 
 1. Converts `Dict(CellType => count)` into a `RandomLayout` — which uniformly scatters
    the requested number of cells across the grid randomly.
-2. Calls `build_initial_state` to populate the lattice from the layout, assigning
+2. Evaluates the `required_variables` from all compiled penalties, trackers, and events to construct a perfectly-sized `cell_data` GPU buffer. Only requested properties (like `volumes` or `target_surface_areas`) will be allocated in VRAM!
+3. Calls `build_initial_state` to populate the lattice from the layout, assigning
    cell IDs sequentially from `1`.
-3. Calls `initialize_metrics!` to perform a single O(|Λ|) scan that syncs all
+4. Calls `initialize_metrics!` to perform a single O(|Λ|) scan that syncs all
    tracker arrays (volume, surface area, etc.) from the actual lattice contents.
-4. Instantiates each component's CorePotts penalty object with the compiled parameter
+5. Instantiates each component's CorePotts penalty object with the compiled parameter
    arrays, keyed by type ID.
-5. Wraps everything in a `SciMLBase.AbstractDEProblem`-compatible struct so that
+6. Wraps everything in a `SciMLBase.AbstractDEProblem`-compatible struct so that
    `solve`, `init`, and `step!` work as expected.
 
 ### Custom Layouts
