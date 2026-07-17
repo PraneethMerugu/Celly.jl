@@ -219,6 +219,8 @@ struct ResolvedMitosisEvent{T, O, I, A, W} <: PottsToolkitEvent
     workspace::W
 end
 @inline is_mitosis(::ResolvedMitosisEvent) = true
+@inline CorePotts.device_event(evt::ResolvedMitosisEvent) =
+    ResolvedMitosisEvent(evt.check_interval, evt.type_id, evt.trigger, evt.orientation, evt.inheritance, evt.action, nothing)
 
 struct ResolvedPropertyUpdateEvent{R, W} <: PottsToolkitEvent
     check_interval::Int
@@ -229,6 +231,8 @@ struct ResolvedPropertyUpdateEvent{R, W} <: PottsToolkitEvent
         new{R, W}(check_interval, type_id, rules, workspace)
     end
 end
+@inline CorePotts.device_event(evt::ResolvedPropertyUpdateEvent) =
+    ResolvedPropertyUpdateEvent(evt.check_interval, evt.type_id, evt.rules, nothing)
 
 function resolve_events(events::Tuple, type_to_id::Dict, check_interval::Int)
     resolved = []

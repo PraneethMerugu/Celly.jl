@@ -18,3 +18,10 @@
 .history/
 *.log
 *.tmp
+
+# Generated benchmark and profiler evidence
+/benchmark/results/
+/benchmark/profiles/
+
+# Independently installable packages do not carry local manifests
+/lib/*/Manifest.toml

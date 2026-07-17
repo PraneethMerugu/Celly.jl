@@ -1,0 +1,113 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Backend to benchmark
+        type: choice
+        required: true
+        default: cpu
+        options: [cpu, metal, amdgpu, cuda]
+      profile:
+        description: Smoke or complete baseline matrix
+        type: choice
+        required: true
+        default: smoke
+        options: [smoke, full]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-${{ inputs.backend }}
+  cancel-in-progress: false
+
+env:
+  JULIA_VERSION: 1.12.6
+  JULIA_NUM_PRECOMPILE_TASKS: 2
+
+jobs:
+  cpu:
+    name: CPU / ${{ inputs.profile }}
+    if: inputs.backend == 'cpu'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - run: julia --project=benchmark --startup-file=no benchmark/matrix.jl --backend=cpu --profile=${{ inputs.profile }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-cpu-${{ inputs.profile }}-${{ github.sha }}
+          path: benchmark/results/
+          if-no-files-found: error
+
+  metal:
+    name: Metal / ${{ inputs.profile }}
+    if: inputs.backend == 'metal' && vars.METAL_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, metal]
+    timeout-minutes: 90
+    env:
+      JULIA_LOAD_PATH: "benchmark/backends/metal:benchmark:@stdlib"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+          arch: aarch64
+          force-arch: true
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - run: julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - run: julia --project=benchmark/backends/metal --startup-file=no benchmark/matrix.jl --backend=metal --profile=${{ inputs.profile }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-metal-${{ inputs.profile }}-${{ github.sha }}
+          path: benchmark/results/
+          if-no-files-found: error
+
+  rocm:
+    name: ROCm / ${{ inputs.profile }}
+    if: inputs.backend == 'amdgpu' && vars.ROCM_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, rocm]
+    timeout-minutes: 90
+    env:
+      JULIA_LOAD_PATH: "benchmark/backends/amdgpu:benchmark:@stdlib"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - run: julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/matrix.jl --backend=amdgpu --profile=${{ inputs.profile }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-rocm-${{ inputs.profile }}-${{ github.sha }}
+          path: benchmark/results/
+          if-no-files-found: error
+
+  cuda:
+    name: CUDA / ${{ inputs.profile }}
+    if: inputs.backend == 'cuda' && vars.CUDA_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, cuda]
+    timeout-minutes: 90
+    env:
+      JULIA_LOAD_PATH: "benchmark/backends/cuda:benchmark:@stdlib"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - run: julia --project=benchmark/backends/cuda --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - run: julia --project=benchmark/backends/cuda --startup-file=no benchmark/matrix.jl --backend=cuda --profile=${{ inputs.profile }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-cuda-${{ inputs.profile }}-${{ github.sha }}
+          path: benchmark/results/
+          if-no-files-found: error

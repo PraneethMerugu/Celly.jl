@@ -7,12 +7,23 @@ authors = ["Praneeth Merugu <merugufam@gmail.com>"]
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
 JuliaFormatter = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
 MakiePotts = "95794c00-c762-4965-bf31-de18bcca2bc9"
+Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 NeuralPotts = "c08961df-e966-447e-a5c1-1c24cca73f80"
 PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 
+[sources]
+CorePotts = {path = "lib/CorePotts"}
+KernelIntrinsics = {url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git", rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"}
+MakiePotts = {path = "lib/MakiePotts"}
+Mermaid = {url = "https://github.com/eebio/Mermaid.jl.git", rev = "d4c89d0ea09af8d96bcdc42ef6bd5dd967fc7a0d"}
+NeuralPotts = {path = "lib/NeuralPotts"}
+PottsToolkit = {path = "lib/PottsToolkit"}
+
 [compat]
 JuliaFormatter = "2.10.1"
+Mermaid = "0.1.0"
+julia = "1.12.6"
 
 [extras]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
@@ -21,6 +32,7 @@ CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+KernelIntrinsics = "f9588fbb-d238-4998-b15a-468e8766d49a"
 Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -33,3 +45,6 @@ Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [targets]
 test = ["Test", "SciMLBase", "Random", "Statistics", "KernelAbstractions", "Images", "StructArrays", "StaticArrays", "Zarr", "HDF5", "CommonSolve", "Mermaid"]
+
+[workspace]
+projects = ["test", "lib/CorePotts", "lib/PottsToolkit", "lib/MakiePotts", "lib/NeuralPotts"]

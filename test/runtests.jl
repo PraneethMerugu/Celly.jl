@@ -2,18 +2,17 @@ using Test
 using Potts
 using CorePotts
 using PottsToolkit
-using SciMLBase
-
 include("TestBackend.jl")
 using .TestBackend: BACKEND, BACKEND_GROUP, backend_array, backend_zeros, @skip_if_no_gpu
 
 @info "Running Potts.jl Test Suite" backend=BACKEND_GROUP
 
-if BACKEND_GROUP in ("CUDA", "Metal")
+if get(ENV, "POTTS_TEST_INTRINSIC", "false") == "true" &&
+        BACKEND_GROUP in ("CUDA", "Metal")
     const INTRINSIC_ALGORITHMS = (IntrinsicCheckerboardMetropolis,)
 else
     const INTRINSIC_ALGORITHMS = ()
-    @info "Skipping IntrinsicCheckerboardMetropolis: not supported on $(BACKEND_GROUP)"
+    @info "Skipping unqualified IntrinsicCheckerboardMetropolis baseline" backend = BACKEND_GROUP
 end
 
 const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialMetropolis, INTRINSIC_ALGORITHMS...)

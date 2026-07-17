@@ -109,13 +109,14 @@ function SciMLBase.step!(integrator::PottsIntegrator)
 
     # Phase 6: Core Events (AbstractEvent)
     if !isempty(p.events)
-        if !isbits(p.events)
+        dev_events = device_events(p.events)
+        if !isbits(dev_events)
             throw(ArgumentError("One or more events capture non-bitstype variables! Ensure @rule closures only interpolate scalar primitives (like Float32, Int32) and do not capture full structs (like evt or CellType)."))
         end
         deps = current_event === nothing ? () : (current_event,)
         masks = cache.event_masks::Tuple
         current_event = _evaluate_all_events!(
-            p.events, masks, u, p, cache, integrator.t, deps)
+            p.events, dev_events, masks, u, p, cache, integrator.t, deps)
     end
 
     # Phase 7: Intrinsic Death Processing (Reclaim IDs for target_volume <= 0)
@@ -245,11 +246,15 @@ end
         Base.tail(events), Base.tail(masks), u, p, cache, t, deps_next)
 end
 
-function _evaluate_all_events!(events::Tuple, masks::Tuple, u, p, cache, t, deps)
+@inline device_event(evt) = evt
+@inline device_events(events::Tuple{}) = ()
+@inline device_events(events::Tuple) = (device_event(first(events)), device_events(Base.tail(events))...)
+
+function _evaluate_all_events!(events::Tuple, dev_events::Tuple, masks::Tuple, u, p, cache, t, deps)
     if _any_device_trigger(events)
         backend = KernelAbstractions.get_backend(u.grid)
         k = evaluate_all_triggers_kernel!(backend, cache.block_size)
-        ev = dispatch_kernel!(backend, k, events, masks, u.cell_data, t;
+        ev = dispatch_kernel!(backend, k, dev_events, masks, u.cell_data, t;
             ndrange = length(u.cell_data.volumes), dependencies = deps)
         deps = ev === nothing ? deps : (ev,)
     end

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JULIA_VERSION: 1.12.6
+  JULIA_NUM_PRECOMPILE_TASKS: 2
+
+jobs:
+  project:
+    name: Project integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Enforce the refactor toolchain
+        run: |
+          julia --startup-file=no -e '
+            using TOML
+            expected = "1.12.6"
+            projects = String[]
+            for (root, dirs, files) in walkdir(pwd())
+                filter!(dir -> dir != ".git", dirs)
+                "Project.toml" in files && push!(projects, joinpath(root, "Project.toml"))
+            end
+            for project in projects
+                target = get(get(TOML.parsefile(project), "compat", Dict()), "julia", nothing)
+                target == expected || error("$project must set Julia compat to $expected; found $(repr(target))")
+            end
+            println("Validated $(length(projects)) Julia project files on Julia $VERSION")'
+      - name: Resolve the Julia workspace without mutation
+        run: |
+          julia --project=. --startup-file=no -e '
+            using Pkg
+            Pkg.instantiate(; workspace=true, julia_version_strict=true)'
+      - name: Reject whitespace errors
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA"...HEAD
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cpu:
+    name: CPU / Julia 1.12.6
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKEND_GROUP: CPU
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Instantiate the workspace
+        run: julia --project=. --startup-file=no -e 'using Pkg; Pkg.instantiate(; workspace=true, julia_version_strict=true)'
+      - name: Run the CPU contract suite
+        run: julia --project=test --startup-file=no --check-bounds=yes test/runtests.jl
+
+  required:
+    name: Required
+    if: always()
+    needs: [project, cpu]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every gating job
+        env:
+          PROJECT_RESULT: ${{ needs.project.result }}
+          CPU_RESULT: ${{ needs.cpu.result }}
+        run: |
+          test "$PROJECT_RESULT" = success
+          test "$CPU_RESULT" = success
