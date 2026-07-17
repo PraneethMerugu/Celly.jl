@@ -62,11 +62,16 @@ jobs:
           fi
 
   cpu:
-    name: CPU / Julia 1.12.6
+    name: CPU / Julia 1.12.6 / ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [thermodynamics, biophysics, integration, core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       BACKEND_GROUP: CPU
+      POTTS_TEST_SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
