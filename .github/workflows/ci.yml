@@ -74,7 +74,11 @@ jobs:
           version: ${{ env.JULIA_VERSION }}
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
       - name: Instantiate the workspace
-        run: julia --project=. --startup-file=no -e 'using Pkg; Pkg.instantiate(; workspace=true, julia_version_strict=true)'
+        run: |
+          julia --project=. --startup-file=no -e '
+            using Pkg
+            Pkg.instantiate(; workspace=true, julia_version_strict=true,
+                allow_autoprecomp=false)'
       - name: Run the CPU contract suite
         run: julia --project=test --startup-file=no test/runtests.jl
 
