@@ -28,8 +28,13 @@ jobs:
     env:
       BACKEND_GROUP: Metal
       JULIA_LOAD_PATH: "benchmark/backends/metal:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -46,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gpu-smoke-metal-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   rocm:
@@ -59,8 +64,13 @@ jobs:
     env:
       BACKEND_GROUP: AMDGPU
       JULIA_LOAD_PATH: "benchmark/backends/amdgpu:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -75,7 +85,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gpu-smoke-rocm-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   cuda:
@@ -88,8 +98,13 @@ jobs:
     env:
       BACKEND_GROUP: CUDA
       JULIA_LOAD_PATH: "benchmark/backends/cuda:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -104,5 +119,5 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gpu-smoke-cuda-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error

@@ -54,8 +54,13 @@ jobs:
     timeout-minutes: 90
     env:
       JULIA_LOAD_PATH: "benchmark/backends/metal:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -71,7 +76,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-metal-${{ inputs.profile }}-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   rocm:
@@ -81,8 +86,13 @@ jobs:
     timeout-minutes: 90
     env:
       JULIA_LOAD_PATH: "benchmark/backends/amdgpu:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -96,7 +106,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-rocm-${{ inputs.profile }}-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   cuda:
@@ -106,8 +116,13 @@ jobs:
     timeout-minutes: 90
     env:
       JULIA_LOAD_PATH: "benchmark/backends/cuda:benchmark:@stdlib"
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -121,5 +136,5 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-cuda-${{ inputs.profile }}-${{ github.sha }}
-          path: benchmark/results/
+          path: _ci/source/benchmark/results/
           if-no-files-found: error

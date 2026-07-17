@@ -87,16 +87,91 @@ jobs:
       - name: Run the CPU contract suite
         run: julia --project=test --startup-file=no test/runtests.jl
 
+  cpu_macos_arm64:
+    name: CPU / macOS ARM64 / Julia 1.12.6
+    if: >-
+      vars.METAL_RUNNER_ENABLED == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, metal]
+    timeout-minutes: 30
+    env:
+      BACKEND_GROUP: CPU
+    defaults:
+      run:
+        working-directory: _ci/source
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+          arch: aarch64
+          force-arch: true
+      - name: Verify ARM64 runtime and instantiate workspace
+        run: |
+          julia --startup-file=no -e 'Sys.ARCH == :aarch64 || error("expected ARM64 Julia; found $(Sys.ARCH)")'
+          julia --project=. --startup-file=no -e '
+            using Pkg
+            Pkg.instantiate(; workspace=true, julia_version_strict=true,
+                allow_autoprecomp=false)'
+      - name: Run complete CPU contract suite
+        run: julia --project=test --startup-file=no test/runtests.jl
+
+  cpu_linux_x64:
+    name: CPU / Linux x86_64 / Julia 1.12.6
+    if: >-
+      vars.ROCM_RUNNER_ENABLED == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, rocm]
+    timeout-minutes: 30
+    env:
+      BACKEND_GROUP: CPU
+    defaults:
+      run:
+        working-directory: _ci/source
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - name: Verify x86_64 runtime and instantiate workspace
+        run: |
+          julia --startup-file=no -e 'Sys.ARCH == :x86_64 || error("expected x86_64 Julia; found $(Sys.ARCH)")'
+          julia --project=. --startup-file=no -e '
+            using Pkg
+            Pkg.instantiate(; workspace=true, julia_version_strict=true,
+                allow_autoprecomp=false)'
+      - name: Run complete CPU contract suite
+        run: julia --project=test --startup-file=no test/runtests.jl
+
   required:
     name: Required
     if: always()
-    needs: [project, cpu]
+    needs: [project, cpu, cpu_macos_arm64, cpu_linux_x64]
     runs-on: ubuntu-latest
     steps:
       - name: Require every gating job
         env:
           PROJECT_RESULT: ${{ needs.project.result }}
           CPU_RESULT: ${{ needs.cpu.result }}
+          MACOS_RESULT: ${{ needs.cpu_macos_arm64.result }}
+          LINUX_X64_RESULT: ${{ needs.cpu_linux_x64.result }}
+          METAL_ENABLED: ${{ vars.METAL_RUNNER_ENABLED }}
+          ROCM_ENABLED: ${{ vars.ROCM_RUNNER_ENABLED }}
+          TRUSTED_SELF_HOSTED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           test "$PROJECT_RESULT" = success
           test "$CPU_RESULT" = success
+          if [ "$METAL_ENABLED" = true ] && [ "$TRUSTED_SELF_HOSTED" = true ]; then
+            test "$MACOS_RESULT" = success
+          else
+            test "$MACOS_RESULT" = skipped
+          fi
+          if [ "$ROCM_ENABLED" = true ] && [ "$TRUSTED_SELF_HOSTED" = true ]; then
+            test "$LINUX_X64_RESULT" = success
+          else
+            test "$LINUX_X64_RESULT" = skipped
+          fi
