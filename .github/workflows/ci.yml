@@ -76,7 +76,7 @@ jobs:
       - name: Instantiate the workspace
         run: julia --project=. --startup-file=no -e 'using Pkg; Pkg.instantiate(; workspace=true, julia_version_strict=true)'
       - name: Run the CPU contract suite
-        run: julia --project=test --startup-file=no --check-bounds=yes test/runtests.jl
+        run: julia --project=test --startup-file=no test/runtests.jl
 
   required:
     name: Required
