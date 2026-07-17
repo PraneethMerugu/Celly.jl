@@ -33,6 +33,9 @@ immutable releases preserve evidence for an exact source state.
   cited for review, but are not dependency or evidence identities.
 - GPU runtimes use separate projects so resolving CUDA, ROCm, or Metal cannot perturb another
   backend's scientific environment.
+- Documentation instantiation disables automatic whole-environment precompilation. Pull requests
+  build once without deployment; protected pushes and tags build once in the deployment job. This
+  preserves the permission boundary without compiling the same documentation environment twice.
 
 ## Self-hosted Runner Trust Boundary
 
