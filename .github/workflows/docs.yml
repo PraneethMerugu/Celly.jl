@@ -14,10 +14,12 @@ concurrency:
 env:
   JULIA_VERSION: 1.12.6
   JULIA_NUM_PRECOMPILE_TASKS: 2
+  JULIA_PKG_PRECOMPILE_AUTO: 0
 
 jobs:
   build:
     name: Build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -38,7 +40,6 @@ jobs:
   deploy:
     name: Deploy
     if: github.event_name != 'pull_request'
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

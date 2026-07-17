@@ -7,8 +7,9 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase | Status | Evidence |
 | --- | --- | --- |
 | Phase 0: Scope Freeze and Current-Code Audit | Complete | [Current-code audit](audits/phase-0-current-code-audit.md), [paper-scope map](audits/phase-0-paper-scope-map.md) |
-| Phase 1: Correctness and Performance Baselines | In progress | [Baseline evidence](audits/phase-1-baseline-evidence.md), [GitHub and JuliaGPU governance](github-and-ci-governance.md), pinned benchmark harness; baseline snapshot and deeper counters remain |
-| Phases 2-15 | Not started | Blocked by preceding phase gates |
+| Phase 1: Correctness and Performance Baselines | Complete | [Baseline evidence](audits/phase-1-baseline-evidence.md), [GitHub and JuliaGPU governance](github-and-ci-governance.md), protected `main`, pinned benchmark harness, and immutable attested release |
+| Phase 2: Repository Structural Migration | Ready to start | Phase 1 preservation gate is closed; execute the dedicated Phase 2 milestone and issue |
+| Phases 3-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
 
