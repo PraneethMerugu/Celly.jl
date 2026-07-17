@@ -63,4 +63,3 @@ native saturation law.
 ## Specification
 
 See [Cartesian Surface, Queries, and Fields](../cartesian-surface-queries-and-fields.md).
-

@@ -391,4 +391,3 @@ behavior. Reporting-only changes do not.
 - [CUDA.jl performance guidance](https://cuda.juliagpu.org/stable/tutorials/performance/)
 - [KernelAbstractions kernel guidance](https://juliagpu.github.io/KernelAbstractions.jl/stable/kernels/)
 - [AcceleratedKernels map-reduce](https://juliagpu.github.io/AcceleratedKernels.jl/stable/api/mapreduce/)
-

@@ -70,4 +70,3 @@ change the relation's scientific meaning.
 ## Specification
 
 See [Topology and Spatial Relations](../topology-and-spatial-relations.md).
-

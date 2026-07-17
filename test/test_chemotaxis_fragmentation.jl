@@ -24,7 +24,7 @@ using Potts.CorePotts.SciMLBase
 
     vol_tracker = VolumeTracker()
     vol_pen = HSTVolumePenalty{Rigid}(Float32[0.0f0, 10.0f0])
-    
+
     # Positive lambda means it wants to move UP the gradient
     # Since lambda is very high and there's no volume/adhesion penalty,
     # the cell will stretch/fragment heavily if unbounded. With saturation, it should be limited.
@@ -40,7 +40,7 @@ using Potts.CorePotts.SciMLBase
     u0 = PottsState(grid, cell_data)
     p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
     problem = PottsProblem(u0, (0, 200), p_sys)
-    
+
     alg = SequentialMetropolis(; sweeps_per_step = 1, T = 1.0f0)
     integrator = CorePotts.SciMLBase.init(problem, alg)
 
@@ -58,10 +58,10 @@ using Potts.CorePotts.SciMLBase
             end
         end
     end
-    
+
     width = max_x - min_x + 1
     println("Final volume: ", count, ", Width: ", width)
-    
+
     # We assert that the cell width is bounded (it will fail because it fragments and stretches)
     @test width < 30
 end

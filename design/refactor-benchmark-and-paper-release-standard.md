@@ -275,4 +275,3 @@ not leak provisional behavior into stable interfaces.
 - [CUDA.jl benchmarking and profiling](https://cuda.juliagpu.org/dev/development/profiling/)
 - [KernelAbstractions performance examples](https://juliagpu.github.io/KernelAbstractions.jl/stable/examples/performance/)
 - [AcceleratedKernels cross-architecture approach](https://juliagpu.github.io/AcceleratedKernels.jl/stable/)
-

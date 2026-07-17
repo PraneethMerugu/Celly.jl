@@ -127,4 +127,3 @@ A deferred or experimental feature enters paper-required scope only through an e
 specification update identifying its semantic decision gate, conformance evidence, performance
 qualification, documentation work, and effect on release timing. Existing code or a historical
 tutorial is not sufficient to change scope.
-

@@ -91,4 +91,3 @@ directions are absent edges rather than clamped self-edges.
 ## Specification
 
 See [Energy, Proposal, Acceptance, and Tracker Semantics](../energy-proposals-and-trackers.md).
-

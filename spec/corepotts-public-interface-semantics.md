@@ -339,4 +339,3 @@ workspace use, and backend qualification separately.
 - Validation catches incomplete interfaces before GPU execution.
 - Public conformance helpers exercise every stable extension category.
 - Stable execution protocols are separated from replaceable internals.
-

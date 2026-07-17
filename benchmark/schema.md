@@ -21,4 +21,3 @@ memory without silently changing the meaning of existing fields.
 
 Changing the meaning or units of a field requires a schema-version change. Adding an optional field
 requires documenting the version in which it first appears.
-

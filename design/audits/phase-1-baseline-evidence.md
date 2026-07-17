@@ -1,7 +1,7 @@
 # Phase 1 Baseline Evidence
 
-Status: In progress  
-Captured: 2026-07-17  
+Status: In progress
+Captured: 2026-07-17
 Runtime target: Julia 1.12.6 only
 
 ## Purpose and Qualification Boundary

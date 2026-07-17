@@ -81,4 +81,3 @@ and provenance.
 ## Specification
 
 See [Energy, Proposal, Acceptance, and Tracker Semantics](../energy-proposals-and-trackers.md).
-

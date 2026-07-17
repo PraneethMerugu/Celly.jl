@@ -91,4 +91,3 @@ and birth are part of an explicitly reversible proposal family.
 ## Specification
 
 See [Energy, Proposal, Acceptance, and Tracker Semantics](../energy-proposals-and-trackers.md).
-

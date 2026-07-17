@@ -403,4 +403,3 @@ contract.
 - [Morpheus field and cell boundary distinctions](https://morpheus.gitlab.io/faq/modeling/boundary-conditions/)
 - [Artistoo chemotaxis and coarse-grid field interface](https://artistoo.net/class/src/hamiltonian/ChemotaxisConstraint.js~ChemotaxisConstraint.html)
 - [MethodOfLines field grids and placement](https://docs.sciml.ai/MethodOfLines/stable/)
-
