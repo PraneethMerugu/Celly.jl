@@ -36,9 +36,11 @@ immutable releases preserve evidence for an exact source state.
 
 ## Self-hosted Runner Trust Boundary
 
-- Self-hosted runners never execute code from fork pull requests. GPU jobs are eligible only for
-  pushes, manual dispatches, and pull requests whose head repository is this repository. The same
-  restriction applies to self-hosted CPU jobs.
+- Self-hosted runners never execute code from fork or Dependabot pull requests. GPU jobs are
+  eligible only for pushes, manual dispatches, and human-authored pull requests whose head
+  repository is this repository. The same restriction applies to self-hosted CPU jobs. Dependabot
+  action updates receive hosted validation until a maintainer reviews and merges them; the ensuing
+  protected `main` push performs the self-hosted qualification.
 - Every self-hosted job checks the revision out under `_ci/source` and runs there. It never checks
   out into the job workspace root, so a runner whose workspace overlaps a developer checkout cannot
   switch, clean, or overwrite that developer worktree.

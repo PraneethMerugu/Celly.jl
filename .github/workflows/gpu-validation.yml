@@ -22,7 +22,8 @@ jobs:
     name: Metal / Apple Silicon
     if: >-
       vars.METAL_RUNNER_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, metal]
     timeout-minutes: 45
     env:
@@ -58,7 +59,8 @@ jobs:
     name: ROCm / AMDGPU
     if: >-
       vars.ROCM_RUNNER_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, rocm]
     timeout-minutes: 45
     env:
@@ -92,7 +94,8 @@ jobs:
     name: CUDA / NVIDIA
     if: >-
       vars.CUDA_RUNNER_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, cuda]
     timeout-minutes: 45
     env:

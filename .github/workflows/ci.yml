@@ -91,7 +91,8 @@ jobs:
     name: CPU / macOS ARM64 / Julia 1.12.6
     if: >-
       vars.METAL_RUNNER_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, metal]
     timeout-minutes: 30
     env:
@@ -122,7 +123,8 @@ jobs:
     name: CPU / Linux x86_64 / Julia 1.12.6
     if: >-
       vars.ROCM_RUNNER_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, rocm]
     timeout-minutes: 30
     env:
@@ -161,7 +163,7 @@ jobs:
           LINUX_X64_RESULT: ${{ needs.cpu_linux_x64.result }}
           METAL_ENABLED: ${{ vars.METAL_RUNNER_ENABLED }}
           ROCM_ENABLED: ${{ vars.ROCM_RUNNER_ENABLED }}
-          TRUSTED_SELF_HOSTED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          TRUSTED_SELF_HOSTED: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
         run: |
           test "$PROJECT_RESULT" = success
           test "$CPU_RESULT" = success

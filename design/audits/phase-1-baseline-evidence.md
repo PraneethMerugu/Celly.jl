@@ -1,6 +1,6 @@
 # Phase 1 Baseline Evidence
 
-Status: In progress
+Status: Complete for the pre-refactor preservation gate
 Captured: 2026-07-17
 Runtime target: Julia 1.12.6 only
 
@@ -20,12 +20,13 @@ gates.
 
 | Field | Value |
 | --- | --- |
-| Repository commit | `b315ef1aecf101663472b1f71c9fe07ecc420575` |
-| Branch at capture | `main` |
-| Working tree | Dirty; implementation changes predated this capture |
-| Implementation source SHA-256 | `d73c5805a1b05a0c14e134610743a390cc98f5b17229cb1b300ea6edd2995e7a` |
-| Tracked implementation diff SHA-256 | `c88775d69d3b69af242b780f3a526f6562691bfb14ff0fcfcefaf8d167096498` |
-| Baseline ID | `b315ef1aecf1-d73c5805a1b0` |
+| Canonical release | `pre-refactor-baseline-2026-07-17` |
+| Repository revision | The commit locked by the canonical release tag and GitHub release attestation |
+| Branch at qualification | Protected `main` |
+| Working tree | Clean; every archived benchmark record reports `git_dirty = false` |
+| Implementation source SHA-256 | `570b4a5e10006c27e10f03c90365240af43160c3497b9ac8aa2da62554822055` |
+| Candidate capture commit | `739d8e31aa87e12641daccf653515d83b8f5623b` |
+| Candidate baseline ID | `739d8e31aa87-570b4a5e1000` |
 | Julia | `1.12.6` |
 | Julia threads | 1 |
 | KernelAbstractions | `0.9.42` |
@@ -38,20 +39,21 @@ The KernelIntrinsics dependency is pinned to an immutable fork commit. The named
 `fix/apple-silicon-metal-support` is useful for review but MUST NOT be used as a moving benchmark
 dependency.
 
-The dirty implementation is fingerprinted but cannot yet be reconstructed from the repository
-commit alone. Phase 1 cannot pass its clean-checkout exit gate until this exact baseline state is
-committed or archived as an immutable snapshot.
+The canonical release is the reconstruction authority. GitHub release immutability locks its tag
+and attached result archives after publication and emits a signed attestation over the tag, commit,
+and assets. Candidate captures above were made from the first protected merge; the final release
+captures repeat the same matrix at the canonical tag revision.
 
-## Capture Machine
+## Capture Systems
 
-- macOS 15.6.1, build 24G90, Darwin arm64
-- MacBook Pro 18,3 with Apple M1 Pro
-- 8 CPU cores: 6 performance and 2 efficiency
-- 16 GB unified memory
-- 14-core integrated Apple GPU; Metal supported
-- Metal device reported by Metal.jl as `AGXG13XDevice`
+- CPU: GitHub-hosted Linux x86_64, four exposed CPU threads.
+- Metal: Darwin aarch64 on an Apple M1 Pro with a 14-core integrated GPU; Metal.jl reports an
+  `AGXG13XDevice`.
+- AMDGPU: Linux x86_64; AMDGPU.jl reports `AMD Radeon Graphics` with architecture `gfx1100`.
 
-Hardware identifiers unique to the machine are deliberately excluded from evidence artifacts.
+The full correctness suite also runs on both self-hosted architectures independently of the
+GitHub-hosted CPU shards. Hardware identifiers unique to a machine are deliberately excluded from
+evidence artifacts.
 
 ## Environments and Commands
 
@@ -112,6 +114,26 @@ Metal backend exposes CPU-only setup that scalar-indexes device arrays. GPU CI t
 device smoke workloads plus explicit state invariants; it does not enable `allowscalar` or relabel
 CPU-oriented tests as GPU conformance. Backend-parametric statistical conformance belongs to Phase 3.
 
+### Protected-merge qualification
+
+Pull request 2 qualified candidate commit `53c13526c3d2d02aa00cc5b4c6b97a576d371ef3`
+before its protected squash merge:
+
+- the stable `Required` aggregate passed after project integrity and every CPU job passed;
+- the complete 405-pass, one-broken, zero-failure suite passed on native macOS ARM64 and Linux
+  x86_64 self-hosted runners;
+- the same suite was independently sharded across GitHub-hosted Linux runners;
+- real-device Metal and AMDGPU smoke workloads passed without scalar-indexing escape hatches;
+- documentation built on the pull request without permission to deploy; and
+- every self-hosted job used a nested `_ci/source` checkout, leaving the developer checkout on its
+  original branch and eliminating the observed worktree-mutation hazard.
+
+The qualifying workflow runs are CI `29617503153`, GPU Validation `29617503169`, and
+Documentation `29617503143`. Protected `main` requires the repository-owned `Required` check,
+linear history, pull requests, resolved review conversations, and forbids force pushes and branch
+deletion. Post-merge and canonical-tag workflow identifiers are recorded in the immutable release
+notes.
+
 ## Performance Captures
 
 Every steady-state GPU sample synchronizes the active KernelAbstractions backend inside the timed
@@ -121,30 +143,45 @@ measurements.
 
 | Backend | Workload | Algorithm | Median MCS/s | First MCS (s) | Host bytes | Host allocs |
 |---|---|---|---:|---:|---:|---:|
-| CPU | `volume_2d_small` | sequential | 810.482 | 0.301455 | 1,710,448 | 32,897 |
-| CPU | `volume_2d_small` | lottery | 1,234.949 | 0.413144 | 11,568 | 317 |
-| CPU | `volume_2d_small` | checkerboard | 4,461.378 | 0.390558 | 32,848 | 1,027 |
-| CPU | `adhesion_2d_medium` | sequential | 210.133 | 0.341605 | 6,824,912 | 131,247 |
-| CPU | `adhesion_2d_medium` | lottery | 328.486 | 0.461016 | 17,872 | 427 |
-| CPU | `adhesion_2d_medium` | checkerboard | 1,361.818 | 0.407237 | 41,392 | 1,137 |
-| CPU | `volume_3d_small` | sequential | 101.902 | 0.803781 | 13,628,432 | 262,089 |
-| CPU | `volume_3d_small` | lottery | 14.367 | 0.988119 | 27,152 | 889 |
-| CPU | `volume_3d_small` | checkerboard | 248.154 | 0.868659 | 232,592 | 7,409 |
-| CPU | `adhesion_2d_publication` | sequential | 52.619 | 0.349384 | 27,275,472 | 524,527 |
-| CPU | `adhesion_2d_publication` | lottery | 82.479 | 0.468762 | 17,872 | 427 |
-| CPU | `adhesion_2d_publication` | checkerboard | 363.851 | 0.431273 | 41,392 | 1,137 |
-| Metal | `volume_2d_small` | lottery | 1,262.559 | 2.416549 | 53,920 | 1,310 |
-| Metal | `volume_2d_small` | checkerboard | 496.535 | 2.431005 | 209,952 | 5,210 |
-| Metal | `adhesion_2d_medium` | lottery | 775.269 | 2.431465 | 61,504 | 1,440 |
-| Metal | `adhesion_2d_medium` | checkerboard | 624.724 | 2.488170 | 230,016 | 5,400 |
-| Metal | `volume_3d_small` | lottery | 14.803 | 2.598735 | 190,976 | 4,682 |
-| Metal | `volume_3d_small` | checkerboard | 91.307 | 2.588544 | 1,694,288 | 40,686 |
-| Metal | `adhesion_2d_publication` | lottery | 421.585 | 2.450630 | 61,504 | 1,440 |
-| Metal | `adhesion_2d_publication` | checkerboard | 311.393 | 2.457818 | 230,016 | 5,400 |
+| CPU | `volume_2d_small` | sequential | 392.073 | 0.561314 | 1,710,448 | 32,897 |
+| CPU | `volume_2d_small` | lottery | 1,104.409 | 0.490790 | 6,992 | 229 |
+| CPU | `volume_2d_small` | checkerboard | 3,126.866 | 0.448036 | 28,272 | 939 |
+| CPU | `adhesion_2d_medium` | sequential | 98.086 | 0.281941 | 6,824,912 | 131,247 |
+| CPU | `adhesion_2d_medium` | lottery | 283.207 | 0.388847 | 7,312 | 229 |
+| CPU | `adhesion_2d_medium` | checkerboard | 986.188 | 0.411498 | 30,832 | 939 |
+| CPU | `volume_3d_small` | sequential | 46.284 | 0.985079 | 13,628,432 | 262,089 |
+| CPU | `volume_3d_small` | lottery | 12.366 | 1.238487 | 27,152 | 889 |
+| CPU | `volume_3d_small` | checkerboard | 144.852 | 1.196709 | 232,592 | 7,409 |
+| CPU | `adhesion_2d_publication` | sequential | 24.226 | 0.041157 | 27,275,472 | 524,527 |
+| CPU | `adhesion_2d_publication` | lottery | 73.389 | 0.013781 | 7,312 | 229 |
+| CPU | `adhesion_2d_publication` | checkerboard | 271.036 | 0.003853 | 30,832 | 939 |
+| Metal | `volume_2d_small` | lottery | 1,276.833 | 1.706372 | 53,920 | 1,310 |
+| Metal | `volume_2d_small` | checkerboard | 508.911 | 0.444666 | 205,376 | 5,122 |
+| Metal | `adhesion_2d_medium` | lottery | 811.743 | 0.416709 | 61,504 | 1,440 |
+| Metal | `adhesion_2d_medium` | checkerboard | 641.129 | 0.359017 | 219,456 | 5,202 |
+| Metal | `volume_3d_small` | lottery | 15.847 | 0.692342 | 190,976 | 4,682 |
+| Metal | `volume_3d_small` | checkerboard | 94.393 | 0.521044 | 1,694,288 | 40,686 |
+| Metal | `adhesion_2d_publication` | lottery | 741.256 | 0.001732 | 61,504 | 1,440 |
+| Metal | `adhesion_2d_publication` | checkerboard | 397.446 | 0.003061 | 219,456 | 5,202 |
+| AMDGPU | `volume_2d_small` | lottery | 1,362.008 | 2.253203 | 45,072 | 1,059 |
+| AMDGPU | `volume_2d_small` | checkerboard | 2,923.310 | 0.731767 | 162,880 | 3,860 |
+| AMDGPU | `adhesion_2d_medium` | lottery | 48.959 | 0.694350 | 55,088 | 1,361 |
+| AMDGPU | `adhesion_2d_medium` | checkerboard | 1,888.604 | 0.625498 | 168,528 | 3,853 |
+| AMDGPU | `volume_3d_small` | lottery | 24.271 | 0.946482 | 161,808 | 3,907 |
+| AMDGPU | `volume_3d_small` | checkerboard | 46.868 | 0.762608 | 1,313,744 | 30,666 |
+| AMDGPU | `adhesion_2d_publication` | lottery | 46.896 | 0.018846 | 57,904 | 1,434 |
+| AMDGPU | `adhesion_2d_publication` | checkerboard | 47.135 | 0.000451 | 174,544 | 4,126 |
 
 Sequential is intentionally CPU-only in the current baseline. Raw timing samples, initialization,
 backend adaptation, workload construction, state checksums, invariants, and full provenance are
-stored in the ignored `benchmark/results/` tree using schema version 1.0.0.
+stored using schema version 1.0.0. The candidate full captures are workflow runs `29618327286`
+(CPU), `29618332623` (Metal), and `29618338692` (AMDGPU). The canonical reruns are attached to the
+immutable release rather than relying on the ignored local `benchmark/results/` tree.
+
+First-MCS is the first execution after constructing each integrator, not a fresh-process latency
+for every row. Because the full matrix intentionally runs several cases in one Julia process,
+later rows may reuse compiled code. Raw records preserve case order and separate workload build,
+backend adaptation, integrator initialization, first execution, and warm samples.
 
 ## Defects Exposed by the Harness
 
@@ -153,29 +190,33 @@ stored in the ignored `benchmark/results/` tree using schema version 1.0.0.
    and the algorithm is not a qualified Metal baseline. The contract suite excludes it by default;
    set `POTTS_TEST_INTRINSIC=true` to reproduce the known failure until Phase 5 replaces the
    obsolete ordering mechanism.
-2. The 3D lottery implementation achieves only 14.367 MCS/s on CPU and 14.803 MCS/s on Metal,
-   versus 248.154 and 91.307 MCS/s for checkerboard. Hardware acceleration does not address the
+2. The 3D lottery implementation achieves only 12.366 MCS/s on CPU and 15.847 MCS/s on Metal,
+   versus 144.852 and 94.393 MCS/s for checkerboard. AMDGPU raises lottery to 24.271 MCS/s but
+   remains below its 46.868 MCS/s checkerboard result. Hardware acceleration does not remove the
    current 3D lottery bottleneck.
 3. Sequential execution allocates per attempted proposal: the publication workload reports over
    27 MB and 524,527 host allocations per public step.
-4. GPU first-MCS latency is approximately 2.2–2.6 seconds for these cases. Compilation, launch,
-   adaptation, and first-use costs require separate treatment in future user-facing performance
-   claims.
-5. Metal is not uniformly faster at small scale. Backend selection and benchmark claims must
-   distinguish latency, throughput, dimensionality, and algorithm family.
+4. GPU first-MCS latency is order- and workload-sensitive and reaches 2.253 seconds in the AMDGPU
+   capture. Compilation, launch, adaptation, and first-use costs require separate fresh-process
+   treatment in future user-facing performance claims.
+5. Neither GPU is uniformly faster. The AMDGPU adhesion lottery results collapse to roughly
+   47-49 MCS/s while checkerboard ranges from 47 to 1,889 MCS/s, depending on workload. Backend
+   selection and claims must distinguish latency, throughput, dimensionality, and algorithm family.
 
-## Missing Evidence Before the Phase 1 Exit Gate
+## Deliberate Qualification Boundary
 
-- Commit or immutably archive the exact dirty baseline implementation.
-- Add actual proposal, acceptance, rejection, conflict, launch, synchronization, transfer, device
-  allocation, scratch-memory, and peak-memory counters without changing engine semantics.
-- Add reference-model and statistical correctness captures in Phase 3; current state invariants are
-  insufficient for scientific qualification.
-- Capture CUDA and AMDGPU on real compatible hardware. No such hardware is available on this host.
-- Archive raw machine-readable results in a durable paper or CI artifact store rather than relying
-  on the intentionally ignored local result directory.
-- Decide whether intrinsic is repaired and retained as a paper algorithm or excluded at decision
-  gate D1.
+The historical engine exposes no semantic proposal, acceptance, rejection, or conflict counters,
+and no device launch, transfer, device-allocation, scratch, or peak-memory counters. The raw schema
+records this absence explicitly in `known_limitations`; it MUST NOT encode inferred values as
+measurements. Invasively instrumenting the old engine before freezing it would create a different
+implementation and weaken the preservation baseline. The replacement engine must expose these
+counters before performance qualification in Phases 3, 5, and 12.
 
-Phase 1 remains in progress. The harness and first CPU/Metal evidence are usable immediately for
-regression detection, but the roadmap's clean-checkout reproducibility gate has not yet passed.
+Likewise, state invariants are not reference-model, detailed-balance, isotropy, or statistical
+correctness evidence. Those remain Phase 3 conformance obligations. CUDA is recorded as unavailable,
+not emulated. Whether intrinsic is repaired or excluded remains decision gate D1.
+
+With those boundaries, the Phase 1 preservation gate is complete: a clean checkout can reproduce
+the suite and benchmark matrix; CPU, Metal, and AMDGPU have hardware-backed captures; cold and warm
+timings are separated; known invalid semantics are warnings rather than targets; and the canonical
+revision and raw evidence are published as an immutable, attested release.
