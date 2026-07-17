@@ -4,32 +4,32 @@ CairoMakie.activate!()</code></pre><h1 id="Out-of-Core-Saving-with-Zarr-and-HDF5
 using Zarr
 using HDF5
 using Statistics</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Precompiling packages...
-    677.5 ms  ✓ MPIPreferences
-    711.4 ms  ✓ aws_c_common_jll
-    759.3 ms  ✓ libaec_jll
-    752.1 ms  ✓ XML2_jll
-    606.4 ms  ✓ MicrosoftMPI_jll
-    711.4 ms  ✓ s2n_tls_jll
-    612.5 ms  ✓ dlfcn_win32_jll
-   1128.0 ms  ✓ MPItrampoline_jll
-    718.1 ms  ✓ aws_c_compression_jll
-    713.8 ms  ✓ aws_c_cal_jll
-    714.1 ms  ✓ aws_checksums_jll
-    721.6 ms  ✓ aws_c_sdkutils_jll
-    747.9 ms  ✓ Hwloc_jll
-    737.3 ms  ✓ aws_c_io_jll
-   1130.8 ms  ✓ MPIABI_jll
-   1138.7 ms  ✓ OpenMPI_jll
-    874.9 ms  ✓ MPICH_jll
-    764.8 ms  ✓ aws_c_http_jll
-   1138.3 ms  ✓ mpif_jll
-    740.4 ms  ✓ aws_c_auth_jll
-    751.4 ms  ✓ aws_c_s3_jll
-   1322.7 ms  ✓ HDF5_jll
-   7269.6 ms  ✓ HDF5
-  23 dependencies successfully precompiled in 18 seconds. 35 already precompiled.
+    648.1 ms  ✓ MPIPreferences
+    697.1 ms  ✓ aws_c_common_jll
+    747.5 ms  ✓ libaec_jll
+    741.9 ms  ✓ XML2_jll
+    584.4 ms  ✓ MicrosoftMPI_jll
+    735.3 ms  ✓ s2n_tls_jll
+    581.5 ms  ✓ dlfcn_win32_jll
+   1113.7 ms  ✓ MPItrampoline_jll
+    732.6 ms  ✓ aws_c_compression_jll
+    692.7 ms  ✓ aws_c_cal_jll
+    689.7 ms  ✓ aws_checksums_jll
+    688.3 ms  ✓ aws_c_sdkutils_jll
+    729.5 ms  ✓ Hwloc_jll
+    710.5 ms  ✓ aws_c_io_jll
+   1067.0 ms  ✓ MPIABI_jll
+   1073.0 ms  ✓ OpenMPI_jll
+    880.6 ms  ✓ MPICH_jll
+    743.7 ms  ✓ aws_c_http_jll
+   1069.5 ms  ✓ mpif_jll
+    718.9 ms  ✓ aws_c_auth_jll
+    717.2 ms  ✓ aws_c_s3_jll
+   1335.6 ms  ✓ HDF5_jll
+   7487.8 ms  ✓ HDF5
+  23 dependencies successfully precompiled in 17 seconds. 35 already precompiled.
 Precompiling packages...
-   1337.3 ms  ✓ CorePotts → CorePottsHDF5Ext
+   1180.0 ms  ✓ CorePotts → CorePottsHDF5Ext
   1 dependency successfully precompiled in 2 seconds. 143 already precompiled.</code></pre><h2 id="Model-definition-(shared)"><a class="docs-heading-anchor" href="#Model-definition-(shared)">Model definition (shared)</a><a id="Model-definition-(shared)-1"></a><a class="docs-heading-anchor-permalink" href="#Model-definition-(shared)" title="Permalink"></a></h2><p>We build a simple two-population sorting model that will be solved twice — once with each backend — so the results can be compared.</p><pre><code class="language-julia hljs">A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium, is_background = true)
@@ -124,4 +124,4 @@ record_potts(
     sol_zarr;
     framerate = 15,
     resolution = (800, 800)
-)</code></pre><video autoplay loop muted playsinline controls src="../cell_sorting_zarr.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../10_cell_elongation_polarity/">« 10: Elongation &amp; Polarity</a><a class="docs-footer-nextpage" href="../12_parameter_sweeps/">12: Parameter Sweeps »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Friday 17 July 2026 23:29">Friday 17 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+)</code></pre><video autoplay loop muted playsinline controls src="../cell_sorting_zarr.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../10_cell_elongation_polarity/">« 10: Elongation &amp; Polarity</a><a class="docs-footer-nextpage" href="../12_parameter_sweeps/">12: Parameter Sweeps »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Friday 17 July 2026 23:52">Friday 17 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
