@@ -112,14 +112,15 @@ Maps a `CellType` to its chemotactic sensitivity `λ` across a given `chemical_f
 struct ChemotaxisComponent{ArrayT <: AbstractArray} <: AbstractComponent
     mappings::Dict{CellType, Float32}
     chemical_field::ArrayT
+    saturation::Float32
 end
 
-function ChemotaxisComponent(pairs::Pair{CellType, <:Real}...; chemical_field::AbstractArray)
+function ChemotaxisComponent(pairs::Pair{CellType, <:Real}...; chemical_field::AbstractArray, saturation = 0.0f0)
     dict = Dict{CellType, Float32}()
     for (ct, val) in pairs
         dict[ct] = Float32(val)
     end
-    return ChemotaxisComponent(dict, chemical_field)
+    return ChemotaxisComponent(dict, chemical_field, Float32(saturation))
 end
 
 """

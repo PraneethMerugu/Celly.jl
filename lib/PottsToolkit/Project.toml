@@ -17,7 +17,6 @@ SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [extensions]
-PottsToolkitMermaidExt = "Mermaid"
 
 [compat]
 AcceleratedKernels = "0.4.3"
@@ -26,6 +25,7 @@ KernelAbstractions = "0.9.42"
 MLStyle = "0.4.17"
 Mermaid = "0.1.0"
 SciMLBase = "3"
+julia = "1.12.6"
 
 [extras]
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"

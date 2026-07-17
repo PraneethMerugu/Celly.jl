@@ -45,7 +45,7 @@ using MakiePotts
         alg = SequentialMetropolis()
         import SciMLBase
         integrator = SciMLBase.init(prob, alg)
-        
+
         # Test that workspace is attached to the MitosisEvent inside the integrator
         evt = integrator.p.events[1]
         @test evt isa PottsToolkit.Events.ResolvedMitosisEvent

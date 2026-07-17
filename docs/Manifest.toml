@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "96ecbe2a936515d067c69a0a712c46d741ee6e79"
+project_hash = "d032ed1a5342cadd6d30cd02848c727cc345539b"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -196,12 +196,6 @@ git-tree-sha1 = "8c290a1b223deaeea9aea44b235d24546da8eb98"
 uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
 version = "1.4.0"
 
-[[deps.BenchmarkTools]]
-deps = ["Compat", "JSON", "Logging", "PrecompileTools", "Printf", "Profile", "Statistics", "UUIDs"]
-git-tree-sha1 = "9670d3febc2b6da60a0ae57846ba74670290653f"
-uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
-version = "1.8.0"
-
 [[deps.BitFlags]]
 git-tree-sha1 = "bbe1079eecf9c9fbb52765193ad2bae27ae09bc8"
 uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
@@ -359,6 +353,17 @@ git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.13.1"
 
+[[deps.CommonMark]]
+deps = ["PrecompileTools"]
+git-tree-sha1 = "731edf630eb23140a3c7a2e74d4186f562996d76"
+uuid = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
+version = "1.0.2"
+weakdeps = ["Markdown", "MarkdownAST"]
+
+    [deps.CommonMark.extensions]
+    CommonMarkMarkdownASTExt = "MarkdownAST"
+    CommonMarkMarkdownExt = "Markdown"
+
 [[deps.CommonSolve]]
 git-tree-sha1 = "99ee296f88c12485402e37c2fd025f95ae097637"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
@@ -481,16 +486,26 @@ uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "BenchmarkTools", "ConstructionBase", "Functors", "KernelAbstractions", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays", "Test"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays"]
 path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
-weakdeps = ["CommonSolve", "HDF5", "Zarr"]
 
     [deps.CorePotts.extensions]
+    CorePottsAMDGPUExt = "AMDGPU"
+    CorePottsCUDAExt = "CUDA"
     CorePottsHDF5Ext = "HDF5"
     CorePottsMermaidExt = ["Mermaid", "CommonSolve"]
+    CorePottsMetalExt = "Metal"
     CorePottsZarrExt = "Zarr"
+
+    [deps.CorePotts.weakdeps]
+    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+    HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+    Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [[deps.CpuId]]
 deps = ["Markdown"]
@@ -917,6 +932,11 @@ git-tree-sha1 = "24f6def62397474a297bfcec22384101609142ed"
 uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
 version = "2.86.3+0"
 
+[[deps.Glob]]
+git-tree-sha1 = "246c628cec062230b7d183aab88841fa94fcabe9"
+uuid = "c27321d9-0574-5035-807b-f59d2c89b15c"
+version = "1.5.0"
+
 [[deps.Graphics]]
 deps = ["Colors", "LinearAlgebra", "NaNMath"]
 git-tree-sha1 = "a641238db938fff9b2f60d08ed9030387daf428c"
@@ -1163,6 +1183,17 @@ git-tree-sha1 = "1dae3057da6f2b9c857afef03177bbdc7c4afe92"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.2.0+0"
 
+[[deps.JuliaFormatter]]
+deps = ["CommonMark", "Glob", "JuliaSyntax", "PrecompileTools", "TOML", "Test"]
+git-tree-sha1 = "878a99e9b2f2ac45efe9b384727134a9f1744071"
+uuid = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
+version = "2.10.1"
+
+[[deps.JuliaSyntax]]
+git-tree-sha1 = "0d4b3dab95018bcf3925204475693d9f09dc45b8"
+uuid = "70703baa-626e-46a2-a12c-08ffd08c73b4"
+version = "1.0.2"
+
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
 uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
@@ -1186,6 +1217,24 @@ git-tree-sha1 = "9eda8292dd3268b3b7ec9df21bbfac24e177ec52"
 uuid = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
 version = "0.6.12"
 
+[[deps.KernelIntrinsics]]
+deps = ["KernelAbstractions", "LLVM", "SIMD"]
+git-tree-sha1 = "1dd9a9714b9d0658c59f74b491cc012a41e88e58"
+repo-rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"
+repo-url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git"
+uuid = "f9588fbb-d238-4998-b15a-468e8766d49a"
+version = "0.1.8"
+
+    [deps.KernelIntrinsics.extensions]
+    KernelIntrinsicsAMDGPUExt = "AMDGPU"
+    KernelIntrinsicsCUDAExt = "CUDA"
+    KernelIntrinsicsMetalExt = "Metal"
+
+    [deps.KernelIntrinsics.weakdeps]
+    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
@@ -1197,6 +1246,24 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "17b94ecafcfa45e8360a4fc9ca6b583b049e4e37"
 uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
 version = "4.1.0+0"
+
+[[deps.LLVM]]
+deps = ["CEnum", "LLVMExtra_jll", "Libdl", "PrecompileTools", "Preferences", "Printf", "Unicode"]
+git-tree-sha1 = "24af42ea221a14a04283e362d83d2cdcb115cd12"
+uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
+version = "9.10.1"
+
+    [deps.LLVM.extensions]
+    BFloat16sExt = "BFloat16s"
+
+    [deps.LLVM.weakdeps]
+    BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
+
+[[deps.LLVMExtra_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+git-tree-sha1 = "70c96f133c78c3cdc06234157144fab3744c6b38"
+uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
+version = "0.0.43+1"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1508,6 +1575,11 @@ version = "1.17.10"
     cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
     oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
 
+[[deps.MLStyle]]
+git-tree-sha1 = "bc38dff0548128765760c79eb7388a4b37fae2c8"
+uuid = "d8e11817-5142-5d16-987a-aa16d5891078"
+version = "0.4.17"
+
 [[deps.MPIABI_jll]]
 deps = ["Artifacts", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
 git-tree-sha1 = "9be143b6045719e8fb019d2b3bc2aebad1184fef"
@@ -1591,15 +1663,16 @@ version = "2.28.1010+0"
 
 [[deps.Mermaid]]
 deps = ["CommonSolve", "DocStringExtensions", "OrderedCollections"]
-git-tree-sha1 = "f64067a4b79da874f5204e69deac363140693801"
-repo-rev = "main"
-repo-url = "https://github.com/eebio/Mermaid.jl"
+git-tree-sha1 = "f68273f68c371e055fe8003c63cda623a9e915f4"
+repo-rev = "d4c89d0ea09af8d96bcdc42ef6bd5dd967fc7a0d"
+repo-url = "https://github.com/eebio/Mermaid.jl.git"
 uuid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 version = "0.1.0"
 
     [deps.Mermaid.extensions]
     AgentsExt = "Agents"
     DiffEqExt = "DiffEqBase"
+    JumpProcessesExt = ["JumpProcesses", "DiffEqBase"]
     MethodOfLinesExt = ["MethodOfLines", "DiffEqBase"]
     SurrogatesExt = "Surrogates"
     TrixiParticlesExt = ["TrixiParticles", "DiffEqBase"]
@@ -1608,6 +1681,7 @@ version = "0.1.0"
     Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
     DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
     Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+    JumpProcesses = "ccbc3e58-028d-4f4c-8cd5-9ae44345cda5"
     MethodOfLines = "94925ecb-adb7-4558-8ed8-f975c56a0bf4"
     Surrogates = "6fc51010-71bc-11e9-0e15-a3fcc6593c49"
     TrixiParticles = "66699cd8-9c01-4e9d-a059-b96c86d16b3a"
@@ -1919,19 +1993,16 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.Potts]]
-deps = ["CorePotts", "MakiePotts", "NeuralPotts", "PottsToolkit", "Reexport"]
+deps = ["CorePotts", "JuliaFormatter", "MakiePotts", "Mermaid", "NeuralPotts", "PottsToolkit", "Reexport"]
 path = ".."
 uuid = "15ba70d5-27dc-4a83-b627-d79984c8d986"
 version = "0.1.0"
 
 [[deps.PottsToolkit]]
-deps = ["AcceleratedKernels", "Adapt", "CommonSolve", "CorePotts", "KernelAbstractions", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
+deps = ["AcceleratedKernels", "Adapt", "CommonSolve", "CorePotts", "KernelAbstractions", "MLStyle", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
 path = "../lib/PottsToolkit"
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
-
-    [deps.PottsToolkit.extensions]
-    PottsToolkitMermaidExt = "Mermaid"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "PrecompileTools"]
@@ -1970,11 +2041,6 @@ version = "0.5.7"
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-version = "1.11.0"
-
-[[deps.Profile]]
-deps = ["StyledStrings"]
-uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 version = "1.11.0"
 
 [[deps.ProgressLogging]]
@@ -2607,12 +2673,10 @@ version = "1.28.0"
 git-tree-sha1 = "0f30765c32d66d58e41f4cb5624d4fc8a82ec13b"
 uuid = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 version = "0.3.1"
+weakdeps = ["LLVM"]
 
     [deps.UnsafeAtomics.extensions]
     UnsafeAtomicsLLVM = ["LLVM"]
-
-    [deps.UnsafeAtomics.weakdeps]
-    LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]

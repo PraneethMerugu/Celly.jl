@@ -108,8 +108,14 @@ makedocs(
 # Generate with: using DocumenterTools; DocumenterTools.genkeys()
 # ===========================================================================
 
-deploydocs(
-    repo = "github.com/PraneethMerugu/Potts.jl.git",
-    devbranch = "main",
-    push_preview = true  # deploy PR previews to gh-pages/previews/PR##
-)
+if get(ENV, "POTTS_DEPLOY_DOCS", "false") == "true"
+    get(ENV, "GITHUB_ACTIONS", "false") == "true" ||
+        error("Documentation deployment is only permitted inside GitHub Actions")
+    get(ENV, "GITHUB_EVENT_NAME", "") == "pull_request" &&
+        error("Documentation deployment is forbidden for pull requests")
+    deploydocs(
+        repo = "github.com/PraneethMerugu/Potts.jl.git",
+        devbranch = "main",
+        push_preview = false
+    )
+end

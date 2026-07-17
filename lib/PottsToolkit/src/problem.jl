@@ -115,7 +115,7 @@ function compile_component(pen::ChemotaxisComponent, sys::PottsSystem,
         id = type_to_id[ct]
         λ_vec[id + 1] = val
     end
-    return CorePotts.ChemotaxisPenalty(λ_vec, pen.chemical_field), Any[],
+    return CorePotts.ChemotaxisPenalty(λ_vec, pen.chemical_field, saturation=pen.saturation), Any[],
     Dict{UInt8, Dict{Symbol, Any}}()
 end
 

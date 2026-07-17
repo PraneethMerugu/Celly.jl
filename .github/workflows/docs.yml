@@ -2,47 +2,58 @@ name: Documentation
 
 on:
   push:
-    branches:
-      - main
-    tags: '*'
+    branches: [main]
+    tags: ['*']
   pull_request:
+  workflow_dispatch:
 
-permissions:
-  contents: write
-  statuses: write
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JULIA_VERSION: 1.12.6
+  JULIA_NUM_PRECOMPILE_TASKS: 2
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
-          version: '1'
-          
-      - uses: julia-actions/cache@v1
-      
-      # We need ffmpeg for Makie video recording
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      # Dev local packages so they are available to the docs environment
-      - name: Install Monorepo Packages
-        run: |
-          julia --project=docs/ -e '
-            using Pkg
-            Pkg.develop([
-                PackageSpec(path="lib/CorePotts"),
-                PackageSpec(path="lib/PottsToolkit"),
-                PackageSpec(path="lib/MakiePotts"),
-                PackageSpec(path="lib/NeuralPotts")
-            ])
-            Pkg.instantiate()'
-
-      # Build and deploy docs
-      - name: Build and Deploy
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Instantiate documentation environment
+        run: julia --project=docs --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Build documentation without publishing
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If using DocumenterTools SSH deploy keys
-        run: julia --project=docs/ docs/make.jl
+          POTTS_DEPLOY_DOCS: 'false'
+        run: julia --project=docs --startup-file=no docs/make.jl
+
+  deploy:
+    name: Deploy
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Instantiate documentation environment
+        run: julia --project=docs --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Publish documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          POTTS_DEPLOY_DOCS: 'true'
+        run: julia --project=docs --startup-file=no docs/make.jl

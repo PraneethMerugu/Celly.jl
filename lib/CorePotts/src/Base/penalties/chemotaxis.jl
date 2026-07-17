@@ -3,10 +3,15 @@
 
 Biases cell membrane extensions up (or down) a pre-computed spatial chemical gradient.
 """
-struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray} <:
+struct ChemotaxisPenalty{FloatT <: AbstractVector, ArrayT <: AbstractArray, S <: Real} <:
        AbstractPenalty{Rigid}
     lambdas::FloatT
     chem_field::ArrayT
+    saturation::S
+end
+
+function ChemotaxisPenalty(lambdas, chem_field; saturation = 0.0f0)
+    return ChemotaxisPenalty(lambdas, chem_field, saturation)
 end
 
 @inline function evaluate_penalty(p::ChemotaxisPenalty, ctx)
@@ -18,11 +23,16 @@ end
     c_i = F(p.chem_field[ctx.spatial_coords[1] + 1, ctx.spatial_coords[2] + 1])
     c_j = F(p.chem_field[ctx.source_coords[1] + 1, ctx.source_coords[2] + 1])
 
+    diff = c_i - c_j
+    if p.saturation > 0
+        diff = diff / (p.saturation + abs(diff))
+    end
+
     dH = zero(F)
     if ctx.src != 0
         src_type = ctx.cell_data.cell_types[ctx.src]
         if src_type > 0
-            dH -= F(p.lambdas[src_type + 1]) * (c_i - c_j)
+            dH -= F(p.lambdas[src_type + 1]) * diff
         end
     end
     return dH
@@ -33,11 +43,16 @@ end
     c_i = F(p.chem_field[ctx.spatial_coords[1] + 1, ctx.spatial_coords[2] + 1, ctx.spatial_coords[3] + 1])
     c_j = F(p.chem_field[ctx.source_coords[1] + 1, ctx.source_coords[2] + 1, ctx.source_coords[3] + 1])
 
+    diff = c_i - c_j
+    if p.saturation > 0
+        diff = diff / (p.saturation + abs(diff))
+    end
+
     dH = zero(F)
     if ctx.src != 0
         src_type = ctx.cell_data.cell_types[ctx.src]
         if src_type > 0
-            dH -= F(p.lambdas[src_type + 1]) * (c_i - c_j)
+            dH -= F(p.lambdas[src_type + 1]) * diff
         end
     end
     return dH

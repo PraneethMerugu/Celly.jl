@@ -10,3 +10,6 @@ Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
 PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+
+[compat]
+julia = "1.12.6"

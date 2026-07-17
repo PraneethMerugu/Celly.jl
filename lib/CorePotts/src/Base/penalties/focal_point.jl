@@ -93,16 +93,6 @@ end
         dH += -force_dot_dist / (V + one(F))
     end
     if ctx.src != 0
-        Fx, Fy = F(ctx.cell_data.force_x[ctx.src]), F(ctx.cell_data.force_y[ctx.src])
-        ax, ay = F(ctx.cell_data.anchor_x[ctx.src]), F(ctx.cell_data.anchor_y[ctx.src])
-        V = F(ctx.cell_data.volumes[ctx.src])
-        dx = F(shortest_vector(ctx.topology, x - ax, W))
-        dy = F(shortest_vector(ctx.topology, y - ay, H))
-        
-        force_dot_dist = Fx * dx + Fy * dy
-        dH += -force_dot_dist / (V + one(F))
-    end
-    if ctx.src != 0
         Fx, Fy, Fz = F(ctx.cell_data.force_x[ctx.src]), F(ctx.cell_data.force_y[ctx.src]), F(ctx.cell_data.force_z[ctx.src])
         ax, ay, az = F(ctx.cell_data.anchor_x[ctx.src]), F(ctx.cell_data.anchor_y[ctx.src]), F(ctx.cell_data.anchor_z[ctx.src])
         V = F(ctx.cell_data.volumes[ctx.src])
