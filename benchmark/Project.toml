@@ -8,6 +8,12 @@ Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
 PottsToolkit = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 
+[sources]
+CorePotts = {path = "../lib/CorePotts"}
+KernelIntrinsics = {url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git", rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"}
+Mermaid = {url = "https://github.com/eebio/Mermaid.jl.git", rev = "d4c89d0ea09af8d96bcdc42ef6bd5dd967fc7a0d"}
+PottsToolkit = {path = "../lib/PottsToolkit"}
+
 [compat]
 Adapt = "4"
 BenchmarkTools = "1"

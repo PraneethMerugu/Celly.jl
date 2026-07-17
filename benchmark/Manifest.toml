@@ -211,7 +211,7 @@ version = "1.6.0"
 
 [[deps.CorePotts]]
 deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Mermaid", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays"]
-path = "/Users/praneethmerugu/Documents/Jiang/CPM 1.6/Potts.jl/lib/CorePotts"
+path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
 
@@ -540,7 +540,7 @@ version = "1.12.1"
 
 [[deps.PottsToolkit]]
 deps = ["AcceleratedKernels", "Adapt", "CommonSolve", "CorePotts", "KernelAbstractions", "MLStyle", "Mermaid", "Random", "Reexport", "SciMLBase", "StructArrays"]
-path = "/Users/praneethmerugu/Documents/Jiang/CPM 1.6/Potts.jl/lib/PottsToolkit"
+path = "../lib/PottsToolkit"
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
 
