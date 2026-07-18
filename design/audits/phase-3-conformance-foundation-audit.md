@@ -1,6 +1,6 @@
 # Phase 3 Conformance-Foundation Audit
 
-Status: In progress
+Status: Complete
 
 Date: 2026-07-17
 
@@ -77,6 +77,8 @@ shard. It provides:
 
 - scalar reference MCS accounting, proposal probability, conventional Metropolis, and
   Metropolis-Hastings acceptance, including explicit neighbor-owner forward/reverse multiplicities;
+- internal-round plans that require exact one-MCS fraction and expected-`N` proposal-budget
+  normalization while lottery topology calibration remains an explicit pending evidence item;
 - exact volume-tracker deltas whose incremental application is checked against authoritative full
   lattice reconstruction;
 - canonical logical snapshots and SHA-256 checksums independent of property declaration order;
@@ -91,8 +93,12 @@ shard. It provides:
 - explicit Cartesian-stencil validation and closed/periodic boundary realization, where closed
   departures are null rather than clamped self-edges;
 - versioned, generator-independent semantic RNG addresses and common failure reproduction records;
+- validated algorithm guarantee profiles that keep proposal, equilibrium, kinetic, transaction,
+  attempt-normalization, reproducibility, and evidence claims distinct;
 - a test-only `AbstractConformanceAdapter` through which replacement CPU/GPU state can be checked
   without exposing physical layouts, with failures wrapped in complete reproduction records;
+- a reusable `ReferenceStateAdapter` that qualifies that adapter boundary without importing or
+  inspecting any legacy engine type;
 - an explicit numerical-policy fixture covering real and accumulation types, math, reductions, and
   overflow choices; and
 - fixed deterministic, CI, and scheduled statistical-procedure metadata.
@@ -128,3 +134,30 @@ Phase 3 completes only when the following are true:
   named algorithms, and each available backend through one adapter contract.
 - At least one new implementation can be evaluated through this layer without inspecting the old
   engine's private storage or kernel functions.
+
+## Completion Evidence
+
+All Phase 3 deliverables and exit conditions have executable evidence:
+
+- `ReferenceSemantics` supplies scalar CPU references for proposal mass, acceptance, local energy,
+  volume tracking, lifecycle transactions, normalized attempts, and internal-round budgets.
+- Canonical snapshots, checksums, and state validators operate only on logical arrays and schema
+  values; `ReferenceStateAdapter` qualifies a complete independent scalar implementation through
+  the same adapter boundary that later CPU/GPU engines use.
+- The conformance suite validates ownership, IDs, capacity, property coverage/reset, topology,
+  tracker reconstruction, atomic transaction behavior, numerical policies, guarantee profiles,
+  reproduction records, and statistical tiers.
+- The `conformance` shard statically rejects GPU-runtime imports in both reference modules.
+- The evidence index distinguishes completed Phase 3 foundations from deliberately later engine,
+  DSL, SciML, and component adapters rather than calling future work complete.
+
+Qualification commands:
+
+```sh
+POTTS_TEST_SHARD=conformance julia --project=integration --startup-file=no integration/runtests.jl
+julia --project=integration --startup-file=no integration/runtests.jl
+```
+
+Final qualification on 2026-07-17 passed the dedicated `conformance` shard with 79 assertions and
+the complete CPU cross-package integration suite with 152 passing assertions in 3 minutes 5.8
+seconds.

@@ -14,6 +14,9 @@ end
 
 @testset "scalar reference semantics" begin
     @test reference_mcs_attempts(7) == 7
+    plan = InternalRoundPlan([1//3, 1//3, 1//3], [3//1, 3//1, 3//1])
+    @test assert_normalized_round_plan(plan, 9) === plan
+    @test !isempty(round_plan_errors(InternalRoundPlan([1//2, 1//2], [4//1, 4//1]), 9))
     @test proposal_probability(4, 8, Float32) == 1f0 / 32f0
     @test conventional_metropolis_probability(2.0, 1.0) == exp(-2.0)
     @test conventional_metropolis_probability(0.0, 0.0) == 1.0
