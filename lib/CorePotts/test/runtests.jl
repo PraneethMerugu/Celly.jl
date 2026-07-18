@@ -23,6 +23,7 @@ const TEST_ALGORITHMS = (
     include("test_inheritance_rules.jl")
     include("test_length_3d.jl")
     include("test_logical_initialization.jl")
+    include("test_logical_lifecycle.jl")
     include("test_logical_state.jl")
     include("test_mass_conservation.jl")
     include("test_mermaid_integration.jl")

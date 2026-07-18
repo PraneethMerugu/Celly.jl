@@ -1,6 +1,6 @@
 # Phase 4 Chunk Plan: Core State and Scientific Protocols
 
-Status: Active — Chunks 1–3 complete
+Status: Active — Chunks 1–4 complete
 
 ## Purpose
 
@@ -58,3 +58,17 @@ workspaces, kernels, and PottsToolkit authoring internals.
 - Focused tests cover 2D/3D layouts, multiple media, compaction, overlap modes, vanished cells,
   schema defaults, and capacity errors. `Pkg.test("CorePotts")` passes with 417 passing tests and
   one pre-existing documented broken test on Julia 1.12.6.
+
+## Chunk 4 Evidence
+
+- `apply_division_batch` validates all daughter geometry from one snapshot, stably orders parents,
+  preflights the complete batch against fixed capacity, and commits only a private candidate. It
+  applies schema-defined clone/split/reset policies, recomputes derived occupancy, and reports
+  deterministic parent-child assignments.
+- Immediate death transfers ownership to a declared medium, retires the now-empty cell, resets its
+  schema properties, and deliberately withholds its slot from division until
+  `release_retired_slots` at the next MCS boundary. Reuse advances the slot generation.
+- Type transitions are transactional and respect preserve/reset/recompute property policies.
+  Focused tests cover all of these transactions, invalid geometry, and atomic capacity abort.
+  `Pkg.test("CorePotts")` passes with 444 passing tests and one pre-existing documented broken test
+  on Julia 1.12.6.
