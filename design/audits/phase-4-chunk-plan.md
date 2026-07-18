@@ -1,6 +1,6 @@
 # Phase 4 Chunk Plan: Core State and Scientific Protocols
 
-Status: Active — Chunks 1–2 complete
+Status: Active — Chunks 1–3 complete
 
 ## Purpose
 
@@ -45,3 +45,16 @@ workspaces, kernels, and PottsToolkit authoring internals.
 - Focused tests cover 2D, 3D, multiple medium domains, stale-derived-state detection, and invalid
   owner/free-slot rejection. `Pkg.test("CorePotts")` passes with 396 passing tests and one
   pre-existing documented broken test on Julia 1.12.6.
+
+## Chunk 3 Evidence
+
+- `finalize_initial_state` finalizes 2D or 3D host layouts into `LogicalPottsState` through an
+  explicit overlap policy (`ErrorOnOverlap` by default, `ReplaceOnOverlap`, or
+  `PreserveOnOverlap`), zero-occupancy removal, ascending deterministic compaction, fixed-capacity
+  preflight, schema initialization, and derived-state reconstruction.
+- Initialization reports preserve provisional-to-runtime ID mapping and explicitly report discarded
+  zero-occupancy finite cells. Undeclared media, incompatible provisional type declarations, shape
+  mismatches, overlaps, and capacity exhaustion fail before a result is returned.
+- Focused tests cover 2D/3D layouts, multiple media, compaction, overlap modes, vanished cells,
+  schema defaults, and capacity errors. `Pkg.test("CorePotts")` passes with 417 passing tests and
+  one pre-existing documented broken test on Julia 1.12.6.

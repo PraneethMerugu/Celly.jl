@@ -26,6 +26,7 @@ include("components/components.jl")
 include("components/training.jl")
 
 include("initialization/initialization.jl")
+include("initialization/logical.jl")
 include("lifecycle/events.jl")
 
 include("kernels/metropolis.jl")
@@ -67,6 +68,10 @@ export OwnerRef, CellOwner, MediumOwner, is_cell_owner, is_medium_owner, cell_id
        medium_ids, generation, is_active, cell_type, owner_at, lattice_size, derived_state,
        finite_volume, medium_occupancy, state_invariant_errors, assert_valid_state,
        rebuild_derived_state!
+export LayoutOverlapPolicy, ErrorOnOverlap, ReplaceOnOverlap, PreserveOnOverlap,
+       AbstractInitialLayout, InitialCellLayout, InitialMediumLayout, InitialLayoutOverlapError,
+       LogicalInitializationReport, InitializedLogicalState, logical_state, initialization_report,
+       finalize_initial_state, CellCapacityError
 export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
        SurfaceAreaFlexTracker
 export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
