@@ -1,6 +1,14 @@
 using Test
 using CorePotts
 
+backend_zeros(::Type{T}, dims...) where {T} = zeros(T, dims...)
+
+const TEST_ALGORITHMS = (
+    ParallelMetropolis,
+    CheckerboardMetropolis,
+    SequentialMetropolis,
+)
+
 @testset "CorePotts" begin
     include("closures_test.jl")
     include("test_checkerboard.jl")
