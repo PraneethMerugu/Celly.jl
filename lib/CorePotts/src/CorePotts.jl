@@ -79,6 +79,7 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, ScientificCapabili
        ScientificInterfaceError, ScientificInterfaceReport, component_identity,
        required_properties, required_observables, required_relations, capabilities,
        energy_change, drive_log_bias, is_allowed, rebuild_tracker, event_effects,
+       LogicalCopyResult, commit_copy_proposal,
        algorithm_guarantees, topology_dimensions, validate_energy_component,
        validate_drive_component, validate_constraint_component, validate_tracker_component,
        validate_event_component, validate_algorithm_component, validate_topology_component,
