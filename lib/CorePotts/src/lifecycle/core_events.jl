@@ -104,6 +104,6 @@ function process_event!(evt::PropertyUpdateEvent, mask, u, p, cache, t, deps)
     target_type = UInt8(evt.cell_type isa Integer ? evt.cell_type : 0)
 
     ev_prop = dispatch_kernel!(backend, k_prop, u.cell_data, evt.rules, target_type, ctx;
-        ndrange = nd_prop, dependencies = deps)
+        ndrange = nd_prop)
     return (ev_prop,)
 end

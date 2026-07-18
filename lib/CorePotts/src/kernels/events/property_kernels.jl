@@ -141,7 +141,7 @@ function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, 
     spatial_buffer = workspace.spatial_buffer
     k_fill = _fill_kernel!(backend, cache.block_size)
     ev_fill_buf = dispatch_kernel!(backend, 
-        k_fill, spatial_buffer, UInt32(0); ndrange = buf_size, dependencies = deps)
+        k_fill, spatial_buffer, UInt32(0); ndrange = buf_size)
 
     needs_reduce = has_reduce_rules(spatial_rules)
 
@@ -154,11 +154,11 @@ function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, 
 
     if needs_reduce
         ev_fill_count = dispatch_kernel!(backend, 
-            k_fill, edge_count, UInt32(0); ndrange = 1, dependencies = deps)
+            k_fill, edge_count, UInt32(0); ndrange = 1)
         
         # Initialize edge_list to typemax to push empty elements to the back during sorting
         ev_fill_edges = dispatch_kernel!(backend, 
-            k_fill, edge_list, typemax(UInt64); ndrange = max_edges, dependencies = deps)
+            k_fill, edge_list, typemax(UInt64); ndrange = max_edges)
     end
 
     dims = size(grid)
@@ -171,13 +171,13 @@ function populate_spatial_buffer!(u, topology, cache, workspace, spatial_rules, 
         ev_spatial = dispatch_kernel!(backend, 
             k_extract, grid, dims, topology, edge_list, edge_count,
             spatial_rules, spatial_buffer, u.cell_data, needs_reduce;
-            ndrange = N_grid, dependencies = deps_extract)
+            ndrange = N_grid)
         return spatial_buffer, ev_spatial
     end
 
     ev_extract = dispatch_kernel!(backend, k_extract, grid, dims, topology, edge_list, edge_count,
         spatial_rules, spatial_buffer, u.cell_data, needs_reduce;
-        ndrange = N_grid, dependencies = deps_extract)
+        ndrange = N_grid)
 
     # 3. Deduplicate edges and evaluate reduce rules unconditionally using typemax padding
     ev_sort = AcceleratedKernels.sort!(edge_list)

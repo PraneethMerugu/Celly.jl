@@ -225,7 +225,7 @@ function update_local_metrics!(
     backend = KernelAbstractions.get_backend(grid)
     k = _kernel_update_local_volumes!(backend, DEFAULT_BLOCK_SIZE)
     return dispatch_kernel!(backend, k, cell_data.volumes, grid, dev_is_modified;
-        ndrange=length(grid), dependencies=deps)
+        ndrange=length(grid))
 end
 
 @kernel function _kernel_update_local_surface_areas!(surface_areas, grid, topo, dims, dev_is_modified, N_dirs_int)
@@ -253,7 +253,7 @@ function update_local_metrics!(
     backend = KernelAbstractions.get_backend(grid)
     k = _kernel_update_local_surface_areas!(backend, DEFAULT_BLOCK_SIZE)
     return dispatch_kernel!(backend, k, cell_data.surface_areas, grid, topo, dims, dev_is_modified, N_dirs_int;
-        ndrange=length(grid), dependencies=deps)
+        ndrange=length(grid))
 end
 
 function update_local_all_metrics!(

@@ -232,7 +232,7 @@ function process_event!(evt::AbstractEvent, mask, u, p, cache, t, deps)
     k = get_event_kernel(evt, backend, cache.block_size)
     nd = get_event_ndrange(evt, mask, u)
 
-    ev = dispatch_kernel!(backend, k, args...; ndrange = nd, dependencies = deps)
+    ev = dispatch_kernel!(backend, k, args...; ndrange = nd)
     return ev === nothing ? deps : (ev,)
 end
 
@@ -255,7 +255,7 @@ function _evaluate_all_events!(events::Tuple, dev_events::Tuple, masks::Tuple, u
         backend = KernelAbstractions.get_backend(u.grid)
         k = evaluate_all_triggers_kernel!(backend, cache.block_size)
         ev = dispatch_kernel!(backend, k, dev_events, masks, u.cell_data, t;
-            ndrange = length(u.cell_data.volumes), dependencies = deps)
+            ndrange = length(u.cell_data.volumes))
         deps = ev === nothing ? deps : (ev,)
     end
 

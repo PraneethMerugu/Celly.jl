@@ -4,6 +4,7 @@ using CorePotts
 using CUDA
 using KernelAbstractions
 
-CorePotts.requires_explicit_dependencies(::CUDA.CUDABackend) = false
+CorePotts.backend_capabilities(::CUDA.CUDABackend) = CorePotts.BackendCapabilities(
+    CorePotts.CUDAFamily, CUDA.functional(), true, true, true, ())
 
 end

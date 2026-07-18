@@ -30,6 +30,8 @@ const TEST_ALGORITHMS = (
     include("test_mitosis_overhaul.jl")
     include("test_ooc_backends.jl")
     include("test_property_updates.jl")
+    include("test_rng_semantics.jl")
+    include("test_execution_contracts.jl")
     include("test_reference_engine.jl")
     include("test_sciml_saving.jl")
     include("test_scientific_protocols.jl")
