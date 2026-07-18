@@ -51,6 +51,13 @@ struct IncompleteEnergy <: AbstractEnergy end
     @test_throws ScientificInterfaceError validate_energy_component(IncompleteEnergy())
     @test_throws ArgumentError CopyProposal(1, 2, CellOwner(1), CellOwner(1))
 
+    committed = commit_copy_proposal(state, proposal)
+    @test committed.accepted
+    @test owner_at(logical_state(committed), 2) == CellOwner(1)
+    @test finite_volume(logical_state(committed), CellID(1)) == 2
+    @test !commit_copy_proposal(state, proposal; accepted = false).accepted
+    @test commit_copy_proposal(state, proposal; constraints = (ProtocolConstraint(),)).accepted
+
     read_only_schema = PropertySchema(PropertyDescriptor(:frozen, Int32, ConstantInitializer(Int32(1));
         mutability = ReadOnlyProperty, requester = ComponentIdentity(:frozen_test, v"1.0.0", :test)))
     protected_state = LogicalPottsState(reshape(OwnerRef[CellOwner(1), MediumOwner(1)], 1, 2), CellCapacity(1);

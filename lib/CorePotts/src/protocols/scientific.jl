@@ -41,6 +41,42 @@ struct CopyProposal
     end
 end
 
+"""Result of one logical ownership-copy transaction."""
+struct LogicalCopyResult{S <: LogicalPottsState}
+    state::S
+    accepted::Bool
+    retired::Vector{CellID}
+end
+
+logical_state(result::LogicalCopyResult) = result.state
+
+"""
+    commit_copy_proposal(state, proposal; accepted=true, constraints=())
+
+Apply one accepted typed ownership-copy proposal to a private logical-state candidate. The lattice is
+authoritative; derived occupancy is rebuilt and any extinct finite owner is retired immediately,
+while the resulting slot remains unavailable for reuse until the lifecycle boundary releases it.
+"""
+function commit_copy_proposal(state::LogicalPottsState, proposal::CopyProposal;
+        accepted::Bool = true, constraints::Tuple = ())
+    accepted || return LogicalCopyResult(state, false, CellID[])
+    all(constraint -> is_allowed(constraint, proposal, state), constraints) ||
+        return LogicalCopyResult(state, false, CellID[])
+    checkbounds(Bool, state._owners, proposal.recipient) || throw(ArgumentError(
+        "proposal recipient lies outside the logical lattice"))
+    checkbounds(Bool, state._owners, proposal.donor) || throw(ArgumentError(
+        "proposal donor lies outside the logical lattice"))
+    state._owners[proposal.recipient] == proposal.losing || throw(ArgumentError(
+        "proposal losing owner does not match the recipient snapshot owner"))
+    state._owners[proposal.donor] == proposal.gaining || throw(ArgumentError(
+        "proposal gaining owner does not match the donor snapshot owner"))
+    candidate = _copy_logical_state(state)
+    candidate._owners[proposal.recipient] = proposal.gaining
+    rebuild_derived_state!(candidate)
+    retirement = retire_zero_volume(candidate)
+    return LogicalCopyResult(logical_state(retirement), true, retirement.retired)
+end
+
 """Stable diagnostic for one incomplete scientific extension."""
 struct ScientificInterfaceError <: Exception
     category::Symbol
