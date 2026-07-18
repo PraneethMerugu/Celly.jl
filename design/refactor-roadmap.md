@@ -298,7 +298,8 @@ Complete D3 for every required field coupling before freezing its scientific cat
 - Implement surface, contact, spatial-query, field-sampling, chemotaxis, and focal-point contracts.
 - Establish generic implementations first, then isolated measured specialization using
   AcceleratedKernels, KernelIntrinsics, Atomix, or backend extensions where justified.
-- Remove migrated legacy penalties, samplers, topology structures, tracker paths, and closures.
+- Remove every migrated legacy dependency from the compiled scientific path. Freeze the historical
+  algorithm stack as an explicitly inventoried Phase 7 quarantine; do not add consumers to it.
 
 ### Exit gate
 
@@ -307,6 +308,8 @@ Complete D3 for every required field coupling before freezing its scientific cat
 - Tracker caches match recomputation after accepted, rejected, lifecycle, and boundary cases.
 - Required 2D/3D cases pass CPU `Float32`/`Float64` and available-GPU `Float32` conformance.
 - Surface and field reports expose the exact measure, relation, boundary, and coupling semantics.
+- The compiled scientific component/evaluation/transaction path has no dependency on quarantined
+  penalties, samplers, topology structures, tracker paths, or closures.
 
 ## Phase 7: Algorithms and Normalized MCS
 
@@ -317,6 +320,9 @@ Complete D1 for every algorithm intended for implementation or a paper claim.
 ### Deliverables
 
 - Implement the conventional sequential reference algorithm first.
+- Replace and delete the quarantined historical penalty, sampler, topology, tracker, and kernel
+  stack atomically as each final algorithm path becomes executable; no compatibility layer is
+  required before the paper API freeze.
 - Implement separately named exact and approximate parallel families only with explicit guarantee
   profiles.
 - Make every public step advance exactly one normalized MCS.
