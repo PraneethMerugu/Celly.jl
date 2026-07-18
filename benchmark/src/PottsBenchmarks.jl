@@ -7,6 +7,7 @@ using Dates
 using KernelAbstractions
 using SHA
 using SciMLBase
+using StaticArrays
 using Statistics
 using TOML
 
@@ -33,12 +34,40 @@ end
         address = addresses[index]
         floating_output[2 * index - 1] = uniform_open01(Float32, contract, seed, address)
         floating_output[2 * index] = normal_box_muller(Float32, contract, seed, address)
-        integer_output[3 * index - 2] = Int32(bounded_uint(
+        integer_output[5 * index - 4] = Int32(bounded_uint(
             contract, seed, address, UInt32(17)))
-        integer_output[3 * index - 1] = Int32(categorical_index(
+        integer_output[5 * index - 3] = Int32(categorical_index(
             table, contract, seed, address))
-        integer_output[3 * index] = Int32(poisson_inversion(
+        integer_output[5 * index - 2] = bernoulli(
+            contract, seed, address, 0.375f0) ? Int32(1) : Int32(0)
+        integer_output[5 * index - 1] = Int32(poisson_inversion(
             contract, seed, address, 4.0f0))
+        integer_output[5 * index] = Int32(poisson_normal_approx(
+            contract, seed, address, 100.0f0))
+    end
+end
+
+@kernel function _semantic_permutation_probe!(output, addresses, contract, seed)
+    index = @index(Global, Linear)
+    if index <= length(addresses)
+        permutation = MVector{8, UInt16}(undef)
+        small_permutation!(permutation, contract, seed, addresses[index])
+        base = 8 * (index - 1)
+        for element in 1:8
+            @inbounds output[base + element] = permutation[element]
+        end
+    end
+end
+
+@kernel function _semantic_float64_probe!(floating_output, poisson_output,
+        addresses, contract, seed)
+    index = @index(Global, Linear)
+    if index <= length(addresses)
+        address = addresses[index]
+        floating_output[2 * index - 1] = uniform_open01(Float64, contract, seed, address)
+        floating_output[2 * index] = normal_box_muller(Float64, contract, seed, address)
+        poisson_output[index] = Int32(poisson_inversion(
+            contract, seed, address, 4.0))
     end
 end
 
@@ -52,15 +81,20 @@ end
     @inbounds output[index] = input[index] * UInt32(2)
 end
 
-function _backend_array(name::String, values)
-    name == "cpu" && return copy(values)
+function _backend_adaptor(name::String)
+    name == "cpu" && return Array
     module_name = name == "metal" ? :Metal : name == "cuda" ? :CUDA :
                   name == "amdgpu" ? :AMDGPU : throw(ArgumentError(
         "Unknown backend `$name`"))
     isdefined(Main, module_name) || error("$module_name must be loaded before RNG qualification")
     backend_module = getfield(Main, module_name)
     array_name = name == "metal" ? :MtlArray : name == "cuda" ? :CuArray : :ROCArray
-    return Base.invokelatest(getproperty(backend_module, array_name), values)
+    return getproperty(backend_module, array_name)
+end
+
+function _backend_array(name::String, values)
+    name == "cpu" && return copy(values)
+    return Base.invokelatest(_backend_adaptor(name), values)
 end
 
 """Execute the Phase 5 raw-word probe and require exact CPU/backend identity."""
@@ -80,39 +114,109 @@ function qualify_rng_backend(name::String)
     observed = Array(output)
     observed == expected || error("$name Philox words differ from the CPU contract")
 
+    distribution_addresses = [RNGAddress(stream = HSTStream, mcs = 23,
+        subround = 2, operation = 9, entity_kind = SiteEntity, entity = index,
+        draw = 11) for index in 1:4096]
+    device_distribution_addresses = _backend_array(name, distribution_addresses)
     table = CategoricalTable((1.0f0, 2.0f0, 3.0f0))
-    floating_output = similar(device_addresses, Float32, 2 * length(addresses))
-    integer_output = similar(device_addresses, Int32, 3 * length(addresses))
+    floating_output = similar(device_distribution_addresses, Float32,
+        2 * length(distribution_addresses))
+    integer_output = similar(device_distribution_addresses, Int32,
+        5 * length(distribution_addresses))
     distribution_kernel = _semantic_distribution_probe!(backend, 128)
-    distribution_kernel(floating_output, integer_output, device_addresses, table,
-        contract, seed; ndrange = length(addresses))
+    distribution_kernel(floating_output, integer_output, device_distribution_addresses, table,
+        contract, seed; ndrange = length(distribution_addresses))
     KernelAbstractions.synchronize(backend)
     observed_floating = Array(floating_output)
     observed_integer = Array(integer_output)
-    expected_floating = Vector{Float32}(undef, 2 * length(addresses))
-    expected_integer = Vector{Int32}(undef, 3 * length(addresses))
-    for (index, address) in pairs(addresses)
+    expected_floating = Vector{Float32}(undef, 2 * length(distribution_addresses))
+    expected_integer = Vector{Int32}(undef, 5 * length(distribution_addresses))
+    for (index, address) in pairs(distribution_addresses)
         expected_floating[2 * index - 1] = uniform_open01(Float32, contract, seed, address)
         expected_floating[2 * index] = normal_box_muller(Float32, contract, seed, address)
-        expected_integer[3 * index - 2] = Int32(bounded_uint(
+        expected_integer[5 * index - 4] = Int32(bounded_uint(
             contract, seed, address, UInt32(17)))
-        expected_integer[3 * index - 1] = Int32(categorical_index(
+        expected_integer[5 * index - 3] = Int32(categorical_index(
             table, contract, seed, address))
-        expected_integer[3 * index] = Int32(poisson_inversion(
+        expected_integer[5 * index - 2] = bernoulli(
+            contract, seed, address, 0.375f0) ? Int32(1) : Int32(0)
+        expected_integer[5 * index - 1] = Int32(poisson_inversion(
             contract, seed, address, 4.0f0))
+        expected_integer[5 * index] = Int32(poisson_normal_approx(
+            contract, seed, address, 100.0f0))
     end
-    observed_integer == expected_integer || error(
-        "$name discrete distribution outputs differ from the CPU contract")
+    bitwise_indices = reduce(vcat,
+        (5 * index - 4):(5 * index - 2) for index in eachindex(distribution_addresses))
+    observed_integer[bitwise_indices] == expected_integer[bitwise_indices] || error(
+        "$name bitwise discrete distribution outputs differ from the CPU contract")
     all(isapprox.(observed_floating, expected_floating; rtol = 8eps(Float32), atol = 0)) ||
         error("$name floating distribution outputs exceed the numerical profile")
+
+    permutation_output = similar(device_distribution_addresses, UInt16,
+        8 * length(distribution_addresses))
+    permutation_kernel = _semantic_permutation_probe!(backend, 128)
+    permutation_kernel(permutation_output, device_distribution_addresses, contract, seed;
+        ndrange = length(distribution_addresses))
+    KernelAbstractions.synchronize(backend)
+    observed_permutations = Array(permutation_output)
+    expected_permutations = similar(observed_permutations)
+    for (index, address) in pairs(distribution_addresses)
+        small_permutation!(view(expected_permutations, (8 * index - 7):(8 * index)),
+            contract, seed, address)
+    end
+    observed_permutations == expected_permutations || error(
+        "$name small permutations differ from the CPU contract")
+
+    normals32 = observed_floating[2:2:end]
+    poisson_exact32 = observed_integer[4:5:end]
+    poisson_approx32 = observed_integer[5:5:end]
+    abs(mean(normals32)) < 0.06 || error("$name Float32 normal mean is outside qualification")
+    abs(var(normals32) - 1) < 0.10 || error(
+        "$name Float32 normal variance is outside qualification")
+    abs(mean(poisson_exact32) - 4) < 0.12 || error(
+        "$name exact Poisson mean is outside qualification")
+    abs(var(poisson_exact32) - 4) < 0.25 || error(
+        "$name exact Poisson variance is outside qualification")
+    abs(mean(poisson_approx32) - 100) < 0.5 || error(
+        "$name approximate Poisson mean is outside qualification")
+    abs(var(poisson_approx32) - 100) < 5 || error(
+        "$name approximate Poisson variance is outside qualification")
+
+    capabilities = backend_capabilities(backend)
+    float64_report = if capabilities.device_float64
+        floating64 = similar(device_distribution_addresses, Float64,
+            2 * length(distribution_addresses))
+        poisson64 = similar(device_distribution_addresses, Int32,
+            length(distribution_addresses))
+        float64_kernel = _semantic_float64_probe!(backend, 128)
+        float64_kernel(floating64, poisson64, device_distribution_addresses, contract, seed;
+            ndrange = length(distribution_addresses))
+        KernelAbstractions.synchronize(backend)
+        observed64 = Array(floating64)
+        poisson_observed64 = Array(poisson64)
+        normal64 = observed64[2:2:end]
+        abs(mean(normal64)) < 0.06 || error("$name Float64 normal mean is outside qualification")
+        abs(var(normal64) - 1) < 0.10 || error(
+            "$name Float64 normal variance is outside qualification")
+        abs(mean(poisson_observed64) - 4) < 0.12 || error(
+            "$name Float64 Poisson mean is outside qualification")
+        Dict("status" => "qualified", "samples" => length(distribution_addresses))
+    else
+        Dict("status" => "unsupported", "reason" => "backend capability forbids Float64")
+    end
     return Dict(
         "backend" => name,
         "contract" => string(rng_contract_version(contract)),
         "addresses" => length(addresses),
         "raw_words" => length(observed),
         "bitwise_identity" => true,
-        "discrete_distribution_identity" => true,
+        "bitwise_distributions" => ["bounded_uint", "bernoulli", "categorical",
+            "small_permutation"],
+        "statistical_distributions" => ["normal_box_muller", "poisson_inversion",
+            "poisson_normal_approx"],
         "floating_distribution_tolerance" => "8eps(Float32)",
+        "distribution_samples" => length(distribution_addresses),
+        "float64" => float64_report,
     )
 end
 
@@ -137,6 +241,21 @@ function qualify_execution_backend(name::String)
     expected = 2 .* (input_host .+ UInt32(1))
     observed == expected || error("$name ordered execution pipeline produced incorrect output")
 
+    state_metrics = ExecutionMetrics()
+    state_plan = ExecutionPlan(backend; block_size = 128, metrics = state_metrics)
+    logical = LogicalPottsState(fill(MediumOwner(1), 2, 2), CellCapacity(0);
+        medium_domains = MediumID[MediumID(1)])
+    compiled = compile_state(logical)
+    adapted = adapt_execution(state_plan, _backend_adaptor(name), compiled)
+    device_storage_valid(adapted.storage) || error(
+        "$name adapted compiled state contains invalid or mixed-backend values")
+    requirements = WorkspaceRequirements(4, 0;
+        scratch_uint32 = 4, scratch_float32 = 0, flags = 0)
+    allocate_workspace(state_plan, adapted, requirements)
+    snapshot = logical_snapshot(state_plan, adapted)
+    lattice_storage(snapshot) == lattice_storage(logical) || error(
+        "$name compiled state does not round-trip to its logical snapshot")
+
     warm_launch_host_bytes = name == "cpu" ?
         @allocated(launch!(plan, first_kernel, stage, input; ndrange = length(input))) : missing
     name == "cpu" && synchronize_observation!(plan)
@@ -144,6 +263,7 @@ function qualify_execution_backend(name::String)
     return Dict(
         "backend" => name,
         "family" => string(capabilities.family),
+        "contract_status" => string(capabilities.contract_status),
         "functional" => capabilities.functional,
         "ordered_launches" => capabilities.ordered_launches,
         "declared_semantic_rng_v1" => v"1.0.0" in capabilities.qualified_rng_contracts,
@@ -152,6 +272,13 @@ function qualify_execution_backend(name::String)
         "observation_synchronizations" => 1,
         "corepotts_steady_state_scratch_allocations" => 0,
         "backend_runtime_warm_launch_host_bytes" => warm_launch_host_bytes,
+        "compiled_state_roundtrip" => true,
+        "workspace_bytes" => workspace_bytes(requirements),
+        "initialization_host_allocations" => state_metrics.host_allocations,
+        "initialization_device_allocations" => state_metrics.device_allocations,
+        "initialization_host_to_device_transfers" => state_metrics.host_to_device_transfers,
+        "snapshot_device_to_host_transfers" => state_metrics.device_to_host_transfers,
+        "snapshot_synchronizations" => state_metrics.host_synchronizations,
         "elements" => length(observed),
     )
 end

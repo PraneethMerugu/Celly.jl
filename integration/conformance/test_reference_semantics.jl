@@ -55,7 +55,7 @@ end
 
 @testset "logical state and transaction references" begin
     state = reference_fixture()
-    @test isempty(state_invariant_errors(state))
+    @test isempty(ReferenceSemantics.state_invariant_errors(state))
     @test recompute_volumes(state) == Dict(Int32(1) => 2, Int32(2) => 1)
     @test medium_occupancies(state) == Dict(Int32(0) => 1)
     @test canonical_checksum(state) == canonical_checksum(reference_fixture(property_order = :reverse))
@@ -88,7 +88,8 @@ end
         owner -> owner_type[owner], (a, b) -> interaction[(a, b)];
         weights = (1, 3, 1, 3)) == 12
 
-    divided = apply_division_batch(state, [DivisionRequest(Int32(1), [2])])
+    divided = ReferenceSemantics.apply_division_batch(
+        state, [ReferenceSemantics.DivisionRequest(Int32(1), [2])])
     @test divided.owners == Int32[1, 3, 0, 2]
     @test divided.active_ids == Int32[1, 2, 3]
     @test isempty(divided.reusable_ids)
@@ -103,17 +104,19 @@ end
         properties = (target_volume = Int32[0, 4, 5], age = Int32[0, 1, 2]),
         medium_ids = Int32[0])
     original_owners = copy(capacity_state.owners)
-    @test_throws CellCapacityError apply_division_batch(capacity_state,
-        [DivisionRequest(Int32(1), [2]), DivisionRequest(Int32(2), [5])])
+    @test_throws ReferenceSemantics.CellCapacityError ReferenceSemantics.apply_division_batch(
+        capacity_state, [ReferenceSemantics.DivisionRequest(Int32(1), [2]),
+            ReferenceSemantics.DivisionRequest(Int32(2), [5])])
     @test capacity_state.owners == original_owners
 
     extinct = reference_fixture()
     extinct.owners[4] = Int32(1)
-    retirement = retire_zero_volume(extinct, (target_volume = Int32(0), age = Int32(0)))
+    retirement = ReferenceSemantics.retire_zero_volume(
+        extinct, (target_volume = Int32(0), age = Int32(0)))
     @test retirement.retired == Int32[2]
     @test !(Int32(2) in retirement.state.reusable_ids)
     @test retirement.state.properties.age[2] == 0
-    released = release_retired_slots(retirement.state, retirement.retired)
+    released = ReferenceSemantics.release_retired_slots(retirement.state, retirement.retired)
     @test released.reusable_ids == Int32[2, 3]
 
     @test_throws StateInvariantViolation transactional_lifecycle(state) do candidate
@@ -123,9 +126,9 @@ end
 
     invalid = reference_fixture()
     invalid.owners[1] = Int32(9)
-    @test !isempty(state_invariant_errors(invalid))
+    @test !isempty(ReferenceSemantics.state_invariant_errors(invalid))
 
     invalid_id = reference_fixture()
     invalid_id.active_ids[1] = Int32(0)
-    @test !isempty(state_invariant_errors(invalid_id))
+    @test !isempty(ReferenceSemantics.state_invariant_errors(invalid_id))
 end

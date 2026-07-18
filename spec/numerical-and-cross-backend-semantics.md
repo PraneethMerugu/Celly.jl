@@ -44,7 +44,8 @@ Each compiled model has one primary real type inherited by continuous properties
 energy values, and fields unless a declaration explicitly selects another type.
 
 The Level 1 portable default is `Float32`. This choice is visible in normalized reports and
-documentation and is selected for portable CPU, CUDA, AMDGPU, and Metal execution.
+documentation and is selected for portable CPU, AMDGPU, and Metal execution under the current
+first-class backend contract.
 
 Explicit `Float64` scientific input or policy is never silently narrowed to `Float32`. It is
 preserved on qualified backends or rejected with a capability diagnostic. Backends do not choose
@@ -245,7 +246,7 @@ The following match bit-for-bit across release-conforming backends under the app
 - Canonical topology integer data
 - Deterministic serialization fields
 
-Floating state is not universally bit-identical across CPU, CUDA, AMDGPU, and Metal by default. It
+Floating state is not universally bit-identical across CPU, AMDGPU, and Metal by default. It
 satisfies the selected numerical and reproducibility profile's per-quantity tolerances, invariants,
 and statistical tests.
 

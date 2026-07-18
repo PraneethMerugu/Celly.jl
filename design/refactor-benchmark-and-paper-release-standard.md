@@ -259,7 +259,7 @@ The refactor is complete only when:
 - CorePotts works independently through its final public interfaces.
 - PottsToolkit Level 1 and Level 2 use the new engine.
 - Genuine SciML integration passes its contract.
-- CPU, CUDA, AMDGPU, and Metal claims are hardware-qualified.
+- CPU, AMDGPU, and Metal claims are hardware-qualified under the current backend contract.
 - Correctness, performance, compilation, and memory gates pass.
 - The 95% DSL-coverage target passes.
 - Documentation and tutorials use only the final API.

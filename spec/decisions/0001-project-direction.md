@@ -16,8 +16,9 @@ Potts.jl will equally prioritize scientific trustworthiness, world-leading hardw
 performance, and ease of biological modeling.
 
 PottsToolkit is the primary public interface and high-level declarative compiler for CorePotts.
-CorePotts is the scientific engine and advanced extension interface. CPU, CUDA, Metal, AMDGPU, 2D,
-and 3D are first-class targets. Genuine SciML semantic integration is a project requirement.
+CorePotts is the scientific engine and advanced extension interface. The current first-class
+backend set is governed by Decision 0013; two- and three-dimensional models are first-class
+targets. Genuine SciML semantic integration is a project requirement.
 
 NeuralPotts remains experimental. HST penalties are a defining capability implemented through the
 same general extension architecture as other penalties.

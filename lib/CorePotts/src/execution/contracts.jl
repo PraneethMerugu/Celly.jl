@@ -5,9 +5,15 @@
     MetalFamily = 4
 end
 
+@enum BackendContractStatus::UInt8 begin
+    QualifiedBackend = 1
+    DeferredBackend = 2
+end
+
 """Host-side declaration of capabilities which have been implemented and qualified."""
 struct BackendCapabilities{R <: Tuple}
     family::BackendFamily
+    contract_status::BackendContractStatus
     functional::Bool
     ordered_launches::Bool
     device_float64::Bool
@@ -38,10 +44,12 @@ function backend_capabilities(backend::KernelAbstractions.Backend)
 end
 
 backend_capabilities(::KernelAbstractions.CPU) = BackendCapabilities(
-    CPUFamily, true, true, true, false, (v"1.0.0",))
+    CPUFamily, QualifiedBackend, true, true, true, false, (v"1.0.0",))
 
 function require_capability(capabilities::BackendCapabilities, capability::Symbol)
-    supported = if capability === :functional
+    supported = if capability === :qualified_backend
+        capabilities.contract_status === QualifiedBackend
+    elseif capability === :functional
         capabilities.functional
     elseif capability === :ordered_launches
         capabilities.ordered_launches
@@ -130,33 +138,40 @@ function _device_array_value(array)
     return array isa AbstractArray && isbitstype(eltype(array))
 end
 
+_storage_arrays(storage::CompiledStateStorage) = (
+    storage.ownership.tags, storage.ownership.ids, storage.active,
+    storage.generations, storage.cell_types, storage.reusable_slots, storage.reusable_count,
+    values(storage.properties)...)
+
+_storage_backend(storage::CompiledStateStorage) =
+    KernelAbstractions.get_backend(storage.active)
+
+_array_bytes(array::AbstractArray) = sizeof(eltype(array)) * length(array)
+
 """Conservatively validate that every runtime field passed to kernels is an isbits array tree."""
 function device_storage_valid(storage::CompiledStateStorage)
-    arrays = (storage.ownership.tags, storage.ownership.ids, storage.active,
-        storage.generations, storage.cell_types, storage.reusable_slots, storage.reusable_count,
-        values(storage.properties)...)
+    arrays = _storage_arrays(storage)
     all(_device_array_value, arrays) || return false
     backends = map(KernelAbstractions.get_backend, arrays)
     return all(isequal(first(backends)), backends)
 end
 
-"""Explicit host observation boundary which reconstructs the canonical logical state."""
-function logical_snapshot(state::CompiledPottsState)
+function _logical_snapshot(state::CompiledPottsState, to_host)
     descriptor = state.descriptor
     storage = state.storage
-    tags = Array(storage.ownership.tags)
-    ids = Array(storage.ownership.ids)
+    tags = to_host(storage.ownership.tags)
+    ids = to_host(storage.ownership.ids)
     owners = similar(ids, OwnerRef)
     for index in eachindex(owners)
         owners[index] = OwnerRef(tags[index], ids[index])
     end
-    active = Array(storage.active)
-    generations = CellGeneration.(Array(storage.generations))
-    cell_types_raw = Array(storage.cell_types)
+    active = to_host(storage.active)
+    generations = CellGeneration.(to_host(storage.generations))
+    cell_types_raw = to_host(storage.cell_types)
     cell_types = Dict(CellID(index) => CellTypeID(cell_types_raw[index])
         for index in eachindex(active) if active[index] != 0)
-    reusable_raw = Array(storage.reusable_slots)
-    reusable_count = Int(only(Array(storage.reusable_count)))
+    reusable_raw = to_host(storage.reusable_slots)
+    reusable_count = Int(only(to_host(storage.reusable_count)))
     reusable_count <= length(reusable_raw) || throw(LogicalStateInvariantError(
         ["compiled reusable-slot count exceeds fixed storage capacity"]))
     reusable = CellSlot.(reusable_raw[1:reusable_count])
@@ -168,10 +183,18 @@ function logical_snapshot(state::CompiledPottsState)
         medium_domains = MediumID.(descriptor.medium_ids),
         property_schema = descriptor.property_schema)
     for key in property_keys(descriptor.property_schema)
-        copyto!(property_values(logical, key), Array(getproperty(storage.properties, key)))
+        copyto!(property_values(logical, key),
+            to_host(getproperty(storage.properties, key)))
     end
     rebuild_derived_state!(logical)
     return assert_valid_state(logical)
+end
+
+"""Reconstruct a host snapshot from CPU storage that has no outstanding asynchronous work."""
+function logical_snapshot(state::CompiledPottsState)
+    _storage_backend(state.storage) isa KernelAbstractions.CPU || throw(ArgumentError(
+        "GPU logical snapshots require `logical_snapshot(plan, state)` so synchronization and transfers are recorded"))
+    return _logical_snapshot(state, Array)
 end
 
 struct WorkspaceRequirements
@@ -281,6 +304,7 @@ function ExecutionPlan(backend::KernelAbstractions.Backend; block_size::Integer 
         metrics::ExecutionMetrics = ExecutionMetrics())
     block_size > 0 || throw(ArgumentError("block size must be positive"))
     capabilities = backend_capabilities(backend)
+    require_capability(capabilities, :qualified_backend)
     require_capability(capabilities, :functional)
     require_capability(capabilities, :ordered_launches)
     return ExecutionPlan(backend, capabilities, OrderedAsynchronousLaunches(),
@@ -325,4 +349,62 @@ function record_allocation!(plan::ExecutionPlan, domain::Symbol, bytes::Integer)
         throw(ArgumentError("allocation domain must be :host or :device"))
     end
     return plan
+end
+
+function _require_plan_backend(plan::ExecutionPlan, storage::CompiledStateStorage)
+    isequal(plan.backend, _storage_backend(storage)) || throw(ArgumentError(
+        "execution plan backend does not match compiled state storage"))
+    return plan
+end
+
+"""Instrumented initialization-time adaptation of the compiled storage boundary."""
+function adapt_execution(plan::ExecutionPlan, to, state::CompiledPottsState)
+    _storage_backend(state.storage) isa KernelAbstractions.CPU || throw(ArgumentError(
+        "plan-aware adaptation currently requires canonical CPU compiled storage as its source"))
+    adapted = adapt_execution(to, state)
+    _require_plan_backend(plan, adapted.storage)
+    if !(plan.backend isa KernelAbstractions.CPU)
+        for array in _storage_arrays(adapted.storage)
+            record_transfer!(plan, :host_to_device)
+            record_allocation!(plan, :device, _array_bytes(array))
+        end
+    end
+    return adapted
+end
+
+"""One synchronized, fully instrumented device-to-host logical observation."""
+function logical_snapshot(plan::ExecutionPlan, state::CompiledPottsState)
+    _require_plan_backend(plan, state.storage)
+    synchronize_observation!(plan)
+    if plan.backend isa KernelAbstractions.CPU
+        return _logical_snapshot(state, Array)
+    end
+    to_host = function(array)
+        record_transfer!(plan, :device_to_host)
+        return Array(array)
+    end
+    return _logical_snapshot(state, to_host)
+end
+
+function allocate_workspace(plan::ExecutionPlan, state::CompiledPottsState,
+        requirements::WorkspaceRequirements)
+    _require_plan_backend(plan, state.storage)
+    workspace = allocate_workspace(state, requirements)
+    domain = plan.backend isa KernelAbstractions.CPU ? :host : :device
+    for array in (workspace.scratch_uint32, workspace.scratch_float32, workspace.flags)
+        record_allocation!(plan, domain, _array_bytes(array))
+    end
+    return workspace
+end
+
+function allocate_transaction_workspace(plan::ExecutionPlan, state::CompiledPottsState,
+        requirements::TransactionRequirements)
+    _require_plan_backend(plan, state.storage)
+    workspace = allocate_transaction_workspace(state, requirements)
+    domain = plan.backend isa KernelAbstractions.CPU ? :host : :device
+    for array in (workspace.candidate_ids, workspace.priorities, workspace.accepted,
+            workspace.integer_deltas)
+        record_allocation!(plan, domain, _array_bytes(array))
+    end
+    return workspace
 end

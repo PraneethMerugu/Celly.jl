@@ -48,7 +48,7 @@ complete only when its exit gate passes and its obsolete path is removed.
 - Volume, surface, contact, chemotaxis, focal-point, and other paper components
 - Growth, division, type transition, death, extinction, and deterministic lifecycle transactions
 - Semantically addressed RNG and reproducibility reports
-- CPU, CUDA, AMDGPU, and Metal qualification for claimed features
+- CPU, AMDGPU, and Metal qualification for claimed features; CUDA is deferred by Decision 0013
 - CorePotts Level 3 and Level 4 interfaces
 - PottsToolkit Level 2 typed modeling and Level 1 DSL
 - SciML problem, integrator, solution, callback, saving, observation, remake, and ensemble behavior
@@ -259,7 +259,7 @@ Complete D2 before freezing the RNG engine and distribution interface.
   supported KA API.
 - Implement semantically addressed counter-based randomness with named streams and contract
   versioning.
-- Qualify raw RNG bits and every required distribution on CPU, CUDA, AMDGPU, and Metal.
+- Qualify raw RNG bits and every required distribution on CPU, AMDGPU, and Metal.
 - Centralize Adapt-based movement and ensure adapted state contains device-valid values only.
 - Remove migrated legacy state types, exports, and direct field contracts as their production
   consumers move to compiled execution state.
@@ -461,7 +461,7 @@ Complete D6 and D7 before declaring the public API candidate.
 - The geometric mean across core workloads does not regress.
 - Qualified steady-state GPU workloads allocate no memory and introduce no internal host wait.
 - Compilation latency, first-MCS latency, memory, and steady-state throughput pass independent gates.
-- CPU, CUDA, AMDGPU, and Metal claims are backed by real hardware results rather than compilation
+- CPU, AMDGPU, and Metal claims are backed by real hardware results rather than compilation
   alone.
 
 ## Phase 13: API Freeze and Full Conformance
@@ -530,7 +530,7 @@ compatibility shims remain unnecessary.
 ### Exit gate
 
 - Publication workloads reproduce from a clean environment.
-- CPU, CUDA, AMDGPU, and Metal claims have current real-hardware evidence.
+- CPU, AMDGPU, and Metal claims have current real-hardware evidence.
 - Paper tables and figures trace to archived raw results and code.
 - Documentation, packages, manifests, and paper describe the same frozen API and semantics.
 - No legacy engine or DSL path remains.

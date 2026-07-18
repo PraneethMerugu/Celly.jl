@@ -59,8 +59,33 @@ end
     backend = KernelAbstractions.CPU()
     capabilities = backend_capabilities(backend)
     @test capabilities.family === CPUFamily
+    @test capabilities.contract_status === QualifiedBackend
+    @test require_capability(capabilities, :qualified_backend) === capabilities
     @test require_capability(capabilities, :semantic_rng_v1) === capabilities
     @test_throws UnsupportedBackendCapability require_capability(capabilities, :subgroup_intrinsics)
+    deferred = BackendCapabilities(CUDAFamily, DeferredBackend,
+        true, true, true, true, ())
+    @test_throws UnsupportedBackendCapability require_capability(deferred, :qualified_backend)
+
+    initialization_metrics = ExecutionMetrics()
+    initialization_plan = ExecutionPlan(backend; block_size = 64,
+        metrics = initialization_metrics)
+    instrumented_compiled = adapt_execution(initialization_plan, Array, compiled)
+    @test instrumented_compiled.storage.active == compiled.storage.active
+    instrumented_workspace = allocate_workspace(
+        initialization_plan, instrumented_compiled, requirements)
+    instrumented_transaction = allocate_transaction_workspace(
+        initialization_plan, instrumented_compiled, transaction_requirements)
+    @test instrumented_workspace.scratch_uint32 == workspace.scratch_uint32
+    @test instrumented_transaction.candidate_ids == transaction.candidate_ids
+    @test initialization_metrics.host_allocations == 7
+    @test initialization_metrics.host_allocated_bytes == 88
+    @test initialization_metrics.device_allocations == 0
+    @test initialization_metrics.host_to_device_transfers == 0
+    instrumented_snapshot = logical_snapshot(initialization_plan, instrumented_compiled)
+    @test lattice_storage(instrumented_snapshot) == lattice_storage(logical)
+    @test initialization_metrics.host_synchronizations == 1
+    @test initialization_metrics.device_to_host_transfers == 0
 
     metrics = ExecutionMetrics()
     plan = ExecutionPlan(backend; block_size = 64, metrics)
