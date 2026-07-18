@@ -47,6 +47,9 @@ Contains the grid, cell properties, and cell ID tracking structures.
 """
 abstract type AbstractPottsState end
 
+"""Backend-visible lattice storage for an explicit execution boundary."""
+function lattice_storage end
+
 struct PottsState{Grid, CellData, Scalar, FreeList} <: AbstractPottsState
     grid::Grid
     cell_data::CellData
@@ -54,6 +57,7 @@ struct PottsState{Grid, CellData, Scalar, FreeList} <: AbstractPottsState
     free_list::FreeList
     free_list_count::Scalar
 end
+lattice_storage(state::PottsState) = state.grid
 function Functors.functor(::Type{<:PottsState}, x)
     children = (grid = x.grid, cell_data = x.cell_data, N_cells = x.N_cells,
         free_list = x.free_list, free_list_count = x.free_list_count)
@@ -215,7 +219,7 @@ function PottsCache(u::AbstractPottsState, topology::AbstractTopology; block_siz
 end
 
 function PottsCache(u::AbstractPottsState, topology::AbstractTopology, event_masks; block_size::Int = 256)
-    grid = u.grid
+    grid = lattice_storage(u)
     N = ndims(grid)
     grid_dims = ntuple(i -> size(grid, i), Val(N))
     ArrayT = typeof(similar(grid, Float32, 1))
