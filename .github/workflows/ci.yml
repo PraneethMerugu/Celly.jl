@@ -30,22 +30,9 @@ jobs:
         with:
           version: ${{ env.JULIA_VERSION }}
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
-      - name: Enforce the refactor toolchain
-        run: |
-          julia --startup-file=no -e '
-            using TOML
-            expected = "1.12.6"
-            projects = String[]
-            for (root, dirs, files) in walkdir(pwd())
-                filter!(dir -> dir != ".git", dirs)
-                "Project.toml" in files && push!(projects, joinpath(root, "Project.toml"))
-            end
-            for project in projects
-                target = get(get(TOML.parsefile(project), "compat", Dict()), "julia", nothing)
-                target == expected || error("$project must set Julia compat to $expected; found $(repr(target))")
-            end
-            println("Validated $(length(projects)) Julia project files on Julia $VERSION")'
-      - name: Resolve the Julia workspace without mutation
+      - name: Enforce repository and package structure
+        run: julia --startup-file=no scripts/check_structure.jl
+      - name: Resolve the package workspace without mutation
         run: |
           julia --project=. --startup-file=no -e '
             using Pkg
@@ -61,12 +48,43 @@ jobs:
             git diff --check HEAD^ HEAD
           fi
 
-  cpu:
-    name: CPU / Julia 1.12.6 / ${{ matrix.shard }}
+  packages:
+    name: Package / ${{ matrix.package }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [thermodynamics, biophysics, integration, core]
+        include:
+          - package: PottsToolkit
+            project: .
+          - package: CorePotts
+            project: lib/CorePotts
+          - package: MakiePotts
+            project: lib/MakiePotts
+          - package: NeuralPotts
+            project: lib/NeuralPotts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Test package independently
+        env:
+          PACKAGE: ${{ matrix.package }}
+          PROJECT: ${{ matrix.project }}
+        run: |
+          julia --project="$PROJECT" --startup-file=no -e '
+            using Pkg
+            Pkg.test(ENV["PACKAGE"]; julia_args=["--startup-file=no"])'
+
+  integration:
+    name: Integration / ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [thermodynamics, biophysics, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -78,14 +96,13 @@ jobs:
         with:
           version: ${{ env.JULIA_VERSION }}
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
-      - name: Instantiate the workspace
+      - name: Instantiate integration environment
         run: |
-          julia --project=. --startup-file=no -e '
+          julia --project=integration --startup-file=no -e '
             using Pkg
-            Pkg.instantiate(; workspace=true, julia_version_strict=true,
-                allow_autoprecomp=false)'
-      - name: Run the CPU contract suite
-        run: julia --project=test --startup-file=no test/runtests.jl
+            Pkg.instantiate(; julia_version_strict=true, allow_autoprecomp=false)'
+      - name: Run cross-package integration shard
+        run: julia --project=integration --startup-file=no integration/runtests.jl
 
   cpu_macos_arm64:
     name: CPU / macOS ARM64 / Julia 1.12.6
@@ -94,7 +111,7 @@ jobs:
       (github.event_name != 'pull_request' ||
        (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, metal]
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       BACKEND_GROUP: CPU
     defaults:
@@ -109,15 +126,16 @@ jobs:
           version: ${{ env.JULIA_VERSION }}
           arch: aarch64
           force-arch: true
-      - name: Verify ARM64 runtime and instantiate workspace
+      - name: Verify ARM64 runtime
+        run: julia --startup-file=no -e 'Sys.ARCH == :aarch64 || error("expected ARM64 Julia; found $(Sys.ARCH)")'
+      - name: Test CorePotts and PottsToolkit independently
         run: |
-          julia --startup-file=no -e 'Sys.ARCH == :aarch64 || error("expected ARM64 Julia; found $(Sys.ARCH)")'
-          julia --project=. --startup-file=no -e '
-            using Pkg
-            Pkg.instantiate(; workspace=true, julia_version_strict=true,
-                allow_autoprecomp=false)'
-      - name: Run complete CPU contract suite
-        run: julia --project=test --startup-file=no test/runtests.jl
+          julia --project=lib/CorePotts --startup-file=no -e 'using Pkg; Pkg.test("CorePotts"; julia_args=["--startup-file=no"])'
+          julia --project=. --startup-file=no -e 'using Pkg; Pkg.test("PottsToolkit"; julia_args=["--startup-file=no"])'
+      - name: Run complete cross-package integration suite
+        run: |
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true, allow_autoprecomp=false)'
+          julia --project=integration --startup-file=no integration/runtests.jl
 
   cpu_linux_x64:
     name: CPU / Linux x86_64 / Julia 1.12.6
@@ -126,7 +144,7 @@ jobs:
       (github.event_name != 'pull_request' ||
        (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     runs-on: [self-hosted, rocm]
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       BACKEND_GROUP: CPU
     defaults:
@@ -139,26 +157,28 @@ jobs:
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
-      - name: Verify x86_64 runtime and instantiate workspace
+      - name: Verify x86_64 runtime
+        run: julia --startup-file=no -e 'Sys.ARCH == :x86_64 || error("expected x86_64 Julia; found $(Sys.ARCH)")'
+      - name: Test CorePotts and PottsToolkit independently
         run: |
-          julia --startup-file=no -e 'Sys.ARCH == :x86_64 || error("expected x86_64 Julia; found $(Sys.ARCH)")'
-          julia --project=. --startup-file=no -e '
-            using Pkg
-            Pkg.instantiate(; workspace=true, julia_version_strict=true,
-                allow_autoprecomp=false)'
-      - name: Run complete CPU contract suite
-        run: julia --project=test --startup-file=no test/runtests.jl
+          julia --project=lib/CorePotts --startup-file=no -e 'using Pkg; Pkg.test("CorePotts"; julia_args=["--startup-file=no"])'
+          julia --project=. --startup-file=no -e 'using Pkg; Pkg.test("PottsToolkit"; julia_args=["--startup-file=no"])'
+      - name: Run complete cross-package integration suite
+        run: |
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true, allow_autoprecomp=false)'
+          julia --project=integration --startup-file=no integration/runtests.jl
 
   required:
     name: Required
     if: always()
-    needs: [project, cpu, cpu_macos_arm64, cpu_linux_x64]
+    needs: [project, packages, integration, cpu_macos_arm64, cpu_linux_x64]
     runs-on: ubuntu-latest
     steps:
       - name: Require every gating job
         env:
           PROJECT_RESULT: ${{ needs.project.result }}
-          CPU_RESULT: ${{ needs.cpu.result }}
+          PACKAGES_RESULT: ${{ needs.packages.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
           MACOS_RESULT: ${{ needs.cpu_macos_arm64.result }}
           LINUX_X64_RESULT: ${{ needs.cpu_linux_x64.result }}
           METAL_ENABLED: ${{ vars.METAL_RUNNER_ENABLED }}
@@ -166,7 +186,8 @@ jobs:
           TRUSTED_SELF_HOSTED: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
         run: |
           test "$PROJECT_RESULT" = success
-          test "$CPU_RESULT" = success
+          test "$PACKAGES_RESULT" = success
+          test "$INTEGRATION_RESULT" = success
           if [ "$METAL_ENABLED" = true ] && [ "$TRUSTED_SELF_HOSTED" = true ]; then
             test "$MACOS_RESULT" = success
           else

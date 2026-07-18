@@ -1,9 +1,8 @@
 using Test
 using CorePotts
 using SciMLBase
-using CairoMakie # For plot testing
 
-@testset "SciML Saving and Makie Recipes" begin
+@testset "SciML Saving" begin
     W, H = 20, 20
     N_cells = 5
     grid = rand(UInt32(1):UInt32(N_cells), W, H)
@@ -30,9 +29,6 @@ using CairoMakie # For plot testing
         @test sol.t[1] == 0
         @test sol.t[end] == 10
 
-        # The recipes are exported and defined correctly
-        @test isdefined(CorePotts, :pottsplot)
-        @test isdefined(CorePotts, :cpmsolutionplot)
     end
 
     @testset "Specific saveat" begin

@@ -14,21 +14,21 @@ export solve, fmap
 
 const DEFAULT_BLOCK_SIZE = 256
 
-include("Base/topology.jl")
-include("Base/samplers.jl")
-include("Base/types.jl")
-include("Base/dispatch.jl")
+include("topology/topology.jl")
+include("proposals/samplers.jl")
+include("state/types.jl")
+include("execution/dispatch.jl")
 
-include("Base/trackers.jl")
-include("Base/penalties.jl")
-include("Base/training.jl")
+include("components/trackers/trackers.jl")
+include("components/components.jl")
+include("components/training.jl")
 
-include("Tools/initialization.jl")
-include("Events/Events.jl")
+include("initialization/initialization.jl")
+include("lifecycle/events.jl")
 
-include("engine.jl")
-include("engine_intrinsics.jl")
-include("simulator.jl")
+include("kernels/metropolis.jl")
+include("kernels/intrinsics.jl")
+include("sciml/simulator.jl")
 
 # ==============================================================================
 # UNIFIED USER API EXPORTS

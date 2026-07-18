@@ -172,8 +172,10 @@ function implementation_files()
     roots = [
         joinpath(REPOSITORY_ROOT, "Project.toml"),
         joinpath(REPOSITORY_ROOT, "src"),
+        joinpath(REPOSITORY_ROOT, "ext"),
         joinpath(REPOSITORY_ROOT, "lib"),
-        joinpath(REPOSITORY_ROOT, "test")
+        joinpath(REPOSITORY_ROOT, "test"),
+        joinpath(REPOSITORY_ROOT, "integration")
     ]
     files = String[]
     for root in roots
