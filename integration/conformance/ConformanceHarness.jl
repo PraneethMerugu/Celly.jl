@@ -4,8 +4,10 @@ using ..ReferenceSemantics: ReferenceState, AttemptAccounting, canonical_checksu
     assert_valid_state, assert_reference_mcs
 
 export ReferenceNumericalPolicy, portable_numerical_policy, validate_numerical_policy,
+       AlgorithmGuaranteeProfile, validate_guarantee_profile,
        ConformanceCase, conformance_case_matrix, AbstractConformanceAdapter, reference_state,
-       attempt_accounting, validate_adapter, qualify_adapter, ReproductionContext, ConformanceFailure,
+       attempt_accounting, ReferenceStateAdapter, validate_adapter, qualify_adapter,
+       ReproductionContext, ConformanceFailure,
        require_conformance, reproduction_report, StatisticalProcedure, statistical_procedure,
        assess_bernoulli, require_logical_match
 
@@ -40,6 +42,42 @@ function validate_numerical_policy(policy::ReferenceNumericalPolicy)
     policy.overflow in (:checked, :qualified_unchecked) || throw(ArgumentError(
         "overflow must be :checked or :qualified_unchecked"))
     return policy
+end
+
+"""Inspectable scientific guarantees for one named algorithm family."""
+struct AlgorithmGuaranteeProfile
+    name::Symbol
+    proposal_process::Symbol
+    equilibrium::Symbol
+    kinetics::Symbol
+    transactions::Symbol
+    attempt_normalization::Symbol
+    reproducibility::Symbol
+    evidence::Symbol
+end
+
+function validate_guarantee_profile(profile::AlgorithmGuaranteeProfile)
+    profile.name in (:sequential, :checkerboard, :lottery) || throw(ArgumentError(
+        "Phase 3 profiles must name a supported algorithm family"))
+    profile.proposal_process in (:uniform_recipient_direction, :parallel_round) || throw(ArgumentError(
+        "proposal_process must name the scientific proposal family"))
+    profile.equilibrium in (:depends_on_acceptance_law, :unproven, :not_claimed) || throw(ArgumentError(
+        "equilibrium must be a qualified claim"))
+    profile.kinetics in (:reference, :parallel_distinct) || throw(ArgumentError(
+        "kinetics must distinguish reference from parallel dynamics"))
+    profile.transactions in (:sequential, :color_snapshot, :round_snapshot) || throw(ArgumentError(
+        "transactions must name the committed transaction law"))
+    profile.attempt_normalization in (:exact, :normalized, :expected) || throw(ArgumentError(
+        "attempt_normalization must be :exact, :normalized, or :expected"))
+    profile.reproducibility in (:strict_cpu, :profile_dependent, :statistical_only) || throw(ArgumentError(
+        "reproducibility must be a qualified scope"))
+    profile.evidence in (:reference, :proof_pending, :statistical_pending) || throw(ArgumentError(
+        "evidence must name the current validation category"))
+    profile.name === :sequential && profile.attempt_normalization !== :exact && throw(ArgumentError(
+        "the sequential reference process must report exact attempt normalization"))
+    profile.name === :lottery && profile.attempt_normalization !== :expected && throw(ArgumentError(
+        "lottery must report expected proposal-budget normalization"))
+    return profile
 end
 
 """One logical conformance point, independent of an implementation's storage layout."""
@@ -79,6 +117,12 @@ algorithm report. It intentionally accepts no physical arrays, workspace, or ker
 """
 abstract type AbstractConformanceAdapter end
 
+"""A complete scalar implementation adapter used to qualify the conformance boundary itself."""
+struct ReferenceStateAdapter <: AbstractConformanceAdapter
+    state::ReferenceState
+    accounting::AttemptAccounting
+end
+
 function reference_state(adapter::AbstractConformanceAdapter)
     throw(MethodError(reference_state, (adapter,)))
 end
@@ -86,6 +130,9 @@ end
 function attempt_accounting(adapter::AbstractConformanceAdapter)
     throw(MethodError(attempt_accounting, (adapter,)))
 end
+
+reference_state(adapter::ReferenceStateAdapter) = adapter.state
+attempt_accounting(adapter::ReferenceStateAdapter) = adapter.accounting
 
 function validate_adapter(adapter::AbstractConformanceAdapter)
     state = reference_state(adapter)
@@ -105,6 +152,7 @@ struct ReproductionContext
     initial_state_checksum::String
     algorithm::Symbol
     numeric_type::DataType
+    numerical_policy::ReferenceNumericalPolicy
     dimension::Int
     backend_report::String
     command::String
@@ -113,15 +161,18 @@ end
 function ReproductionContext(; semantic_seed::Integer, rng_version::AbstractString,
         model_fingerprint::AbstractString, initial_state,
         algorithm::Symbol, numeric_type::DataType, dimension::Integer,
-        backend_report::AbstractString, command::AbstractString)
+        backend_report::AbstractString, command::AbstractString,
+        numerical_policy::ReferenceNumericalPolicy = portable_numerical_policy(numeric_type))
     semantic_seed >= 0 || throw(ArgumentError("semantic_seed must be non-negative"))
     isempty(rng_version) && throw(ArgumentError("rng_version must not be empty"))
     isempty(model_fingerprint) && throw(ArgumentError("model_fingerprint must not be empty"))
     isempty(backend_report) && throw(ArgumentError("backend_report must not be empty"))
     isempty(command) && throw(ArgumentError("reproduction command must not be empty"))
     dimension in (2, 3) || throw(ArgumentError("dimension must be 2 or 3"))
+    numerical_policy.real === numeric_type || throw(ArgumentError(
+        "numeric_type must match the numerical policy primary real type"))
     return ReproductionContext(UInt64(semantic_seed), String(rng_version), String(model_fingerprint),
-        canonical_checksum(initial_state), algorithm, numeric_type, Int(dimension),
+        canonical_checksum(initial_state), algorithm, numeric_type, numerical_policy, Int(dimension),
         String(backend_report), String(command))
 end
 
@@ -133,6 +184,7 @@ function reproduction_report(context::ReproductionContext)
         "initial_state_checksum=$(context.initial_state_checksum)",
         "algorithm=$(context.algorithm)",
         "numeric_type=$(context.numeric_type)",
+        "numerical_policy=(real=$(context.numerical_policy.real), accumulation=$(context.numerical_policy.accumulation), math=$(context.numerical_policy.math), reductions=$(context.numerical_policy.reductions), overflow=$(context.numerical_policy.overflow))",
         "dimension=$(context.dimension)",
         "backend=$(context.backend_report)",
         "reproduce=$(context.command)",

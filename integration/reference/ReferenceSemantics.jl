@@ -4,6 +4,7 @@ using SHA
 
 export AttemptAccounting, ReferenceProposal, ReferenceState, CanonicalSnapshot,
        StateInvariantViolation, CellCapacityError, DivisionRequest, reference_mcs_attempts,
+       InternalRoundPlan, round_plan_errors, assert_normalized_round_plan,
        proposal_probability, ProposalProbabilities, neighbor_copy_probabilities,
        conventional_metropolis_probability, metropolis_hastings_probability,
        accepts, record_attempt, attempt_accounting_errors, assert_reference_mcs,
@@ -78,9 +79,43 @@ struct AttemptAccounting
     accepted_proposals::Int
 end
 
+"""Declared MCS fractions and expected realized proposal budget for one internal-round schedule."""
+struct InternalRoundPlan{T}
+    mcs_fractions::Vector{T}
+    expected_realized_proposals::Vector{T}
+end
+
+function InternalRoundPlan(mcs_fractions::AbstractVector{T},
+        expected_realized_proposals::AbstractVector{T}) where {T}
+    length(mcs_fractions) == length(expected_realized_proposals) || throw(ArgumentError(
+        "every internal round needs both an MCS fraction and expected proposal budget"))
+    isempty(mcs_fractions) && throw(ArgumentError("one MCS requires at least one internal round"))
+    return InternalRoundPlan{T}(collect(mcs_fractions), collect(expected_realized_proposals))
+end
+
 function AttemptAccounting(mutable_sites::Integer)
     mutable_sites >= 0 || throw(ArgumentError("mutable_sites must be non-negative"))
     return AttemptAccounting(Int(mutable_sites), 0, 0, 0, 0, 0)
+end
+
+function round_plan_errors(plan::InternalRoundPlan, mutable_sites::Integer)
+    mutable_sites >= 0 || throw(ArgumentError("mutable_sites must be non-negative"))
+    errors = String[]
+    all(fraction -> fraction >= zero(fraction), plan.mcs_fractions) || push!(errors,
+        "internal MCS fractions must be non-negative")
+    all(count -> count >= zero(count), plan.expected_realized_proposals) || push!(errors,
+        "expected realized proposal counts must be non-negative")
+    sum(plan.mcs_fractions) == one(eltype(plan.mcs_fractions)) || push!(errors,
+        "internal-round MCS fractions must sum exactly to one MCS")
+    sum(plan.expected_realized_proposals) == mutable_sites || push!(errors,
+        "expected realized proposals must sum exactly to the mutable-site budget")
+    return errors
+end
+
+function assert_normalized_round_plan(plan::InternalRoundPlan, mutable_sites::Integer)
+    errors = round_plan_errors(plan, mutable_sites)
+    isempty(errors) || throw(ArgumentError(join(errors, "; ")))
+    return plan
 end
 
 """A non-no-op ownership-copy proposal in logical lattice coordinates."""
