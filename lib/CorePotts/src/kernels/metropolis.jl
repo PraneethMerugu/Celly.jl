@@ -230,7 +230,7 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     @argcheck zero(typeof(active_fraction)) <= active_fraction <=
               one(typeof(active_fraction)) "active_fraction must be between 0.0 and 1.0"
               
-    max_fraction = 1.0 / (length(lottery_offsets(p.topology)) + 1)
+    max_fraction = inv(typeof(active_fraction)(length(lottery_offsets(p.topology)) + 1))
     @argcheck active_fraction <= max_fraction "ParallelMetropolis cannot achieve an active fraction higher than $(max_fraction) for this topology. Please lower `active_fraction` and proportionally increase `sweeps_per_step`."
 
     cache.step_counter[] += UInt64(1)
