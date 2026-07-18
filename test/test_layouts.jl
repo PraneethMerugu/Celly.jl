@@ -39,7 +39,8 @@ import CorePotts
 
         # 6x6 square
         @test count(>(0), ctx.grid) == 36
-        @test length(ctx.cell_type_map) == 2 # Background + 1 A cell
+        @test length(ctx.cell_type_map) == 37 # Background + one current cell ID per site
+        @test count(==(UInt8(1)), values(ctx.cell_type_map)) == 36
 
         # Cell should be type A (id 1)
         cell_id = findfirst(==(1), ctx.grid)
@@ -92,10 +93,10 @@ import CorePotts
 
     @testset "CompositeLayout" begin
         ctx = LayoutContext((20, 20), type_to_id)
-        layout = CompositeLayout([
+        layout = CompositeLayout(
             RectangleLayout(A, (2, 2), (5, 5)),
             HypersphereLayout(B, (15, 15), 2)
-        ])
+        )
         build_layout!(layout, ctx)
 
         # Check both exist

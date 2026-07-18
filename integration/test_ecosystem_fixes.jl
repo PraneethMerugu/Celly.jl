@@ -1,7 +1,6 @@
 using Test
-using Potts
-using Potts.CorePotts
-using Potts.PottsToolkit
+using CorePotts
+using PottsToolkit
 using MakiePotts
 
 @testset "Ecosystem Fixes" begin

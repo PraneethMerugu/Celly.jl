@@ -4,12 +4,12 @@ using Reexport
 
 @reexport using CorePotts
 
-include("system.jl")
-include("layouts.jl")
-include("events.jl")
-include("problem.jl")
-include("TestProblems.jl")
-include("macros.jl")
+include("models.jl")
+include("domains.jl")
+include("rules/events.jl")
+include("problems.jl")
+include("models/test_problems.jl")
+include("rules/macros.jl")
 
 using .System
 using .Layouts

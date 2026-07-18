@@ -1,10 +1,6 @@
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-Pkg.instantiate()
-
 using Test
-using Potts.CorePotts
-using Potts.PottsToolkit
+using CorePotts
+using PottsToolkit
 
 @testset "Isbits Blocker Isolation" begin
     A = CellType(:A, is_background = true)

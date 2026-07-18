@@ -1,10 +1,6 @@
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-Pkg.instantiate()
-
 using Test
-using Potts.CorePotts
-using Potts.CorePotts.SciMLBase
+using CorePotts
+using SciMLBase
 
 @testset "Chemotaxis Fragmentation" begin
     # 100x100 grid
