@@ -1,6 +1,6 @@
 # Phase 5 D2 RNG Evaluation
 
-Status: Active — CPU and Metal candidate qualified; ROCm and CUDA pending
+Status: Active — CPU and Metal candidate qualified; expanded ROCm qualification pending
 
 ## Candidate
 
@@ -38,7 +38,7 @@ explicit model/compilation error rather than silent truncation.
 - Immutable categorical tables and exact categorical selection
 - Exact small Fisher–Yates permutation for scientific schedules
 
-No default RNG claim is accepted until these transforms pass CPU, Metal, ROCm, and CUDA qualification
+No default RNG claim is accepted until these transforms pass CPU, Metal, and ROCm qualification
 under their declared bitwise or statistical portability profiles. Large-layout permutation and an
 exact efficient large-rate Poisson family remain separate implementation requirements if demanded
 by the final paper workload inventory.
@@ -48,9 +48,13 @@ by the final paper workload inventory.
 - Julia 1.12.6 CPU passes all three Random123 1.14.0 Philox4x32-10 known-answer vectors.
 - Frozen v1 counter/key packing and semantic-address output vectors pass.
 - A KernelAbstractions CPU kernel produces the same raw words as scalar evaluation.
-- A local Apple GPU running Metal.jl produces identical raw words, bounded integers, categorical
-  choices, and Poisson inversion outputs. Its Float32 uniform and normal transforms meet the
-  declared `8eps(Float32)` comparison tolerance.
-- The backend benchmark matrix now runs a 257-address, 1,028-word identity probe before existing
-  smoke/performance workloads on CPU, Metal, ROCm, and CUDA jobs.
+- A local Apple GPU running Metal.jl produces identical raw words, bounded integers, Bernoulli
+  choices, categorical choices, and eight-element permutations. Its Float32 uniform and normal
+  transforms meet the declared `8eps(Float32)` comparison tolerance, while exact-inversion and
+  approximate Poisson pass their statistical profiles.
+- The backend benchmark matrix now runs a 257-address, 1,028-word raw identity probe and 4,096-sample
+  distribution battery before existing smoke/performance workloads on CPU, Metal, and ROCm. The
+  same tooling may exercise deferred CUDA, but such a result is not part of the current contract.
+- CPU qualifies the Float64 uniform, normal, and exact-Poisson paths. Metal records Float64 as an
+  explicit unsupported capability and never attempts an invalid kernel launch.
 - Warm scalar Philox and categorical calls allocate zero bytes on Julia 1.12.6.

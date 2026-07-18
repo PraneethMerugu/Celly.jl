@@ -17,6 +17,7 @@ corresponding specification document.
 - [0010: Separate spatial roles and compile realized domain relations](0010-spatial-relations.md)
 - [0011: Explicit Cartesian measures, owner domains, queries, and fields](0011-cartesian-spatial-semantics.md)
 - [0012: Reference-first vertical slices](0012-reference-first-vertical-slices.md)
+- [0013: Current first-class backend contract](0013-current-backend-contract.md)
 
 ## Record Template
 

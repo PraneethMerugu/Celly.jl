@@ -10,9 +10,9 @@ ordered on every supported backend. New compiled execution code uses instrumente
 synchronizes only through `synchronize_observation!`.
 """
 @inline function dispatch_kernel!(
-        backend::KernelAbstractions.Backend, kernel, args...; 
+        backend::KernelAbstractions.Backend, kernel, args...;
         ndrange, workgroupsize = nothing)
-    
+
     if workgroupsize === nothing
         return kernel(args...; ndrange = ndrange)
     else

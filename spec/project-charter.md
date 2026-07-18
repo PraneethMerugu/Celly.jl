@@ -11,9 +11,11 @@ three equal identities:
 2. A world-leading high-performance simulation engine
 3. An approachable biological modeling environment
 
-The ecosystem MUST be hardware agnostic and designed for high-performance execution on CPU, NVIDIA
-CUDA, Apple Metal, and AMD ROCm devices. Stable scientific features MUST support both two- and
-three-dimensional models unless explicitly documented otherwise.
+The ecosystem MUST remain architecturally hardware agnostic. Until superseded by an accepted
+semantic decision, the first-class release contract is CPU, Apple Metal, and AMD ROCm. NVIDIA CUDA
+remains a deferred integration: its code MAY remain available for development, but it MUST NOT be
+included in support, correctness, performance, or release claims. Stable scientific features MUST
+support both two- and three-dimensional models unless explicitly documented otherwise.
 
 ## Primary User Experience
 

@@ -103,7 +103,8 @@ export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddres
        poisson_inversion, poisson_normal_approx, CategoricalTable, categorical_index,
        small_permutation!, distribution_profile
 export BackendFamily, CPUFamily, CUDAFamily, AMDGPUFamily, MetalFamily,
-       BackendCapabilities, UnsupportedBackendCapability, UnsupportedBackendType, backend_capabilities,
+       BackendContractStatus, QualifiedBackend, DeferredBackend, BackendCapabilities,
+       UnsupportedBackendCapability, UnsupportedBackendType, backend_capabilities,
        require_capability, CompiledStateDescriptor, CompiledStateStorage,
        CompiledPottsState, compile_state, execution_storage, adapt_execution,
        device_storage_valid, logical_snapshot, WorkspaceRequirements, workspace_bytes,
