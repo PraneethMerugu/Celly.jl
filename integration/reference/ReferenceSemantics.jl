@@ -3,14 +3,16 @@ module ReferenceSemantics
 using SHA
 
 export AttemptAccounting, ReferenceProposal, ReferenceState, CanonicalSnapshot,
-       StateInvariantViolation, reference_mcs_attempts, proposal_probability,
+       StateInvariantViolation, CellCapacityError, DivisionRequest, reference_mcs_attempts,
+       proposal_probability, ProposalProbabilities, neighbor_copy_probabilities,
        conventional_metropolis_probability, metropolis_hastings_probability,
        accepts, record_attempt, attempt_accounting_errors, assert_reference_mcs,
        SemanticStream, SemanticAddress, semantic_address_key,
-       canonical_stencil, realized_neighbor, local_energy_change,
+       canonical_stencil, realized_neighbor, local_energy_change, volume_constraint_energy,
+       contact_hamiltonian,
        canonical_snapshot, canonical_checksum, state_invariant_errors,
        assert_valid_state, recompute_volumes, medium_occupancies, apply_copy_transaction,
-       transactional_lifecycle
+       transactional_lifecycle, apply_division_batch, retire_zero_volume, release_retired_slots
 
 """Versioned named streams, represented independently of any RNG implementation."""
 @enum SemanticStream::UInt16 begin
@@ -94,6 +96,24 @@ struct ReferenceProposal{I, O}
     end
 end
 
+"""A requested daughter geometry; requests are compacted by parent ID before assignment."""
+struct DivisionRequest{O}
+    parent::O
+    daughter_sites::Vector{Int}
+end
+
+DivisionRequest(parent, daughter_sites) = DivisionRequest(parent, collect(Int, daughter_sites))
+
+struct CellCapacityError <: Exception
+    requested::Int
+    available::Int
+end
+
+function Base.showerror(io::IO, error::CellCapacityError)
+    print(io, "fixed cell capacity cannot accommodate ", error.requested,
+        " valid divisions; only ", error.available, " slots are available")
+end
+
 """
     ReferenceState(shape, owners; active_ids, reusable_ids, generations, cell_types,
                    properties, medium_ids)
@@ -141,10 +161,38 @@ end
 reference_mcs_attempts(mutable_sites::Integer) =
     mutable_sites >= 0 ? Int(mutable_sites) : throw(ArgumentError("mutable_sites must be non-negative"))
 
+struct ProposalProbabilities{T}
+    q_forward::T
+    q_reverse::T
+    forward_multiplicity::Int
+    reverse_multiplicity::Int
+end
+
 function proposal_probability(mutable_sites::Integer, directions::Integer, ::Type{T} = Float64) where {T}
     mutable_sites > 0 || throw(ArgumentError("a proposal domain must have at least one mutable site"))
     directions > 0 || throw(ArgumentError("a proposal neighborhood must have at least one direction"))
     return inv(T(mutable_sites) * T(directions))
+end
+
+"""
+    neighbor_copy_probabilities(mutable_sites, neighbor_owners, losing_owner, gaining_owner)
+
+Reference forward and reverse mass for uniform recipient-and-direction copy proposals. The caller
+passes the recipient's neighbor owners from the common proposal snapshot; a donor identity may occur
+through several directions and every such direction contributes proposal mass.
+"""
+function neighbor_copy_probabilities(mutable_sites::Integer, neighbor_owners,
+        losing_owner, gaining_owner, ::Type{T} = Float64) where {T}
+    losing_owner != gaining_owner || throw(ArgumentError(
+        "same-owner selections are no-op attempts and have no proposal probability"))
+    directions = length(neighbor_owners)
+    base_probability = proposal_probability(mutable_sites, directions, T)
+    forward_multiplicity = count(==(gaining_owner), neighbor_owners)
+    reverse_multiplicity = count(==(losing_owner), neighbor_owners)
+    forward_multiplicity > 0 || throw(ArgumentError(
+        "a generated neighbor-copy proposal must have positive forward support"))
+    return ProposalProbabilities(base_probability * T(forward_multiplicity),
+        base_probability * T(reverse_multiplicity), forward_multiplicity, reverse_multiplicity)
 end
 
 function _validate_temperature(T)
@@ -166,12 +214,14 @@ function metropolis_hastings_probability(delta_h, temperature, q_forward, q_reve
     _validate_temperature(temperature)
     q_forward > zero(q_forward) || throw(ArgumentError("q_forward must be positive"))
     q_reverse >= zero(q_reverse) || throw(ArgumentError("q_reverse must be non-negative"))
+    q_reverse == zero(q_reverse) && return zero(temperature)
     ratio = q_reverse / q_forward
     if temperature == zero(temperature)
         return delta_h < zero(delta_h) ? one(temperature) :
                delta_h > zero(delta_h) ? zero(temperature) : min(one(temperature), ratio)
     end
-    return min(one(temperature), exp(-delta_h / temperature) * ratio)
+    log_ratio = -delta_h / temperature + log(q_reverse) - log(q_forward)
+    return log_ratio >= zero(log_ratio) ? one(temperature) : exp(log_ratio)
 end
 
 function accepts(probability, draw)
@@ -246,6 +296,58 @@ end
 function local_energy_change(energy::F, state::ReferenceState, proposal::ReferenceProposal) where {F}
     candidate = apply_copy_transaction(state, proposal; accepted = true)
     return energy(candidate) - energy(state)
+end
+
+"""Reference quadratic finite-cell volume Hamiltonian evaluated from authoritative ownership."""
+function volume_constraint_energy(state::ReferenceState, targets::AbstractDict,
+        strengths::AbstractDict)
+    volumes = recompute_volumes(state)
+    energy = 0
+    for id in state.active_ids
+        haskey(targets, id) || throw(ArgumentError("missing target volume for cell $id"))
+        haskey(strengths, id) || throw(ArgumentError("missing volume strength for cell $id"))
+        energy += strengths[id] * (volumes[id] - targets[id])^2
+    end
+    return energy
+end
+
+function _linear_site_index(coord::Tuple, dims::Tuple)
+    return LinearIndices(dims)[CartesianIndex(coord)]
+end
+
+"""
+    contact_hamiltonian(state, offsets, owner_type, interaction; boundary=:periodic, weights=nothing)
+
+Reference unordered-edge contact Hamiltonian. `owner_type(owner)` and
+`interaction(type_a, type_b)` make medium and finite-cell type semantics explicit.
+"""
+function contact_hamiltonian(state::ReferenceState, offsets, owner_type::F, interaction::G;
+        boundary = :periodic, weights = nothing) where {F, G}
+    stencil = canonical_stencil(offsets; symmetric = true)
+    weights === nothing || length(weights) == length(offsets) || throw(ArgumentError(
+        "contact weights must have one entry per declared offset"))
+    weight_for = weights === nothing ? (_ -> 1) :
+        offset -> weights[findfirst(==(offset), offsets)]
+    edges = Dict{Tuple{Int, Int}, typeof(first(stencil))}()
+    for index in CartesianIndices(state.shape)
+        coord = Tuple(index)
+        first_site = _linear_site_index(coord, state.shape)
+        for offset in stencil
+            neighbor = realized_neighbor(coord, offset, state.shape, boundary)
+            neighbor === nothing && continue
+            second_site = _linear_site_index(neighbor, state.shape)
+            first_site == second_site && continue
+            edges[minmax(first_site, second_site)] = offset
+        end
+    end
+    energy = 0
+    for ((first_site, second_site), offset) in edges
+        first_owner = state.owners[first_site]
+        second_owner = state.owners[second_site]
+        first_owner == second_owner && continue
+        energy += weight_for(offset) * interaction(owner_type(first_owner), owner_type(second_owner))
+    end
+    return energy
 end
 
 function record_attempt(accounting::AttemptAccounting, outcome::Symbol)
@@ -376,6 +478,24 @@ function _copy_state(state::ReferenceState{O, C, P}) where {O, C, P}
         properties = properties, medium_ids = copy(state.medium_ids))
 end
 
+function _property_capacity(state::ReferenceState)
+    isempty(propertynames(state.properties)) && return maximum(vcat(0, Int.(state.active_ids),
+        Int.(state.reusable_ids)))
+    capacities = map(name -> length(getproperty(state.properties, name)), propertynames(state.properties))
+    all(==(first(capacities)), capacities) || throw(ArgumentError(
+        "all schema property columns must have one shared fixed capacity"))
+    return first(capacities)
+end
+
+function _available_slots(state::ReferenceState)
+    capacity = _property_capacity(state)
+    active = Set(state.active_ids)
+    reusable = Set(state.reusable_ids)
+    O = eltype(state.active_ids)
+    fresh = O[id for id in 1:capacity if !(O(id) in active || O(id) in reusable)]
+    return sort(unique(vcat(state.reusable_ids, fresh)))
+end
+
 function recompute_volumes(state::ReferenceState)
     volumes = Dict(id => 0 for id in state.active_ids)
     for owner in state.owners
@@ -398,6 +518,75 @@ function apply_copy_transaction(state::ReferenceState, proposal::ReferencePropos
         "proposal old_owner does not match the recipient's snapshot owner"))
     candidate = _copy_state(state)
     candidate.owners[proposal.recipient] = proposal.new_owner
+    assert_valid_state(candidate)
+    return candidate
+end
+
+"""Atomically validate, allocate, and commit a deterministic batch of ordinary divisions."""
+function apply_division_batch(state::ReferenceState, requests::AbstractVector{<:DivisionRequest})
+    isempty(requests) && return state
+    assert_valid_state(state)
+    ordered = sort(collect(requests); by = request -> request.parent)
+    length(unique(request.parent for request in ordered)) == length(ordered) || throw(ArgumentError(
+        "at most one division request may target a parent in one lifecycle boundary"))
+    for request in ordered
+        request.parent in state.active_ids || throw(ArgumentError("division parent is not active"))
+        isempty(request.daughter_sites) && throw(ArgumentError(
+            "a daughter must receive at least one parent-owned site"))
+        length(unique(request.daughter_sites)) == length(request.daughter_sites) || throw(ArgumentError(
+            "daughter geometry must not repeat a site"))
+        all(site -> 1 <= site <= length(state.owners) && state.owners[site] == request.parent,
+            request.daughter_sites) || throw(ArgumentError(
+            "daughter geometry must contain only sites owned by its parent snapshot"))
+        count(==(request.parent), state.owners) > length(request.daughter_sites) || throw(ArgumentError(
+            "division must leave the parent with at least one site"))
+    end
+
+    available = _available_slots(state)
+    length(available) >= length(ordered) || throw(CellCapacityError(length(ordered), length(available)))
+    candidate = _copy_state(state)
+    for (request, child) in zip(ordered, available)
+        for site in request.daughter_sites
+            candidate.owners[site] = child
+        end
+        filter!(!=(child), candidate.reusable_ids)
+        push!(candidate.active_ids, child)
+        sort!(candidate.active_ids)
+        candidate.cell_types[child] = candidate.cell_types[request.parent]
+        candidate.generations[child] = get(candidate.generations, child, UInt64(0)) + UInt64(1)
+        for name in propertynames(candidate.properties)
+            values = getproperty(candidate.properties, name)
+            values[child] = values[request.parent]
+        end
+    end
+    assert_valid_state(candidate)
+    return candidate
+end
+
+"""Retire zero-volume cells with explicit schema reset values; reuse is deferred to the next MCS."""
+function retire_zero_volume(state::ReferenceState, reset_values::NamedTuple)
+    propertynames(reset_values) == propertynames(state.properties) || throw(ArgumentError(
+        "retirement requires one reset value for every schema property"))
+    candidate = _copy_state(state)
+    retired = sort([id for id in candidate.active_ids if count(==(id), candidate.owners) == 0])
+    for id in retired
+        filter!(!=(id), candidate.active_ids)
+        delete!(candidate.cell_types, id)
+        for name in propertynames(candidate.properties)
+            getproperty(candidate.properties, name)[id] = getproperty(reset_values, name)
+        end
+    end
+    assert_valid_state(candidate)
+    return (state = candidate, retired = retired)
+end
+
+"""Make prior-boundary retirements reusable in deterministic ascending order."""
+function release_retired_slots(state::ReferenceState, retired::AbstractVector)
+    candidate = _copy_state(state)
+    all(id -> !(id in candidate.active_ids), retired) || throw(ArgumentError(
+        "an active cell cannot be released as a reusable slot"))
+    append!(candidate.reusable_ids, retired)
+    sort!(unique!(candidate.reusable_ids))
     assert_valid_state(candidate)
     return candidate
 end

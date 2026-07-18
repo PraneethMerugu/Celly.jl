@@ -76,16 +76,23 @@ The first implementation slice is complete and runs in the dedicated `conformanc
 shard. It provides:
 
 - scalar reference MCS accounting, proposal probability, conventional Metropolis, and
-  Metropolis-Hastings acceptance;
+  Metropolis-Hastings acceptance, including explicit neighbor-owner forward/reverse multiplicities;
 - canonical logical snapshots and SHA-256 checksums independent of property declaration order;
 - state ownership, active/free-slot, generation, property-slot, finite-cell-volume, and medium
   occupancy validators;
 - all-or-nothing logical copy and lifecycle transactions plus a generic local-energy-delta oracle;
+- quadratic-volume and unordered-edge contact Hamiltonian references, including symmetric weighted
+  contact edges and medium interactions;
+- geometry-first division batches with stable parent ordering, lowest-slot allocation, whole-batch
+  capacity abort, explicit property inheritance, schema-defined retirement reset, and next-MCS slot
+  release;
 - explicit Cartesian-stencil validation and closed/periodic boundary realization, where closed
   departures are null rather than clamped self-edges;
 - versioned, generator-independent semantic RNG addresses and common failure reproduction records;
 - a test-only `AbstractConformanceAdapter` through which replacement CPU/GPU state can be checked
-  without exposing physical layouts; and
+  without exposing physical layouts, with failures wrapped in complete reproduction records;
+- an explicit numerical-policy fixture covering real and accumulation types, math, reductions, and
+  overflow choices; and
 - fixed deterministic, CI, and scheduled statistical-procedure metadata.
 
 Qualification command:

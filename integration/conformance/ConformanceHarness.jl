@@ -3,30 +3,71 @@ module ConformanceHarness
 using ..ReferenceSemantics: ReferenceState, AttemptAccounting, canonical_checksum,
     assert_valid_state, assert_reference_mcs
 
-export ConformanceCase, conformance_case_matrix, AbstractConformanceAdapter, reference_state,
-       attempt_accounting, validate_adapter, ReproductionContext, ConformanceFailure,
+export ReferenceNumericalPolicy, portable_numerical_policy, validate_numerical_policy,
+       ConformanceCase, conformance_case_matrix, AbstractConformanceAdapter, reference_state,
+       attempt_accounting, validate_adapter, qualify_adapter, ReproductionContext, ConformanceFailure,
        require_conformance, reproduction_report, StatisticalProcedure, statistical_procedure,
        assess_bernoulli, require_logical_match
+
+"""Test-only expansion of the accepted orthogonal numerical-policy choices."""
+struct ReferenceNumericalPolicy
+    real::DataType
+    accumulation::DataType
+    math::Symbol
+    reductions::Symbol
+    overflow::Symbol
+end
+
+function ReferenceNumericalPolicy(; real::DataType = Float32, accumulation::DataType = real,
+        math::Symbol = :accurate, reductions::Symbol = :deterministic,
+        overflow::Symbol = :checked)
+    policy = ReferenceNumericalPolicy(real, accumulation, math, reductions, overflow)
+    validate_numerical_policy(policy)
+    return policy
+end
+
+portable_numerical_policy(::Type{T} = Float32) where {T} =
+    ReferenceNumericalPolicy(real = T, accumulation = T)
+
+function validate_numerical_policy(policy::ReferenceNumericalPolicy)
+    policy.real <: AbstractFloat || throw(ArgumentError("primary real type must be floating-point"))
+    policy.accumulation <: AbstractFloat || throw(ArgumentError(
+        "accumulation type must be floating-point"))
+    policy.math in (:accurate, :qualified_fast) || throw(ArgumentError(
+        "math must be :accurate or :qualified_fast"))
+    policy.reductions in (:deterministic, :tolerant) || throw(ArgumentError(
+        "reductions must be :deterministic or :tolerant"))
+    policy.overflow in (:checked, :qualified_unchecked) || throw(ArgumentError(
+        "overflow must be :checked or :qualified_unchecked"))
+    return policy
+end
 
 """One logical conformance point, independent of an implementation's storage layout."""
 struct ConformanceCase
     algorithm::Symbol
     numeric_type::DataType
+    numerical_policy::ReferenceNumericalPolicy
     dimension::Int
     backend::Symbol
 end
 
 function ConformanceCase(; algorithm::Symbol, numeric_type::DataType, dimension::Integer,
-        backend::Symbol)
+        backend::Symbol, numerical_policy::ReferenceNumericalPolicy =
+            portable_numerical_policy(numeric_type))
     dimension in (2, 3) || throw(ArgumentError("Phase 3 conformance currently covers dimensions 2 and 3"))
-    return ConformanceCase(algorithm, numeric_type, Int(dimension), backend)
+    numerical_policy.real === numeric_type || throw(ArgumentError(
+        "numeric_type must match the policy primary real type"))
+    return ConformanceCase(algorithm, numeric_type, numerical_policy, Int(dimension), backend)
 end
 
 function conformance_case_matrix(; algorithms = (:sequential, :checkerboard, :lottery),
-        numeric_types = (Float32, Float64), dimensions = (2, 3), backends = (:cpu,))
-    return [ConformanceCase(algorithm = algorithm, numeric_type = numeric_type,
-        dimension = dimension, backend = backend)
-        for algorithm in algorithms, numeric_type in numeric_types,
+        numeric_types = (Float32, Float64), numerical_policies = nothing,
+        dimensions = (2, 3), backends = (:cpu,))
+    policies = numerical_policies === nothing ? portable_numerical_policy.(numeric_types) :
+        collect(numerical_policies)
+    return [ConformanceCase(algorithm = algorithm, numeric_type = policy.real,
+        numerical_policy = policy, dimension = dimension, backend = backend)
+        for algorithm in algorithms, policy in policies,
             dimension in dimensions, backend in backends]
 end
 
@@ -113,6 +154,20 @@ function require_conformance(condition::Bool, message::AbstractString, context::
         details::NamedTuple = NamedTuple())
     condition || throw(ConformanceFailure(String(message), context, details))
     return nothing
+end
+
+"""Validate an implementation adapter and preserve a complete semantic reproducer on failure."""
+function qualify_adapter(adapter::AbstractConformanceAdapter, context::ReproductionContext;
+        expected_state::Union{Nothing, ReferenceState} = nothing)
+    report = try
+        validate_adapter(adapter)
+    catch error
+        error isa ConformanceFailure && rethrow()
+        throw(ConformanceFailure("adapter invariant or accounting failure", context,
+            (exception = sprint(showerror, error),)))
+    end
+    expected_state === nothing || require_logical_match(reference_state(adapter), expected_state, context)
+    return report
 end
 
 function require_logical_match(actual::ReferenceState, expected::ReferenceState,
