@@ -71,6 +71,19 @@ struct OccupancyDerivedState
     medium_volumes::Vector{Int}
 end
 
+"""Backend-adaptable structure-of-arrays lowering of logical site ownership."""
+struct CompiledOwnership{N, T <: AbstractArray{UInt8, N}, I <: AbstractArray{UInt32, N}}
+    tags::T
+    ids::I
+end
+
+owner_at(ownership::CompiledOwnership, site::Integer) = OwnerRef(ownership.tags[site], ownership.ids[site])
+owner_at(ownership::CompiledOwnership, site::CartesianIndex) = OwnerRef(ownership.tags[site], ownership.ids[site])
+
+function Adapt.adapt_structure(to, ownership::CompiledOwnership)
+    return CompiledOwnership(Adapt.adapt(to, ownership.tags), Adapt.adapt(to, ownership.ids))
+end
+
 """Thrown when a logical state violates one or more accepted state-model invariants."""
 struct LogicalStateInvariantError <: Exception
     errors::Vector{String}
@@ -101,6 +114,17 @@ end
 
 property_values(state::LogicalPottsState, key::Symbol) = property_values(state.properties, key)
 lattice_storage(state::LogicalPottsState) = state._owners
+
+function compile_ownership(state::LogicalPottsState)
+    tags = similar(state._owners, UInt8)
+    ids = similar(state._owners, UInt32)
+    for index in eachindex(state._owners)
+        owner = state._owners[index]
+        tags[index] = owner.tag
+        ids[index] = owner.value
+    end
+    return CompiledOwnership(tags, ids)
+end
 
 function property_value(state::LogicalPottsState, key::Symbol, id::CellID)
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))

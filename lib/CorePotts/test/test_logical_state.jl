@@ -24,6 +24,10 @@ using CorePotts
     @test owner_at(state, 1) == CellOwner(1)
     @test owner_at(state, CartesianIndex(2, 1)) == CellOwner(1)
     @test owner_at(state, 1, 2) == MediumOwner(1)
+    ownership = compile_ownership(state)
+    @test ownership.tags == UInt8[1 2; 1 1]
+    @test ownership.ids == UInt32[1 1; 1 2]
+    @test owner_at(ownership, 3) == MediumOwner(1)
     @test capacity(state) == CellCapacity(4)
     @test n_cells(state) == 2
     @test active_cell_ids(state) == CellID[CellID(1), CellID(2)]
