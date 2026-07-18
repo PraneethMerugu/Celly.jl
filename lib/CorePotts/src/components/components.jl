@@ -50,11 +50,11 @@ end
 @inline update_sweep_auxiliary!(item::Any, u::AbstractPottsState, p::PottsParameters,
     cache::PottsCache, T, dt = 1.0) = nothing
 
-include("penalties/neural.jl")
-include("penalties/volume.jl")
-include("penalties/surface_area.jl")
-include("penalties/focal_point.jl")
-include("penalties/adhesion.jl")
-include("penalties/length.jl")
-include("penalties/chemotaxis.jl")
-include("penalties/connectivity.jl")
+include("energies/neural.jl")
+include("energies/volume.jl")
+include("energies/surface_area.jl")
+include("energies/focal_point.jl")
+include("energies/adhesion.jl")
+include("energies/length.jl")
+include("energies/chemotaxis.jl")
+include("constraints/connectivity.jl")

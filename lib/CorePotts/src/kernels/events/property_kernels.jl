@@ -328,4 +328,3 @@ function _update_hst_inner!(u, cache, pen, is_flex, T_val, dt, ::Val{S},
 end
 
 import SciMLBase
-

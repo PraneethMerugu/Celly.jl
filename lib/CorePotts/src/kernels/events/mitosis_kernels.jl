@@ -730,4 +730,3 @@ function process_mitosis_events!(
         p.trackers, u.cell_data, u.grid, p.topology, cache.grid_dims, ws.dev_is_modified, ev_zero)
     return ev_zero
 end
-
