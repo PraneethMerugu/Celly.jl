@@ -81,12 +81,89 @@ end
     @inbounds output[index] = input[index] * UInt32(2)
 end
 
+@kernel function _scientific_phase6_probe!(output, metadata, state, proposal_relation,
+        components, transaction, recipient, direction)
+    index = @index(Global, Linear)
+    if index == 1
+        attempt = construct_copy_attempt(
+            state, state.domain, proposal_relation, recipient, direction)
+        metadata[1] = UInt32(attempt.outcome)
+        metadata[2] = attempt.forward_multiplicity
+        metadata[3] = attempt.reverse_multiplicity
+        if is_actionable(attempt)
+            proposal = actionable_proposal(attempt)
+            volume = components.energies[1]
+            contact = components.energies[2]
+            boundary = components.energies[3]
+            field_energy = components.energies[4]
+            focal = components.energies[5]
+            drive = components.drives[1]
+            output[1] = energy_change(volume, proposal, state)
+            output[2] = energy_change(contact, proposal, state, state.domain)
+            output[3] = energy_change(boundary, proposal, state)
+            output[4] = energy_change(field_energy, proposal, state, state.domain)
+            output[5] = drive_log_bias(drive, proposal, state, state.domain)
+            output[6] = energy_change(focal, proposal, state, transaction)
+        end
+    end
+end
+
+@kernel function _scientific_evaluation_probe!(output, metadata, state, components,
+        proposal, transaction, connectivity_workspace)
+    index = @index(Global, Linear)
+    if index == 1
+        context = ScientificProposalContext(
+            state, transaction, connectivity_workspace, UInt32(4))
+        evaluation = evaluate_copy(components, proposal, context, Float32)
+        output[1] = evaluation.delta_h
+        output[2] = evaluation.drive_log_bias
+        output[3] = evaluation.kinetic_modifier
+        output[4] = evaluation.yield_barrier
+        metadata[1] = evaluation.constraints_allowed ? UInt32(1) : UInt32(0)
+    end
+end
+
+@kernel function _scientific_query_probe!(output, metadata, state, connectivity,
+        connectivity_proposal, connectivity_workspace, query_relation,
+        medium_types, neighbor_workspace)
+    index = @index(Global, Linear)
+    if index == 1
+        metadata[1] = is_allowed(connectivity, connectivity_proposal, state,
+            connectivity_workspace, UInt32(1)) ? UInt32(1) : UInt32(0)
+        metadata[2] = UInt32(contact_edge_count(state, state.domain, query_relation,
+            CellOwner(1), AnyFiniteCell(), medium_types))
+        metadata[3] = UInt32(boundary_site_count(state, state.domain, query_relation,
+            CellOwner(1), AnyFiniteCell(), medium_types))
+        output[1] = contact_measure(state, state.domain, query_relation,
+            CellOwner(1), AnyFiniteCell(), medium_types)
+        metadata[4] = UInt32(neighbor_cell_count(neighbor_workspace, state,
+            state.domain, query_relation, CellOwner(1), AnyFiniteCell(), medium_types,
+            UInt32(1)))
+        output[2] = neighbor_property_sum(state, CellPropertyRef(:volume_strength),
+            neighbor_workspace, state.domain, query_relation, CellOwner(1),
+            AnyFiniteCell(), medium_types, UInt32(2))
+        metadata[5] = UInt32(global_interface_measure(state, state.domain,
+            query_relation, AnyFiniteCell(), AnyFiniteCell(),
+            medium_types))
+    end
+end
+
+@kernel function _normalized_surface_probe!(output, state, component, proposal)
+    index = @index(Global, Linear)
+    if index == 1
+        output[1] = energy_change(component, proposal, state)
+    end
+end
+
 function _backend_adaptor(name::String)
     name == "cpu" && return Array
-    module_name = name == "metal" ? :Metal : name == "cuda" ? :CUDA :
-                  name == "amdgpu" ? :AMDGPU : throw(ArgumentError(
+    module_name = name == "metal" ? :Metal :
+                  name == "cuda" ? :CUDA :
+                  name == "amdgpu" ? :AMDGPU :
+                  throw(ArgumentError(
         "Unknown backend `$name`"))
-    isdefined(Main, module_name) || error("$module_name must be loaded before RNG qualification")
+    isdefined(Main, module_name) ||
+        error("$module_name must be loaded before RNG qualification")
     backend_module = getfield(Main, module_name)
     array_name = name == "metal" ? :MtlArray : name == "cuda" ? :CuArray : :ROCArray
     return getproperty(backend_module, array_name)
@@ -102,9 +179,10 @@ function qualify_rng_backend(name::String)
     contract = Philox4x32x10V1()
     seed = UInt64(0x706f7474732d7631)
     addresses = [RNGAddress(stream = ProposalDirectionStream, mcs = 11,
-        subround = 3, operation = 7, entity_kind = SiteEntity, entity = index,
-        invocation = 2, draw = 5) for index in 1:257]
-    expected = reduce(vcat, collect(rng_words(contract, seed, address)) for address in addresses)
+                     subround = 3, operation = 7, entity_kind = SiteEntity, entity = index,
+                     invocation = 2, draw = 5) for index in 1:257]
+    expected = reduce(vcat, collect(rng_words(contract, seed, address))
+    for address in addresses)
     device_addresses = _backend_array(name, addresses)
     output = similar(device_addresses, UInt32, 4 * length(addresses))
     backend = KernelAbstractions.get_backend(device_addresses)
@@ -115,8 +193,8 @@ function qualify_rng_backend(name::String)
     observed == expected || error("$name Philox words differ from the CPU contract")
 
     distribution_addresses = [RNGAddress(stream = HSTStream, mcs = 23,
-        subround = 2, operation = 9, entity_kind = SiteEntity, entity = index,
-        draw = 11) for index in 1:4096]
+                                  subround = 2, operation = 9, entity_kind = SiteEntity, entity = index,
+                                  draw = 11) for index in 1:4096]
     device_distribution_addresses = _backend_array(name, distribution_addresses)
     table = CategoricalTable((1.0f0, 2.0f0, 3.0f0))
     floating_output = similar(device_distribution_addresses, Float32,
@@ -124,7 +202,8 @@ function qualify_rng_backend(name::String)
     integer_output = similar(device_distribution_addresses, Int32,
         5 * length(distribution_addresses))
     distribution_kernel = _semantic_distribution_probe!(backend, 128)
-    distribution_kernel(floating_output, integer_output, device_distribution_addresses, table,
+    distribution_kernel(
+        floating_output, integer_output, device_distribution_addresses, table,
         contract, seed; ndrange = length(distribution_addresses))
     KernelAbstractions.synchronize(backend)
     observed_floating = Array(floating_output)
@@ -170,7 +249,8 @@ function qualify_rng_backend(name::String)
     normals32 = observed_floating[2:2:end]
     poisson_exact32 = observed_integer[4:5:end]
     poisson_approx32 = observed_integer[5:5:end]
-    abs(mean(normals32)) < 0.06 || error("$name Float32 normal mean is outside qualification")
+    abs(mean(normals32)) < 0.06 ||
+        error("$name Float32 normal mean is outside qualification")
     abs(var(normals32) - 1) < 0.10 || error(
         "$name Float32 normal variance is outside qualification")
     abs(mean(poisson_exact32) - 4) < 0.12 || error(
@@ -189,13 +269,15 @@ function qualify_rng_backend(name::String)
         poisson64 = similar(device_distribution_addresses, Int32,
             length(distribution_addresses))
         float64_kernel = _semantic_float64_probe!(backend, 128)
-        float64_kernel(floating64, poisson64, device_distribution_addresses, contract, seed;
+        float64_kernel(
+            floating64, poisson64, device_distribution_addresses, contract, seed;
             ndrange = length(distribution_addresses))
         KernelAbstractions.synchronize(backend)
         observed64 = Array(floating64)
         poisson_observed64 = Array(poisson64)
         normal64 = observed64[2:2:end]
-        abs(mean(normal64)) < 0.06 || error("$name Float64 normal mean is outside qualification")
+        abs(mean(normal64)) < 0.06 ||
+            error("$name Float64 normal mean is outside qualification")
         abs(var(normal64) - 1) < 0.10 || error(
             "$name Float64 normal variance is outside qualification")
         abs(mean(poisson_observed64) - 4) < 0.12 || error(
@@ -216,7 +298,7 @@ function qualify_rng_backend(name::String)
             "poisson_normal_approx"],
         "floating_distribution_tolerance" => "8eps(Float32)",
         "distribution_samples" => length(distribution_addresses),
-        "float64" => float64_report,
+        "float64" => float64_report
     )
 end
 
@@ -239,7 +321,8 @@ function qualify_execution_backend(name::String)
     synchronize_observation!(plan)
     observed = Array(output)
     expected = 2 .* (input_host .+ UInt32(1))
-    observed == expected || error("$name ordered execution pipeline produced incorrect output")
+    observed == expected ||
+        error("$name ordered execution pipeline produced incorrect output")
 
     state_metrics = ExecutionMetrics()
     state_plan = ExecutionPlan(backend; block_size = 128, metrics = state_metrics)
@@ -257,7 +340,8 @@ function qualify_execution_backend(name::String)
         "$name compiled state does not round-trip to its logical snapshot")
 
     warm_launch_host_bytes = name == "cpu" ?
-        @allocated(launch!(plan, first_kernel, stage, input; ndrange = length(input))) : missing
+                             @allocated(launch!(
+        plan, first_kernel, stage, input; ndrange = length(input))) : missing
     name == "cpu" && synchronize_observation!(plan)
     capabilities = plan.capabilities
     return Dict(
@@ -279,7 +363,328 @@ function qualify_execution_backend(name::String)
         "initialization_host_to_device_transfers" => state_metrics.host_to_device_transfers,
         "snapshot_device_to_host_transfers" => state_metrics.device_to_host_transfers,
         "snapshot_synchronizations" => state_metrics.host_synchronizations,
-        "elements" => length(observed),
+        "elements" => length(observed)
+    )
+end
+
+function _phase6_fixture(::Val{N}) where {N}
+    dims = ntuple(_ -> 4, Val(N))
+    volume = QuadraticVolumeHamiltonian(number_type = Float32)
+    spacing = ntuple(_ -> 1.0f0, Val(N))
+    surface_relation = first_shell_relation(SurfaceRole(), Val(N); spacing)
+    boundary = QuadraticBoundaryHamiltonian(BoundaryEdgeCount(), surface_relation;
+        number_type = Float32)
+    schema = merge_property_schemas(required_properties(volume), required_properties(boundary))
+    owners = fill(MediumOwner(1), dims)
+    first_base = ntuple(_ -> 1, Val(N))
+    first_axis = Base.setindex(first_base, 2, 1)
+    first_second_axis = Base.setindex(first_base, 2, 2)
+    second_base = Base.setindex(first_base, 3, 1)
+    second_axis = Base.setindex(first_base, 4, 1)
+    second_second_axis = Base.setindex(second_base, 2, 2)
+    owners[first_base...] = owners[first_axis...] = owners[first_second_axis...] = CellOwner(1)
+    owners[second_base...] = owners[second_axis...] = owners[second_second_axis...] = CellOwner(2)
+    logical = LogicalPottsState(owners, CellCapacity(2);
+        cell_types = Dict(CellID(1) => CellTypeID(2), CellID(2) => CellTypeID(2)),
+        medium_domains = [MediumID(1)], property_schema = schema)
+    property_values(logical, :target_volume) .= 4.0f0
+    property_values(logical, :volume_strength) .= 1.25f0
+    property_values(logical, :target_boundary) .= 8
+    property_values(logical, :boundary_strength) .= 0.75f0
+    domain = CartesianDomain(dims; spacing)
+    proposal_relation = first_shell_relation(ProposalRole(), Val(N);
+        spacing = domain.spacing)
+    contact_relation = first_shell_relation(ContactRole(), Val(N);
+        spacing = domain.spacing)
+    query_relation = first_shell_relation(SpatialQueryRole(), Val(N);
+        spacing = domain.spacing, symmetric = true)
+    connectivity_relation = first_shell_relation(ConnectivityRole(), Val(N);
+        spacing = domain.spacing)
+    contact = UnorderedContactHamiltonian(Float32[0 3; 3 1],
+        MediumTypeTable(MediumID(1) => CellTypeID(1)), contact_relation)
+    boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
+    moment_tracker = UnwrappedMomentTracker(
+        connectivity_relation, (CellID(1), CellID(2)); number_type = Float32)
+    compiled = compile_scientific_state(logical, domain, boundary_tracker; moment_tracker)
+    coupling = OwnerScalarCoupling(:volume_strength, MediumID(1) => 0.0f0;
+        number_type = Float32)
+    field = CellCenteredField(reshape(Float32.(1:prod(dims)), dims);
+        interpolation = NearestFieldInterpolation())
+    field_energy = ExternalFieldOccupancyHamiltonian(field, coupling; energy_scale = 1.0f0)
+    drive = ChemotaxisDrive(field, coupling, LinearResponse(), ExtensionChemotaxis())
+    selected = nothing
+    for recipient in eachindex(lattice_storage(logical))
+        for direction in 1:direction_count(proposal_relation)
+            candidate = construct_copy_attempt(
+                logical, domain, proposal_relation, recipient, direction)
+            if is_actionable(candidate)
+                proposal = actionable_proposal(candidate)
+                if is_medium_owner(proposal.losing) && is_cell_owner(proposal.gaining)
+                    selected = (candidate, recipient, direction)
+                    break
+                end
+            end
+        end
+        selected === nothing || break
+    end
+    selected === nothing &&
+        error("internal Phase 6 qualification has no extension proposal")
+    attempt, recipient, direction = selected
+    proposal = actionable_proposal(attempt)
+    transaction = stage_copy_transaction(
+        compiled, boundary_tracker, proposal; moment_tracker)
+    focal = FocalPointSpringHamiltonian(FocalPointLink(logical, CellID(1), CellID(2);
+        strength = 1.25f0, target_length = 2.0f0))
+    connectivity = PreserveConnectedCells(connectivity_relation)
+    linear = LinearIndices(dims)
+    bridge_recipient = linear[first_base...]
+    bridge_donor = linear[second_axis...]
+    connectivity_proposal = CopyProposal(bridge_recipient, bridge_donor,
+        CellOwner(1), CellOwner(2))
+    medium_types = MediumTypeTable(MediumID(1) => CellTypeID(1))
+    return (; logical, domain, proposal_relation, volume, contact, boundary,
+        boundary_tracker, moment_tracker, compiled, field_energy, drive, focal,
+        proposal, transaction, recipient, direction, connectivity,
+        connectivity_proposal, query_relation, medium_types,
+        connectivity_workspace = ConnectivityWorkspace(prod(dims)),
+        neighbor_workspace = DistinctNeighborWorkspace(nslots(capacity(logical))))
+end
+
+function _phase6_normalized_surface_fixture(::Val{N}) where {N}
+    dims = ntuple(_ -> 6, Val(N))
+    spacing = ntuple(_ -> 1.0f0, Val(N))
+    domain = CartesianDomain(dims; spacing)
+    relation = normalized_kernel_relation(Val(N); spacing = domain.spacing)
+    metric = NormalizedKernelMeasure(domain, relation)
+    component = QuadraticBoundaryHamiltonian(metric, relation;
+        target = :target_normalized_boundary,
+        strength = :normalized_boundary_strength, number_type = Float32)
+    owners = fill(MediumOwner(1), dims)
+    first = ntuple(_ -> 2, Val(N))
+    second = Base.setindex(first, 3, 1)
+    third = Base.setindex(first, 3, 2)
+    owners[first...] = owners[second...] = owners[third...] = CellOwner(1)
+    logical = LogicalPottsState(owners, CellCapacity(1);
+        cell_types = Dict(CellID(1) => CellTypeID(1)), medium_domains = [MediumID(1)],
+        property_schema = required_properties(component))
+    property_values(logical, :target_normalized_boundary)[1] = 5.0f0
+    property_values(logical, :normalized_boundary_strength)[1] = 0.75f0
+    proposal_relation = first_shell_relation(ProposalRole(), Val(N);
+        spacing = domain.spacing)
+    proposal = nothing
+    for recipient in eachindex(lattice_storage(logical))
+        for direction in 1:direction_count(proposal_relation)
+            attempt = construct_copy_attempt(
+                logical, domain, proposal_relation, recipient, direction)
+            if is_actionable(attempt)
+                proposal = actionable_proposal(attempt)
+                break
+            end
+        end
+        proposal === nothing || break
+    end
+    proposal === nothing && error(
+        "internal Phase 6 normalized-surface qualification has no proposal")
+    tracker = BoundaryMeasureTracker(metric, relation)
+    compiled = compile_scientific_state(logical, domain, tracker)
+    transaction = stage_copy_transaction(compiled, tracker, proposal)
+    return (; logical, domain, component, tracker, compiled, proposal, transaction)
+end
+
+"""Qualify the Phase 6 proposal, component, field, and staged-commit device path."""
+function qualify_scientific_backend(name::String)
+    adaptor = _backend_adaptor(name)
+    compiled_bytes = Dict{String, Int}()
+    workspace_byte_counts = Dict{String, Int}()
+    for N in (2, 3)
+        fixture = _phase6_fixture(Val(N))
+        normalized = _phase6_normalized_surface_fixture(Val(N))
+        runtime = scientific_execution(fixture.compiled)
+        oracle_neighbor_workspace = DistinctNeighborWorkspace(
+            nslots(capacity(fixture.logical)))
+        oracle_connectivity_workspace = ConnectivityWorkspace(prod(fixture.domain.dims))
+        host_components = ScientificComponentSet(
+            energies = (fixture.volume, fixture.contact, fixture.boundary,
+                fixture.field_energy, fixture.focal),
+            drives = (fixture.drive,),
+            constraints = (fixture.connectivity,
+                FixedFocalEndpointConstraint(fixture.focal)),
+            kinetic_modifiers = (PositiveYield(0.75f0),)
+        )
+        oracle_context = ScientificProposalContext(runtime, fixture.transaction;
+            connectivity_workspace = oracle_connectivity_workspace, workspace_epoch = 4)
+        oracle_evaluation = evaluate_copy(
+            host_components, fixture.proposal, oracle_context, Float32)
+        expected_components = Float32[
+            energy_change(fixture.volume, fixture.proposal, fixture.logical),
+            energy_change(fixture.contact, fixture.proposal, fixture.logical, fixture.domain),
+            energy_change(fixture.boundary, fixture.proposal, fixture.logical, fixture.domain),
+            energy_change(fixture.field_energy, fixture.proposal, fixture.logical, fixture.domain),
+            drive_log_bias(fixture.drive, fixture.proposal, fixture.logical, fixture.domain),
+            energy_change(fixture.focal, fixture.proposal, fixture.compiled,
+                fixture.transaction)
+        ]
+        expected_evaluation = Float32[
+            oracle_evaluation.delta_h,
+            oracle_evaluation.drive_log_bias,
+            oracle_evaluation.kinetic_modifier,
+            oracle_evaluation.yield_barrier
+        ]
+        expected_queries = Float32[
+            contact_measure(runtime, runtime.domain, fixture.query_relation,
+                CellOwner(1), AnyFiniteCell(), fixture.medium_types),
+            neighbor_property_sum(runtime, CellPropertyRef(:volume_strength),
+                oracle_neighbor_workspace, runtime.domain, fixture.query_relation,
+                CellOwner(1), AnyFiniteCell(), fixture.medium_types, UInt32(2))
+        ]
+        expected_proposal_metadata = UInt32[
+            1,
+            fixture.proposal.forward_multiplicity,
+            fixture.proposal.reverse_multiplicity
+        ]
+        expected_evaluation_metadata = UInt32[
+            oracle_evaluation.constraints_allowed ? 1 : 0,
+        ]
+        expected_query_metadata = UInt32[
+            is_allowed(fixture.connectivity, fixture.connectivity_proposal, runtime,
+                oracle_connectivity_workspace, UInt32(1)) ? 1 : 0,
+            contact_edge_count(runtime, runtime.domain, fixture.query_relation,
+                CellOwner(1), AnyFiniteCell(), fixture.medium_types),
+            boundary_site_count(runtime, runtime.domain, fixture.query_relation,
+                CellOwner(1), AnyFiniteCell(), fixture.medium_types),
+            neighbor_cell_count(oracle_neighbor_workspace, runtime, runtime.domain,
+                fixture.query_relation, CellOwner(1), AnyFiniteCell(), fixture.medium_types,
+                UInt32(3)),
+            global_interface_measure(runtime, runtime.domain, fixture.query_relation,
+                AnyFiniteCell(), AnyFiniteCell(), fixture.medium_types)
+        ]
+        adapted = Adapt.adapt(adaptor, fixture.compiled)
+        scientific_storage_valid(adapted) || error(
+            "$name adapted scientific state contains invalid or mixed-backend values")
+        components = Adapt.adapt(adaptor, host_components)
+        connectivity_workspace = Adapt.adapt(adaptor, fixture.connectivity_workspace)
+        neighbor_workspace = Adapt.adapt(adaptor, fixture.neighbor_workspace)
+        validate_workspace(connectivity_workspace, scientific_execution(adapted))
+        validate_workspace(neighbor_workspace, scientific_execution(adapted))
+        component_output = _backend_array(
+            name, zeros(Float32, length(expected_components)))
+        proposal_metadata = _backend_array(
+            name, zeros(UInt32, length(expected_proposal_metadata)))
+        evaluation_output = _backend_array(
+            name, zeros(Float32, length(expected_evaluation)))
+        evaluation_metadata = _backend_array(
+            name, zeros(UInt32, length(expected_evaluation_metadata)))
+        query_output = _backend_array(name, zeros(Float32, length(expected_queries)))
+        query_metadata = _backend_array(
+            name, zeros(UInt32, length(expected_query_metadata)))
+        backend = KernelAbstractions.get_backend(component_output)
+        probe = _scientific_phase6_probe!(backend, 1)
+        probe(component_output, proposal_metadata, scientific_execution(adapted),
+            fixture.proposal_relation, components, fixture.transaction,
+            fixture.recipient, fixture.direction;
+            ndrange = 1)
+        evaluation_probe = _scientific_evaluation_probe!(backend, 1)
+        evaluation_probe(evaluation_output, evaluation_metadata,
+            scientific_execution(adapted), components, fixture.proposal,
+            fixture.transaction, connectivity_workspace; ndrange = 1)
+        query_probe = _scientific_query_probe!(backend, 1)
+        query_probe(query_output, query_metadata, scientific_execution(adapted),
+            fixture.connectivity, fixture.connectivity_proposal,
+            connectivity_workspace, fixture.query_relation, fixture.medium_types,
+            neighbor_workspace; ndrange = 1)
+        KernelAbstractions.synchronize(backend)
+        observed_components = Array(component_output)
+        observed_evaluation = Array(evaluation_output)
+        observed_queries = Array(query_output)
+        all(isapprox.(observed_components, expected_components;
+            rtol = 16eps(Float32), atol = 16eps(Float32))) || error(
+            "$name Phase 6 $N-D component outputs differ from the CPU oracle")
+        all(isapprox.(observed_evaluation, expected_evaluation;
+            rtol = 16eps(Float32), atol = 16eps(Float32))) || error(
+            "$name Phase 6 $N-D generic evaluation differs from the CPU oracle")
+        all(isapprox.(observed_queries, expected_queries;
+            rtol = 16eps(Float32), atol = 16eps(Float32))) || error(
+            "$name Phase 6 $N-D query outputs differ from the CPU oracle")
+        Array(proposal_metadata) == expected_proposal_metadata || error(
+            "$name Phase 6 $N-D proposal metadata differs from the CPU oracle")
+        Array(evaluation_metadata) == expected_evaluation_metadata || error(
+            "$name Phase 6 $N-D evaluation metadata differs from the CPU oracle")
+        Array(query_metadata) == expected_query_metadata || error(
+            "$name Phase 6 $N-D query metadata differs from the CPU oracle")
+
+        normalized_expected = energy_change(normalized.component, normalized.proposal,
+            normalized.logical, normalized.domain)
+        adapted_normalized = Adapt.adapt(adaptor, normalized.compiled)
+        scientific_storage_valid(adapted_normalized) || error(
+            "$name adapted normalized-surface state contains invalid values")
+        normalized_output = _backend_array(name, zeros(Float32, 1))
+        normalized_backend = KernelAbstractions.get_backend(normalized_output)
+        normalized_probe = _normalized_surface_probe!(normalized_backend, 1)
+        normalized_probe(normalized_output, scientific_execution(adapted_normalized),
+            normalized.component, normalized.proposal; ndrange = 1)
+        normalized_metrics = ExecutionMetrics()
+        normalized_plan = ExecutionPlan(
+            normalized_backend; block_size = 1, metrics = normalized_metrics)
+        launch_staged_commit!(normalized_plan, adapted_normalized,
+            normalized.transaction; accepted = true)
+        normalized_metrics.host_synchronizations == 0 || error(
+            "$name Phase 6 normalized-surface path introduced a host synchronization")
+        KernelAbstractions.synchronize(normalized_backend)
+        isapprox(Array(normalized_output)[1], normalized_expected;
+            rtol = 16eps(Float32), atol = 16eps(Float32)) || error(
+            "$name Phase 6 $N-D normalized-surface delta differs from the CPU oracle")
+        normalized_oracle = compile_scientific_state(
+            normalized.logical, normalized.domain, normalized.tracker)
+        commit_staged!(normalized_oracle, normalized.transaction; accepted = true)
+        all(isapprox.(Array(adapted_normalized.trackers.boundary_measures),
+            normalized_oracle.trackers.boundary_measures;
+            rtol = 16eps(Float32), atol = 16eps(Float32))) || error(
+            "$name Phase 6 $N-D normalized-surface commit differs from recomputation")
+
+        metrics = ExecutionMetrics()
+        plan = ExecutionPlan(backend; block_size = 1, metrics)
+        launch_staged_commit!(plan, adapted, fixture.transaction; accepted = true)
+        metrics.host_synchronizations == 0 || error(
+            "$name Phase 6 staged commit introduced an internal host synchronization")
+        KernelAbstractions.synchronize(backend)
+        expected_compiled = compile_scientific_state(fixture.logical, fixture.domain,
+            fixture.boundary_tracker; moment_tracker = fixture.moment_tracker)
+        commit_staged!(expected_compiled, fixture.transaction; accepted = true)
+        Array(adapted.potts.storage.ownership.ids) ==
+        expected_compiled.potts.storage.ownership.ids || error(
+            "$name staged ownership commit differs from the CPU oracle")
+        Array(adapted.trackers.finite_volumes) ==
+        expected_compiled.trackers.finite_volumes || error(
+            "$name staged volume commit differs from the CPU oracle")
+        Array(adapted.trackers.boundary_measures) ==
+        expected_compiled.trackers.boundary_measures || error(
+            "$name staged boundary commit differs from the CPU oracle")
+        all(map(==, map(Array, adapted.trackers.moments.coordinate_sums),
+            expected_compiled.trackers.moments.coordinate_sums)) || error(
+            "$name staged moment commit differs from the CPU oracle")
+        compiled_bytes[string(N, "D")] = scientific_state_bytes(adapted)
+        workspace_byte_counts[string(N, "D")] = workspace_bytes(connectivity_workspace) +
+                                                workspace_bytes(neighbor_workspace)
+    end
+
+    return Dict(
+        "backend" => name,
+        "dimensions" => [2, 3],
+        "number_type" => "Float32",
+        "proposal_conformance" => true,
+        "volume_delta_conformance" => true,
+        "contact_delta_conformance" => true,
+        "boundary_delta_conformance" => true,
+        "normalized_surface_conformance" => true,
+        "field_energy_conformance" => true,
+        "chemotaxis_conformance" => true,
+        "focal_point_conformance" => true,
+        "connectivity_conformance" => true,
+        "spatial_query_conformance" => true,
+        "transaction_conformance" => true,
+        "internal_host_synchronizations" => 0,
+        "compiled_bytes" => compiled_bytes,
+        "workspace_bytes" => workspace_byte_counts
     )
 end
 

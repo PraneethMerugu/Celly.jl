@@ -11,11 +11,16 @@ struct OwnerRef
     value::UInt32
 
     function OwnerRef(tag::UInt8, value::UInt32)
-        tag in (0x01, 0x02) || throw(ArgumentError("owner tag must identify a cell or medium domain"))
+        tag in (0x01, 0x02) ||
+            throw(ArgumentError("owner tag must identify a cell or medium domain"))
         value > 0 || throw(ArgumentError("owner identity must be positive"))
         new(tag, value)
     end
+
+    OwnerRef(tag::UInt8, value::UInt32, ::Val{:unchecked}) = new(tag, value)
 end
+
+@inline _owner_ref_unchecked(tag::UInt8, value::UInt32) = OwnerRef(tag, value, Val(:unchecked))
 
 const _CELL_OWNER_TAG = UInt8(1)
 const _MEDIUM_OWNER_TAG = UInt8(2)
@@ -30,10 +35,14 @@ MediumOwner(id::Integer) = MediumOwner(MediumID(id))
 
 is_cell_owner(owner::OwnerRef) = owner.tag == _CELL_OWNER_TAG
 is_medium_owner(owner::OwnerRef) = owner.tag == _MEDIUM_OWNER_TAG
-cell_id(owner::OwnerRef) = is_cell_owner(owner) ? CellID(owner.value) :
+function cell_id(owner::OwnerRef)
+    is_cell_owner(owner) ? CellID(owner.value) :
     throw(ArgumentError("owner $owner is not a finite cell"))
-medium_id(owner::OwnerRef) = is_medium_owner(owner) ? MediumID(owner.value) :
+end
+function medium_id(owner::OwnerRef)
+    is_medium_owner(owner) ? MediumID(owner.value) :
     throw(ArgumentError("owner $owner is not a medium domain"))
+end
 
 function Base.show(io::IO, owner::OwnerRef)
     if is_cell_owner(owner)
@@ -77,8 +86,12 @@ struct CompiledOwnership{N, T <: AbstractArray{UInt8, N}, I <: AbstractArray{UIn
     ids::I
 end
 
-owner_at(ownership::CompiledOwnership, site::Integer) = OwnerRef(ownership.tags[site], ownership.ids[site])
-owner_at(ownership::CompiledOwnership, site::CartesianIndex) = OwnerRef(ownership.tags[site], ownership.ids[site])
+function owner_at(ownership::CompiledOwnership, site::Integer)
+    _owner_ref_unchecked(ownership.tags[site], ownership.ids[site])
+end
+function owner_at(ownership::CompiledOwnership, site::CartesianIndex)
+    _owner_ref_unchecked(ownership.tags[site], ownership.ids[site])
+end
 
 function Adapt.adapt_structure(to, ownership::CompiledOwnership)
     return CompiledOwnership(Adapt.adapt(to, ownership.tags), Adapt.adapt(to, ownership.ids))
@@ -112,7 +125,9 @@ mutable struct LogicalPottsState{N, P <: PropertyStore} <: AbstractPottsState
     _derived::OccupancyDerivedState
 end
 
-property_values(state::LogicalPottsState, key::Symbol) = property_values(state.properties, key)
+function property_values(state::LogicalPottsState, key::Symbol)
+    property_values(state.properties, key)
+end
 lattice_storage(state::LogicalPottsState) = state._owners
 
 function compile_ownership(state::LogicalPottsState)
@@ -134,7 +149,8 @@ end
 function set_cell_property!(state::LogicalPottsState, key::Symbol, id::CellID, new_value)
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))
     descriptor = property_descriptor(state.properties.schema, key)
-    descriptor.mutability === MutableProperty || throw(ArgumentError("property `$key` is read-only"))
+    descriptor.mutability === MutableProperty ||
+        throw(ArgumentError("property `$key` is read-only"))
     values = property_values(state, key)
     values[Int(value(id))] = convert(eltype(values), new_value)
     return state
@@ -142,11 +158,15 @@ end
 
 capacity(state::LogicalPottsState) = state._capacity
 n_cells(state::LogicalPottsState) = count(state._active)
-active_cell_ids(state::LogicalPottsState) = CellID[CellID(index) for index in eachindex(state._active) if state._active[index]]
+function active_cell_ids(state::LogicalPottsState)
+    CellID[CellID(index) for index in eachindex(state._active) if state._active[index]]
+end
 reusable_cell_slots(state::LogicalPottsState) = copy(state._reusable)
 medium_ids(state::LogicalPottsState) = copy(state._medium_ids)
 generation(state::LogicalPottsState, id::CellID) = state._generations[Int(value(id))]
-is_active(state::LogicalPottsState, id::CellID) = Int(value(id)) <= nslots(capacity(state)) && state._active[Int(value(id))]
+function is_active(state::LogicalPottsState, id::CellID)
+    Int(value(id)) <= nslots(capacity(state)) && state._active[Int(value(id))]
+end
 
 function cell_type(state::LogicalPottsState, id::CellID)
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))
@@ -155,11 +175,13 @@ end
 
 owner_at(state::LogicalPottsState, site::CartesianIndex) = state._owners[site]
 owner_at(state::LogicalPottsState, site::Integer) = state._owners[site]
-owner_at(state::LogicalPottsState, coordinates::Vararg{Integer, N}) where {N} = state._owners[coordinates...]
+function owner_at(state::LogicalPottsState, coordinates::Vararg{Integer, N}) where {N}
+    state._owners[coordinates...]
+end
 lattice_size(state::LogicalPottsState) = size(state._owners)
 derived_state(state::LogicalPottsState) = state._derived
 
-finite_volume(state::LogicalPottsState, id::CellID) = begin
+function finite_volume(state::LogicalPottsState, id::CellID)
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))
     state._derived.finite_volumes[Int(value(id))]
 end
@@ -172,7 +194,8 @@ end
 
 function _validated_slot_index(id::CellID, capacity::CellCapacity)
     index = Int(value(id))
-    index <= nslots(capacity) || throw(ArgumentError("cell $id exceeds fixed capacity $capacity"))
+    index <= nslots(capacity) ||
+        throw(ArgumentError("cell $id exceeds fixed capacity $capacity"))
     return index
 end
 
@@ -202,22 +225,30 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
         media::Vector{MediumID}, properties::PropertyStore, derived::OccupancyDerivedState)
     errors = String[]
     slot_count = nslots(capacity)
-    length(active) == slot_count || push!(errors, "active-slot mask must cover fixed capacity")
-    length(generations) == slot_count || push!(errors, "generation table must cover fixed capacity")
-    length(cell_types) == slot_count || push!(errors, "cell-type table must cover fixed capacity")
-    length(unique(media)) == length(media) || push!(errors, "medium-domain IDs must be unique")
-    length(unique(reusable)) == length(reusable) || push!(errors, "reusable cell slots must be unique")
-    issorted(reusable; by = value) || push!(errors, "reusable cell slots must be in ascending order")
+    length(active) == slot_count ||
+        push!(errors, "active-slot mask must cover fixed capacity")
+    length(generations) == slot_count ||
+        push!(errors, "generation table must cover fixed capacity")
+    length(cell_types) == slot_count ||
+        push!(errors, "cell-type table must cover fixed capacity")
+    length(unique(media)) == length(media) ||
+        push!(errors, "medium-domain IDs must be unique")
+    length(unique(reusable)) == length(reusable) ||
+        push!(errors, "reusable cell slots must be unique")
+    issorted(reusable; by = value) ||
+        push!(errors, "reusable cell slots must be in ascending order")
 
     reusable_indices = Int[value(slot) for slot in reusable]
     all(index -> 1 <= index <= slot_count, reusable_indices) || push!(errors,
         "reusable cell slots must lie within fixed capacity")
     for index in 1:min(length(active), length(cell_types))
         if active[index]
-            cell_types[index] > 0 || push!(errors, "every active finite cell must have one cell type")
+            cell_types[index] > 0 ||
+                push!(errors, "every active finite cell must have one cell type")
             index in reusable_indices && push!(errors, "no active cell may be reusable")
         else
-            cell_types[index] == 0 || push!(errors, "inactive slots must not retain a cell type")
+            cell_types[index] == 0 ||
+                push!(errors, "inactive slots must not retain a cell type")
         end
     end
 
@@ -227,7 +258,7 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
     for owner in owners
         if is_cell_owner(owner)
             owner.value <= value(capacity) || (push!(errors,
-                "finite lattice owner exceeds fixed capacity"); continue)
+                    "finite lattice owner exceeds fixed capacity"); continue)
             index = Int(owner.value)
             index <= length(active) && active[index] || push!(errors,
                 "every finite lattice owner must be active")
@@ -243,8 +274,9 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
         end
     end
     for index in 1:min(length(active), slot_count)
-        active[index] && finite_occupancy[index] == 0 && push!(errors,
-            "every active finite cell must own at least one site")
+        active[index] && finite_occupancy[index] == 0 &&
+            push!(errors,
+                "every active finite cell must own at least one site")
     end
 
     for descriptor in properties.schema.descriptors
@@ -254,8 +286,9 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
         if descriptor.retirement === ResetOnRetirement
             default = _default_property_value(descriptor)
             for index in 1:min(length(active), length(values))
-                !active[index] && values[index] != default && push!(errors,
-                    "retired slot $index must hold reset value for property `$(descriptor.key)`")
+                !active[index] && values[index] != default &&
+                    push!(errors,
+                        "retired slot $index must hold reset value for property `$(descriptor.key)`")
             end
         end
     end
@@ -266,9 +299,11 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
     return unique(errors)
 end
 
-state_invariant_errors(state::LogicalPottsState) = _logical_state_errors(state._owners,
-    state._capacity, state._active, state._reusable, state._generations, state._cell_types,
-    state._medium_ids, state.properties, state._derived)
+function state_invariant_errors(state::LogicalPottsState)
+    _logical_state_errors(state._owners,
+        state._capacity, state._active, state._reusable, state._generations, state._cell_types,
+        state._medium_ids, state.properties, state._derived)
+end
 
 function assert_valid_state(state::LogicalPottsState)
     errors = state_invariant_errors(state)
@@ -286,18 +321,21 @@ function LogicalPottsState(owners::AbstractArray{OwnerRef, N}, capacity::CellCap
         active_ids = nothing, reusable_slots = CellSlot[], generations = nothing,
         cell_types = Dict{CellID, CellTypeID}(), medium_domains = MediumID[],
         property_schema = PropertySchema()) where {N}
-    N in (2, 3) || throw(ArgumentError("logical CPM state currently requires a 2D or 3D lattice"))
+    N in (2, 3) ||
+        throw(ArgumentError("logical CPM state currently requires a 2D or 3D lattice"))
     copied_owners = Array(owners)
     slot_count = nslots(capacity)
     active = falses(slot_count)
-    inferred = sort!(unique(CellID(owner.value) for owner in copied_owners if is_cell_owner(owner)); by = value)
+    inferred = sort!(
+        unique(CellID(owner.value)
+        for owner in copied_owners if is_cell_owner(owner)); by = value)
     ids = active_ids === nothing ? inferred : collect(CellID.(active_ids))
     for id in ids
         active[_validated_slot_index(id, capacity)] = true
     end
     reusable = sort!(collect(CellSlot.(reusable_slots)); by = value)
     generation_values = generations === nothing ? fill(CellGeneration(0), slot_count) :
-        collect(CellGeneration.(generations))
+                        collect(CellGeneration.(generations))
     length(generation_values) == slot_count || throw(ArgumentError(
         "generation table must have one entry per fixed cell slot"))
     types = fill(UInt32(0), slot_count)
@@ -305,7 +343,8 @@ function LogicalPottsState(owners::AbstractArray{OwnerRef, N}, capacity::CellCap
         types[_validated_slot_index(CellID(id), capacity)] = value(CellTypeID(type))
     end
     declared_media = sort!(unique(MediumID.(medium_domains)); by = value)
-    isempty(declared_media) && throw(ArgumentError("at least one medium domain must be declared"))
+    isempty(declared_media) &&
+        throw(ArgumentError("at least one medium domain must be declared"))
     properties = PropertyStore(property_schema, capacity)
     derived = _recompute_occupancy(copied_owners, capacity, declared_media)
     state = LogicalPottsState(copied_owners, capacity, active, reusable, generation_values,

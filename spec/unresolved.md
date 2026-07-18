@@ -40,11 +40,6 @@ limits, component taxonomy, local/global energy law, and tracker transaction are
 Derive the exact selection probability, reverse-support conditions, extinction behavior, and
 connectivity requirements for a proposal that samples distinct neighboring owner identities.
 
-### SEM-ENG-005: Conservative field couplings
-
-Classify chemotaxis and other field interactions into globally integrable Hamiltonian couplings and
-nonconservative directional drives, including saturation and extension/retraction variants.
-
 ### SEM-COMP-001: Cross-simulator conversion registry
 
 Validate versioned CC3D, Morpheus, and Artistoo parameter conversions, acceptance variants,
