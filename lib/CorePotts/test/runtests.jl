@@ -28,5 +28,6 @@ const TEST_ALGORITHMS = (
     include("test_ooc_backends.jl")
     include("test_property_updates.jl")
     include("test_sciml_saving.jl")
+    include("test_state_semantics.jl")
     include("test_topology_abstractions.jl")
 end

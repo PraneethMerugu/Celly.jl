@@ -16,6 +16,7 @@ const DEFAULT_BLOCK_SIZE = 256
 
 include("topology/topology.jl")
 include("proposals/samplers.jl")
+include("state/semantics.jl")
 include("state/types.jl")
 include("execution/dispatch.jl")
 
@@ -45,6 +46,20 @@ export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetro
        PottsIntegrator,
        PottsSolution, PottsState, PottsParameters, PottsCache
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
+export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGeneration, CellCapacity,
+       value, nslots, NumericalPolicy, real_type, accumulation_type, portable_numerical_policy,
+       AbstractMathMode, AccurateMath, QualifiedFastMath,
+       AbstractReductionMode, DeterministicReductions, TolerantReductions,
+       AbstractOverflowMode, CheckedModelBounds, QualifiedUncheckedBounds,
+       PropertyKind, BiologicalProperty, DerivedProperty, AuxiliaryProperty, TransientProperty,
+       PropertyMutability, ReadOnlyProperty, MutableProperty,
+       DivisionPolicy, CloneOnDivision, SplitOnDivision, ResetChildOnDivision,
+       ResetBothOnDivision, AsymmetricResetOnDivision, TransformOnDivision,
+       TransitionPolicy, PreserveOnTransition, ResetOnTransition, TransformOnTransition,
+       RecomputeOnTransition, InvalidTransition, RetirementPolicy, ResetOnRetirement,
+       ComponentIdentity, ConstantInitializer, AbstractPropertyDescriptor, PropertyDescriptor,
+       PropertySchema, PropertySchemaConflictError, property_keys, property_descriptor,
+       property_requesters, value_type, merge_property_schemas
 export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
        SurfaceAreaFlexTracker
 export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
