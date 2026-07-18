@@ -22,6 +22,8 @@ include("state/types.jl")
 include("state/logical.jl")
 include("state/lifecycle.jl")
 include("execution/dispatch.jl")
+include("rng/semantic.jl")
+include("execution/contracts.jl")
 
 include("components/trackers/trackers.jl")
 include("components/components.jl")
@@ -89,6 +91,26 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, ScientificCapabili
 export ReferenceVolumeEnergy, ReferenceContactEnergy, ReferenceModel, SequentialReference,
        ReferenceIntegrator, ReferenceMCSReport, reference_energy, init_reference,
        step_reference!, reference_rng_version
+export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddress,
+       LayoutPlacementStream, LayoutPermutationStream, ProposalRecipientStream,
+       ProposalDirectionStream, AcceptanceStream, LotteryActivationStream,
+       LotteryPriorityStream, CheckerboardOrderStream, HSTStream, RuleStream,
+       EventStream, DivisionOrientationStream, PropertyInheritanceStream,
+       StochasticRoundingStream, TypeTransitionStream, EnsembleStream,
+       GlobalEntity, SiteEntity, CellEntity, EnsembleEntity,
+       rng_contract_version, rng_counter_key, philox4x32_10, rng_words, rng_word,
+       uniform_open01, bounded_uint, bernoulli, normal_box_muller,
+       poisson_inversion, poisson_normal_approx, CategoricalTable, categorical_index,
+       small_permutation!, distribution_profile
+export BackendFamily, CPUFamily, CUDAFamily, AMDGPUFamily, MetalFamily,
+       BackendCapabilities, UnsupportedBackendCapability, UnsupportedBackendType, backend_capabilities,
+       require_capability, CompiledStateDescriptor, CompiledStateStorage,
+       CompiledPottsState, compile_state, execution_storage, adapt_execution,
+       device_storage_valid, logical_snapshot, WorkspaceRequirements, workspace_bytes,
+       ExecutionWorkspace, allocate_workspace, TransactionRequirements, TransactionWorkspace,
+       transaction_workspace_bytes, allocate_transaction_workspace, OrderedAsynchronousLaunches,
+       ExplicitObservationSynchronization, ExecutionMetrics, ExecutionPlan, launch!,
+       synchronize_observation!, record_transfer!, record_allocation!
 export LayoutOverlapPolicy, ErrorOnOverlap, ReplaceOnOverlap, PreserveOnOverlap,
        AbstractInitialLayout, InitialCellLayout, InitialMediumLayout, InitialLayoutOverlapError,
        LogicalInitializationReport, InitializedLogicalState, logical_state, initialization_report,

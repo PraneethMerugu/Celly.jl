@@ -210,51 +210,56 @@ end
 
 function apply_inheritance_rule!(rule::Clone, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_clone!(backend, cache.block_size)
-    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
+        ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::Split, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_split!(backend, cache.block_size)
     return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
-        rule.fraction, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+        rule.fraction, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::Reset, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_reset!(backend, cache.block_size)
-    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.value, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
+        rule.value, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::AsymmetricReset, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_asymmetric_reset!(backend, cache.block_size)
     return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.parent_value,
-        rule.child_value, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+        rule.child_value, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::ResetChild, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_reset_child!(backend, cache.block_size)
-    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.value, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
+        rule.value, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::InheritAdd, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_add!(backend, cache.block_size)
-    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.value, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
+        rule.value, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::InheritMultiply, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_multiply!(backend, cache.block_size)
-    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.value, ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+    return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children,
+        rule.value, ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::RandomUniform, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_random_uniform!(backend, cache.block_size)
     return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.min, rule.max,
-        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap)
 end
 
 function apply_inheritance_rule!(rule::RandomNormal, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_random_normal!(backend, cache.block_size)
     return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.mean, rule.std,
-        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap)
 end
 
 @kernel function _kernel_inherit_random_poisson!(
@@ -275,7 +280,7 @@ end
 function apply_inheritance_rule!(rule::RandomPoisson, array, ws, nd_cap, backend, cache, deps)
     k_inh = _kernel_inherit_random_poisson!(backend, cache.block_size)
     return dispatch_kernel!(backend, k_inh, array, ws.dev_parents, ws.dev_children, rule.lambda,
-        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap, dependencies = deps)
+        cache.step_counter[], ws.dev_division_count; ndrange = nd_cap)
 end
 
 
@@ -295,13 +300,13 @@ end
 function populate_dividing_parents!(u::AbstractPottsState, cache::PottsCache, trigger, ws, deps)
     backend = KernelAbstractions.get_backend(u.grid)
     k_fill = _fill_kernel!(backend, cache.block_size)
-    ev_fill = dispatch_kernel!(backend, k_fill, ws.dev_division_count, UInt32(0); ndrange = 1, dependencies = deps)
+    ev_fill = dispatch_kernel!(backend, k_fill, ws.dev_division_count, UInt32(0); ndrange = 1)
 
     kernel = _kernel_check_generic_triggers!(backend, cache.block_size)
     max_cap = UInt32(length(ws.dev_parents))
     nd_cap = length(u.cell_data.volumes)
     ev_pop = dispatch_kernel!(backend, kernel, ws.dev_parents, ws.dev_division_count, u.cell_data,
-        trigger, cache.step_counter[], max_cap; ndrange = nd_cap, dependencies = (ev_fill,))
+        trigger, cache.step_counter[], max_cap; ndrange = nd_cap)
     return ev_pop
 end
 
@@ -618,7 +623,7 @@ function process_mitosis_events!(
 
     k_alloc = _kernel_allocate_mitosis_ids!(backend, cache.block_size)
     ev_alloc = dispatch_kernel!(backend, k_alloc, ws.dev_children, u.free_list, u.free_list_count,
-        u.N_cells, ws.dev_division_count, UInt32(max_cap); ndrange = max_cap, dependencies = (ev_pop,))
+        u.N_cells, ws.dev_division_count, UInt32(max_cap); ndrange = max_cap)
 
     # Run Inherit Kernels
     ev_inh = ev_alloc
@@ -637,14 +642,15 @@ function process_mitosis_events!(
     end
 
     k_fill = _fill_kernel!(backend, cache.block_size)
-    ev_fdiv = dispatch_kernel!(backend, k_fill, ws.dev_is_dividing, false; ndrange = max_cap, dependencies = (ev_inh,))
+    ev_fdiv = dispatch_kernel!(backend, k_fill, ws.dev_is_dividing, false; ndrange = max_cap)
     
     k_div = _kernel_mark_is_dividing!(backend, cache.block_size)
-    ev_div = dispatch_kernel!(backend, k_div, ws.dev_is_dividing, ws.dev_parents, ws.dev_division_count; ndrange = max_cap, dependencies = (ev_fdiv,))
+    ev_div = dispatch_kernel!(backend, k_div, ws.dev_is_dividing, ws.dev_parents,
+        ws.dev_division_count; ndrange = max_cap)
 
-    ev_fcount = dispatch_kernel!(backend, k_fill, ws.acc_count, Int32(0); ndrange = max_cap, dependencies = (ev_div,))
-    ev_fsin = dispatch_kernel!(backend, k_fill, ws.acc_sin, 0.0f0; ndrange = N*max_cap, dependencies = (ev_fcount,))
-    ev_fcos = dispatch_kernel!(backend, k_fill, ws.acc_cos, 0.0f0; ndrange = N*max_cap, dependencies = (ev_fsin,))
+    ev_fcount = dispatch_kernel!(backend, k_fill, ws.acc_count, Int32(0); ndrange = max_cap)
+    ev_fsin = dispatch_kernel!(backend, k_fill, ws.acc_sin, 0.0f0; ndrange = N * max_cap)
+    ev_fcos = dispatch_kernel!(backend, k_fill, ws.acc_cos, 0.0f0; ndrange = N * max_cap)
     
     orientation_type = 0 # Random or Vector
     if orientation isa MajorAxisOrientation
@@ -657,7 +663,8 @@ function process_mitosis_events!(
     ev_prep = ev_fcos
     if do_cov
         cov_elements = div(N * (N + 1), 2)
-        ev_prep = dispatch_kernel!(backend, k_fill, ws.acc_cov, 0.0f0; ndrange = cov_elements*max_cap, dependencies = (ev_prep,))
+        ev_prep = dispatch_kernel!(backend, k_fill, ws.acc_cov, 0.0f0;
+            ndrange = cov_elements * max_cap)
     end
 
     # Pass 1: Accumulate Centroids
@@ -665,12 +672,12 @@ function process_mitosis_events!(
     ev_acc = dispatch_kernel!(backend, k_acc, u.grid, cache.grid_dims, ws.dev_is_dividing, ws.acc_count, ws.acc_sin, ws.acc_cos,
         ws.acc_cov, ws.dev_centroids, false, p.topology, UInt32(max_cap),
         cache.sin_luts, cache.cos_luts;
-        ndrange = length(u.grid), dependencies = (ev_prep,))
+        ndrange = length(u.grid))
 
     # Pass 1.5: Compute Centroids
     k_cen = _kernel_compute_centroids!(backend, cache.block_size)
     ev_cen = dispatch_kernel!(backend, k_cen, ws.dev_centroids, ws.acc_count, ws.acc_sin, ws.acc_cos, ws.dev_parents,
-        ws.dev_division_count, cache.grid_dims; ndrange = max_cap, dependencies = (ev_acc,))
+        ws.dev_division_count, cache.grid_dims; ndrange = max_cap)
 
     ev_norm = ev_cen
     if do_cov
@@ -679,7 +686,7 @@ function process_mitosis_events!(
             ws.acc_sin, ws.acc_cos, ws.acc_cov, ws.dev_centroids,
             true, p.topology, UInt32(max_cap),
             cache.sin_luts, cache.cos_luts;
-            ndrange = length(u.grid), dependencies = (ev_norm,))
+            ndrange = length(u.grid))
 
         # Run eigen
         if N == 2
@@ -688,41 +695,43 @@ function process_mitosis_events!(
             k_ang = _kernel_compute_mitosis_normals_3d!(backend, cache.block_size)
         end
         ev_norm = dispatch_kernel!(backend, k_ang, ws.dev_normals, ws.acc_cov, ws.dev_parents,
-            ws.dev_division_count, orientation_type; ndrange = max_cap, dependencies = (ev_acc2,))
+            ws.dev_division_count, orientation_type; ndrange = max_cap)
     elseif orientation isa RandomOrientation
         k_rand_norm = _kernel_compute_mitosis_normals_random!(backend, cache.block_size)
         ev_norm = dispatch_kernel!(backend, k_rand_norm, ws.dev_normals, ws.dev_parents, ws.dev_division_count,
-            cache.grid_dims, cache.step_counter[]; ndrange = max_cap, dependencies = (ev_norm,))
+            cache.grid_dims, cache.step_counter[]; ndrange = max_cap)
     elseif orientation isa VectorOrientation
         k_vec_norm = _kernel_compute_mitosis_normals_vector!(backend, cache.block_size)
         v_tuple = Tuple(Float32(x) for x in orientation.v)
         ev_norm = dispatch_kernel!(backend, k_vec_norm, ws.dev_normals, ws.dev_parents, ws.dev_division_count,
-            v_tuple, N; ndrange = max_cap, dependencies = (ev_norm,))
+            v_tuple, N; ndrange = max_cap)
     end
 
-    ev_fchild = dispatch_kernel!(backend, k_fill, ws.dev_child_map, UInt32(0); ndrange = max_cap, dependencies = (ev_norm,))
+    ev_fchild = dispatch_kernel!(backend, k_fill, ws.dev_child_map, UInt32(0); ndrange = max_cap)
     k_child_map = _kernel_populate_child_map!(backend, cache.block_size)
     ev_cmap = dispatch_kernel!(backend, k_child_map, ws.dev_child_map, ws.dev_parents, ws.dev_children,
-        ws.dev_division_count; ndrange = max_cap, dependencies = (ev_fchild,))
+        ws.dev_division_count; ndrange = max_cap)
 
     # Pass 2: Split Grid
     k_split = _kernel_split_grid!(backend, cache.block_size)
     ev_split = dispatch_kernel!(backend, k_split, u.grid, cache.grid_dims, ws.dev_is_dividing, ws.dev_centroids, ws.dev_normals,
-        ws.dev_is_modified, ws.dev_child_map, p.topology; ndrange = length(u.grid), dependencies = (ev_cmap,))
+        ws.dev_is_modified, ws.dev_child_map, p.topology; ndrange = length(u.grid))
 
-    ev_fmod = dispatch_kernel!(backend, k_fill, ws.dev_is_modified, false; ndrange = max_cap, dependencies = (ev_split,))
+    ev_fmod = dispatch_kernel!(backend, k_fill, ws.dev_is_modified, false; ndrange = max_cap)
     k_mod = _kernel_mark_is_modified!(backend, cache.block_size)
     ev_mod = dispatch_kernel!(backend, k_mod, ws.dev_is_modified, ws.dev_parents, ws.dev_children,
-        ws.dev_division_count; ndrange = max_cap, dependencies = (ev_fmod,))
+        ws.dev_division_count; ndrange = max_cap)
 
     ev_zero = ev_mod
     if hasproperty(u.cell_data, :volumes)
         k_zv = _kernel_zero_modified_volumes!(backend, cache.block_size)
-        ev_zero = dispatch_kernel!(backend, k_zv, u.cell_data.volumes, ws.dev_is_modified, ws.dev_division_count; ndrange = max_cap, dependencies = (ev_zero,))
+        ev_zero = dispatch_kernel!(backend, k_zv, u.cell_data.volumes, ws.dev_is_modified,
+            ws.dev_division_count; ndrange = max_cap)
     end
     if hasproperty(u.cell_data, :surface_areas)
         k_zsa = _kernel_zero_modified_surface_areas!(backend, cache.block_size)
-        ev_zero = dispatch_kernel!(backend, k_zsa, u.cell_data.surface_areas, ws.dev_is_modified, ws.dev_division_count; ndrange = max_cap, dependencies = (ev_zero,))
+        ev_zero = dispatch_kernel!(backend, k_zsa, u.cell_data.surface_areas,
+            ws.dev_is_modified, ws.dev_division_count; ndrange = max_cap)
     end
 
     # Thread the final event into local metrics without a hard CPU synchronize stall

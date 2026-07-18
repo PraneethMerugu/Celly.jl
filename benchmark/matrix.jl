@@ -18,6 +18,11 @@ backend == "amdgpu" && (@eval using AMDGPU)
 include(joinpath(@__DIR__, "src", "PottsBenchmarks.jl"))
 using .PottsBenchmarks
 
+rng_qualification = PottsBenchmarks.qualify_rng_backend(backend)
+println("RNG_QUALIFICATION=", rng_qualification)
+execution_qualification = PottsBenchmarks.qualify_execution_backend(backend)
+println("EXECUTION_QUALIFICATION=", execution_qualification)
+
 workloads = profile == "smoke" ? ("volume_2d_small",) :
             ("volume_2d_small", "adhesion_2d_medium", "volume_3d_small",
     "adhesion_2d_publication")

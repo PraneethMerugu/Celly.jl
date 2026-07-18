@@ -1,0 +1,328 @@
+@enum BackendFamily::UInt8 begin
+    CPUFamily = 1
+    CUDAFamily = 2
+    AMDGPUFamily = 3
+    MetalFamily = 4
+end
+
+"""Host-side declaration of capabilities which have been implemented and qualified."""
+struct BackendCapabilities{R <: Tuple}
+    family::BackendFamily
+    functional::Bool
+    ordered_launches::Bool
+    device_float64::Bool
+    subgroup_intrinsics::Bool
+    qualified_rng_contracts::R
+end
+
+struct UnsupportedBackendCapability <: Exception
+    family::BackendFamily
+    capability::Symbol
+end
+
+struct UnsupportedBackendType <: Exception
+    backend_type::DataType
+end
+
+Base.showerror(io::IO, error::UnsupportedBackendType) =
+    print(io, "CorePotts has no capability contract for backend ", error.backend_type)
+
+function Base.showerror(io::IO, error::UnsupportedBackendCapability)
+    print(io, "backend ", error.family, " does not provide the required qualified capability `",
+        error.capability, "`")
+end
+
+"""Return only capabilities CorePotts is prepared to claim for this backend."""
+function backend_capabilities(backend::KernelAbstractions.Backend)
+    throw(UnsupportedBackendType(typeof(backend)))
+end
+
+backend_capabilities(::KernelAbstractions.CPU) = BackendCapabilities(
+    CPUFamily, true, true, true, false, (v"1.0.0",))
+
+function require_capability(capabilities::BackendCapabilities, capability::Symbol)
+    supported = if capability === :functional
+        capabilities.functional
+    elseif capability === :ordered_launches
+        capabilities.ordered_launches
+    elseif capability === :device_float64
+        capabilities.device_float64
+    elseif capability === :subgroup_intrinsics
+        capabilities.subgroup_intrinsics
+    elseif capability === :semantic_rng_v1
+        v"1.0.0" in capabilities.qualified_rng_contracts
+    else
+        false
+    end
+    supported || throw(UnsupportedBackendCapability(capabilities.family, capability))
+    return capabilities
+end
+
+"""Host-only information required to reconstruct and validate compiled state."""
+struct CompiledStateDescriptor{N, S <: PropertySchema, M <: Tuple}
+    lattice_dims::NTuple{N, Int}
+    capacity::CellCapacity
+    property_schema::S
+    medium_ids::M
+end
+
+"""Device-valid structure-of-arrays storage. This is the only adaptable state boundary."""
+struct CompiledStateStorage{O, A, G, C, R, RC, P}
+    ownership::O
+    active::A
+    generations::G
+    cell_types::C
+    reusable_slots::R
+    reusable_count::RC
+    properties::P
+end
+
+function Adapt.adapt_structure(to, storage::CompiledStateStorage)
+    return CompiledStateStorage(
+        Adapt.adapt(to, storage.ownership),
+        Adapt.adapt(to, storage.active),
+        Adapt.adapt(to, storage.generations),
+        Adapt.adapt(to, storage.cell_types),
+        Adapt.adapt(to, storage.reusable_slots),
+        Adapt.adapt(to, storage.reusable_count),
+        Adapt.adapt(to, storage.properties),
+    )
+end
+
+"""Host descriptor paired with compiled storage; kernels receive `execution_storage(state)`."""
+struct CompiledPottsState{D <: CompiledStateDescriptor, S <: CompiledStateStorage}
+    descriptor::D
+    storage::S
+end
+
+execution_storage(state::CompiledPottsState) = state.storage
+lattice_storage(state::CompiledPottsState) = state.storage.ownership.ids
+
+function compile_state(state::LogicalPottsState)
+    assert_valid_state(state)
+    slot_count = nslots(capacity(state))
+    reusable = zeros(UInt32, slot_count)
+    for (index, slot) in enumerate(state._reusable)
+        reusable[index] = value(slot)
+    end
+    storage = CompiledStateStorage(
+        compile_ownership(state),
+        UInt8.(state._active),
+        value.(state._generations),
+        copy(state._cell_types),
+        reusable,
+        UInt32[length(state._reusable)],
+        map(copy, state.properties.columns),
+    )
+    descriptor = CompiledStateDescriptor(
+        lattice_size(state), capacity(state), state.properties.schema,
+        Tuple(value.(state._medium_ids)),
+    )
+    return CompiledPottsState(descriptor, storage)
+end
+
+"""Move compiled arrays while deliberately retaining the host-only descriptor."""
+function adapt_execution(to, state::CompiledPottsState)
+    return CompiledPottsState(state.descriptor, Adapt.adapt(to, state.storage))
+end
+
+function _device_array_value(array)
+    return array isa AbstractArray && isbitstype(eltype(array))
+end
+
+"""Conservatively validate that every runtime field passed to kernels is an isbits array tree."""
+function device_storage_valid(storage::CompiledStateStorage)
+    arrays = (storage.ownership.tags, storage.ownership.ids, storage.active,
+        storage.generations, storage.cell_types, storage.reusable_slots, storage.reusable_count,
+        values(storage.properties)...)
+    all(_device_array_value, arrays) || return false
+    backends = map(KernelAbstractions.get_backend, arrays)
+    return all(isequal(first(backends)), backends)
+end
+
+"""Explicit host observation boundary which reconstructs the canonical logical state."""
+function logical_snapshot(state::CompiledPottsState)
+    descriptor = state.descriptor
+    storage = state.storage
+    tags = Array(storage.ownership.tags)
+    ids = Array(storage.ownership.ids)
+    owners = similar(ids, OwnerRef)
+    for index in eachindex(owners)
+        owners[index] = OwnerRef(tags[index], ids[index])
+    end
+    active = Array(storage.active)
+    generations = CellGeneration.(Array(storage.generations))
+    cell_types_raw = Array(storage.cell_types)
+    cell_types = Dict(CellID(index) => CellTypeID(cell_types_raw[index])
+        for index in eachindex(active) if active[index] != 0)
+    reusable_raw = Array(storage.reusable_slots)
+    reusable_count = Int(only(Array(storage.reusable_count)))
+    reusable_count <= length(reusable_raw) || throw(LogicalStateInvariantError(
+        ["compiled reusable-slot count exceeds fixed storage capacity"]))
+    reusable = CellSlot.(reusable_raw[1:reusable_count])
+    logical = LogicalPottsState(owners, descriptor.capacity;
+        active_ids = CellID.(findall(!iszero, active)),
+        reusable_slots = reusable,
+        generations = generations,
+        cell_types = cell_types,
+        medium_domains = MediumID.(descriptor.medium_ids),
+        property_schema = descriptor.property_schema)
+    for key in property_keys(descriptor.property_schema)
+        copyto!(property_values(logical, key), Array(getproperty(storage.properties, key)))
+    end
+    rebuild_derived_state!(logical)
+    return assert_valid_state(logical)
+end
+
+struct WorkspaceRequirements
+    sites::Int
+    cells::Int
+    scratch_uint32::Int
+    scratch_float32::Int
+    flags::Int
+
+    function WorkspaceRequirements(sites::Integer, cells::Integer;
+            scratch_uint32::Integer = sites, scratch_float32::Integer = cells,
+            flags::Integer = cells)
+        all(>=(0), (sites, cells, scratch_uint32, scratch_float32, flags)) ||
+            throw(ArgumentError("workspace sizes must be non-negative"))
+        new(sites, cells, scratch_uint32, scratch_float32, flags)
+    end
+end
+
+workspace_bytes(requirements::WorkspaceRequirements) =
+    4 * requirements.scratch_uint32 + 4 * requirements.scratch_float32 + requirements.flags
+
+struct ExecutionWorkspace{U, F, B}
+    scratch_uint32::U
+    scratch_float32::F
+    flags::B
+end
+
+struct TransactionRequirements
+    max_candidates::Int
+
+    function TransactionRequirements(max_candidates::Integer)
+        max_candidates >= 0 || throw(ArgumentError("transaction capacity must be non-negative"))
+        new(max_candidates)
+    end
+end
+
+
+"""Reusable staging buffers for snapshot/evaluate/commit algorithms."""
+struct TransactionWorkspace{I, P, A, D}
+    candidate_ids::I
+    priorities::P
+    accepted::A
+    integer_deltas::D
+end
+
+transaction_workspace_bytes(requirements::TransactionRequirements) =
+    13 * requirements.max_candidates
+
+function allocate_transaction_workspace(state::CompiledPottsState,
+        requirements::TransactionRequirements)
+    prototype = state.storage.active
+    workspace = TransactionWorkspace(
+        similar(prototype, UInt32, requirements.max_candidates),
+        similar(prototype, UInt32, requirements.max_candidates),
+        similar(prototype, UInt8, requirements.max_candidates),
+        similar(prototype, Int32, requirements.max_candidates),
+    )
+    fill!(workspace.candidate_ids, 0)
+    fill!(workspace.priorities, 0)
+    fill!(workspace.accepted, 0)
+    fill!(workspace.integer_deltas, 0)
+    return workspace
+end
+
+function allocate_workspace(state::CompiledPottsState, requirements::WorkspaceRequirements)
+    prototype = state.storage.active
+    workspace = ExecutionWorkspace(
+        similar(prototype, UInt32, requirements.scratch_uint32),
+        similar(prototype, Float32, requirements.scratch_float32),
+        similar(prototype, UInt8, requirements.flags),
+    )
+    fill!(workspace.scratch_uint32, 0)
+    fill!(workspace.scratch_float32, 0)
+    fill!(workspace.flags, 0)
+    return workspace
+end
+
+abstract type AbstractLaunchPolicy end
+struct OrderedAsynchronousLaunches <: AbstractLaunchPolicy end
+abstract type AbstractSynchronizationPolicy end
+struct ExplicitObservationSynchronization <: AbstractSynchronizationPolicy end
+
+mutable struct ExecutionMetrics
+    launches::Int
+    host_synchronizations::Int
+    host_to_device_transfers::Int
+    device_to_host_transfers::Int
+    host_allocations::Int
+    device_allocations::Int
+    host_allocated_bytes::Int
+    device_allocated_bytes::Int
+end
+ExecutionMetrics() = ExecutionMetrics(0, 0, 0, 0, 0, 0, 0, 0)
+
+"""Immutable execution policy and backend paired with separately mutable instrumentation."""
+struct ExecutionPlan{B, C <: BackendCapabilities, L <: AbstractLaunchPolicy,
+        S <: AbstractSynchronizationPolicy, M <: ExecutionMetrics}
+    backend::B
+    capabilities::C
+    launch_policy::L
+    synchronization_policy::S
+    block_size::Int
+    metrics::M
+end
+
+function ExecutionPlan(backend::KernelAbstractions.Backend; block_size::Integer = DEFAULT_BLOCK_SIZE,
+        metrics::ExecutionMetrics = ExecutionMetrics())
+    block_size > 0 || throw(ArgumentError("block size must be positive"))
+    capabilities = backend_capabilities(backend)
+    require_capability(capabilities, :functional)
+    require_capability(capabilities, :ordered_launches)
+    return ExecutionPlan(backend, capabilities, OrderedAsynchronousLaunches(),
+        ExplicitObservationSynchronization(), Int(block_size), metrics)
+end
+
+@inline function launch!(plan::ExecutionPlan, kernel, args...; ndrange, workgroupsize = nothing)
+    plan.metrics.launches += 1
+    if workgroupsize === nothing
+        return kernel(args...; ndrange)
+    end
+    return kernel(args...; ndrange, workgroupsize)
+end
+
+function synchronize_observation!(plan::ExecutionPlan)
+    plan.metrics.host_synchronizations += 1
+    KernelAbstractions.synchronize(plan.backend)
+    return nothing
+end
+
+function record_transfer!(plan::ExecutionPlan, direction::Symbol)
+    if direction === :host_to_device
+        plan.metrics.host_to_device_transfers += 1
+    elseif direction === :device_to_host
+        plan.metrics.device_to_host_transfers += 1
+    else
+        throw(ArgumentError("transfer direction must be :host_to_device or :device_to_host"))
+    end
+    return plan
+end
+
+
+function record_allocation!(plan::ExecutionPlan, domain::Symbol, bytes::Integer)
+    bytes >= 0 || throw(ArgumentError("allocated bytes must be non-negative"))
+    if domain === :host
+        plan.metrics.host_allocations += 1
+        plan.metrics.host_allocated_bytes += bytes
+    elseif domain === :device
+        plan.metrics.device_allocations += 1
+        plan.metrics.device_allocated_bytes += bytes
+    else
+        throw(ArgumentError("allocation domain must be :host or :device"))
+    end
+    return plan
+end

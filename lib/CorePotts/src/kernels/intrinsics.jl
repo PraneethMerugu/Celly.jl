@@ -56,8 +56,6 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
     sampler = alg.sampler
     T_val = alg.T
 
-    event = prev_event === nothing ? KernelAbstractions.Event(backend) : prev_event
-
     num_colors = checkerboard_colors(p.topology)
     for color_pass in 1:num_colors
         offset = cache.color_offsets[color_pass]
@@ -66,15 +64,14 @@ function execute_step!(u::AbstractPottsState, p::PottsParameters, cache::PottsCa
 
         if num_pixels > 0
             ndrange = num_pixels
-            event = _intrinsic_checkerboard_sweep_kernel!(backend, cache.block_size)(
+            _intrinsic_checkerboard_sweep_kernel!(backend, cache.block_size)(
                 grid, grid_dims, p.topology, u.cell_data, p.penalties, p.trackers,
                 sampler, T_val, active_fraction, global_seed,
-                cache.color_indices, offset, num_pixels,
-                ndrange = ndrange,
-                dependencies = (event,)
+                cache.color_indices, offset, num_pixels;
+                ndrange = ndrange
             )
         end
         global_seed = pcg_hash(global_seed)
     end
-    return event
+    return nothing
 end

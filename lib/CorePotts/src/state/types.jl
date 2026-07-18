@@ -96,7 +96,8 @@ overheads that arise when using standard SciML `DiscreteCallback`s.
 
 Any custom event should subtype `AbstractEvent` and provide a corresponding method for:
 `CorePotts.evaluate_event!(evt, u, p, cache, t, deps)`
-which evaluates the event and optionally returns a `KernelAbstractions.Event` or `nothing`.
+which launches the event asynchronously. KernelAbstractions 0.9 orders launches on the backend;
+the return value is `nothing` and host observation is handled separately.
 """
 abstract type AbstractEvent end
 

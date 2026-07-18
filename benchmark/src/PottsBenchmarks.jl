@@ -14,6 +14,148 @@ const SCHEMA_VERSION = "1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
+@kernel function _semantic_rng_probe!(output, addresses, contract, seed)
+    index = @index(Global, Linear)
+    if index <= length(addresses)
+        words = rng_words(contract, seed, addresses[index])
+        base = 4 * (index - 1)
+        output[base + 1] = words[1]
+        output[base + 2] = words[2]
+        output[base + 3] = words[3]
+        output[base + 4] = words[4]
+    end
+end
+
+@kernel function _semantic_distribution_probe!(floating_output, integer_output,
+        addresses, table, contract, seed)
+    index = @index(Global, Linear)
+    if index <= length(addresses)
+        address = addresses[index]
+        floating_output[2 * index - 1] = uniform_open01(Float32, contract, seed, address)
+        floating_output[2 * index] = normal_box_muller(Float32, contract, seed, address)
+        integer_output[3 * index - 2] = Int32(bounded_uint(
+            contract, seed, address, UInt32(17)))
+        integer_output[3 * index - 1] = Int32(categorical_index(
+            table, contract, seed, address))
+        integer_output[3 * index] = Int32(poisson_inversion(
+            contract, seed, address, 4.0f0))
+    end
+end
+
+@kernel function _execution_stage_one!(output, input)
+    index = @index(Global, Linear)
+    @inbounds output[index] = input[index] + UInt32(1)
+end
+
+@kernel function _execution_stage_two!(output, input)
+    index = @index(Global, Linear)
+    @inbounds output[index] = input[index] * UInt32(2)
+end
+
+function _backend_array(name::String, values)
+    name == "cpu" && return copy(values)
+    module_name = name == "metal" ? :Metal : name == "cuda" ? :CUDA :
+                  name == "amdgpu" ? :AMDGPU : throw(ArgumentError(
+        "Unknown backend `$name`"))
+    isdefined(Main, module_name) || error("$module_name must be loaded before RNG qualification")
+    backend_module = getfield(Main, module_name)
+    array_name = name == "metal" ? :MtlArray : name == "cuda" ? :CuArray : :ROCArray
+    return Base.invokelatest(getproperty(backend_module, array_name), values)
+end
+
+"""Execute the Phase 5 raw-word probe and require exact CPU/backend identity."""
+function qualify_rng_backend(name::String)
+    contract = Philox4x32x10V1()
+    seed = UInt64(0x706f7474732d7631)
+    addresses = [RNGAddress(stream = ProposalDirectionStream, mcs = 11,
+        subround = 3, operation = 7, entity_kind = SiteEntity, entity = index,
+        invocation = 2, draw = 5) for index in 1:257]
+    expected = reduce(vcat, collect(rng_words(contract, seed, address)) for address in addresses)
+    device_addresses = _backend_array(name, addresses)
+    output = similar(device_addresses, UInt32, 4 * length(addresses))
+    backend = KernelAbstractions.get_backend(device_addresses)
+    kernel = _semantic_rng_probe!(backend, 128)
+    kernel(output, device_addresses, contract, seed; ndrange = length(addresses))
+    KernelAbstractions.synchronize(backend)
+    observed = Array(output)
+    observed == expected || error("$name Philox words differ from the CPU contract")
+
+    table = CategoricalTable((1.0f0, 2.0f0, 3.0f0))
+    floating_output = similar(device_addresses, Float32, 2 * length(addresses))
+    integer_output = similar(device_addresses, Int32, 3 * length(addresses))
+    distribution_kernel = _semantic_distribution_probe!(backend, 128)
+    distribution_kernel(floating_output, integer_output, device_addresses, table,
+        contract, seed; ndrange = length(addresses))
+    KernelAbstractions.synchronize(backend)
+    observed_floating = Array(floating_output)
+    observed_integer = Array(integer_output)
+    expected_floating = Vector{Float32}(undef, 2 * length(addresses))
+    expected_integer = Vector{Int32}(undef, 3 * length(addresses))
+    for (index, address) in pairs(addresses)
+        expected_floating[2 * index - 1] = uniform_open01(Float32, contract, seed, address)
+        expected_floating[2 * index] = normal_box_muller(Float32, contract, seed, address)
+        expected_integer[3 * index - 2] = Int32(bounded_uint(
+            contract, seed, address, UInt32(17)))
+        expected_integer[3 * index - 1] = Int32(categorical_index(
+            table, contract, seed, address))
+        expected_integer[3 * index] = Int32(poisson_inversion(
+            contract, seed, address, 4.0f0))
+    end
+    observed_integer == expected_integer || error(
+        "$name discrete distribution outputs differ from the CPU contract")
+    all(isapprox.(observed_floating, expected_floating; rtol = 8eps(Float32), atol = 0)) ||
+        error("$name floating distribution outputs exceed the numerical profile")
+    return Dict(
+        "backend" => name,
+        "contract" => string(rng_contract_version(contract)),
+        "addresses" => length(addresses),
+        "raw_words" => length(observed),
+        "bitwise_identity" => true,
+        "discrete_distribution_identity" => true,
+        "floating_distribution_tolerance" => "8eps(Float32)",
+    )
+end
+
+"""Qualify ordered launches, one explicit observation, and reusable storage on one backend."""
+function qualify_execution_backend(name::String)
+    input_host = UInt32.(1:257)
+    input = _backend_array(name, input_host)
+    stage = similar(input)
+    output = similar(input)
+    backend = KernelAbstractions.get_backend(input)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    first_kernel = _execution_stage_one!(backend, 128)
+    second_kernel = _execution_stage_two!(backend, 128)
+
+    launch!(plan, first_kernel, stage, input; ndrange = length(input))
+    launch!(plan, second_kernel, output, stage; ndrange = length(input))
+    metrics.host_synchronizations == 0 || error(
+        "$name execution pipeline synchronized before its observation boundary")
+    synchronize_observation!(plan)
+    observed = Array(output)
+    expected = 2 .* (input_host .+ UInt32(1))
+    observed == expected || error("$name ordered execution pipeline produced incorrect output")
+
+    warm_launch_host_bytes = name == "cpu" ?
+        @allocated(launch!(plan, first_kernel, stage, input; ndrange = length(input))) : missing
+    name == "cpu" && synchronize_observation!(plan)
+    capabilities = plan.capabilities
+    return Dict(
+        "backend" => name,
+        "family" => string(capabilities.family),
+        "functional" => capabilities.functional,
+        "ordered_launches" => capabilities.ordered_launches,
+        "declared_semantic_rng_v1" => v"1.0.0" in capabilities.qualified_rng_contracts,
+        "launches_before_observation" => 2,
+        "internal_host_synchronizations" => 0,
+        "observation_synchronizations" => 1,
+        "corepotts_steady_state_scratch_allocations" => 0,
+        "backend_runtime_warm_launch_host_bytes" => warm_launch_host_bytes,
+        "elements" => length(observed),
+    )
+end
+
 struct WorkloadSpec{N}
     name::String
     dimensions::NTuple{N, Int}
