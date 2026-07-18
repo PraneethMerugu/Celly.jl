@@ -18,6 +18,7 @@ include("topology/topology.jl")
 include("proposals/samplers.jl")
 include("state/semantics.jl")
 include("state/types.jl")
+include("state/logical.jl")
 include("execution/dispatch.jl")
 
 include("components/trackers/trackers.jl")
@@ -60,6 +61,12 @@ export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGenerat
        ComponentIdentity, ConstantInitializer, AbstractPropertyDescriptor, PropertyDescriptor,
        PropertySchema, PropertySchemaConflictError, property_keys, property_descriptor,
        property_requesters, value_type, merge_property_schemas
+export OwnerRef, CellOwner, MediumOwner, is_cell_owner, is_medium_owner, cell_id, medium_id,
+       PropertyStore, property_values, OccupancyDerivedState, LogicalPottsState,
+       LogicalStateInvariantError, capacity, n_cells, active_cell_ids, reusable_cell_slots,
+       medium_ids, generation, is_active, cell_type, owner_at, lattice_size, derived_state,
+       finite_volume, medium_occupancy, state_invariant_errors, assert_valid_state,
+       rebuild_derived_state!
 export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
        SurfaceAreaFlexTracker
 export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
