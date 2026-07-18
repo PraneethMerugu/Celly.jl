@@ -1,13 +1,14 @@
 # Phase 4 Runtime Migration Audit
 
-Status: Active
+Status: Deferred to Phases 5–7 by ADR 0012
 
 ## Finding
 
-The Phase 4 logical state is complete as a CPU scientific representation, but the historical
-simulation path remains physically coupled to `PottsState.grid`, `PottsState.cell_data`, and
-`PottsState.N_cells`. It cannot be described as migrated until those execution consumers operate on
-an explicit compiled storage boundary rather than direct struct fields.
+The Phase 4 logical state is complete as a CPU scientific representation. The historical simulation
+path remains physically coupled to `PottsState.grid`, `PottsState.cell_data`, and
+`PottsState.N_cells`; this is acknowledged production migration debt, not the revised Phase 4 exit
+gate. Those consumers must move to explicit compiled state during the execution, component, and
+algorithm phases before the old runtime can be removed.
 
 ## First migrated boundary
 
@@ -28,9 +29,10 @@ fields.
 | SciML/output | `sciml/simulator.jl`, `state/backends.jl` | Snapshot and observation interface with explicit host transfer |
 | Legacy construction | `initialization/initialization.jl`, `state/types.jl` | Final `PottsProblem` construction from `InitializedLogicalState` |
 
-## Qualification rule
+## Revised qualification rule
 
-The final Phase 4 gate will not be marked complete merely because legacy names are deprecated. It
-requires a CPU public integration path that creates, steps, observes, and snapshots a logical state
-without direct legacy-state fields; available-GPU qualification then verifies the compiled storage
-view rather than adapting the host logical representation directly.
+Phase 4 requires a CPU reference integration path that creates, steps, observes, and snapshots a
+logical state without direct legacy-state fields. Available-GPU qualification verifies the compiled
+storage view in later phases rather than adapting the host logical representation directly. This
+audit remains the migration inventory for that work and does not claim the historical runtime has
+already migrated.

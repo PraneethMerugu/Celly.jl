@@ -9,4 +9,5 @@ using PottsToolkit
     include("test_rule_macro.jl")
     include("test_macros.jl")
     include("test_dynamic_celldata.jl")
+    include("test_reference_compilation.jl")
 end

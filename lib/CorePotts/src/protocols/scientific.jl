@@ -110,7 +110,7 @@ function _interface_report(category::Symbol, component, essential::Tuple)
     hasmethod(component_identity, Tuple{typeof(component)}) || push!(missing, :component_identity)
     for function_name in essential
         function_value = getfield(@__MODULE__, function_name)
-        any(method -> method.sig.parameters[2] <: typeof(component), methods(function_value)) ||
+        any(method -> typeof(component) <: method.sig.parameters[2], methods(function_value)) ||
             push!(missing, function_name)
     end
     isempty(missing) || throw(ScientificInterfaceError(category, typeof(component), missing))

@@ -133,6 +133,23 @@ Logical fixed-size vectors and tensors MAY be lowered to component-wise physical
 storage choices are implementation details provided that logical values and mutation semantics are
 preserved.
 
+## State Realization Layers
+
+Potts.jl distinguishes three state layers:
+
+1. **Logical state** is the authoritative scientific representation used for construction,
+   validation, scalar reference execution, snapshots, and portable inspection.
+2. **Compiled execution state** is an explicit lowering of logical state into backend-valid arrays,
+   indices, and layouts. It MAY be specialized, but MUST round-trip to the same canonical logical
+   snapshot under the applicable numerical contract.
+3. **Execution workspace** contains scratch storage, queues, counters, launch resources, and other
+   replaceable mutable machinery. Workspace content is not scientific state and MUST NOT be needed
+   to interpret a saved model state.
+
+The host logical state MUST NOT be adapted wholesale to a GPU. Compilation constructs the explicit
+execution representation, and backend movement is centralized at that boundary. Optimized engines
+MAY keep compiled state resident across steps and observations.
+
 ## Custom Properties
 
 PottsToolkit MUST support user-declared custom per-cell properties through the same compiled schema
@@ -174,7 +191,9 @@ Initialization MUST proceed logically as follows:
 7. Initialize schema-defined biological and auxiliary state.
 8. Recompute derived state from the finalized lattice.
 9. Validate all state invariants.
-10. Adapt the finalized state to the selected execution backend.
+10. Lower the finalized logical state into an explicit compiled execution representation when an
+    execution engine requires one.
+11. Adapt only that compiled representation through the centralized backend boundary.
 
 Layout overlap MUST default to an error. Replacement or preservation behavior MUST be explicitly
 requested. Silent overwrite is prohibited.
