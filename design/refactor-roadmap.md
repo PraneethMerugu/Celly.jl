@@ -8,7 +8,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | --- | --- | --- |
 | Phase 0: Scope Freeze and Current-Code Audit | Complete | [Current-code audit](audits/phase-0-current-code-audit.md), [paper-scope map](audits/phase-0-paper-scope-map.md) |
 | Phase 1: Correctness and Performance Baselines | Complete | [Baseline evidence](audits/phase-1-baseline-evidence.md), [GitHub and JuliaGPU governance](github-and-ci-governance.md), protected `main`, pinned benchmark harness, and immutable attested release |
-| Phase 2: Repository Structural Migration | In progress | [Structural migration audit](audits/phase-2-structural-migration.md) and [issue #7](https://github.com/PraneethMerugu/Potts.jl/issues/7) |
+| Phase 2: Repository Structural Migration | Complete | [Structural migration audit](audits/phase-2-structural-migration.md) and [PR #8](https://github.com/PraneethMerugu/Potts.jl/pull/8) |
 | Phases 3-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
