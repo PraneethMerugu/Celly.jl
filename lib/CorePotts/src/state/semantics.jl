@@ -44,6 +44,12 @@ CellGeneration(value::Integer) = value >= 0 ? CellGeneration(UInt64(value)) :
 CellCapacity(value::Integer) = 0 <= value <= typemax(UInt32) ? CellCapacity(UInt32(value)) :
     throw(ArgumentError("cell capacity must lie in 0:$(typemax(UInt32))"))
 
+CellID(id::CellID) = id
+CellTypeID(id::CellTypeID) = id
+MediumID(id::MediumID) = id
+CellSlot(id::CellSlot) = id
+CellGeneration(generation::CellGeneration) = generation
+
 Base.:(==)(left::T, right::T) where {T <: AbstractScientificID} = left.value == right.value
 Base.hash(id::AbstractScientificID, seed::UInt) = hash(id.value, hash(typeof(id), seed))
 Base.show(io::IO, id::AbstractScientificID) = print(io, nameof(typeof(id)), "(", id.value, ")")

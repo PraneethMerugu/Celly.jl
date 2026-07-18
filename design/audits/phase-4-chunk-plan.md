@@ -1,6 +1,6 @@
 # Phase 4 Chunk Plan: Core State and Scientific Protocols
 
-Status: Active — Chunk 1 complete
+Status: Active — Chunks 1–2 complete
 
 ## Purpose
 
@@ -33,3 +33,15 @@ workspaces, kernels, and PottsToolkit authoring internals.
 - `Pkg.test("CorePotts")` passes with 366 passing tests and one pre-existing documented broken
   test; the semantic tests cover stable identity validation, portable numerical defaults, schema
   provenance/deduplication, schema conflicts, and host-only initializer rejection.
+
+## Chunk 2 Evidence
+
+- `LogicalPottsState` is the CPU logical-state boundary: it stores explicit tagged cell/medium
+  owners, fixed capacity, active and reusable slots, generation and type tables, schema-backed
+  properties, and derived finite/medium occupancy.
+- Its public accessors expose the accepted state-model meanings without referring to legacy
+  `PottsState` fields. `assert_valid_state` checks ownership, active/free slots, capacity, property
+  coverage/reset state, and tracker-equivalent occupancy against a full lattice recomputation.
+- Focused tests cover 2D, 3D, multiple medium domains, stale-derived-state detection, and invalid
+  owner/free-slot rejection. `Pkg.test("CorePotts")` passes with 396 passing tests and one
+  pre-existing documented broken test on Julia 1.12.6.
