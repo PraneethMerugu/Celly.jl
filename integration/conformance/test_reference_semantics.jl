@@ -19,6 +19,14 @@ end
     @test conventional_metropolis_probability(0.0, 0.0) == 1.0
     @test conventional_metropolis_probability(1.0, 0.0) == 0.0
     @test metropolis_hastings_probability(0.0, 0.0, 4.0, 1.0) == 0.25
+    probabilities = neighbor_copy_probabilities(4, Int32[1, 1, 0, 2], Int32(0), Int32(1))
+    @test probabilities.forward_multiplicity == 2
+    @test probabilities.reverse_multiplicity == 1
+    @test probabilities.q_forward == 1 / 8
+    @test probabilities.q_reverse == 1 / 16
+    @test metropolis_hastings_probability(1.0, 1.0, probabilities.q_forward,
+        probabilities.q_reverse) < 1
+    @test metropolis_hastings_probability(-1.0, 1.0, 1.0, 0.0) == 0.0
     @test accepts(1.0, 0.999) && !accepts(0.0, 0.0)
     @test canonical_stencil(((1, 0), (0, -1), (-1, 0), (0, 1)); symmetric = true) ==
           [(-1, 0), (0, -1), (0, 1), (1, 0)]
@@ -57,6 +65,46 @@ end
     @test recompute_volumes(accepted) == Dict(Int32(1) => 3, Int32(2) => 1)
     energy = candidate -> count(==(Int32(1)), candidate.owners)
     @test local_energy_change(energy, state, proposal) == 1
+    @test volume_constraint_energy(state, Dict(Int32(1) => 3, Int32(2) => 1),
+        Dict(Int32(1) => 2, Int32(2) => 1)) == 2
+    owner_type = Dict(Int32(0) => :medium, Int32(1) => :epithelial,
+        Int32(2) => :mesenchymal)
+    interaction = Dict((:epithelial, :medium) => 1, (:medium, :epithelial) => 1,
+        (:epithelial, :mesenchymal) => 2, (:mesenchymal, :epithelial) => 2,
+        (:medium, :mesenchymal) => 3, (:mesenchymal, :medium) => 3)
+    @test contact_hamiltonian(state, ((1, 0), (0, 1), (-1, 0), (0, -1)),
+        owner -> owner_type[owner], (a, b) -> interaction[(a, b)]) == 6
+    @test contact_hamiltonian(state, ((1, 0), (0, 1), (-1, 0), (0, -1)),
+        owner -> owner_type[owner], (a, b) -> interaction[(a, b)];
+        weights = (1, 3, 1, 3)) == 12
+
+    divided = apply_division_batch(state, [DivisionRequest(Int32(1), [2])])
+    @test divided.owners == Int32[1, 3, 0, 2]
+    @test divided.active_ids == Int32[1, 2, 3]
+    @test isempty(divided.reusable_ids)
+    @test divided.cell_types[Int32(3)] == :epithelial
+    @test divided.generations[Int32(3)] == 1
+    @test divided.properties.target_volume[3] == divided.properties.target_volume[1]
+
+    capacity_state = ReferenceState((3, 2), Int32[1, 1, 0, 2, 2, 0];
+        active_ids = Int32[1, 2], reusable_ids = Int32[3],
+        generations = Dict(Int32(1) => 1, Int32(2) => 2, Int32(3) => 0),
+        cell_types = Dict(Int32(1) => :epithelial, Int32(2) => :mesenchymal),
+        properties = (target_volume = Int32[0, 4, 5], age = Int32[0, 1, 2]),
+        medium_ids = Int32[0])
+    original_owners = copy(capacity_state.owners)
+    @test_throws CellCapacityError apply_division_batch(capacity_state,
+        [DivisionRequest(Int32(1), [2]), DivisionRequest(Int32(2), [5])])
+    @test capacity_state.owners == original_owners
+
+    extinct = reference_fixture()
+    extinct.owners[4] = Int32(1)
+    retirement = retire_zero_volume(extinct, (target_volume = Int32(0), age = Int32(0)))
+    @test retirement.retired == Int32[2]
+    @test !(Int32(2) in retirement.state.reusable_ids)
+    @test retirement.state.properties.age[2] == 0
+    released = release_retired_slots(retirement.state, retirement.retired)
+    @test released.reusable_ids == Int32[2, 3]
 
     @test_throws StateInvariantViolation transactional_lifecycle(state) do candidate
         push!(candidate.active_ids, Int32(4))
