@@ -216,6 +216,8 @@ not passed.
 
 ## Phase 4: Core State and Scientific Protocols
 
+Execution chunks: [Phase 4 chunk plan](audits/phase-4-chunk-plan.md).
+
 ### Deliverables
 
 - Implement stable owner, cell, cell-type, medium-domain, property, component, relation, event, and
