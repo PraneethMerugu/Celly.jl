@@ -30,7 +30,7 @@ prob = PottsProblem(state, (0, 10), params)
 cache = PottsCache(state, topology)
 
 for i in 1:10
-    execute_step!(state, params, cache, alg)
+    CorePotts.execute_step!(state, params, cache, alg)
 end
 
 data_batch = [deepcopy(state)]
