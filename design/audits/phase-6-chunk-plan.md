@@ -1,6 +1,6 @@
 # Phase 6 Chunk Plan: Topology, Components, Proposals, and Trackers
 
-Status: Verification — local CPU and Metal green; authoritative ROCm CI pending
+Status: Complete
 
 ## Completion Contract
 
