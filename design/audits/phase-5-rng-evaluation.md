@@ -1,6 +1,6 @@
 # Phase 5 D2 RNG Evaluation
 
-Status: Active — CPU and Metal candidate qualified; expanded ROCm qualification pending
+Status: Accepted — semantic RNG v1 qualified on CPU, Metal, and ROCm
 
 ## Candidate
 
@@ -57,4 +57,6 @@ by the final paper workload inventory.
   same tooling may exercise deferred CUDA, but such a result is not part of the current contract.
 - CPU qualifies the Float64 uniform, normal, and exact-Poisson paths. Metal records Float64 as an
   explicit unsupported capability and never attempts an invalid kernel launch.
+- The ROCm job for commit `8379eb2` passes all 1,028 raw-word comparisons, every bitwise discrete
+  transform, all three statistical distributions over 4,096 samples, and its Float64 probe.
 - Warm scalar Philox and categorical calls allocate zero bytes on Julia 1.12.6.
