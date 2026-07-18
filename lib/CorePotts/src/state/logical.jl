@@ -101,6 +101,20 @@ end
 
 property_values(state::LogicalPottsState, key::Symbol) = property_values(state.properties, key)
 
+function property_value(state::LogicalPottsState, key::Symbol, id::CellID)
+    is_active(state, id) || throw(ArgumentError("cell $id is not active"))
+    return property_values(state, key)[Int(value(id))]
+end
+
+function set_cell_property!(state::LogicalPottsState, key::Symbol, id::CellID, new_value)
+    is_active(state, id) || throw(ArgumentError("cell $id is not active"))
+    descriptor = property_descriptor(state.properties.schema, key)
+    descriptor.mutability === MutableProperty || throw(ArgumentError("property `$key` is read-only"))
+    values = property_values(state, key)
+    values[Int(value(id))] = convert(eltype(values), new_value)
+    return state
+end
+
 capacity(state::LogicalPottsState) = state._capacity
 n_cells(state::LogicalPottsState) = count(state._active)
 active_cell_ids(state::LogicalPottsState) = CellID[CellID(index) for index in eachindex(state._active) if state._active[index]]

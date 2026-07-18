@@ -1,6 +1,6 @@
 # Phase 4 Chunk Plan: Core State and Scientific Protocols
 
-Status: Active — Chunks 1–4 complete
+Status: Active — Chunks 1–5 complete
 
 ## Purpose
 
@@ -72,3 +72,16 @@ workspaces, kernels, and PottsToolkit authoring internals.
   Focused tests cover all of these transactions, invalid geometry, and atomic capacity abort.
   `Pkg.test("CorePotts")` passes with 444 passing tests and one pre-existing documented broken test
   on Julia 1.12.6.
+
+## Chunk 5 Evidence
+
+- CorePotts now exposes additive ordinary-Julia extension protocols for typed copy proposals,
+  conservative energies, nonconservative drives, hard constraints, trackers, events, algorithms,
+  and topology. Stable identity, typed requirements, capabilities, and category validators are
+  public rather than implicit kernel conventions.
+- The protocol layer also provides semantic logical-state property accessors and focused conformance
+  helpers. It leaves legacy penalties, trackers, kernels, and their performance paths untouched
+  until their deliberate migration.
+- A standalone extension fixture defines immutable concrete implementations of every category using
+  only documented CorePotts functions. `Pkg.test("CorePotts")` passes with 456 passing tests and
+  one pre-existing documented broken test on Julia 1.12.6.
