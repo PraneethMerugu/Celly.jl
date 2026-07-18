@@ -25,6 +25,7 @@ include("execution/dispatch.jl")
 include("components/trackers/trackers.jl")
 include("components/components.jl")
 include("components/training.jl")
+include("protocols/scientific.jl")
 
 include("initialization/initialization.jl")
 include("initialization/logical.jl")
@@ -49,6 +50,7 @@ export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetro
        PottsIntegrator,
        PottsSolution, PottsState, PottsParameters, PottsCache
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
+export AbstractEvent
 export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGeneration, CellCapacity,
        value, nslots, NumericalPolicy, real_type, accumulation_type, portable_numerical_policy,
        AbstractMathMode, AccurateMath, QualifiedFastMath,
@@ -68,9 +70,17 @@ export OwnerRef, CellOwner, MediumOwner, is_cell_owner, is_medium_owner, cell_id
        LogicalStateInvariantError, capacity, n_cells, active_cell_ids, reusable_cell_slots,
        medium_ids, generation, is_active, cell_type, owner_at, lattice_size, derived_state,
        finite_volume, medium_occupancy, state_invariant_errors, assert_valid_state,
-       rebuild_derived_state!
+       rebuild_derived_state!, property_value, set_cell_property!
 export DivisionRequest, LogicalDivisionResult, LogicalRetirementResult, apply_division_batch,
        retire_zero_volume, release_retired_slots, immediately_remove_cell, transition_cell_type
+export AbstractEnergy, AbstractDrive, AbstractHardConstraint, ScientificCapabilities, CopyProposal,
+       ScientificInterfaceError, ScientificInterfaceReport, component_identity,
+       required_properties, required_observables, required_relations, capabilities,
+       energy_change, drive_log_bias, is_allowed, rebuild_tracker, event_effects,
+       algorithm_guarantees, topology_dimensions, validate_energy_component,
+       validate_drive_component, validate_constraint_component, validate_tracker_component,
+       validate_event_component, validate_algorithm_component, validate_topology_component,
+       test_energy_component, test_tracker, test_event, test_algorithm, test_topology
 export LayoutOverlapPolicy, ErrorOnOverlap, ReplaceOnOverlap, PreserveOnOverlap,
        AbstractInitialLayout, InitialCellLayout, InitialMediumLayout, InitialLayoutOverlapError,
        LogicalInitializationReport, InitializedLogicalState, logical_state, initialization_report,
