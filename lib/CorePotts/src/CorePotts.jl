@@ -68,6 +68,7 @@ export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGenerat
        property_requesters, value_type, merge_property_schemas
 export OwnerRef, CellOwner, MediumOwner, is_cell_owner, is_medium_owner, cell_id, medium_id,
        PropertyStore, property_values, OccupancyDerivedState, LogicalPottsState,
+       CompiledOwnership, compile_ownership,
        LogicalStateInvariantError, capacity, n_cells, active_cell_ids, reusable_cell_slots,
        medium_ids, generation, is_active, cell_type, owner_at, lattice_size, derived_state,
        finite_volume, medium_occupancy, state_invariant_errors, assert_valid_state,
