@@ -67,6 +67,7 @@ behavior.
 - [SciML Problem, Integrator, Solution, and Ensemble Semantics](sciml-interface-semantics.md)
 - [Numerical and Cross-Backend Semantics](numerical-and-cross-backend-semantics.md)
 - [Unresolved Questions](unresolved.md)
+- [Specification-to-Conformance Evidence Index](conformance-evidence.md)
 - [Decision Records](decisions/README.md)
 
 Engineering realization is described separately in:
