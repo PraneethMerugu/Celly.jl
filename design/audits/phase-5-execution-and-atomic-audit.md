@@ -1,6 +1,6 @@
 # Phase 5 Execution, Synchronization, and Atomic Audit
 
-Status: Active — compiled CPU/Metal path qualified; expanded ROCm and legacy migration pending
+Status: Complete for the Phase 5 execution foundation
 
 ## Accepted execution boundary
 
@@ -94,12 +94,12 @@ component/tracker reductions; Phase 7 owns proposal ordering and deterministic c
 Phase 9 owns compiled lifecycle scans. Phase 5 provides the capability, workspace, launch,
 instrumentation, and failure machinery those replacements must use.
 
-## Remaining Phase 5 blockers
+## Closure and downstream obligations
 
-- Real-hardware ROCm RNG/distribution and ordered-pipeline qualification must be green.
+- Real-hardware ROCm RNG/distribution and ordered-pipeline qualification is green for `8379eb2`.
 - Phase 6 must extend the current exact primitive-workspace byte report to the complete compiled
   model once the first production component pipeline exists.
-- Full regression and GPU tests must confirm the completed removal of dependency tuples and direct
+- Full regression and GPU tests confirm the completed removal of dependency tuples and direct
   construction of obsolete KernelAbstractions events.
-- The ROCm capability report may claim RNG v1 only after its expanded real-hardware job passes.
+- The passing expanded hardware job authorizes the ROCm semantic RNG v1 capability claim.
 - CUDA is deferred by Decision 0013 and MUST fail first-class execution-plan preflight.

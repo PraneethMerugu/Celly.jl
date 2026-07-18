@@ -10,7 +10,9 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 1: Correctness and Performance Baselines | Complete | [Baseline evidence](audits/phase-1-baseline-evidence.md), [GitHub and JuliaGPU governance](github-and-ci-governance.md), protected `main`, pinned benchmark harness, and immutable attested release |
 | Phase 2: Repository Structural Migration | Complete | [Structural migration audit](audits/phase-2-structural-migration.md) and [PR #8](https://github.com/PraneethMerugu/Potts.jl/pull/8) |
 | Phase 3: Reference Semantics and Conformance Foundation | Complete | [Conformance-foundation audit](audits/phase-3-conformance-foundation-audit.md), [specification-to-test evidence index](../spec/conformance-evidence.md), and integration `conformance` shard |
-| Phases 4-15 | Not started | Blocked by preceding phase gates |
+| Phase 4: Core State and Scientific Protocols | Complete | [Phase 4 chunk plan](audits/phase-4-chunk-plan.md), [runtime migration audit](audits/phase-4-runtime-migration-audit.md), and sequential reference vertical slice |
+| Phase 5: Execution, RNG, Workspaces, and Backends | Complete | [Phase 5 completion audit](audits/phase-5-completion-audit.md), CPU/Metal/ROCm qualification, and Decision 0013 |
+| Phases 6-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
 
