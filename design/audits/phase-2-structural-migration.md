@@ -1,6 +1,6 @@
 # Phase 2 Repository Structural Migration Audit
 
-Status: In progress
+Status: Complete
 
 ## Authority and boundary
 
@@ -32,16 +32,18 @@ and DSL semantic changes are outside this phase.
 
 ## Mechanical preservation
 
-Scientific implementation files were moved without rewriting their contents. Only include paths,
-package metadata, test ownership, and two unused NeuralPotts imports changed in runtime source.
-The benchmark implementation checksum now covers the root extension and separated integration
-tree in addition to package source and tests.
+Scientific implementation files were moved without rewriting their contents. Runtime edits were
+limited to include paths, removal of two unused NeuralPotts imports, and a host-side lottery-bound
+type correction discovered when the disconnected mass-conservation test first ran independently.
+That correction computes the topology bound in the algorithm's configured float type; it changes
+neither kernel execution nor RNG behavior. The benchmark implementation checksum now covers the
+root extension and separated integration tree in addition to package source and tests.
 
 ## Local qualification
 
 - `scripts/check_structure.jl`: pass
 - PottsToolkit independent package tests: 256/256 pass
-- CorePotts independent package test process: pass
+- CorePotts independent package test process: 346 pass, 1 explicitly broken
 - MakiePotts independent package test process: pass
 - NeuralPotts independent package test process: pass
 - Complete CPU cross-package integration suite: pass
@@ -50,8 +52,26 @@ tree in addition to package source and tests.
 - Documentation build: pass with historical warn-only tutorial/docstring findings
 - `git diff --check`: pass
 
-## Remaining exit work
+## Pull-request qualification
 
-- Qualify the exact pull-request revision on hosted Linux and native ARM64/macOS and x86_64/Linux.
-- Qualify Metal and AMDGPU through the protected self-hosted workflow.
-- Confirm the final reviewed diff contains no scientific implementation change.
+The Phase 2 implementation revision `875ba3e` passed every enabled gate on
+[PR #8](https://github.com/PraneethMerugu/Potts.jl/pull/8):
+
+- hosted Julia 1.12.6 package tests for PottsToolkit, CorePotts, MakiePotts, and NeuralPotts
+- hosted thermodynamics, biophysics, and cross-package integration shards
+- native Julia 1.12.6 CPU verification on macOS ARM64 and Linux x86_64
+- protected Apple Metal and AMDGPU/ROCm smoke qualification
+- documentation build, project-integrity contract, and required aggregate
+
+CUDA remains intentionally skipped until a CUDA runner is enabled; it is not an available Phase 2
+gate. The available real-GPU exit requirement is exceeded by independent Metal and ROCm passes.
+
+## Exit-gate conclusion
+
+- Every package loads and tests independently from its own clean environment.
+- Cross-package tests execute from the dedicated integration environment.
+- CPU, Metal, and ROCm workloads execute through the moved package structure.
+- The structural validator proves downward-only released-package dependencies.
+- The obsolete root `Potts` runtime and duplicated test ownership are absent.
+
+All Phase 2 deliverables and exit criteria are satisfied.
