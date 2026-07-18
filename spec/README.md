@@ -31,6 +31,20 @@ Each document or section has one of these statuses:
 - **Under Investigation**: no semantic decision has been accepted.
 - **Experimental**: deliberately excluded from compatibility guarantees.
 
+Semantic status is independent of implementation maturity. Conformance evidence uses these
+implementation labels:
+
+- **Specified**: the observable contract is written, but no package implementation is claimed.
+- **Reference implemented**: the ordinary sequential CPU implementation exercises the contract.
+- **Production implemented**: at least one optimized execution path implements the contract.
+- **Backend qualified**: the named backend has passed its required correctness, statistical,
+  device-code, allocation, synchronization, and performance evidence.
+- **Deferred**: implementation is intentionally assigned to a later roadmap phase.
+
+An `Accepted` rule can therefore still be only `Specified`. Conversely, historical working code is
+not conforming merely because it runs. Documents and release claims MUST state semantic status and
+implementation maturity separately.
+
 ## Scope
 
 This specification covers:
@@ -64,6 +78,7 @@ behavior.
 - [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md)
 - [PottsToolkit Authoring, Composition, and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md)
 - [CorePotts Public Scientific and Execution Interfaces](corepotts-public-interface-semantics.md)
+- [Sequential Reference Engine](reference-engine-semantics.md)
 - [SciML Problem, Integrator, Solution, and Ensemble Semantics](sciml-interface-semantics.md)
 - [Numerical and Cross-Backend Semantics](numerical-and-cross-backend-semantics.md)
 - [Unresolved Questions](unresolved.md)

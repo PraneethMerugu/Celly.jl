@@ -7,6 +7,7 @@ using StructArrays
 using Adapt
 using Random
 using SciMLBase
+using LinearAlgebra: issymmetric
 import Atomix
 import SciMLBase: solve
 
@@ -26,6 +27,7 @@ include("components/trackers/trackers.jl")
 include("components/components.jl")
 include("components/training.jl")
 include("protocols/scientific.jl")
+include("reference/engine.jl")
 
 include("initialization/initialization.jl")
 include("initialization/logical.jl")
@@ -84,6 +86,9 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, ScientificCapabili
        validate_drive_component, validate_constraint_component, validate_tracker_component,
        validate_event_component, validate_algorithm_component, validate_topology_component,
        test_energy_component, test_tracker, test_event, test_algorithm, test_topology
+export ReferenceVolumeEnergy, ReferenceContactEnergy, ReferenceModel, SequentialReference,
+       ReferenceIntegrator, ReferenceMCSReport, reference_energy, init_reference,
+       step_reference!, reference_rng_version
 export LayoutOverlapPolicy, ErrorOnOverlap, ReplaceOnOverlap, PreserveOnOverlap,
        AbstractInitialLayout, InitialCellLayout, InitialMediumLayout, InitialLayoutOverlapError,
        LogicalInitializationReport, InitializedLogicalState, logical_state, initialization_report,

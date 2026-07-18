@@ -1,12 +1,12 @@
 # Phase 4 Chunk Plan: Core State and Scientific Protocols
 
-Status: Active — Chunks 1–5 complete
+Status: Complete — all six chunks satisfy the revised ADR 0012 gate
 
 ## Purpose
 
-Phase 4 replaces the scientific state contract while preserving a working CPU and GPU path at every
-boundary. These chunks are sequential gates, not parallel architectures: a chunk adds one final
-contract and its conformance evidence before the next chunk consumes it.
+Phase 4 establishes the scientific state contract while leaving the historical CPU and GPU paths
+working until their deliberate migration. These chunks are sequential gates: a chunk adds one
+contract and its conformance evidence before the next executable slice consumes it.
 
 | Chunk | Scope | Exit evidence |
 | --- | --- | --- |
@@ -15,7 +15,11 @@ contract and its conformance evidence before the next chunk consumes it.
 | 3. Initialization | Rasterization finalization, overlap policy, compact IDs, capacity validation, schema initialization, tracker reconstruction | 2D/3D initialization fixtures pass through the logical state and match reference snapshots |
 | 4. Lifecycle state transitions | Retirement, reset, next-MCS reuse, deterministic allocation, property transition state | Division/death/capacity transaction references pass without duplicate state storage |
 | 5. Core scientific protocols | Public component, proposal, tracker, event, topology, and algorithm extension functions | A standalone CorePotts extension example passes interface and conformance tests |
-| 6. Migration qualification | Remove legacy state-field contracts, characterize public path allocations, CPU/GPU smoke qualification | CPU logical conformance plus available-GPU smoke path pass; no public path depends on legacy `PottsState` fields |
+| 6. Reference vertical-slice qualification | Sequential 2D CPU engine, volume and contact terms, normalized MCS, semantic replay, observation, and one PottsToolkit compilation path | End-to-end reference tests pass; allocations are characterized; remaining production-runtime migration is explicitly assigned to later phases |
+
+Chunk 6 supersedes the original runtime-migration closeout. Production CPU/GPU execution migration
+remains mandatory in Phases 5–7, but is not evidence for whether the Phase 4 scientific protocols
+compose into a correct runnable model.
 
 ## Chunk 1 Boundaries
 
@@ -85,3 +89,30 @@ workspaces, kernels, and PottsToolkit authoring internals.
 - A standalone extension fixture defines immutable concrete implementations of every category using
   only documented CorePotts functions. `Pkg.test("CorePotts")` passes with 456 passing tests and
   one pre-existing documented broken test on Julia 1.12.6.
+
+## Chunk 6 Evidence
+
+- `SequentialReference` executes exactly one integer MCS as `N` semantically addressed candidate
+  attempts over `LogicalPottsState`. Its report partitions every attempt into no-op, constraint
+  rejection, energy rejection, or accepted copy and records retirement.
+- `ReferenceVolumeEnergy` and `ReferenceContactEnergy` satisfy local-delta versus complete
+  Hamiltonian tests, including finite-cell extinction. Same-seed runs produce equal reports and
+  logical ownership snapshots; retirement reuse occurs only at the following MCS boundary.
+- PottsToolkit `CellType`, `PottsSystem`, rigid `VolumeComponent`, `AdhesionComponent`, and a
+  deterministic layout compile through `reference_integrator` into the CorePotts reference path.
+  Unsupported components, stochastic legacy layouts, flexible parameters, events, and extra media
+  fail explicitly rather than falling back to historical execution.
+- The executable slice exposed and corrected the parametric-extension subtype direction in the
+  public scientific interface validator.
+- On Julia 1.12.6, the full CorePotts suite passes with 481 tests and one pre-existing documented
+  broken test; the full PottsToolkit suite passes with 269 tests.
+- After warmup, the checked second MCS of the documented 16-by-16, one-cell PottsToolkit fixture
+  infers `ReferenceMCSReport` and allocates 39,104 host bytes. This characterizes the copy-on-commit
+  scalar oracle; it is not a production performance acceptance threshold.
+
+## Deferred production obligations
+
+The runtime migration inventory remains in `phase-4-runtime-migration-audit.md`. Compiled execution
+state, counter-RNG backend qualification, allocation-free steady-state kernels, zero-sync GPU
+execution, and replacement of historical `PottsState` consumers are mandatory Phase 5–7 work and
+are not implied by this Phase 4 completion.

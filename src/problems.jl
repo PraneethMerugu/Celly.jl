@@ -8,7 +8,111 @@ using ..Events
 import ..Layouts: AbstractLayout
 import ..System: required_variables
 
-export PottsProblem
+export PottsProblem, reference_integrator
+
+_reference_layout_supported(::Union{Layouts.HypersphereLayout, Layouts.RectangleLayout}) = true
+_reference_layout_supported(layout::Layouts.CompositeLayout) =
+    all(_reference_layout_supported, layout.layouts)
+_reference_layout_supported(::AbstractLayout) = false
+
+function _reference_cell_type_ids(sys::PottsSystem)
+    backgrounds = filter(cell_type -> cell_type.is_background, sys.cell_types)
+    length(backgrounds) == 1 || throw(ArgumentError(
+        "the Phase 4 reference slice requires exactly one background CellType"))
+    finite_types = filter(cell_type -> !cell_type.is_background, sys.cell_types)
+    ordered = (only(backgrounds), finite_types...)
+    length(unique(ordered)) == length(ordered) || throw(ArgumentError(
+        "PottsSystem cell types must be unique"))
+    return Dict(cell_type => CellTypeID(index) for (index, cell_type) in pairs(ordered))
+end
+
+function _reference_components(sys::PottsSystem, type_ids)
+    isempty(sys.events) || throw(ArgumentError(
+        "events are not part of the Phase 4 reference vertical slice"))
+    volume_components = filter(component -> component isa VolumeComponent, sys.penalties)
+    contact_components = filter(component -> component isa AdhesionComponent, sys.penalties)
+    length(volume_components) == 1 || throw(ArgumentError(
+        "the reference slice requires exactly one VolumeComponent"))
+    length(contact_components) == 1 || throw(ArgumentError(
+        "the reference slice requires exactly one AdhesionComponent"))
+    length(sys.penalties) == 2 || throw(ArgumentError(
+        "the reference slice currently accepts only volume and adhesion components"))
+    volume_dsl = only(volume_components)
+    contact_dsl = only(contact_components)
+    volume_dsl isa VolumeComponent{Rigid} || throw(ArgumentError(
+        "flexible volume parameters are not yet in the reference slice"))
+    contact_dsl isa AdhesionComponent{Rigid} || throw(ArgumentError(
+        "flexible adhesion parameters are not yet in the reference slice"))
+
+    volume = ReferenceVolumeEnergy()
+    count = length(type_ids)
+    interactions = zeros(Float64, count, count)
+    for ((left, right), interaction) in contact_dsl.mappings
+        i = Int(value(type_ids[left]))
+        j = Int(value(type_ids[right]))
+        interactions[i, j] = interaction
+        interactions[j, i] = interaction
+    end
+    background = only(filter(cell_type -> cell_type.is_background, sys.cell_types))
+    contact = ReferenceContactEnergy(interactions; medium_type = type_ids[background])
+    return volume_dsl, ReferenceModel(energies = (volume, contact)),
+           required_properties(volume)
+end
+
+"""
+    reference_integrator(system, layout, grid_size; temperature=20.0, seed=0,
+                         max_cells=nothing, checked=true)
+
+Compile the currently supported public PottsToolkit volume-plus-adhesion spelling into the checked
+CorePotts sequential reference engine. This is the Phase 4 vertical-slice compiler, not a fallback
+for unsupported production or GPU execution.
+"""
+function reference_integrator(sys::PottsSystem, layout::AbstractLayout,
+        grid_size::NTuple{2, <:Integer}; temperature::T = 20.0, seed::Integer = 0,
+        max_cells::Union{Nothing, Integer} = nothing, checked::Bool = true) where {T <: AbstractFloat}
+    _reference_layout_supported(layout) || throw(ArgumentError(
+        "the reference slice currently accepts HypersphereLayout, RectangleLayout, or deterministic composites"))
+    type_ids = _reference_cell_type_ids(sys)
+    volume_dsl, model, schema = _reference_components(sys, type_ids)
+
+    # Existing layout primitives use a compact UInt8 authoring ID. It is translated explicitly to
+    # the positive logical CellTypeID domain rather than leaking background ID zero into CorePotts.
+    layout_type_ids = Dict{CellType, UInt8}()
+    for cell_type in sys.cell_types
+        semantic_id = value(type_ids[cell_type])
+        semantic_id <= typemax(UInt8) || throw(ArgumentError(
+            "the current PottsToolkit layout compiler supports at most 255 cell types"))
+        layout_type_ids[cell_type] = cell_type.is_background ? UInt8(0) : UInt8(semantic_id)
+    end
+    context = Layouts.LayoutContext(Tuple(Int.(grid_size)), layout_type_ids)
+    Layouts.build_layout!(layout, context)
+    provisional_ids = sort!(filter(>(Int32(0)), unique(vec(context.grid))))
+    initial_layouts = map(provisional_ids) do provisional_id
+        layout_type = context.cell_type_map[provisional_id]
+        cell_type = only(cell_type for cell_type in sys.cell_types
+            if !cell_type.is_background && layout_type_ids[cell_type] == layout_type)
+        InitialCellLayout(CellID(provisional_id), type_ids[cell_type], context.grid .== provisional_id)
+    end
+    requested_capacity = max_cells === nothing ? length(provisional_ids) : Int(max_cells)
+    initialized = finalize_initial_state(Tuple(Int.(grid_size)), initial_layouts...;
+        capacity = CellCapacity(requested_capacity), medium_domains = [MediumID(1)],
+        property_schema = schema)
+    state = logical_state(initialized)
+
+    provisional_to_runtime = initialization_report(initialized).provisional_to_runtime
+    for (provisional_id, runtime_id) in provisional_to_runtime
+        layout_type = context.cell_type_map[Int32(value(provisional_id))]
+        cell_type = only(cell_type for cell_type in sys.cell_types
+            if !cell_type.is_background && layout_type_ids[cell_type] == layout_type)
+        parameters = get(volume_dsl.mappings, cell_type, nothing)
+        parameters === nothing && continue
+        set_cell_property!(state, :target_volume, runtime_id, Float64(parameters.target))
+        set_cell_property!(state, :volume_strength, runtime_id, Float64(parameters.λ))
+    end
+    assert_valid_state(state)
+    return init_reference(state, model,
+        SequentialReference(temperature = temperature, seed = seed, checked = checked))
+end
 
 """
     compile_component(pen::AbstractComponent, type_to_id::Dict{CellType, UInt8}, num_types::Int)

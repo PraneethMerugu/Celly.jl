@@ -22,7 +22,7 @@ export CellType, PottsSystem, AbstractComponent
 export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
        LengthComponent, ChemotaxisComponent
 export AbstractLayout, RandomLayout, HypersphereLayout, ScatterSpheresLayout, RectangleLayout, CompositeLayout
-export PottsProblem, compile_component
+export PottsProblem, compile_component, reference_integrator
 export PottsToolkitEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, AgeTrigger,
        ProbabilityTrigger, CustomTrigger
 export MitosisEvent, ApoptosisEvent, TransitionEvent

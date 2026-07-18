@@ -157,6 +157,12 @@ semantics are unambiguous.
 Every optimized energy component has a simple ordinary CPU/scalar reference implementation wherever
 feasible. Fused and backend-specialized implementations are tested against that behavior.
 
+The first executable consumer of a proposed stable scientific protocol MUST be the sequential
+reference engine. A public protocol remains provisional for API-freeze purposes until it has been
+used by that engine, tested through a complete MCS, and—when it has a PottsToolkit spelling—reached
+through one authoring-to-CorePotts compilation path. This permits breaking refinements before the
+paper API freeze when executable use exposes a poor abstraction.
+
 ## Trackers and Observables
 
 Authoritative lattice and cell state are distinguished from derived maintained quantities. A
@@ -339,3 +345,7 @@ workspace use, and backend qualification separately.
 - Validation catches incomplete interfaces before GPU execution.
 - Public conformance helpers exercise every stable extension category.
 - Stable execution protocols are separated from replaceable internals.
+- The sequential reference engine can execute a complete normalized MCS through public scientific
+  protocols without legacy `PottsState` fields.
+- Public protocol freeze follows executable reference and PottsToolkit compilation evidence, not
+  interface-shape tests alone.

@@ -230,14 +230,20 @@ Execution chunks: [Phase 4 chunk plan](audits/phase-4-chunk-plan.md).
 - Establish public state accessors and ordinary Julia multiple-dispatch protocols for components,
   proposals, trackers, events, topology, and algorithms.
 - Add conformance helpers for third-party scientific extensions.
-- Remove migrated legacy types, exports, direct field-access contracts, and reflective reconstruction.
+- Implement the accepted sequential CPU reference vertical slice over the logical state.
+- Compile one public PottsToolkit volume-plus-contact model spelling to that reference path.
+- Record remaining legacy execution dependencies without exposing them as the new public contract.
 
 ### Exit gate
 
 - CorePotts can construct and inspect a valid CPU state solely through final protocols.
 - Stable extension examples pass conformance without depending on PottsToolkit.
 - Public types do not encode a particular GPU backend or mutable compilation cache.
-- Representative public calls are type-stable and allocation behavior is characterized.
+- A complete normalized MCS runs through the reference engine with deterministic replay, exact
+  attempt accounting, local-delta checks, extinction handling, and invariant validation.
+- One PottsToolkit model compiles to and executes through that CorePotts path.
+- Representative public calls are type-stable and allocation behavior is characterized; reference
+  allocations are recorded without being treated as production performance acceptance.
 
 ## Phase 5: Execution, RNG, Workspaces, and Backends
 
@@ -255,6 +261,8 @@ Complete D2 before freezing the RNG engine and distribution interface.
   versioning.
 - Qualify raw RNG bits and every required distribution on CPU, CUDA, AMDGPU, and Metal.
 - Centralize Adapt-based movement and ensure adapted state contains device-valid values only.
+- Remove migrated legacy state types, exports, and direct field contracts as their production
+  consumers move to compiled execution state.
 - Inventory and specify every atomic operation, overflow rule, memory-ordering need, contention
   behavior, and reproducibility class.
 - Move scratch allocation out of steady-state paths and expose required memory in reports.
