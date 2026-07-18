@@ -30,6 +30,17 @@ struct CellCapacity
     value::UInt32
 end
 
+"""A lifecycle or initialization request exceeded fixed finite-cell capacity."""
+struct CellCapacityError <: Exception
+    requested::Int
+    capacity::CellCapacity
+end
+
+function Base.showerror(io::IO, error::CellCapacityError)
+    print(io, "fixed cell capacity ", error.capacity,
+        " cannot accommodate ", error.requested, " finite cells")
+end
+
 function _positive_uint32(value::Integer, name::AbstractString)
     0 < value <= typemax(UInt32) || throw(ArgumentError("$name must lie in 1:$(typemax(UInt32))"))
     return UInt32(value)
