@@ -2,7 +2,7 @@
 
 Semantic status: Accepted index structure
 
-Implementation maturity: Phase 5 complete; Phase 6 candidate awaiting authoritative ROCm evidence
+Implementation maturity: Phases 5 and 6 complete
 
 This index is the authoritative map from accepted semantics to executable evidence. A green
 package-local regression suite does not satisfy a row by itself: evidence must exercise a stable
@@ -12,13 +12,13 @@ logical contract, a scalar reference, a validator, or a defined statistical proc
 | --- | --- | --- | --- | --- |
 | [State Model](state-model.md) | `LogicalPottsState`, `state_invariant_errors`, canonical snapshots | Reference implemented | Historical production state not migrated | Compiled-state round trip and backend adapters |
 | [Time and MCS](time-and-mcs.md) | `ReferenceMCSReport`, `AttemptAccounting`, normalized-round validators | Reference implemented for conventional `N`-attempt MCS | Historical optimized algorithms not migrated | Lottery calibration and named-algorithm reports |
-| [Energy, Proposals, and Trackers](energy-proposals-and-trackers.md) | full/local volume, contact, raw/weighted/normalized surface laws; proposal/acceptance fixtures; tracker reconstruction | Required Phase 6 paper slice implemented | Compiled CPU and Metal `Float32`; CPU `Float64`; ROCm pending | Authoritative ROCm qualification |
+| [Energy, Proposals, and Trackers](energy-proposals-and-trackers.md) | full/local volume, contact, raw/weighted/normalized surface laws; proposal/acceptance fixtures; tracker reconstruction | Required Phase 6 paper slice implemented | Compiled CPU, Metal, and ROCm `Float32`; CPU `Float64` | Phase 7 algorithm integration |
 | [Lifecycle](lifecycle.md) | logical transactions plus reference-engine extinction/reuse | Reference implemented for copy extinction and core transactions | Historical event runtime not migrated | Event conflicts and compiled lifecycle adapters |
 | [Randomness and Reproducibility](randomness-and-reproducibility.md) | Philox v1 known-answer vectors, semantic-address fixtures, distribution batteries | Accepted reference contract implemented | CPU, Metal, and ROCm Phase 5 qualification complete | Algorithm-level guarantees belong to Phase 7 |
 | [Numerical and Cross-Backend Semantics](numerical-and-cross-backend-semantics.md) | typed `ReferenceNumericalPolicy`, `ConformanceCase`, and statistical procedure tiers | `integration/conformance/test_harness.jl` | precision/backend matrix | Foundation present; adapters pending |
-| [Topology and Spatial Relations](topology-and-spatial-relations.md) | canonical static 2D/3D relations, role separation, periodic/fixed/closed realization, obstacles | Required Cartesian slice implemented | Compiled CPU and Metal qualification; historical algorithm topologies quarantined | Authoritative ROCm qualification |
-| [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md) | global/local surface laws, edge/site/distinct-owner queries, aligned field sampling, chemotaxis modes, reports | Required Phase 6 paper slice implemented | CPU and Metal device qualification in 2D/3D | Authoritative ROCm qualification; PDE evolution remains deferred |
-| [CorePotts Public Interfaces](corepotts-public-interface-semantics.md) | typed proposal, component-category folds, proposal context, acceptance inputs, staged transaction | Required Phase 6 inner-loop protocol implemented | CPU and Metal compiled execution; old algorithms quarantined | Phase 7 algorithm integration and ROCm qualification |
+| [Topology and Spatial Relations](topology-and-spatial-relations.md) | canonical static 2D/3D relations, role separation, periodic/fixed/closed realization, obstacles | Required Cartesian slice implemented | Compiled CPU, Metal, and ROCm qualification; historical algorithm topologies quarantined | Phase 7 algorithm integration |
+| [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md) | global/local surface laws, edge/site/distinct-owner queries, aligned field sampling, chemotaxis modes, reports | Required Phase 6 paper slice implemented | CPU, Metal, and ROCm qualification in 2D/3D | PDE evolution remains deferred |
+| [CorePotts Public Interfaces](corepotts-public-interface-semantics.md) | typed proposal, component-category folds, proposal context, acceptance inputs, staged transaction | Required Phase 6 inner-loop protocol implemented | CPU, Metal, and ROCm compiled execution; old algorithms quarantined | Phase 7 algorithm integration |
 | [Sequential Reference Engine](reference-engine-semantics.md) | checked sequential CPU execution | Reference implemented for the 2D volume/contact slice | Deferred; it is not a production engine | Extend per later algorithm/component phases |
 | [SciML Interface Semantics](sciml-interface-semantics.md) | pending problem/solution oracle | — | public SciML integration tests | Pending Phase 8 |
 | [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md) | volume-plus-contact authoring compilation | Reference implemented for one public spelling | Production compiler remains historical | Complete typed IR/compiler in Phases 10–11 |

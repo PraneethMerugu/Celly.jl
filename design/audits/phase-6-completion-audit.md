@@ -1,6 +1,6 @@
 # Phase 6 Completion Audit
 
-Status: Candidate — authoritative ROCm CI pending
+Status: Complete
 
 This audit uses the Phase 6 deliverables and exit gate in `design/refactor-roadmap.md` as the
 definition of completion. Local CPU and Metal success are necessary but do not close the
@@ -44,7 +44,7 @@ surface-mechanics discussion provides independent implementation context at
 | Proposal and acceptance fixtures | Exact forward/reverse multiplicity and acceptance-law test matrix | Complete locally |
 | Trackers survive accept/reject/lifecycle/boundaries | Reconstruction matrix plus fixed exterior, obstacles, extinction, focal moments, and normalized surface | Complete locally |
 | CPU `Float32`/`Float64`, 2D/3D | CorePotts: 1,745 passed, one intentional broken; PottsToolkit: 255 passed; cross-package integration: 152 passed | Complete locally |
-| Available-GPU `Float32`, 2D/3D | Real Apple Metal qualification passes all component, generic evaluation, query, connectivity, transaction, and normalized-surface probes with zero internal synchronization | Metal complete; ROCm pending |
+| Available-GPU `Float32`, 2D/3D | Real Metal and ROCm qualification passes all component, generic evaluation, query, connectivity, transaction, and normalized-surface probes with zero internal synchronization | Complete |
 | Surface and field semantic reports | Exact metric/relation/boundary/calibration/coupling descriptors have executable report fixtures | Complete locally |
 | No quarantined dependency | Static name audit over `spatial/cartesian.jl`, `protocols/scientific.jl`, and `components/scientific_*.jl` returns no historical concrete dependency | Complete locally |
 
@@ -58,8 +58,18 @@ and 1,092 bytes in 3D. Surface caches carry a device-safe 128-bit semantic ident
 cannot consume a cache compiled for a different metric or relation; hot-kernel validation is two
 integer comparisons and introduces no stencil scan or host runtime call.
 
-## Closure condition
+## Authoritative closure evidence
 
-Change this audit and the chunk plan to `Complete` only after the exact candidate commit passes the
-authoritative GPU Validation Metal and ROCm jobs. Record the commit and check URLs here; do not
-infer ROCm conformance from CPU or Metal.
+Candidate commit `8fb3260` passed the authoritative
+[GPU Validation run](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29635302415):
+
+- [Metal / Apple Silicon](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29635302415/job/88056480886)
+  passed in 1m49s;
+- [ROCm / AMDGPU](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29635302415/job/88056480869)
+  passed in 1m23s; and
+- both machine-readable scientific reports declare every Phase 6 conformance flag true for 2D and
+  3D `Float32`, including `normalized_surface_conformance`, with
+  `internal_host_synchronizations = 0`.
+
+This closes the Phase 6 three-backend contract. CUDA remains deferred by Decision 0013; no CUDA
+claim is inferred.
