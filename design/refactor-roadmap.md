@@ -8,8 +8,11 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | --- | --- | --- |
 | Phase 0: Scope Freeze and Current-Code Audit | Complete | [Current-code audit](audits/phase-0-current-code-audit.md), [paper-scope map](audits/phase-0-paper-scope-map.md) |
 | Phase 1: Correctness and Performance Baselines | Complete | [Baseline evidence](audits/phase-1-baseline-evidence.md), [GitHub and JuliaGPU governance](github-and-ci-governance.md), protected `main`, pinned benchmark harness, and immutable attested release |
-| Phase 2: Repository Structural Migration | Ready to start | Phase 1 preservation gate is closed; execute the dedicated Phase 2 milestone and issue |
-| Phases 3-15 | Not started | Blocked by preceding phase gates |
+| Phase 2: Repository Structural Migration | Complete | [Structural migration audit](audits/phase-2-structural-migration.md) and [PR #8](https://github.com/PraneethMerugu/Potts.jl/pull/8) |
+| Phase 3: Reference Semantics and Conformance Foundation | Complete | [Conformance-foundation audit](audits/phase-3-conformance-foundation-audit.md), [specification-to-test evidence index](../spec/conformance-evidence.md), and integration `conformance` shard |
+| Phase 4: Core State and Scientific Protocols | Complete | [Phase 4 chunk plan](audits/phase-4-chunk-plan.md), [runtime migration audit](audits/phase-4-runtime-migration-audit.md), and sequential reference vertical slice |
+| Phase 5: Execution, RNG, Workspaces, and Backends | Complete | [Phase 5 completion audit](audits/phase-5-completion-audit.md), CPU/Metal/ROCm qualification, and Decision 0013 |
+| Phases 6-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
 
@@ -47,7 +50,7 @@ complete only when its exit gate passes and its obsolete path is removed.
 - Volume, surface, contact, chemotaxis, focal-point, and other paper components
 - Growth, division, type transition, death, extinction, and deterministic lifecycle transactions
 - Semantically addressed RNG and reproducibility reports
-- CPU, CUDA, AMDGPU, and Metal qualification for claimed features
+- CPU, AMDGPU, and Metal qualification for claimed features; CUDA is deferred by Decision 0013
 - CorePotts Level 3 and Level 4 interfaces
 - PottsToolkit Level 2 typed modeling and Level 1 DSL
 - SciML problem, integrator, solution, callback, saving, observation, remake, and ensemble behavior
@@ -215,6 +218,8 @@ not passed.
 
 ## Phase 4: Core State and Scientific Protocols
 
+Execution chunks: [Phase 4 chunk plan](audits/phase-4-chunk-plan.md).
+
 ### Deliverables
 
 - Implement stable owner, cell, cell-type, medium-domain, property, component, relation, event, and
@@ -227,14 +232,20 @@ not passed.
 - Establish public state accessors and ordinary Julia multiple-dispatch protocols for components,
   proposals, trackers, events, topology, and algorithms.
 - Add conformance helpers for third-party scientific extensions.
-- Remove migrated legacy types, exports, direct field-access contracts, and reflective reconstruction.
+- Implement the accepted sequential CPU reference vertical slice over the logical state.
+- Compile one public PottsToolkit volume-plus-contact model spelling to that reference path.
+- Record remaining legacy execution dependencies without exposing them as the new public contract.
 
 ### Exit gate
 
 - CorePotts can construct and inspect a valid CPU state solely through final protocols.
 - Stable extension examples pass conformance without depending on PottsToolkit.
 - Public types do not encode a particular GPU backend or mutable compilation cache.
-- Representative public calls are type-stable and allocation behavior is characterized.
+- A complete normalized MCS runs through the reference engine with deterministic replay, exact
+  attempt accounting, local-delta checks, extinction handling, and invariant validation.
+- One PottsToolkit model compiles to and executes through that CorePotts path.
+- Representative public calls are type-stable and allocation behavior is characterized; reference
+  allocations are recorded without being treated as production performance acceptance.
 
 ## Phase 5: Execution, RNG, Workspaces, and Backends
 
@@ -250,8 +261,10 @@ Complete D2 before freezing the RNG engine and distribution interface.
   supported KA API.
 - Implement semantically addressed counter-based randomness with named streams and contract
   versioning.
-- Qualify raw RNG bits and every required distribution on CPU, CUDA, AMDGPU, and Metal.
+- Qualify raw RNG bits and every required distribution on CPU, AMDGPU, and Metal.
 - Centralize Adapt-based movement and ensure adapted state contains device-valid values only.
+- Remove migrated legacy state types, exports, and direct field contracts as their production
+  consumers move to compiled execution state.
 - Inventory and specify every atomic operation, overflow rule, memory-ordering need, contention
   behavior, and reproducibility class.
 - Move scratch allocation out of steady-state paths and expose required memory in reports.
@@ -450,7 +463,7 @@ Complete D6 and D7 before declaring the public API candidate.
 - The geometric mean across core workloads does not regress.
 - Qualified steady-state GPU workloads allocate no memory and introduce no internal host wait.
 - Compilation latency, first-MCS latency, memory, and steady-state throughput pass independent gates.
-- CPU, CUDA, AMDGPU, and Metal claims are backed by real hardware results rather than compilation
+- CPU, AMDGPU, and Metal claims are backed by real hardware results rather than compilation
   alone.
 
 ## Phase 13: API Freeze and Full Conformance
@@ -519,7 +532,7 @@ compatibility shims remain unnecessary.
 ### Exit gate
 
 - Publication workloads reproduce from a clean environment.
-- CPU, CUDA, AMDGPU, and Metal claims have current real-hardware evidence.
+- CPU, AMDGPU, and Metal claims have current real-hardware evidence.
 - Paper tables and figures trace to archived raw results and code.
 - Documentation, packages, manifests, and paper describe the same frozen API and semantics.
 - No legacy engine or DSL path remains.

@@ -5,7 +5,7 @@ Status: Draft engineering standard for the refactor
 ## Authority and Scope
 
 This document governs performance-portable implementation in CorePotts and PottsToolkit. It applies
-to CPU, CUDA, AMDGPU, and Metal execution and to the use of KernelAbstractions,
+to the current CPU, AMDGPU, and Metal execution contract and to the use of KernelAbstractions,
 AcceleratedKernels, KernelIntrinsics, Atomix, Adapt, StructArrays, StaticArrays, and related
 performance tools.
 
@@ -537,8 +537,8 @@ behavior and must not be copied into new architecture.
 `Base/dispatch.jl` presents an explicit dependency/event abstraction and passes `dependencies=` to
 selected launches. The resolved KernelAbstractions version is 0.9.42, while KA 0.9 removed its event
 system in favor of implicitly ordered launches. The launch layer must be redesigned for the pinned
-API before “zero-sync” behavior can be trusted. Tests must prove ordering on CPU, CUDA, AMDGPU, and
-Metal rather than encode backend folklore.
+API before “zero-sync” behavior can be trusted. Tests must prove ordering on CPU, AMDGPU, and Metal
+under the current first-class backend contract rather than encode backend folklore.
 
 ### P0: host synchronization in execution paths
 

@@ -23,20 +23,26 @@ using StructArrays
         u0 = PottsState(grid, cell_data)
         p_sys = PottsParameters(topo, (vol_penalty,), trackers)
         prob = PottsProblem(u0, (0, steps), p_sys)
-        alg = ParallelMetropolis(; active_fraction = 0.1f0, sweeps_per_step = 10, T = T)
+        sites_per_round = length(CorePotts.lottery_offsets(topo)) + 1
+        alg = ParallelMetropolis(;
+            active_fraction = inv(Float32(sites_per_round)),
+            sweeps_per_step = sites_per_round,
+            T = T,
+        )
 
         integrator = SciMLBase.init(prob, alg)
 
         # Sync metrics and targets
-        sync_cell_data!(integrator.u, integrator.p, integrator.cache, 1)
+        CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, 1)
 
         # Run steps
         sol = solve!(integrator)
 
         # After execution, the total number of pixels belonging to cell 1
-        # should exactly match sol.u.cell_data.volumes[1]
-        actual_vol = count(==(1), sol.u.grid)
-        tracked_vol = sol.u.cell_data.volumes[1]
+        # should exactly match the tracked volume in the final saved state.
+        final_state = sol.u[end]
+        actual_vol = count(==(1), final_state.grid)
+        tracked_vol = final_state.cell_data.volumes[1]
 
         @test actual_vol == tracked_vol
     end

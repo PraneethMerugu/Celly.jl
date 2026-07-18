@@ -21,7 +21,8 @@ layout, proposal, acceptance, algorithm scheduling, HST, rules, events, lifecycl
 ensemble randomness. Thread identity, workgroup structure, launch order, and asynchronous scheduling
 do not define draws.
 
-Raw addressed bits match across CPU, CUDA, Metal, and AMDGPU. Cross-backend simulations must be
+Raw addressed bits match across every first-class backend (currently CPU, Metal, and AMDGPU).
+Cross-backend simulations must be
 statistically equivalent but need not follow identical trajectories. Trajectory reproducibility is a
 separate algorithm-specific claim that also depends on numerical and transactional determinism.
 

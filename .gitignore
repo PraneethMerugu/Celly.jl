@@ -1,5 +1,6 @@
 # Julia environment and package files
 /Manifest.toml
+/integration/Manifest.toml
 /manifests/
 *.jl.cov
 *.jl.mem
@@ -22,6 +23,21 @@
 # Generated benchmark and profiler evidence
 /benchmark/results/
 /benchmark/profiles/
+/benchmark/reports/
+/benchmark/device-code/
+
+# Generated paper and experiment products
+/paper/results/
+/paper/profiles/
+/paper/figures/generated/
+/coverage/
+*.jfr
+*.nsys-rep
+*.qdrep
+*.trace
+*.mp4
+*.webm
+*.gif
 
 # Nested checkout used to isolate self-hosted Actions from developer worktrees
 /_ci/

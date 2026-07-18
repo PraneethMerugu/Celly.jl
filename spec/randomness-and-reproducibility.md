@@ -180,7 +180,7 @@ trajectory as an uninterrupted run under the checkpoint's declared trajectory pr
 
 ### Cross-Backend Equivalence
 
-CPU, CUDA, Metal, and AMDGPU MUST be statistically equivalent under common model and algorithm
+CPU, Metal, and AMDGPU MUST be statistically equivalent under common model and algorithm
 semantics. Cross-backend bitwise trajectory equality is not required. Raw addressed random bits are
 still required to match; later distribution transforms or state evolution MAY differ only as allowed
 by their numerical and portability profiles.
@@ -416,7 +416,7 @@ diagnostics, output checksums, and optional exact checkpoint.
 Acceptance requires:
 
 - Published known-answer vectors for the raw generator
-- Raw-bit identity on CPU, CUDA, Metal, and AMDGPU
+- Raw-bit identity on CPU, Metal, and AMDGPU
 - Workgroup-size and asynchronous-scheduling invariance tests
 - Static or generated auditing that built-in semantic addresses do not collide
 - Multiple-random-expression rule tests

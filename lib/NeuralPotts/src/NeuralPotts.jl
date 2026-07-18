@@ -6,8 +6,6 @@ using CorePotts: PottsState, PottsParameters, LocalNeuralPenalty, AbstractPenalt
 using Lux
 using StaticArrays
 using ChainRulesCore
-using Optimization
-using ComponentArrays
 
 const N_neighbors = 8
 const N_features = 1 + N_neighbors

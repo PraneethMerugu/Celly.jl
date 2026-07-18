@@ -169,7 +169,7 @@ Preferred tools, in order, are:
 5. Backend-resident descriptor arrays for larger data
 6. Generated functions only with written justification
 
-Performance claims require measurement on representative CPU, CUDA, AMDGPU, and Metal paths where
+Performance claims require measurement on representative CPU, AMDGPU, and Metal paths where
 supported.
 
 ## Generated-Function Policy
