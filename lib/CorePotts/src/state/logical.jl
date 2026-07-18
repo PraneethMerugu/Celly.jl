@@ -100,6 +100,7 @@ mutable struct LogicalPottsState{N, P <: PropertyStore} <: AbstractPottsState
 end
 
 property_values(state::LogicalPottsState, key::Symbol) = property_values(state.properties, key)
+lattice_storage(state::LogicalPottsState) = state._owners
 
 function property_value(state::LogicalPottsState, key::Symbol, id::CellID)
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))

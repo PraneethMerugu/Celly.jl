@@ -50,6 +50,7 @@ export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetro
        PottsIntegrator,
        PottsSolution, PottsState, PottsParameters, PottsCache
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
+export lattice_storage
 export AbstractEvent
 export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGeneration, CellCapacity,
        value, nslots, NumericalPolicy, real_type, accumulation_type, portable_numerical_policy,
