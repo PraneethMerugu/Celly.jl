@@ -77,6 +77,8 @@ shard. It provides:
 
 - scalar reference MCS accounting, proposal probability, conventional Metropolis, and
   Metropolis-Hastings acceptance, including explicit neighbor-owner forward/reverse multiplicities;
+- exact volume-tracker deltas whose incremental application is checked against authoritative full
+  lattice reconstruction;
 - canonical logical snapshots and SHA-256 checksums independent of property declaration order;
 - state ownership, active/free-slot, generation, property-slot, finite-cell-volume, and medium
   occupancy validators;

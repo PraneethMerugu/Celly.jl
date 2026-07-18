@@ -63,6 +63,13 @@ end
     accepted = apply_copy_transaction(state, proposal; accepted = true)
     @test accepted.owners == Int32[1, 1, 1, 2]
     @test recompute_volumes(accepted) == Dict(Int32(1) => 3, Int32(2) => 1)
+    tracked = recompute_volumes(state)
+    tracker_delta = volume_tracker_delta(state, proposal; accepted = true)
+    @test tracker_delta == Dict(Int32(1) => 1)
+    @test apply_volume_tracker_delta(tracked, tracker_delta) == recompute_volumes(accepted)
+    @test isempty(volume_tracker_errors(accepted,
+        apply_volume_tracker_delta(tracked, tracker_delta)))
+    @test !isempty(volume_tracker_errors(accepted, tracked))
     energy = candidate -> count(==(Int32(1)), candidate.owners)
     @test local_energy_change(energy, state, proposal) == 1
     @test volume_constraint_energy(state, Dict(Int32(1) => 3, Int32(2) => 1),

@@ -11,7 +11,8 @@ export AttemptAccounting, ReferenceProposal, ReferenceState, CanonicalSnapshot,
        canonical_stencil, realized_neighbor, local_energy_change, volume_constraint_energy,
        contact_hamiltonian,
        canonical_snapshot, canonical_checksum, state_invariant_errors,
-       assert_valid_state, recompute_volumes, medium_occupancies, apply_copy_transaction,
+       assert_valid_state, recompute_volumes, volume_tracker_delta, apply_volume_tracker_delta,
+       volume_tracker_errors, medium_occupancies, apply_copy_transaction,
        transactional_lifecycle, apply_division_batch, retire_zero_volume, release_retired_slots
 
 """Versioned named streams, represented independently of any RNG implementation."""
@@ -502,6 +503,40 @@ function recompute_volumes(state::ReferenceState)
         haskey(volumes, owner) && (volumes[owner] += 1)
     end
     return volumes
+end
+
+"""Exact finite-cell volume deltas for one accepted ownership-copy transaction."""
+function volume_tracker_delta(state::ReferenceState, proposal::ReferenceProposal; accepted::Bool)
+    accepted || return Dict{eltype(state.active_ids), Int}()
+    state.owners[proposal.recipient] == proposal.old_owner || throw(ArgumentError(
+        "proposal old_owner does not match the recipient's snapshot owner"))
+    delta = Dict{eltype(state.active_ids), Int}()
+    proposal.old_owner in state.active_ids && (delta[proposal.old_owner] = -1)
+    proposal.new_owner in state.active_ids && (delta[proposal.new_owner] =
+        get(delta, proposal.new_owner, 0) + 1)
+    return delta
+end
+
+function apply_volume_tracker_delta(tracked::AbstractDict, delta::AbstractDict)
+    updated = copy(tracked)
+    for (id, amount) in delta
+        haskey(updated, id) || throw(ArgumentError("tracker does not contain finite cell $id"))
+        updated[id] += amount
+        updated[id] >= 0 || throw(ArgumentError("a volume tracker must never become negative"))
+    end
+    return updated
+end
+
+function volume_tracker_errors(state::ReferenceState, tracked::AbstractDict)
+    reconstructed = recompute_volumes(state)
+    errors = String[]
+    Set(keys(tracked)) == Set(keys(reconstructed)) || push!(errors,
+        "tracked finite-cell IDs differ from authoritative ownership")
+    for id in keys(reconstructed)
+        get(tracked, id, nothing) == reconstructed[id] || push!(errors,
+            "tracked volume for cell $id differs from authoritative ownership")
+    end
+    return errors
 end
 
 function medium_occupancies(state::ReferenceState)
