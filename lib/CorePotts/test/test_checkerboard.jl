@@ -44,7 +44,7 @@ end
 
     alg = CheckerboardMetropolis(sweeps_per_step = 1, T = 10.0f0)
 
-    prob = PottsProblem(u0, (0, 10), p)
+    prob = LegacyPottsProblem(u0, (0, 10), p)
 
     # Modify volume to avoid division by zero in HST
     prob.u0.cell_data.volumes[2] = 1

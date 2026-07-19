@@ -173,7 +173,7 @@ end
 
 @kernel function _lottery_candidates!(sites, neighbor_indices, neighbor_offsets,
         round_order, attempts, tickets, selected, dispositions, accounting,
-        state, relation, rng, seed, mcs, ordinal, round_count)
+        state, relation, proposal_process, rng, seed, mcs, ordinal, round_count)
     site_index = @index(Global, Linear)
     if site_index <= length(sites)
         site = @inbounds sites[site_index]
@@ -208,7 +208,7 @@ end
                 ProposalDirectionStream, mcs, round, site)
             direction = bounded_uint(rng, seed, direction_address,
                 UInt32(direction_count(relation))) + UInt32(1)
-            attempt = _construct_copy_attempt_unchecked(
+            attempt = construct_proposal_attempt(proposal_process,
                 state, state.domain, relation, Int(site), direction, mcs,
                 (UInt64(round) << 32) | UInt64(site))
             @inbounds attempts[site_index] = attempt
@@ -321,8 +321,8 @@ end
     end
 end
 
-function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R,
-        <:LotteryCPM}) where {S, C, R}
+function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
+        <:LotteryCPM}, ::LotteryCPM) where {S, C, R}
     next_mcs = integrator.mcs + UInt64(1)
     workspace = integrator.algorithm_workspace
     site_count = length(workspace.sites)
@@ -361,8 +361,9 @@ function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R,
             workspace.neighbor_offsets, workspace.round_order, workspace.attempts,
             workspace.tickets, workspace.selected, workspace.dispositions,
             workspace.accounting, scientific_execution(integrator.state),
-            integrator.proposal_relation, integrator.rng, integrator.seed, next_mcs,
-            ordinal, workspace.round_count; ndrange = site_count)
+            integrator.proposal_relation, proposal_law(integrator.algorithm),
+            integrator.rng, integrator.seed, next_mcs, ordinal,
+            workspace.round_count; ndrange = site_count)
         launch!(integrator.plan, claim_priorities, workspace.attempts,
             workspace.priorities, workspace.selected, workspace.cell_max_priority;
             ndrange = site_count)

@@ -22,11 +22,11 @@ function run_sim()
     spawn_hypersphere!(grid, grid_dims, (180, 180), 20, UInt32(2))
     cell_data.cell_types[1:2] .= [UInt8(1), UInt8(2)]
 
-    println("Grid initialized. Setting up PottsProblem...")
+    println("Grid initialized. Setting up LegacyPottsProblem...")
 
     u0 = PottsState(grid, cell_data, N_cells)
     p = PottsParameters(VonNeumannTopology{2}(), penalties, trackers)
-    prob = PottsProblem(u0, (0, 5000), p)
+    prob = CorePotts.LegacyPottsProblem(u0, (0, 5000), p)
     alg = CheckerboardMetropolis(; T = 1.0f0, active_fraction = 0.1f0, sweeps_per_step = 10)
 
     integrator = SciMLBase.init(prob, alg)

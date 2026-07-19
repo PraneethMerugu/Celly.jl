@@ -49,6 +49,26 @@ derived observable without editing CorePotts; it compiles and executes in 2D/3D 
 is part of the required ROCm matrix. Historical and PottsToolkit findings retain their original
 classification until their owning migration phases.
 
+## Phase 9 resolution note
+
+The Phase 9 candidate resolves every P1 item on the replacement path:
+
+- algorithms initialize and execute through open dispatch, with an external-style ordered
+  algorithm fixture and no central concrete algorithm union;
+- algorithms select proposal and acceptance laws through public methods;
+- backend providers and requirements dispatch on backend and typed capability values;
+- downstream RNG identities lower through a collision-checked 128-bit namespace above the closed
+  v1 address ABI;
+- the Phase 8 compiled-component and derived-observable fixture remains the combined lowering proof;
+  and
+- historical state, sampler, cache, and algorithm names are no longer exported by CorePotts.
+  Backend storage and workspace values that remain exported are deliberate Level 4 execution
+  interfaces under `spec/corepotts-public-interface-semantics.md`, not Level 3 scientific state.
+
+PottsToolkit explicitly imports and re-exports its frozen historical compatibility surface until
+Phase 10 replaces the broad re-export and compiler. The hard legacy-containment checker now treats
+the evacuated `LegacyPotts*` names as quarantined vocabulary and inventories package extensions.
+
 ## Classification Vocabulary
 
 - **Intentionally closed** — exhaustiveness is part of a versioned semantic or internal contract.

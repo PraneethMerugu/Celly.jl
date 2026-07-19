@@ -22,7 +22,7 @@ using Statistics
 
         u0 = PottsState(grid, cell_data)
         p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-        prob = PottsProblem(u0, (0, 5000), p_sys)
+        prob = LegacyPottsProblem(u0, (0, 5000), p_sys)
         alg = ParallelMetropolis(; active_fraction = 0.01f0, sweeps_per_step = 100, T = T_val)
 
         volumes = Int32[]

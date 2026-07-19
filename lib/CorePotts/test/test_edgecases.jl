@@ -21,7 +21,7 @@ using Test
 
                 u0 = PottsState(grid, cell_data)
                 p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-                prob = PottsProblem(u0, (0, 100), p_sys)
+                prob = LegacyPottsProblem(u0, (0, 100), p_sys)
                 alg = AlgType(; T = 0.0f0, active_fraction = 0.1f0, sweeps_per_step = 10)
                 integrator = init(prob, alg)
                 CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, N_cells)
@@ -84,7 +84,7 @@ using Test
 
                 u0 = PottsState(grid, cell_data)
                 p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-                prob = PottsProblem(u0, (0, 100), p_sys)
+                prob = LegacyPottsProblem(u0, (0, 100), p_sys)
                 alg = AlgType(; T = 0.0f0)
                 integrator = init(prob, alg)
                 CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, 2)
@@ -152,7 +152,7 @@ using Test
 
                 u0 = PottsState(grid, cell_data)
                 p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-                prob = PottsProblem(u0, (0, 500), p_sys)
+                prob = LegacyPottsProblem(u0, (0, 500), p_sys)
                 alg = AlgType(; T = 10.0f0)
                 integrator = init(prob, alg)
                 CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, N_cells)

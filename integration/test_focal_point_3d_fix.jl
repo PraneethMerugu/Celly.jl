@@ -25,7 +25,7 @@ using Test
     sys = PottsState(grid, cell_data)
     params = PottsParameters(CorePotts.MooreTopology{3}(), penalties, trackers, ())
 
-    prob = PottsProblem(sys, (0, 100), params)
+    prob = CorePotts.LegacyPottsProblem(sys, (0, 100), params)
     sol = CorePotts.SciMLBase.solve(prob, SequentialMetropolis())
 
     # Run some sweeps and ensure the 3D anchors and forces remain finite.

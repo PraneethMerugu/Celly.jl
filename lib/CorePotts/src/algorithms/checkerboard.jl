@@ -219,7 +219,8 @@ end
 end
 
 @kernel function _checkerboard_candidates!(sites, color_order, color_offsets, attempts,
-        priorities, selected, dispositions, state, relation, rng, seed, mcs, ordinal)
+        priorities, selected, dispositions, state, relation, proposal_process,
+        rng, seed, mcs, ordinal)
     local_index = @index(Global, Linear)
     color = @inbounds color_order[Int(ordinal)]
     first_index = @inbounds color_offsets[Int(color)]
@@ -231,7 +232,7 @@ end
         address = _checkerboard_address(ProposalDirectionStream, mcs, site)
         direction = bounded_uint(rng, seed, address,
             UInt32(direction_count(relation))) + UInt32(1)
-        attempt = _construct_copy_attempt_unchecked(
+        attempt = construct_proposal_attempt(proposal_process,
             state, state.domain, relation, Int(site), direction, mcs, UInt64(site))
         @inbounds begin
             attempts[Int(schedule_index)] = attempt
@@ -480,8 +481,8 @@ end
     end
 end
 
-function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R,
-        <:CheckerboardSweepCPM}) where {S, C, R}
+function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
+        <:CheckerboardSweepCPM}, ::CheckerboardSweepCPM) where {S, C, R}
     next_mcs = integrator.mcs + UInt64(1)
     workspace = integrator.algorithm_workspace
     order_kernel = _checkerboard_order_kernel!(integrator.plan.backend, 1)
@@ -510,7 +511,8 @@ function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R,
             workspace.color_order, workspace.color_offsets, workspace.attempts,
             workspace.priorities, workspace.selected, workspace.dispositions,
             scientific_execution(integrator.state), integrator.proposal_relation,
-            integrator.rng, integrator.seed, next_mcs, ordinal;
+            proposal_law(integrator.algorithm), integrator.rng, integrator.seed,
+            next_mcs, ordinal;
             ndrange = Int(workspace.maximum_color_size))
         launch!(integrator.plan, claim_priorities_kernel, workspace.color_order,
             workspace.color_offsets, workspace.attempts, workspace.priorities,

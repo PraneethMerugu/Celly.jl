@@ -22,7 +22,7 @@ using StructArrays
 
         u0 = PottsState(grid, cell_data)
         p_sys = PottsParameters(topo, (vol_penalty,), trackers)
-        prob = PottsProblem(u0, (0, steps), p_sys)
+        prob = LegacyPottsProblem(u0, (0, steps), p_sys)
         sites_per_round = length(CorePotts.lottery_offsets(topo)) + 1
         alg = ParallelMetropolis(;
             active_fraction = inv(Float32(sites_per_round)),

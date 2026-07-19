@@ -1,4 +1,4 @@
-function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...;
+function SciMLBase.__init(prob::LegacyPottsProblem, alg::AbstractPottsAlgorithm, args...;
         saveat = Int[], save_everystep = isempty(saveat),
         save_start = true, save_end = true, callback = nothing, kwargs...)
     # Merge callbacks from the problem definition (prob.kwargs) and solve call (kwargs)
@@ -46,7 +46,7 @@ function SciMLBase.__init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args.
     p_initialized = PottsParameters(prob.p.topology, prob.p.penalties, prob.p.trackers, initialized_events)
 
     sol_u, sol_t = initialize_backend(backend, prob, alg, opts)
-    return PottsIntegrator(
+    return LegacyPottsIntegrator(
         deepcopy(prob.u0), p_initialized, prob.tspan[1], alg, cache, opts, sol_u,
         sol_t, saveat_vec, save_everystep, save_start, save_end, prob)
 end
@@ -75,7 +75,7 @@ end
     T::FT, dt::FT = one(FT)) where {FT} = _update_sweep_auxiliary!(
     items, u, p, cache, T, dt, Val(1))
 
-function SciMLBase.step!(integrator::PottsIntegrator)
+function SciMLBase.step!(integrator::LegacyPottsIntegrator)
     u = integrator.u
     p = integrator.p
     cache = integrator.cache
@@ -127,17 +127,17 @@ function SciMLBase.step!(integrator::PottsIntegrator)
     integrator.t += 1
 end
 
-function SciMLBase.terminate!(integrator::PottsIntegrator, retcode = SciMLBase.ReturnCode.Terminated)
+function SciMLBase.terminate!(integrator::LegacyPottsIntegrator, retcode = SciMLBase.ReturnCode.Terminated)
     integrator.opts = merge(integrator.opts, (; t_end = integrator.t))
 end
 
 """
-    SciMLBase.solve!(integrator::PottsIntegrator)
+    SciMLBase.solve!(integrator::LegacyPottsIntegrator)
 
 In-place execution of the Potts simulation. Steps the `integrator` forward in time until it reaches
 the end of the problem's timespan. Useful for manual loop control and avoiding memory reallocation.
 """
-function SciMLBase.solve!(integrator::PottsIntegrator)
+function SciMLBase.solve!(integrator::LegacyPottsIntegrator)
     has_cbs = !isempty(integrator.opts.callback.discrete_callbacks)
 
     if integrator.save_start || integrator.save_everystep ||
@@ -172,26 +172,26 @@ function SciMLBase.solve!(integrator::PottsIntegrator)
     end
 
     # Return the standardized solution type
-    return PottsSolution(integrator.sol_u, integrator.sol_t, integrator.prob,
+    return LegacyPottsSolution(integrator.sol_u, integrator.sol_t, integrator.prob,
         integrator.alg, SciMLBase.ReturnCode.Success)
 end
 
-function SciMLBase.__solve(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
+function SciMLBase.__solve(prob::LegacyPottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
     integrator = SciMLBase.__init(prob, alg, args...; kwargs...)
     return SciMLBase.solve!(integrator)
 end
 
-function SciMLBase.init(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
+function SciMLBase.init(prob::LegacyPottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
     return SciMLBase.__init(prob, alg, args...; kwargs...)
 end
 
 """
-    SciMLBase.solve(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
+    SciMLBase.solve(prob::LegacyPottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
 
-Standard out-of-place execution interface. Dynamically initializes a new `PottsIntegrator`,
-allocates engine structures, executes the full simulation, and returns a `PottsSolution`.
+Standard out-of-place execution interface. Dynamically initializes a new `LegacyPottsIntegrator`,
+allocates engine structures, executes the full simulation, and returns a `LegacyPottsSolution`.
 """
-function SciMLBase.solve(prob::PottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
+function SciMLBase.solve(prob::LegacyPottsProblem, alg::AbstractPottsAlgorithm, args...; kwargs...)
     return SciMLBase.__solve(prob, alg, args...; kwargs...)
 end
 

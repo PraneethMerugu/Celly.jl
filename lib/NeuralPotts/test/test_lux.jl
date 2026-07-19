@@ -2,6 +2,8 @@
 
 using CorePotts, NeuralPotts, Lux, Optimization, OptimizationOptimisers, ComponentArrays,
       Zygote
+import CorePotts: LegacyPottsProblem, PottsState, PottsParameters, PottsCache,
+                  ParallelMetropolis
 using Random, Statistics
 
 grid_dims = (50, 50)
@@ -26,7 +28,7 @@ penalties = (
 )
 params = PottsParameters(topology, penalties, (VolumeTracker(),))
 alg = ParallelMetropolis(T = 10.0f0, active_fraction = 0.1f0)
-prob = PottsProblem(state, (0, 10), params)
+prob = LegacyPottsProblem(state, (0, 10), params)
 cache = PottsCache(state, topology)
 
 for i in 1:10
@@ -57,7 +59,7 @@ end
 initial_grid = deepcopy(grid)
 shuffle!(initial_grid)
 initial_state = PottsState(initial_grid, deepcopy(cell_data))
-base_prob = PottsProblem(initial_state, (0, 0), params)
+base_prob = LegacyPottsProblem(initial_state, (0, 0), params)
 
 train_cache = PottsTrainingCache(base_prob, 2, ParallelMetropolis(T = 10.0f0, active_fraction = 0.1f0))
 

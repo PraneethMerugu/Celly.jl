@@ -8,4 +8,6 @@ CorePotts.backend_capabilities(::AMDGPU.ROCBackend) = CorePotts.BackendCapabilit
     CorePotts.AMDGPUFamily, CorePotts.QualifiedBackend,
     AMDGPU.functional(), true, true, false, (v"1.0.0",))
 
+CorePotts.execution_adaptor(::AMDGPU.ROCBackend) = AMDGPU.ROCArray
+
 end

@@ -18,12 +18,15 @@ initialization and stochastic simulation behavior.
 
 - A user-supplied seed MUST deterministically select the same semantic random stream under the same
   RNG contract version.
-- When the seed is omitted, Potts.jl MAY obtain entropy from the operating system exactly once. The
-  realized seed MUST be stored in the problem or compiled problem and reported in solution
-  provenance.
+- When the seed is omitted, the canonical `PottsProblem` constructor uses `UInt64(0)`. Construction
+  is therefore deterministic by default and never consults ambient entropy.
+- A user who wants operating-system entropy MUST request it explicitly through a typed seed source
+  or supply a realized seed. Such a source is sampled exactly once during problem construction; the
+  resulting `UInt64` is stored in the problem and reported in solution provenance.
 - PottsToolkit and CorePotts MUST NOT use Julia's default or task-local RNG for model randomness.
-- A solve-time seed override MAY be supported, but its realized value MUST be reflected in the
-  solution and checkpoint rather than mutating an unrecorded global stream.
+- Ordinary single-trajectory `init` and `solve` MUST NOT override the problem seed. A different
+  trajectory uses `remake(prob; seed = ...)`; ensemble master-seed selection follows the ensemble
+  contract below.
 - `remake` SHOULD support replacing the master seed without requiring reconstruction of unrelated
   model semantics.
 
@@ -124,15 +127,19 @@ quality guarantees of the selected counter-based generator.
 ### Extension RNG Namespaces
 
 The built-in numeric stream encoding is closed within one RNG contract version. An extension gains
-randomness through a semantic namespace derived from its stable component identity, instance
-identity, operation label, entity identity, and contract version. It MUST NOT select an undocumented
-raw numeric stream offset.
+randomness through a stable 128-bit semantic namespace identity and domain-separated key derivation,
+combined with its instance identity, operation label, entity identity, and contract version. It MUST
+NOT select an undocumented raw numeric stream offset.
 
 The compiler-assigned mapping MUST be injective over the supported model domain and recorded in the
 model fingerprint or provenance. Adding, removing, or reordering an unrelated extension MUST NOT
 change an existing component's complete address. If the accepted address representation cannot
 express a collision-free mapping, the RNG contract MUST be revised rather than silently aliasing
 streams.
+
+Duplicate namespace identities within one compiled model are a compilation error. The stable
+identity, derivation contract, and resolved namespace mapping are included in provenance so extension
+draws remain auditable.
 
 A stochastic lifecycle trigger or division geometry declares its operation labels before lowering.
 Its device result remains a pure function of the pre-lifecycle snapshot and addressed draws; branch
@@ -389,6 +396,17 @@ prefix, algorithm guarantee, backend profile, and exact-continuation availabilit
 An ensemble trajectory seed MUST be derived deterministically from the ensemble master seed,
 trajectory identity, and rerun identity. It MUST NOT depend on batch size, worker assignment,
 completion order, host task scheduling, or ensemble execution strategy.
+
+`EnsembleSeedDerivationV1` uses the semantic Philox machinery and domain separation over the
+realized `UInt64` master seed, stable trajectory identity, rerun identity, and derivation version.
+An explicit ensemble `seed` is the master; when omitted, the template problem seed is the master.
+Supplying an ensemble `rng` consumes exactly one `UInt64` master value before scheduling and stores
+that value in provenance.
+
+The user's SciML `prob_func` runs first and MUST return a `PottsProblem`; automatic seed `remake`
+runs afterward so ordinary parameter sweeps cannot accidentally duplicate streams. An explicit
+`UserManagedEnsembleSeeds()` policy disables automatic derivation and records that the user owns
+trajectory-seed uniqueness.
 
 Serial, threaded, distributed, split-threaded, and GPU ensemble execution MUST assign the same
 trajectory seed to the same semantic trajectory identity. A rerun MUST receive a distinct derived

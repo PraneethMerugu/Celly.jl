@@ -35,7 +35,7 @@ using SciMLBase
 
     u0 = PottsState(grid, cell_data)
     p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-    problem = PottsProblem(u0, (0, 200), p_sys)
+    problem = CorePotts.LegacyPottsProblem(u0, (0, 200), p_sys)
 
     alg = SequentialMetropolis(; sweeps_per_step = 1, T = 1.0f0)
     integrator = CorePotts.SciMLBase.init(problem, alg)

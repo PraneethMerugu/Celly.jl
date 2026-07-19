@@ -29,6 +29,9 @@ const FORBIDDEN_PATTERNS = [
     r"\bSequentialMetropolis\b",
     r"\bactive_fraction\b",
     r"\bsweeps_per_step\b",
+    r"\bLegacyPottsProblem\b",
+    r"\bLegacyPottsIntegrator\b",
+    r"\bLegacyPottsSolution\b",
 ]
 
 function require(condition, message)
@@ -54,6 +57,7 @@ end
 function protected_scientific_source(path)
     startswith(path, "lib/CorePotts/src/algorithms/") && return true
     startswith(path, "lib/CorePotts/src/components/scientific_") && return true
+    path == "lib/CorePotts/src/sciml/interface.jl" && return true
     return path in (
         "lib/CorePotts/src/execution/contracts.jl",
         "lib/CorePotts/src/initialization/logical.jl",
@@ -69,7 +73,8 @@ end
 function production_source(path)
     startswith(path, "src/") && return true
     startswith(path, "benchmark/src/") && return true
-    return startswith(path, "lib/") && occursin("/src/", path)
+    return startswith(path, "lib/") &&
+           (occursin("/src/", path) || occursin("/ext/", path))
 end
 
 function forbidden_matches(text)

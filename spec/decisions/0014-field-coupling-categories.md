@@ -40,9 +40,10 @@ difference of the gaining and losing occupancy potentials at the recipient site.
 donor-to-recipient difference as a substitute for that global/local identity.
 
 Fields are immutable within one transaction round. Field evolution, secretion, uptake, PDE solver
-choice, and operator splitting remain deferred to the SciML coupling phase. Phase 6 implements
-aligned and explicitly interpolated read-only sampling without host synchronization during device
-execution.
+choice, and operator splitting remain deferred to a separately scoped evolving-field semantics
+phase after the paper core unless explicitly promoted by a required paper experiment. Phase 6
+implements aligned and explicitly interpolated read-only sampling without host synchronization
+during device execution.
 
 ## Consequences
 

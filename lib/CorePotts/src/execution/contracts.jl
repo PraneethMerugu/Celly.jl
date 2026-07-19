@@ -11,8 +11,8 @@ end
 end
 
 """Host-side declaration of capabilities which have been implemented and qualified."""
-struct BackendCapabilities{R <: Tuple}
-    family::BackendFamily
+struct BackendCapabilities{F, R <: Tuple}
+    family::F
     contract_status::BackendContractStatus
     functional::Bool
     ordered_launches::Bool
@@ -21,9 +21,19 @@ struct BackendCapabilities{R <: Tuple}
     qualified_rng_contracts::R
 end
 
-struct UnsupportedBackendCapability <: Exception
-    family::BackendFamily
-    capability::Symbol
+abstract type AbstractBackendCapability end
+struct QualifiedBackendCapability <: AbstractBackendCapability end
+struct FunctionalBackendCapability <: AbstractBackendCapability end
+struct OrderedLaunchCapability <: AbstractBackendCapability end
+struct DeviceFloat64Capability <: AbstractBackendCapability end
+struct SubgroupIntrinsicCapability <: AbstractBackendCapability end
+struct SemanticRNGCapability <: AbstractBackendCapability
+    version::VersionNumber
+end
+
+struct UnsupportedBackendCapability{F, C} <: Exception
+    family::F
+    capability::C
 end
 
 struct UnsupportedBackendType <: Exception
@@ -46,24 +56,40 @@ end
 backend_capabilities(::KernelAbstractions.CPU) = BackendCapabilities(
     CPUFamily, QualifiedBackend, true, true, true, false, (v"1.0.0",))
 
-function require_capability(capabilities::BackendCapabilities, capability::Symbol)
-    supported = if capability === :qualified_backend
-        capabilities.contract_status === QualifiedBackend
-    elseif capability === :functional
-        capabilities.functional
-    elseif capability === :ordered_launches
-        capabilities.ordered_launches
-    elseif capability === :device_float64
-        capabilities.device_float64
-    elseif capability === :subgroup_intrinsics
-        capabilities.subgroup_intrinsics
-    elseif capability === :semantic_rng_v1
-        v"1.0.0" in capabilities.qualified_rng_contracts
-    else
-        false
-    end
+supports(capabilities::BackendCapabilities, ::QualifiedBackendCapability) =
+    capabilities.contract_status === QualifiedBackend
+supports(capabilities::BackendCapabilities, ::FunctionalBackendCapability) =
+    capabilities.functional
+supports(capabilities::BackendCapabilities, ::OrderedLaunchCapability) =
+    capabilities.ordered_launches
+supports(capabilities::BackendCapabilities, ::DeviceFloat64Capability) =
+    capabilities.device_float64
+supports(capabilities::BackendCapabilities, ::SubgroupIntrinsicCapability) =
+    capabilities.subgroup_intrinsics
+supports(capabilities::BackendCapabilities, capability::SemanticRNGCapability) =
+    capability.version in capabilities.qualified_rng_contracts
+
+function require_capability(capabilities::BackendCapabilities,
+        capability::AbstractBackendCapability)
+    supported = supports(capabilities, capability)
     supported || throw(UnsupportedBackendCapability(capabilities.family, capability))
     return capabilities
+end
+
+# Frozen legacy callers use symbols. New execution code and backend extensions use typed values.
+_typed_capability(::Val{:qualified_backend}) = QualifiedBackendCapability()
+_typed_capability(::Val{:functional}) = FunctionalBackendCapability()
+_typed_capability(::Val{:ordered_launches}) = OrderedLaunchCapability()
+_typed_capability(::Val{:device_float64}) = DeviceFloat64Capability()
+_typed_capability(::Val{:subgroup_intrinsics}) = SubgroupIntrinsicCapability()
+_typed_capability(::Val{:semantic_rng_v1}) = SemanticRNGCapability(v"1.0.0")
+function require_capability(capabilities::BackendCapabilities, capability::Symbol)
+    typed = try
+        _typed_capability(Val(capability))
+    catch
+        throw(UnsupportedBackendCapability(capabilities.family, capability))
+    end
+    return require_capability(capabilities, typed)
 end
 
 """Host-only information required to reconstruct and validate compiled state."""
@@ -304,9 +330,9 @@ function ExecutionPlan(backend::KernelAbstractions.Backend; block_size::Integer 
         metrics::ExecutionMetrics = ExecutionMetrics())
     block_size > 0 || throw(ArgumentError("block size must be positive"))
     capabilities = backend_capabilities(backend)
-    require_capability(capabilities, :qualified_backend)
-    require_capability(capabilities, :functional)
-    require_capability(capabilities, :ordered_launches)
+    require_capability(capabilities, QualifiedBackendCapability())
+    require_capability(capabilities, FunctionalBackendCapability())
+    require_capability(capabilities, OrderedLaunchCapability())
     return ExecutionPlan(backend, capabilities, OrderedAsynchronousLaunches(),
         ExplicitObservationSynchronization(), Int(block_size), metrics)
 end
