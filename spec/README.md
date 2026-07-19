@@ -73,6 +73,7 @@ behavior.
 - [Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md)
 - [Lifecycle](lifecycle.md)
 - [Randomness and Reproducibility](randomness-and-reproducibility.md)
+- [Snapshots, Checkpoints, Restore, and Logical Storage](persistence.md)
 - [Energy, Proposals, Acceptance, and Trackers](energy-proposals-and-trackers.md)
 - [Topology and Spatial Relations](topology-and-spatial-relations.md)
 - [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md)
@@ -88,6 +89,7 @@ behavior.
 
 Engineering realization is described separately in:
 
+- [Open Protocol and Extensibility Standard](../design/open-protocol-and-extensibility-standard.md)
 - [Metaprogramming and Compiler Architecture Standard](../design/metaprogramming-and-compiler-architecture.md)
 - [JuliaGPU and Performance Programming Standard](../design/juliagpu-and-performance-programming-standard.md)
 - [Refactor, Benchmark, and Paper-Release Standard](../design/refactor-benchmark-and-paper-release-standard.md)
@@ -96,6 +98,10 @@ Engineering realization is described separately in:
 
 Refactor execution evidence:
 
+- [Open-Protocol Audit](../design/audits/open-protocol-audit.md)
+- [Phase 8 Minimality Pass](../design/audits/phase-8-minimality-pass.md)
+- [Phase 8 Mechanical Lifecycle Research](../design/audits/phase-8-mechanical-lifecycle-research.md)
+- [JuliaGPU and Open-Protocol Community Validation](../design/audits/juliagpu-open-protocol-research.md)
 - [Phase 0 Current-Code Audit](../design/audits/phase-0-current-code-audit.md)
 - [Phase 0 Paper-Scope Map](../design/audits/phase-0-paper-scope-map.md)
 

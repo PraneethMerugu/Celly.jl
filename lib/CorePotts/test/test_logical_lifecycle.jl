@@ -5,11 +5,12 @@ using CorePotts
     provenance = ComponentIdentity(:logical_lifecycle_test, v"1.0.0", :test)
     schema = PropertySchema(
         PropertyDescriptor(:age, Int32, ConstantInitializer(Int32(0));
-            division = CloneOnDivision, transition = PreserveOnTransition, requester = provenance),
+            division = CloneOnDivision(), transition = PreserveOnTransition(), requester = provenance),
         PropertyDescriptor(:resource, Int32, ConstantInitializer(Int32(0));
-            division = SplitOnDivision, transition = ResetOnTransition, requester = provenance),
+            division = SplitOnDivision(), transition = ResetOnTransition(), requester = provenance),
         PropertyDescriptor(:signal, Int32, ConstantInitializer(Int32(0));
-            division = ResetChildOnDivision, requester = provenance),
+            division = ResetChildOnDivision(), transition = PreserveOnTransition(),
+            requester = provenance),
     )
     owners = reshape(OwnerRef[
         CellOwner(1), CellOwner(1), CellOwner(1), CellOwner(2), MediumOwner(1), MediumOwner(1),
@@ -29,7 +30,7 @@ using CorePotts
     @test finite_volume(after_division, CellID(1)) == 2
     @test finite_volume(after_division, CellID(3)) == 1
     @test cell_type(after_division, CellID(3)) == CellTypeID(1)
-    @test generation(after_division, CellID(3)) == CellGeneration(1)
+    @test generation(after_division, CellID(3)) == CellGeneration(0)
     @test property_values(after_division, :age)[3] == 10
     @test property_values(after_division, :resource)[1] == 4
     @test property_values(after_division, :resource)[3] == 3

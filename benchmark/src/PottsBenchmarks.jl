@@ -15,6 +15,137 @@ const SCHEMA_VERSION = "1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
+struct LifecycleQualificationDouble{Key} <: AbstractLifecycleEffect end
+LifecycleQualificationDouble(key::Symbol) = LifecycleQualificationDouble{key}()
+CorePotts.compiled_effect_category(::LifecycleQualificationDouble) = CompiledCustomEffect()
+function CorePotts.compiled_apply_effect!(::LifecycleQualificationDouble{Key}, state,
+        cell, properties, mcs, rng, seed) where {Key}
+    values = getproperty(state.core.properties, Key)
+    @inbounds values[cell] *= 2
+    return nothing
+end
+
+struct InitializationQualificationLayout{N, S <: Tuple} <: AbstractInitialLayout
+    provisional_id::ProvisionalCellID
+    cell_type::CellTypeID
+    sites::S
+end
+function InitializationQualificationLayout(provisional_id::ProvisionalCellID,
+        cell_type::CellTypeID, sites::Tuple{Vararg{CartesianIndex{N}}}) where {N}
+    return InitializationQualificationLayout{N, typeof(sites)}(
+        provisional_id, cell_type, sites)
+end
+CorePotts.initial_layout_requirements(::InitializationQualificationLayout{N}) where {N} =
+    InitialLayoutRequirements(N)
+function CorePotts.emit_initial_claims!(collector::InitialClaimCollector{N},
+        layout::InitializationQualificationLayout{N}) where {N}
+    declare_initial_cell!(collector, layout.provisional_id, layout.cell_type)
+    for site in layout.sites
+        emit_initial_cell_claim!(collector, site, layout.provisional_id)
+    end
+    return collector
+end
+
+struct LifecycleQualificationOddMCS <: AbstractMCSSchedule end
+CorePotts.is_due(::LifecycleQualificationOddMCS, mcs::Integer) =
+    mcs > 0 ? isodd(mcs) : throw(ArgumentError("MCS must be positive"))
+@inline CorePotts.compiled_schedule_due(
+    ::LifecycleQualificationOddMCS, mcs::UInt64) = isodd(mcs)
+
+struct LifecycleQualificationAtLeast{Key, T} <: AbstractLifecycleTrigger
+    threshold::T
+end
+LifecycleQualificationAtLeast(key::Symbol, threshold::T) where {T} =
+    LifecycleQualificationAtLeast{key, T}(threshold)
+function CorePotts.lifecycle_triggered(
+        trigger::LifecycleQualificationAtLeast{Key}, snapshot::PreLifecycleSnapshot,
+        id::CellID) where {Key}
+    return property_value(snapshot.state, Key, id) >= trigger.threshold
+end
+@inline function CorePotts.compiled_lifecycle_triggered(
+        trigger::LifecycleQualificationAtLeast{Key}, state, cell, mcs,
+        rng, seed, event_id) where {Key}
+    return @inbounds(getproperty(state.core.properties, Key)[cell]) >= trigger.threshold
+end
+
+struct LifecycleQualificationOffsetPlane <: AbstractDivisionGeometry
+    offset::Float32
+end
+@inline function CorePotts.division_region(geometry::LifecycleQualificationOffsetPlane,
+        context::DivisionSiteContext)
+    return context.coordinate[1] - context.center[1] < geometry.offset ? UInt8(1) : UInt8(2)
+end
+
+struct LifecycleQualificationVolumeSplit <: AbstractDivisionPolicy end
+function CorePotts.division_property_update(::LifecycleQualificationVolumeSplit,
+        descriptor, value, context::DivisionPropertyContext)
+    child = convert(typeof(value), context.child_volume)
+    return DivisionPropertyUpdate(value - child, child)
+end
+@inline function CorePotts.compiled_division_property_update(
+        ::LifecycleQualificationVolumeSplit, value, default,
+        context::DivisionPropertyContext)
+    child = convert(typeof(value), context.child_volume)
+    return DivisionPropertyUpdate(value - child, child)
+end
+
+struct LifecycleQualificationSiteSumTracker end
+struct LifecycleQualificationSiteSumStorage{A}
+    values::A
+end
+struct LifecycleQualificationSiteSumDelta
+    site::Int64
+end
+
+Adapt.adapt_structure(to, storage::LifecycleQualificationSiteSumStorage) =
+    LifecycleQualificationSiteSumStorage(Adapt.adapt(to, storage.values))
+
+function CorePotts.rebuild_tracker(::LifecycleQualificationSiteSumTracker,
+        state::LogicalPottsState, domain::CartesianDomain)
+    values = zeros(Int64, nslots(capacity(state)))
+    for site in eachindex(lattice_storage(state))
+        owner = owner_at(state, site)
+        is_cell_owner(owner) && (values[Int(value(cell_id(owner)))] += Int64(site))
+    end
+    return LifecycleQualificationSiteSumStorage(values)
+end
+CorePotts.compile_derived_observable(tracker::LifecycleQualificationSiteSumTracker,
+    state, domain) = rebuild_tracker(tracker, state, domain)
+CorePotts.derived_observable_arrays(storage::LifecycleQualificationSiteSumStorage) =
+    (storage.values,)
+@inline CorePotts.stage_derived_observable_delta(
+    ::LifecycleQualificationSiteSumTracker, state, proposal) =
+    LifecycleQualificationSiteSumDelta(Int64(proposal.recipient))
+@inline function CorePotts.apply_derived_observable_delta!(
+        storage::LifecycleQualificationSiteSumStorage,
+        moments::LifecycleQualificationSiteSumDelta, delta)
+    delta.losing_cell != 0 &&
+        (@inbounds storage.values[Int(delta.losing_cell)] -= moments.site)
+    delta.gaining_cell != 0 &&
+        (@inbounds storage.values[Int(delta.gaining_cell)] += moments.site)
+    return nothing
+end
+@inline function CorePotts.compiled_prepare_derived_division!(
+        storage::LifecycleQualificationSiteSumStorage, state, parent, child)
+    @inbounds begin
+        storage.values[parent] = Int64(0)
+        storage.values[child] = Int64(0)
+    end
+    return nothing
+end
+@inline function CorePotts.compiled_accumulate_derived_division!(
+        storage::LifecycleQualificationSiteSumStorage, context, state, site,
+        label, parent, child)
+    destination = label == UInt8(1) ? parent : child
+    @inbounds storage.values[destination] += Int64(site)
+    return nothing
+end
+@inline function CorePotts.compiled_retire_derived!(
+        storage::LifecycleQualificationSiteSumStorage, state, cell)
+    @inbounds storage.values[cell] = Int64(0)
+    return nothing
+end
+
 @kernel function _semantic_rng_probe!(output, addresses, contract, seed)
     index = @index(Global, Linear)
     if index <= length(addresses)
@@ -1099,6 +1230,753 @@ function qualify_mechanics_backend(name::String)
         "evolution_variance" => stationary.evolution_variance,
         "initialization_host_synchronizations" => synchronization_counts,
         "internal_host_synchronizations" => 0,
+    )
+end
+
+function _phase8_lifecycle_fixture(::Val{N}; geometry = nothing) where {N}
+    dims = ntuple(_ -> 4, Val(N))
+    provenance = ComponentIdentity(:phase8_lifecycle_qualification, v"1.0.0", :benchmark)
+    schema = PropertySchema(
+        PropertyDescriptor(:target, Int32, ConstantInitializer(Int32(0));
+            requester = provenance, division = SplitOnDivision(),
+            transition = PreserveOnTransition()),
+        PropertyDescriptor(:age, Int32, ConstantInitializer(Int32(0));
+            requester = provenance, division = CloneOnDivision(),
+            transition = PreserveOnTransition()))
+    logical = LogicalPottsState(fill(CellOwner(1), dims), CellCapacity(3);
+        cell_types = Dict(CellID(1) => CellTypeID(1)),
+        medium_domains = (MediumID(1),), property_schema = schema)
+    property_values(logical, :target)[1] = Int32(prod(dims))
+    property_values(logical, :age)[1] = Int32(7)
+    domain = CartesianDomain(dims; spacing = ntuple(_ -> 1.0f0, Val(N)))
+    proposal_relation = first_shell_relation(ProposalRole(), Val(N);
+        spacing = domain.spacing)
+    surface_relation = first_shell_relation(SurfaceRole(), Val(N);
+        spacing = domain.spacing)
+    tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
+    direction = ntuple(axis -> axis == 1 ? 1.0f0 : 0.0f0, Val(N))
+    division_geometry = geometry === nothing ? VectorDivision(direction) : geometry
+    growth = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(), AddCellProperty(:target, Int32(2)); semantic_id = 801)
+    division = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        PropertyAtLeast(:target, Int32(prod(dims))),
+        DivideCell(division_geometry); semantic_id = 802)
+    custom = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        PropertyAtLeast(:age, Int32(7)), LifecycleQualificationDouble(:age);
+        semantic_id = 800)
+    return (; logical, domain, proposal_relation, tracker,
+        events = (division, growth, custom))
+end
+
+function _phase8_lifecycle_run(name::String, ::Val{N}, algorithm, seed::UInt64;
+        reverse_declaration::Bool = false, geometry = nothing) where {N}
+    fixture = _phase8_lifecycle_fixture(Val(N); geometry)
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor, compile_scientific_state(
+        fixture.logical, fixture.domain, fixture.tracker))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    events = reverse_declaration ? reverse(fixture.events) : fixture.events
+    lifecycle = compile_lifecycle(events, state, plan)
+    integrator = init_scientific(state, fixture.proposal_relation,
+        ScientificComponentSet(), algorithm; seed, plan, lifecycle)
+    initialization_synchronizations = metrics.host_synchronizations
+    SciMLBase.step!(integrator)
+    lifecycle_synchronizations = metrics.host_synchronizations -
+        initialization_synchronizations
+    lifecycle_synchronizations == 1 || error(
+        "$name lifecycle must expose exactly one identity-transaction failure boundary")
+    report = current_lifecycle_report(integrator)
+    snapshot = logical_state(integrator)
+    host_state = Adapt.adapt(Array, integrator.state)
+    isempty(state_invariant_errors(snapshot)) || error(
+        "$name $N-D lifecycle produced an invalid logical state")
+    isempty(tracker_conformance_errors(host_state, fixture.tracker, snapshot)) || error(
+        "$name $N-D lifecycle tracker caches differ from recomputation")
+    n_cells(snapshot) == 2 || error("$name $N-D lifecycle division did not commit")
+    property_values(snapshot, :target)[1:2] ==
+        fill(Int32((prod(fixture.domain.dims) + 2) ÷ 2), 2) || error(
+        "$name $N-D lifecycle property inheritance differs from the contract")
+    property_values(snapshot, :age)[1:2] == Int32[14, 14] || error(
+        "$name $N-D lifecycle extension effect or clone policy differs from the contract")
+    report.successful_divisions == 1 || error(
+        "$name $N-D lifecycle report omitted the committed division")
+    return (; snapshot, report, lifecycle_synchronizations,
+        workspace_bytes = compiled_lifecycle_bytes(lifecycle))
+end
+
+function _phase8_lifecycle_failure_qualification(name::String)
+    fixture = _phase8_lifecycle_fixture(Val(2))
+    adaptor = _backend_adaptor(name)
+    function build(events; logical = fixture.logical,
+            resolver = RejectLifecycleConflicts())
+        state = Adapt.adapt(adaptor, compile_scientific_state(
+            logical, fixture.domain, fixture.tracker))
+        backend = KernelAbstractions.get_backend(state.potts.storage.active)
+        plan = ExecutionPlan(backend; block_size = 128, metrics = ExecutionMetrics())
+        lifecycle = compile_lifecycle(events, state, plan; resolver)
+        return init_scientific(state, fixture.proposal_relation,
+            ScientificComponentSet(), SequentialCPM(temperature = 0.0f0);
+            seed = 0x7068617365382000, plan, lifecycle)
+    end
+
+    transition = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(), TransitionCell(CellTypeID(3));
+        semantic_id = 830, priority = 1)
+    death = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(), RemoveCellImmediately(MediumID(1));
+        semantic_id = 831, priority = 2)
+    conflict = build((transition, death))
+    conflict_error = try
+        run_compiled_lifecycle!(conflict, conflict.lifecycle, UInt64(1))
+        nothing
+    catch caught
+        caught
+    end
+    conflict_error isa CompiledLifecycleError && conflict_error.code == UInt32(1) ||
+        error("$name lifecycle conflict did not surface its bounded device failure")
+    conflict_snapshot = logical_state(conflict)
+    lattice_storage(conflict_snapshot) == lattice_storage(fixture.logical) || error(
+        "$name lifecycle conflict mutated ownership before failure")
+    property_values(conflict_snapshot, :age) == property_values(fixture.logical, :age) ||
+        error("$name lifecycle conflict mutated properties before failure")
+
+    selected = build((transition, death); resolver = StableLifecyclePriority())
+    run_compiled_lifecycle!(selected, selected.lifecycle, UInt64(1))
+    selected_snapshot = logical_state(selected)
+    n_cells(selected_snapshot) == 0 || error(
+        "$name stable lifecycle priority did not commit the winning death effect")
+    generation(selected_snapshot, CellID(1)) == CellGeneration(1) || error(
+        "$name lifecycle death did not advance the slot generation")
+
+    full = LogicalPottsState(fill(CellOwner(1), fixture.domain.dims), CellCapacity(1);
+        cell_types = Dict(CellID(1) => CellTypeID(1)),
+        medium_domains = (MediumID(1),),
+        property_schema = fixture.logical.properties.schema)
+    property_values(full, :target)[1] = Int32(prod(fixture.domain.dims))
+    property_values(full, :age)[1] = Int32(7)
+    capacity_event = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(), DivideCell(VectorDivision((1.0f0, 0.0f0)));
+        semantic_id = 832)
+    capacity_integrator = build((capacity_event,); logical = full)
+    capacity_error = try
+        run_compiled_lifecycle!(capacity_integrator, capacity_integrator.lifecycle,
+            UInt64(1))
+        nothing
+    catch caught
+        caught
+    end
+    capacity_error isa CompiledLifecycleError && capacity_error.code == UInt32(2) ||
+        error("$name lifecycle capacity failure did not surface from the device")
+    lattice_storage(logical_state(capacity_integrator)) == lattice_storage(full) || error(
+        "$name lifecycle capacity failure mutated ownership")
+    return Dict(
+        "conflict_failure_code" => 1,
+        "capacity_failure_code" => 2,
+        "rollback" => true,
+        "stable_priority_death" => true,
+        "generation_advanced" => true,
+    )
+end
+
+function _phase8_moment_lifecycle_qualification(name::String)
+    adaptor = _backend_adaptor(name)
+    for N in (2, 3)
+        dims = ntuple(_ -> 6, Val(N))
+        provenance = ComponentIdentity(:phase8_moment_qualification, v"1.0.0", :benchmark)
+        schema = PropertySchema(PropertyDescriptor(:age, Int32,
+            ConstantInitializer(Int32(0)); requester = provenance,
+            division = CloneOnDivision(), transition = PreserveOnTransition()))
+        owners = fill(MediumOwner(1), dims)
+        fill!(view(owners, ntuple(_ -> 2:5, Val(N))...), CellOwner(1))
+        logical = LogicalPottsState(owners, CellCapacity(3);
+            cell_types = Dict(CellID(1) => CellTypeID(1)),
+            medium_domains = (MediumID(1),), property_schema = schema)
+        domain = CartesianDomain(dims; spacing = ntuple(_ -> 1.0f0, Val(N)))
+        proposal = first_shell_relation(ProposalRole(), Val(N); spacing = domain.spacing)
+        surface = first_shell_relation(SurfaceRole(), Val(N); spacing = domain.spacing)
+        connectivity = first_shell_relation(ConnectivityRole(), Val(N);
+            spacing = domain.spacing)
+        boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
+        moment_tracker = UnwrappedMomentTracker(connectivity, (CellID(1),);
+            number_type = Float32)
+        state = Adapt.adapt(adaptor, compile_scientific_state(
+            logical, domain, boundary_tracker; moment_tracker))
+        backend = KernelAbstractions.get_backend(state.potts.storage.active)
+        plan = ExecutionPlan(backend; block_size = 128, metrics = ExecutionMetrics())
+        direction = ntuple(axis -> axis == 1 ? 1.0f0 : 0.0f0, Val(N))
+        event = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+            AlwaysLifecycleTrigger(), DivideCell(VectorDivision(direction));
+            semantic_id = 840 + N)
+        lifecycle = compile_lifecycle((event,), state, plan)
+        integrator = init_scientific(state, proposal, ScientificComponentSet(),
+            SequentialCPM(temperature = 0.0f0);
+            seed = UInt64(0x7068617365383000) + UInt64(N),
+            plan, lifecycle, moment_tracker)
+        run_compiled_lifecycle!(integrator, lifecycle, UInt64(1))
+        snapshot = logical_state(integrator)
+        observed = Adapt.adapt(Array, integrator.state).trackers.moments
+        rebuilt = rebuild_tracker(moment_tracker, snapshot, domain)
+        observed.tracked == rebuilt.tracked || error(
+            "$name $N-D lifecycle moment tracking flags differ from reconstruction")
+        observed.coordinate_sums == rebuilt.coordinate_sums || error(
+            "$name $N-D lifecycle moment sums differ from reconstruction")
+    end
+    return Dict("dimensions" => [2, 3], "number_type" => "Float32",
+        "independent_reconstruction" => true, "child_tracking" => "explicit_only")
+end
+
+function _phase8_mechanical_lifecycle_run(name::String, ::Val{N}, division,
+        seed::UInt64) where {N}
+    dims = ntuple(_ -> 4, Val(N))
+    domain = CartesianDomain(dims; spacing = ntuple(_ -> 1.0f0, Val(N)))
+    proposal = first_shell_relation(ProposalRole(), Val(N); spacing = domain.spacing)
+    surface = first_shell_relation(SurfaceRole(), Val(N); spacing = domain.spacing)
+    metric = BoundaryEdgeCount()
+    boundary_tracker = BoundaryMeasureTracker(metric, surface)
+    pressure = FluctuatingVolumePressure(number_type = Float32,
+        initialization = PreserveMechanicalInitialization, division = division,
+        noise = FixedMechanicalNoise(1.0f0), instance_id = 1)
+    tension = FluctuatingSurfaceTension(metric, surface; number_type = Float32,
+        initialization = PreserveMechanicalInitialization,
+        target_division = SplitOnDivision(), division = division,
+        noise = FixedMechanicalNoise(1.0f0), instance_id = 2)
+    schema = merge_property_schemas(required_properties(pressure),
+        required_properties(tension))
+    logical = LogicalPottsState(fill(CellOwner(1), dims), CellCapacity(3);
+        cell_types = Dict(CellID(1) => CellTypeID(1)),
+        medium_domains = (MediumID(1),), property_schema = schema)
+    property_values(logical, :target_volume)[1] = Float32(prod(dims))
+    property_values(logical, :volume_strength)[1] = 2.0f0
+    property_values(logical, :volume_pressure)[1] = 99.0f0
+    property_values(logical, :target_boundary)[1] = Int64(0)
+    property_values(logical, :boundary_strength)[1] = 1.5f0
+    property_values(logical, :surface_tension)[1] = 77.0f0
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor, compile_scientific_state(
+        logical, domain, boundary_tracker))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    plan = ExecutionPlan(backend; block_size = 128, metrics = ExecutionMetrics())
+    direction = ntuple(axis -> axis == 1 ? 1.0f0 : 0.0f0, Val(N))
+    event = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(), DivideCell(VectorDivision(direction));
+        semantic_id = 850 + N)
+    lifecycle = compile_lifecycle((event,), state, plan)
+    components = Adapt.adapt(adaptor,
+        ScientificComponentSet(mechanics = (pressure, tension)))
+    integrator = init_scientific(state, proposal, components,
+        SequentialCPM(temperature = 3.0f0); seed, plan, lifecycle)
+    run_compiled_lifecycle!(integrator, lifecycle, UInt64(1))
+    snapshot = logical_state(integrator)
+    host_state = Adapt.adapt(Array, integrator.state)
+    return (; snapshot, host_state, boundary_tracker)
+end
+
+function _phase8_mechanical_lifecycle_qualification(name::String)
+    policies = (
+        ConstitutiveResetAfterDivision(),
+        PreserveMechanicalOnDivision(),
+        StationaryRedrawAfterDivision(),
+    )
+    labels = String[]
+    for policy in policies
+        label = string(nameof(typeof(policy)))
+        push!(labels, label)
+        for N in (2, 3)
+            seed = UInt64(0x7068617365384000) + UInt64(16N) + UInt64(length(label))
+            first_run = _phase8_mechanical_lifecycle_run(name, Val(N), policy, seed)
+            replay = _phase8_mechanical_lifecycle_run(name, Val(N), policy, seed)
+            first_pressure = property_values(first_run.snapshot, :volume_pressure)[1:2]
+            first_tension = property_values(first_run.snapshot, :surface_tension)[1:2]
+            first_pressure == property_values(replay.snapshot, :volume_pressure)[1:2] ||
+                error("$name $label $N-D pressure inheritance replay differs")
+            first_tension == property_values(replay.snapshot, :surface_tension)[1:2] ||
+                error("$name $label $N-D tension inheritance replay differs")
+            if policy isa ConstitutiveResetAfterDivision
+                all(iszero, first_pressure) || error(
+                    "$name constitutive pressure repair differs from its post-division mean")
+                for cell in 1:2
+                    expected = 3.0f0 * Float32(
+                        first_run.host_state.trackers.boundary_measures[cell])
+                    first_tension[cell] == expected || error(
+                        "$name constitutive tension repair differs from its post-division mean")
+                end
+            elseif policy isa PreserveMechanicalOnDivision
+                first_pressure == Float32[99, 99] || error(
+                    "$name intensive pressure preservation failed")
+                first_tension == Float32[77, 77] || error(
+                    "$name intensive tension preservation failed")
+            else
+                first_pressure != Float32[99, 99] || error(
+                    "$name stationary pressure redraw did not execute")
+                first_tension != Float32[77, 77] || error(
+                    "$name stationary tension redraw did not execute")
+            end
+        end
+    end
+    return Dict("dimensions" => [2, 3], "families" =>
+        ["FluctuatingVolumePressure", "FluctuatingSurfaceTension"],
+        "policies" => labels, "same_backend_replay" => true)
+end
+
+function _phase8_initialization_qualification(name::String)
+    adaptor = _backend_adaptor(name)
+    for N in (2, 3)
+        dims = ntuple(_ -> 8, Val(N))
+        provenance = ComponentIdentity(:phase8_initialization_qualification,
+            v"1.0.0", :benchmark)
+        schema = PropertySchema(PropertyDescriptor(:age, Int32,
+            ConstantInitializer(Int32(0)); requester = provenance,
+            division = CloneOnDivision(), transition = PreserveOnTransition()))
+        custom = InitializationQualificationLayout(ProvisionalCellID(10),
+            CellTypeID(1), (CartesianIndex(ntuple(_ -> 1, Val(N))),
+                CartesianIndex(ntuple(_ -> 8, Val(N)))))
+        shape = ShapeCellLayout(20, 2, ntuple(_ -> 4, Val(N)), LatticeBall(1.0f0))
+        properties = InitialCellProperties(20, 2, (age = Int32(9),); dimensions = N)
+        seeds = UniformSiteSeeds(
+            [ProvisionalCellID(30) => CellTypeID(1),
+                ProvisionalCellID(40) => CellTypeID(2)], trues(dims);
+            operation = 860)
+        layouts = (custom, shape, properties, seeds)
+        first_state = finalize_initial_state(dims, layouts...; capacity = CellCapacity(8),
+            medium_domains = (MediumID(1),), property_schema = schema,
+            seed = UInt64(0x7068617365385000) + UInt64(N))
+        permuted_state = finalize_initial_state(dims, reverse(layouts)...;
+            capacity = CellCapacity(8), medium_domains = (MediumID(1),),
+            property_schema = schema,
+            seed = UInt64(0x7068617365385000) + UInt64(N))
+        first = logical_state(first_state)
+        permuted = logical_state(permuted_state)
+        lattice_storage(first) == lattice_storage(permuted) || error(
+            "$name $N-D host-finalized initialization depends on declaration order")
+        initialization_report(first_state).provisional_to_runtime ==
+            initialization_report(permuted_state).provisional_to_runtime || error(
+            "$name $N-D initialization identity compaction depends on declaration order")
+        domain = CartesianDomain(dims; spacing = ntuple(_ -> 1.0f0, Val(N)))
+        surface = first_shell_relation(SurfaceRole(), Val(N); spacing = domain.spacing)
+        tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
+        adapted = Adapt.adapt(adaptor, compile_scientific_state(first, domain, tracker))
+        scientific_storage_valid(adapted) || error(
+            "$name $N-D initialized state did not lower to one valid backend array tree")
+        backend = KernelAbstractions.get_backend(adapted.potts.storage.active)
+        metrics = ExecutionMetrics()
+        plan = ExecutionPlan(backend; block_size = 128, metrics)
+        roundtrip = logical_snapshot(plan, adapted.potts)
+        lattice_storage(roundtrip) == lattice_storage(first) || error(
+            "$name $N-D host-finalized initialization changed during device lowering")
+        metrics.host_synchronizations == 1 || error(
+            "$name initialization roundtrip must synchronize only at explicit observation")
+    end
+    return Dict("dimensions" => [2, 3], "execution_capability" => "host_finalized",
+        "device_native_claim" => false, "single_construction_transfer" => true,
+        "custom_layout" => true, "random_replay" => true,
+        "declaration_permutation_invariant" => true, "hidden_host_fallback" => false)
+end
+
+function _phase8_downstream_protocol_run(name::String, ::Val{N}, seed::UInt64;
+        reverse_declaration::Bool = false) where {N}
+    dims = ntuple(_ -> 4, Val(N))
+    provenance = ComponentIdentity(:phase8_downstream_protocol_qualification,
+        v"1.0.0", :benchmark)
+    schema = PropertySchema(
+        PropertyDescriptor(:target, Int32, ConstantInitializer(Int32(0));
+            requester = provenance, division = LifecycleQualificationVolumeSplit(),
+            transition = PreserveOnTransition()),
+        PropertyDescriptor(:age, Int32, ConstantInitializer(Int32(0));
+            requester = provenance, division = CloneOnDivision(),
+            transition = PreserveOnTransition()),
+    )
+    sites = Tuple(CartesianIndices(dims))
+    layout = InitializationQualificationLayout(
+        ProvisionalCellID(10), CellTypeID(1), sites)
+    initialized = finalize_initial_state(dims, layout; capacity = CellCapacity(4),
+        medium_domains = (MediumID(1),), property_schema = schema, seed)
+    logical = logical_state(initialized)
+    property_values(logical, :target)[1] = Int32(prod(dims))
+    property_values(logical, :age)[1] = Int32(3)
+    domain = CartesianDomain(dims; spacing = ntuple(_ -> 1.0f0, Val(N)))
+    proposal = first_shell_relation(ProposalRole(), Val(N); spacing = domain.spacing)
+    surface = first_shell_relation(SurfaceRole(), Val(N); spacing = domain.spacing)
+    boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
+    derived_tracker = LifecycleQualificationSiteSumTracker()
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor, compile_scientific_state(
+        logical, domain, boundary_tracker; moment_tracker = derived_tracker))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    schedule = LifecycleQualificationOddMCS()
+    division = LifecycleEvent(ActiveCellsTarget(), schedule,
+        LifecycleQualificationAtLeast(:target, Int32(prod(dims))),
+        DivideCell(LifecycleQualificationOffsetPlane(0.0f0)); semantic_id = 881)
+    custom = LifecycleEvent(ActiveCellsTarget(), schedule,
+        LifecycleQualificationAtLeast(:age, Int32(3)),
+        LifecycleQualificationDouble(:age); semantic_id = 880)
+    events = reverse_declaration ? (division, custom) : (custom, division)
+    lifecycle = compile_lifecycle(events, state, plan)
+    integrator = init_scientific(state, proposal, ScientificComponentSet(),
+        SequentialCPM(temperature = 0.0f0); seed, plan, lifecycle,
+        moment_tracker = derived_tracker)
+    SciMLBase.step!(integrator)
+    snapshot = logical_state(integrator)
+    n_cells(snapshot) == 2 || error(
+        "$name $N-D downstream geometry did not divide the initialized cell")
+    property_values(snapshot, :target)[1:2] ==
+        fill(Int32(prod(dims) ÷ 2), 2) || error(
+        "$name $N-D downstream property lifecycle policy differs")
+    property_values(snapshot, :age)[1:2] == Int32[6, 6] || error(
+        "$name $N-D downstream schedule/trigger/effect combination differs")
+    host_state = Adapt.adapt(Array, integrator.state)
+    rebuilt = rebuild_tracker(derived_tracker, snapshot, domain)
+    host_state.trackers.moments.values == rebuilt.values || error(
+        "$name $N-D downstream derived observable differs from reconstruction")
+    checkpoint = capture_checkpoint(integrator)
+    restored = restore_checkpoint(checkpoint, integrator; adaptor)
+    SciMLBase.step!(integrator, 2)
+    SciMLBase.step!(restored, 2)
+    restored_snapshot = logical_state(restored)
+    lattice_storage(restored_snapshot) == lattice_storage(logical_state(integrator)) ||
+        error("$name $N-D downstream protocols do not survive exact restoration")
+    restored_host = Adapt.adapt(Array, restored.state)
+    restored_rebuilt = rebuild_tracker(derived_tracker, restored_snapshot, domain)
+    restored_host.trackers.moments.values == restored_rebuilt.values || error(
+        "$name $N-D restored downstream derived observable differs from reconstruction")
+    current_mcs_report(restored).accepted_copies > 0 || error(
+        "$name $N-D downstream derived observable did not exercise copy-commit updates")
+    return (; snapshot, derived = host_state.trackers.moments.values,
+        initialization_report = initialization_report(initialized),
+        workspace_bytes = compiled_lifecycle_bytes(lifecycle))
+end
+
+function _phase8_downstream_protocol_qualification(name::String)
+    workspaces = Int[]
+    for N in (2, 3)
+        seed = UInt64(0x7068617365385500) + UInt64(N)
+        first_run = _phase8_downstream_protocol_run(name, Val(N), seed)
+        permuted = _phase8_downstream_protocol_run(name, Val(N), seed;
+            reverse_declaration = true)
+        lattice_storage(first_run.snapshot) == lattice_storage(permuted.snapshot) ||
+            error("$name $N-D downstream declaration permutation differs")
+        first_run.derived == permuted.derived || error(
+            "$name $N-D downstream derived observable permutation differs")
+        first_run.initialization_report.provisional_to_runtime ==
+            permuted.initialization_report.provisional_to_runtime || error(
+            "$name $N-D downstream layout identity compaction differs")
+        push!(workspaces, first_run.workspace_bytes)
+    end
+    return Dict(
+        "dimensions" => [2, 3],
+        "custom_schedule" => true,
+        "custom_trigger" => true,
+        "custom_effect" => true,
+        "custom_division_geometry" => true,
+        "custom_property_lifecycle" => true,
+        "custom_derived_observable" => true,
+        "custom_layout" => true,
+        "exact_restore" => true,
+        "declaration_permutation_invariant" => true,
+        "workspace_bytes" => workspaces,
+        "core_edits_required_by_fixture" => 0,
+    )
+end
+
+"""Qualify complete device-resident lifecycle transactions on one backend."""
+function qualify_lifecycle_backend(name::String)
+    algorithms = (
+        SequentialCPM(temperature = 0.0f0),
+        CheckerboardSweepCPM(temperature = 0.0f0),
+        LotteryCPM(temperature = 0.0f0),
+    )
+    workspace_bytes = Dict{String, Vector{Int}}()
+    qualified_geometries = String["vector"]
+    for algorithm in algorithms
+        label = string(nameof(typeof(algorithm)))
+        workspace_bytes[label] = Int[]
+        for N in (2, 3)
+            seed = UInt64(0x7068617365380000) + UInt64(16N) +
+                   UInt64(length(workspace_bytes))
+            first_run = _phase8_lifecycle_run(name, Val(N), algorithm, seed)
+            replay = _phase8_lifecycle_run(name, Val(N), algorithm, seed)
+            permuted = _phase8_lifecycle_run(name, Val(N), algorithm, seed;
+                reverse_declaration = true)
+            lattice_storage(first_run.snapshot) == lattice_storage(replay.snapshot) || error(
+                "$name $label $N-D lifecycle replay differs")
+            lattice_storage(first_run.snapshot) == lattice_storage(permuted.snapshot) || error(
+                "$name $label $N-D lifecycle declaration permutation differs")
+            push!(workspace_bytes[label], first_run.workspace_bytes)
+        end
+    end
+    for geometry in (RandomOrientationDivision(820), MajorAxisDivision(),
+            MinorAxisDivision())
+        label = string(nameof(typeof(geometry)))
+        for N in (2, 3)
+            seed = UInt64(0x7068617365381000) + UInt64(16N) + UInt64(length(label))
+            first_run = _phase8_lifecycle_run(name, Val(N),
+                SequentialCPM(temperature = 0.0f0), seed; geometry)
+            replay = _phase8_lifecycle_run(name, Val(N),
+                SequentialCPM(temperature = 0.0f0), seed; geometry)
+            lattice_storage(first_run.snapshot) == lattice_storage(replay.snapshot) || error(
+                "$name $label $N-D division geometry replay differs")
+        end
+        push!(qualified_geometries, label)
+    end
+    failure_qualification = _phase8_lifecycle_failure_qualification(name)
+    moment_qualification = _phase8_moment_lifecycle_qualification(name)
+    mechanical_qualification = _phase8_mechanical_lifecycle_qualification(name)
+    initialization_qualification = _phase8_initialization_qualification(name)
+    downstream_qualification = _phase8_downstream_protocol_qualification(name)
+    return Dict(
+        "backend" => name,
+        "algorithms" => collect(keys(workspace_bytes)),
+        "dimensions" => [2, 3],
+        "division_geometries" => qualified_geometries,
+        "complete_device_transaction" => true,
+        "same_backend_replay" => true,
+        "declaration_permutation_invariant" => true,
+        "tracker_conformance" => true,
+        "bounded_workspace_bytes" => workspace_bytes,
+        "identity_failure_boundary_synchronizations" => 1,
+        "failure_qualification" => failure_qualification,
+        "derived_moment_qualification" => moment_qualification,
+        "mechanical_lifecycle_qualification" => mechanical_qualification,
+        "initialization_qualification" => initialization_qualification,
+        "downstream_protocol_qualification" => downstream_qualification,
+        "hidden_host_fallback" => false,
+    )
+end
+
+function _phase8_persistence_integrator(name::String, ::Val{N}, algorithm,
+        seed::UInt64; with_lifecycle::Bool = true) where {N}
+    dims = ntuple(_ -> 6, Val(N))
+    spacing = ntuple(_ -> 1.0f0, Val(N))
+    domain = CartesianDomain(dims; spacing)
+    proposal = first_shell_relation(ProposalRole(), Val(N); spacing)
+    surface = first_shell_relation(SurfaceRole(), Val(N); spacing)
+    boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
+    volume = QuadraticVolumeHamiltonian(number_type = Float32)
+    pressure = FluctuatingVolumePressure(; eta = 0.5f0,
+        noise = FixedMechanicalNoise(0.25f0),
+        initialization = PreserveMechanicalInitialization,
+        number_type = Float32, instance_id = 71)
+    provenance = ComponentIdentity(:phase8_persistence_qualification,
+        v"1.0.0", :benchmark)
+    age_schema = PropertySchema(PropertyDescriptor(:age, Int32,
+        ConstantInitializer(Int32(0)); requester = provenance,
+        division = CloneOnDivision(), transition = PreserveOnTransition()))
+    schema = merge_property_schemas(required_properties(volume),
+        required_properties(pressure), age_schema)
+
+    owners = fill(MediumOwner(1), dims)
+    first_region = ntuple(axis -> axis == 1 ? (2:3) : (2:4), Val(N))
+    second_region = ntuple(axis -> axis == 1 ? (4:5) : (2:4), Val(N))
+    fill!(view(owners, first_region...), CellOwner(1))
+    fill!(view(owners, second_region...), CellOwner(2))
+    logical = LogicalPottsState(owners, CellCapacity(4);
+        cell_types = Dict(CellID(1) => CellTypeID(1), CellID(2) => CellTypeID(1)),
+        medium_domains = (MediumID(1),), property_schema = schema)
+    initial_volume = Float32(prod(length, first_region))
+    property_values(logical, :target_volume)[1:2] .= initial_volume
+    property_values(logical, :volume_strength)[1:2] .= 1.0f0
+    property_values(logical, :volume_pressure)[1:2] .= Float32[0.5, -0.25]
+    property_values(logical, :age)[1:2] .= Int32[3, 5]
+
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor,
+        compile_scientific_state(logical, domain, boundary_tracker))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    event = LifecycleEvent(ActiveCellsTarget(), EveryMCS(),
+        AlwaysLifecycleTrigger(), AddCellProperty(:age, Int32(1)); semantic_id = 870)
+    lifecycle = with_lifecycle ? compile_lifecycle((event,), state, plan) :
+                NoCompiledLifecycle()
+    components = Adapt.adapt(adaptor,
+        ScientificComponentSet(energies = (volume,), mechanics = (pressure,)))
+    return init_scientific(state, proposal, components, algorithm;
+        seed, plan, lifecycle)
+end
+
+function _phase8_persistence_run(name::String, ::Val{N}, algorithm,
+        seed::UInt64) where {N}
+    adaptor = _backend_adaptor(name)
+    uninterrupted = _phase8_persistence_integrator(name, Val(N), algorithm, seed)
+    backend = KernelAbstractions.get_backend(
+        uninterrupted.state.potts.storage.active)
+    root = capture_checkpoint(uninterrupted)
+    root.profile.backend == uninterrupted.plan.capabilities.family || error(
+        "$name $N-D MCS-0 checkpoint recorded the wrong backend family")
+    SciMLBase.step!(uninterrupted, 2)
+    before_capture = uninterrupted.plan.metrics.host_synchronizations
+    checkpoint = capture_checkpoint(uninterrupted; ancestry = root)
+    capture_synchronizations = uninterrupted.plan.metrics.host_synchronizations -
+                               before_capture
+    capture_synchronizations == 1 || error(
+        "$name $N-D checkpoint capture must have one explicit observation synchronization")
+    checkpoint.initial_state_fingerprint == root.initial_state_fingerprint || error(
+        "$name $N-D checkpoint lost its MCS-0 ancestry")
+    resumed = restore_checkpoint(checkpoint, uninterrupted; adaptor)
+    resumed.mcs == uninterrupted.mcs == UInt64(2) || error(
+        "$name $N-D exact restore resumed at the wrong MCS")
+    resumed.plan.capabilities.family == checkpoint.profile.backend || error(
+        "$name $N-D exact restore changed backend family")
+    scientific_storage_valid(resumed.state) || error(
+        "$name $N-D restored state is not a valid single-backend array tree")
+
+    uninterrupted_syncs = uninterrupted.plan.metrics.host_synchronizations
+    resumed_syncs = resumed.plan.metrics.host_synchronizations
+    SciMLBase.step!(uninterrupted, 3)
+    SciMLBase.step!(resumed, 3)
+    uninterrupted_internal_syncs = uninterrupted.plan.metrics.host_synchronizations -
+                                   uninterrupted_syncs
+    resumed_internal_syncs = resumed.plan.metrics.host_synchronizations - resumed_syncs
+    uninterrupted_internal_syncs == resumed_internal_syncs == 0 || error(
+        "$name $N-D exact continuation introduced a hidden synchronization")
+    KernelAbstractions.synchronize(backend)
+    expected = logical_state(uninterrupted)
+    observed = logical_state(resumed)
+    lattice_storage(observed) == lattice_storage(expected) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D restored ownership trajectory differs")
+    for key in property_keys(expected.properties.schema)
+        property_values(observed, key) == property_values(expected, key) || error(
+            "$name $(nameof(typeof(algorithm))) $N-D restored property `$key` differs")
+    end
+    current_mcs_report(resumed) == current_mcs_report(uninterrupted) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D restored MCS report differs")
+    current_lifecycle_report(resumed) == current_lifecycle_report(uninterrupted) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D restored lifecycle report differs")
+    host_state = Adapt.adapt(Array, resumed.state)
+    isempty(tracker_conformance_errors(
+        host_state, uninterrupted.state.boundary_tracker, observed)) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D restored tracker differs from reconstruction")
+    return (; capture_synchronizations, continuation_mcs = resumed.mcs,
+        internal_host_synchronizations = resumed_internal_syncs)
+end
+
+"""Qualify canonical exact continuation without weakening the device execution profile."""
+function qualify_persistence_backend(name::String)
+    algorithms = (
+        SequentialCPM(temperature = 2.0f0),
+        CheckerboardSweepCPM(temperature = 2.0f0),
+        LotteryCPM(temperature = 2.0f0),
+    )
+    profiles = Dict{String, Any}()
+    for algorithm in algorithms
+        label = string(nameof(typeof(algorithm)))
+        profiles[label] = Dict{String, Any}()
+        for N in (2, 3)
+            seed = UInt64(0x7068617365386000) + UInt64(16N) +
+                   UInt64(length(profiles))
+            result = _phase8_persistence_run(name, Val(N), algorithm, seed)
+            profiles[label]["$(N)d"] = Dict(
+                "capture_observation_synchronizations" =>
+                    result.capture_synchronizations,
+                "continuation_mcs" => result.continuation_mcs,
+                "internal_host_synchronizations" =>
+                    result.internal_host_synchronizations,
+            )
+        end
+    end
+    return Dict(
+        "backend" => name,
+        "algorithms" => collect(keys(profiles)),
+        "dimensions" => [2, 3],
+        "profiles" => profiles,
+        "canonical_host_record" => true,
+        "same_backend_exact_continuation" => true,
+        "rng_continuation" => true,
+        "auxiliary_state_continuation" => true,
+        "lifecycle_descriptor_reconstruction" => true,
+        "workspace_and_cache_reconstruction" => true,
+        "hidden_host_fallback" => false,
+    )
+end
+
+function _timed_scientific_steps!(integrator, steps::Int)
+    KernelAbstractions.synchronize(integrator.plan.backend)
+    elapsed = @elapsed begin
+        SciMLBase.step!(integrator, steps)
+        KernelAbstractions.synchronize(integrator.plan.backend)
+    end
+    return elapsed / steps
+end
+
+function _checkpoint_material_bytes(checkpoint::CanonicalCheckpoint)
+    payload = checkpoint_storage_payload(checkpoint)
+    arrays = (
+        payload.dims, payload.ownership_tags, payload.ownership_ids, payload.active,
+        payload.generations, payload.cell_types, payload.reusable_slots,
+        payload.medium_ids, payload.model_fingerprint, payload.schema_fingerprint,
+        payload.topology_fingerprint, payload.initial_state_fingerprint,
+        payload.ancestry_fingerprint, payload.state_fingerprint, payload.checksum,
+        payload.property_values...,
+    )
+    return sum(array -> sizeof(eltype(array)) * length(array), arrays)
+end
+
+"""Measure the Phase 8 lifecycle and checkpoint boundaries on a qualified backend."""
+function measure_phase8_backend(name::String)
+    algorithms = (
+        SequentialCPM(temperature = 2.0f0),
+        CheckerboardSweepCPM(temperature = 2.0f0),
+        LotteryCPM(temperature = 2.0f0),
+    )
+    results = Dict{String, Any}()
+    adaptor = _backend_adaptor(name)
+    for (index, algorithm) in enumerate(algorithms)
+        label = string(nameof(typeof(algorithm)))
+        seed = UInt64(0x7068617365387000) + UInt64(index)
+        baseline_construction = @elapsed baseline = _phase8_persistence_integrator(
+            name, Val(2), algorithm, seed; with_lifecycle = false)
+        lifecycle_construction = @elapsed lifecycle = _phase8_persistence_integrator(
+            name, Val(2), algorithm, seed; with_lifecycle = true)
+        KernelAbstractions.synchronize(baseline.plan.backend)
+        KernelAbstractions.synchronize(lifecycle.plan.backend)
+        baseline_first = _timed_scientific_steps!(baseline, 1)
+        lifecycle_first = _timed_scientific_steps!(lifecycle, 1)
+        _timed_scientific_steps!(baseline, 1)
+        _timed_scientific_steps!(lifecycle, 1)
+        baseline_steady = _timed_scientific_steps!(baseline, 5)
+        lifecycle_steady = _timed_scientific_steps!(lifecycle, 5)
+        baseline_snapshot = logical_state(baseline)
+        lifecycle_snapshot = logical_state(lifecycle)
+        lattice_storage(baseline_snapshot) == lattice_storage(lifecycle_snapshot) ||
+            error("$name $label lifecycle performance fixture changed the proposal trajectory")
+
+        before_transfers = lifecycle.plan.metrics.device_to_host_transfers
+        checkpoint_seconds = @elapsed checkpoint = capture_checkpoint(lifecycle)
+        checkpoint_transfers = lifecycle.plan.metrics.device_to_host_transfers - before_transfers
+        restore_seconds = @elapsed restored = restore_checkpoint(
+            checkpoint, lifecycle; adaptor)
+        KernelAbstractions.synchronize(restored.plan.backend)
+        results[label] = Dict(
+            "construction_seconds_without_lifecycle" => baseline_construction,
+            "construction_seconds_with_lifecycle" => lifecycle_construction,
+            "first_mcs_seconds_without_lifecycle" => baseline_first,
+            "first_mcs_seconds_with_lifecycle" => lifecycle_first,
+            "steady_mcs_seconds_without_lifecycle" => baseline_steady,
+            "steady_mcs_seconds_with_lifecycle" => lifecycle_steady,
+            "steady_lifecycle_ratio" => lifecycle_steady / baseline_steady,
+            "lifecycle_workspace_bytes" => compiled_lifecycle_bytes(lifecycle.lifecycle),
+            "checkpoint_capture_seconds" => checkpoint_seconds,
+            "checkpoint_restore_seconds" => restore_seconds,
+            "checkpoint_material_bytes" => _checkpoint_material_bytes(checkpoint),
+            "checkpoint_device_to_host_transfers" => checkpoint_transfers,
+            "checkpoint_observation_synchronizations" => 1,
+        )
+    end
+    return Dict(
+        "backend" => name,
+        "dimension" => 2,
+        "steps_per_steady_sample" => 5,
+        "algorithms" => results,
+        "timed_regions_backend_synchronized" => true,
+        "semantic_baseline" => "same scientific model without compiled lifecycle",
+        "construction_and_first_use_order" =>
+            ["without_lifecycle", "with_lifecycle"],
+        "first_use_note" =>
+            "one-process JIT-cache-sensitive diagnostic; not a cold-start comparison",
+        "regression_threshold" => "report-only until paper hardware is frozen",
     )
 end
 

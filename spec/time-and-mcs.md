@@ -159,8 +159,10 @@ derived. It does not block qualification of the current parallel processes.
 Stable events are scheduled at integer MCS boundaries. Each event owns its own schedule. A global
 system-wide check interval is not part of the intended semantics.
 
-`Every(k; offset=o)` means the event is eligible at integer times satisfying its documented modular
-schedule. Exact MCS-zero behavior will be specified with the event scheduling API.
+MCS `0` is the finalized initial condition, not an ordinary lifecycle boundary. Stable lifecycle
+schedules begin at positive integer MCS values; initialization behavior is expressed through the
+initialization protocol. Periodic schedules use an inclusive positive start, positive period, and
+optional inclusive stop as specified in [Lifecycle](lifecycle.md).
 
 ## Parameter Time Scale
 

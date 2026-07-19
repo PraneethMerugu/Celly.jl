@@ -115,15 +115,43 @@ property declaration MUST identify at least:
 - A GPU-compatible logical type
 - Initialization behavior
 - Mutability
-- Division inheritance behavior
-- Type-transition behavior
-- Retirement/reset behavior
+- Division policy or derived-state invalidation behavior
+- Type-transition policy or derived-state invalidation behavior
+- Retirement policy or derived-state cleanup behavior
 - Whether it is biological, derived, auxiliary, or transient
 - The component or extension that requested it
+
+The schema is the sole authority for property lifecycle behavior. Each property records separate
+typed policy values for initialization, division, type transition, and retirement. A policy value
+implements only its applicable operation through ordinary Julia methods; it is not required to
+subtype or populate one universal lifecycle-policy object.
+
+Built-in properties MAY supply documented policy values through their schemas. A custom property
+MUST explicitly select a policy or explicitly declare the corresponding lifecycle operation
+unsupported. Missing behavior, an unrecognized enum value, or an undocumented global default is a
+model-construction error. An event-specific policy override is permitted only when it is explicit,
+compatible with the property schema and transaction, and included in model provenance.
+
+Behavioral policy enums, a parallel inheritance hierarchy, and central concrete-policy `isa`
+switches are not part of the stable property interface. Host policy values MAY use convenient
+authoring representations, but every GPU-qualified policy MUST lower to an immutable
+bitstype-compatible descriptor and bounded storage.
 
 Compatible requests for the same property MUST be deduplicated. Incompatible types, initializers,
 inheritance rules, or transition rules MUST produce a model-construction error containing request
 provenance. Silent last-write-wins merging is prohibited.
+
+### Derived-property lifecycle
+
+A derived property is never cloned, split, reset as biological inheritance, or transformed by an
+ordinary property policy. Its family declares authoritative dependencies, invalidation scope,
+reference recomputation, incremental-repair behavior where available, and execution capabilities.
+After a lifecycle transaction commits its authoritative state, every invalidated derived property
+MUST be repaired or recomputed before the completed boundary becomes observable.
+
+An externally defined derived-property family follows the same open recomputation protocol and, when
+GPU-qualified, supplies a concrete device-valid lowering. Engine ownership of recomputation is a
+closed consistency invariant; the set of derived-property families remains open.
 
 Stable device properties MAY include fixed-width scalars, isbits enums, tuples or named tuples of
 supported values, small fixed-size vectors or tensors, and GPU-compatible immutable isbits structs.
@@ -180,6 +208,55 @@ The conformance suite MUST provide full-state validators for these invariants.
 
 ## Initialization Finalization
 
+### Open layout protocol
+
+An initial layout is an ordinary Julia value implementing one minimal open protocol. It MUST:
+
+- declare its domain, dimensional, topology, property, RNG, and execution requirements; and
+- emit provisional entity declarations and ownership claims into compiler-owned storage.
+
+Validation, overlap resolution, zero-occupancy removal, runtime ID assignment, property
+initialization, derived-state reconstruction, compiled-state lowering, and backend adaptation are
+generic engine responsibilities. A layout does not need separate source, rasterizer, placer,
+manager, or factory objects unless a concrete implementation benefits from ordinary internal
+composition.
+
+The required paper built-ins accept dense ownership or masks, explicit coordinate ownership, and
+the procedural shapes used by paper models and tutorials. File-format readers are not layout
+protocols; external Julia packages MAY load images or tables into these ordinary inputs.
+
+### Provisional entity identity
+
+Every provisional finite entity has a stable semantic identity independent of declaration order,
+container position, storage address, thread, and backend scheduling. Built-in labeled layouts derive
+that identity canonically from the layout instance and logical label. Composed layouts MAY
+explicitly refer to one shared provisional identity; incompatible declarations for that identity are
+a construction error with provenance.
+
+Provisional identities are not requested runtime cell IDs. After overlap resolution, provisional
+entities with zero occupancy are removed. Survivors are ordered by canonical provisional identity
+and assigned compact deterministic runtime IDs. Only survivors acquire runtime slots and slot
+generations.
+
+### Ownership claims and overlap
+
+Ownership claims are logically unordered. If distinct finite entities claim one site, overlap is an
+error unless the problem explicitly supplies a typed overlap policy. The required Phase 8 policies
+are:
+
+- reject every conflicting claim; and
+- select by an explicit stable semantic priority, rejecting an unresolved tie.
+
+Replacement or preservation spellings MUST identify their semantic claimant or priority relation;
+they MUST NOT mean first declaration wins or last declaration wins. Tuple order, layout emission
+order, runtime cell ID, thread scheduling, launch decomposition, and atomic arrival order never
+resolve ownership.
+
+Overlap resolution is a small open dispatch boundary, but Phase 8 does not implement general
+composition, stochastic winners, adaptive packing, or geometric constraint solving.
+
+### Finalization order
+
 Initialization MUST proceed logically as follows:
 
 1. Rasterize all layouts.
@@ -197,3 +274,90 @@ Initialization MUST proceed logically as follows:
 
 Layout overlap MUST default to an error. Replacement or preservation behavior MUST be explicitly
 requested. Silent overwrite is prohibited.
+
+Biological and auxiliary property initialization occurs only after overlap resolution,
+zero-occupancy removal, deterministic runtime ID assignment, and capacity validation. A rejected or
+empty provisional entity receives no runtime slot, generation, property state, or property-
+initialization draw. Layout-placement randomness is instead addressed by stable layout and
+provisional identities, so removing or reordering an unrelated claim cannot shift its draws.
+
+### Host-finalized and device-native initialization
+
+Initialization declares one of two explicit execution capabilities:
+
+- **Host-finalized initialization** constructs and validates canonical logical state on the host,
+  then lowers and transfers compiled state once before execution.
+- **Device-native initialization** lowers claim emission and finalization into a complete qualified
+  device path with concrete descriptors, bounded workspaces, and no hidden host completion.
+
+Host finalization is a visible construction choice, not a fallback inside GPU simulation. It does
+not weaken the requirement that a GPU MCS remain device-resident. Required large built-in layouts
+SHOULD gain device-native implementations when construction benchmarks show a material time or
+memory benefit; arbitrary custom layouts are not required to be device kernels.
+
+Host-finalized and device-native implementations advertised as the same initialization algorithm
+MUST produce the same canonical logical initial state under the same model, seed, RNG contract, and
+accepted numerical profile. A faster method with observably different placement semantics requires
+a separately named initialization algorithm or profile.
+
+### Random placement algorithms
+
+The unqualified concept `RandomLayout` is not a stable sampling law. Phase 8 distinguishes at least
+uniform site seeding from sequential rejection placement of shapes. A future packing or approximate
+placement process receives a separate name and guarantee profile.
+
+#### Uniform site seeds
+
+Uniform site seeding places labeled provisional entities by selecting a uniform injection into the
+eligible logical sites. Eligible sites are mutable ownership sites inside the declared placement
+domain after obstacles, fixed owners, and prior explicit claims are excluded.
+
+Provisional entities, their cell types, and their property overrides are enumerated in canonical
+semantic-identity order; dictionary iteration never defines their order. The selected sites are
+sampled uniformly without replacement and assigned to that canonical entity sequence. If the number
+of requested seeds exceeds the number of eligible sites, the complete placement fails before
+publishing any claim.
+
+The named implementation MUST specify and qualify its unbiased permutation or sampling algorithm.
+A device implementation sharing the same algorithm name and RNG profile must produce the same
+canonical claims as its host implementation. Stateful task-local RNG and scheduling-dependent
+atomic selection are prohibited.
+
+#### Sequential rejection placement
+
+Sequential rejection placement is a distinct named algorithm, not a claim of uniform sampling over
+all non-overlapping configurations. Provisional entities are processed in canonical semantic order
+unless the model explicitly requests a semantically addressed permutation policy.
+
+For each entity, the algorithm samples a center and any orientation or shape parameters from their
+declared distributions. Candidate `a` uses a semantic address containing the layout instance,
+provisional entity, attempt index, and draw role. A candidate is accepted only when its complete
+raster is valid and does not conflict under the selected overlap policy. Accepted earlier entities
+remain fixed; the basic algorithm performs no hidden backtracking.
+
+Every entity has an explicit positive attempt bound. Exhausting it aborts the complete layout
+transaction and reports the failed provisional identity, attempt bound, eligible domain, shape, and
+accepted-claim count. It MUST NOT silently drop, shrink, clip, overlap, or relocate an entity through
+an undocumented fallback.
+
+### Periodic rasterization
+
+A shape centered near a periodic boundary is evaluated in canonical lattice coordinates using the
+domain's accepted minimum-image displacement on each periodic axis. Its ownership may therefore
+wrap across the boundary while remaining one provisional entity.
+
+The rasterizer MUST detect an unwrapped shape support that aliases itself onto one canonical site
+because the requested shape is too large for the periodic domain. Stable built-ins reject such a
+shape rather than silently changing its volume or weighting duplicated images.
+
+On nonperiodic axes, out-of-domain support rejects by default. An explicitly named clipping policy
+MAY create the in-domain intersection, but clipping changes geometry and appears in provenance. A
+center distribution must state whether it samples all declared centers followed by geometric
+rejection or only the precomputed set of fully valid centers.
+
+### Dense and confluent initialization
+
+Sequential rejection placement may jam and does not imply uniform sampling of feasible packings.
+Phase 8 MUST NOT advertise it as a general confluent or packed-tissue initializer. Paper models that
+require confluence use deterministic tiling, an explicit ownership mask, or a separately named and
+validated packing algorithm. General stochastic packing is deferred.

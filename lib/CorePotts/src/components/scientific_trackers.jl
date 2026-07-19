@@ -45,10 +45,10 @@ end
 struct NoMomentStorage end
 struct NoMomentDelta end
 
-_compile_moment_storage(::Nothing, state, domain) = NoMomentStorage()
-_moment_arrays(::NoMomentStorage) = ()
-_moment_delta(::Nothing, state, proposal) = NoMomentDelta()
-@inline _apply_moment_delta!(::NoMomentStorage, ::NoMomentDelta, delta) = nothing
+compile_derived_observable(::Nothing, state, domain) = NoMomentStorage()
+derived_observable_arrays(::NoMomentStorage) = ()
+stage_derived_observable_delta(::Nothing, state, proposal) = NoMomentDelta()
+@inline apply_derived_observable_delta!(::NoMomentStorage, ::NoMomentDelta, delta) = nothing
 
 """Device-adaptable tracker arrays owned by one compiled scientific model."""
 struct ScientificTrackerStorage{V, M, B, U}
@@ -226,7 +226,7 @@ function compile_scientific_state(state::LogicalPottsState, domain::CartesianDom
         derived_state(state).medium_volumes) || throw(OverflowError(
         "medium volumes do not fit the compiled Int32 tracker"))
     boundary = rebuild_tracker(boundary_tracker, state, domain)
-    moments = _compile_moment_storage(moment_tracker, state, domain)
+    moments = compile_derived_observable(moment_tracker, state, domain)
     trackers = ScientificTrackerStorage(occupancy.finite, occupancy.media, boundary, moments)
     return CompiledScientificState(compile_state(state), compile_domain(domain), trackers,
         boundary_tracker, _retirement_defaults(state.properties.schema))
@@ -234,7 +234,7 @@ end
 
 function _tracker_arrays(storage::ScientificTrackerStorage)
     return (storage.finite_volumes, storage.medium_volumes, storage.boundary_measures,
-        _moment_arrays(storage.moments)...)
+        derived_observable_arrays(storage.moments)...)
 end
 
 function scientific_storage_valid(state::CompiledScientificState)
@@ -319,7 +319,7 @@ end
         state, domain, tracker.relation, proposal, tracker.metric)
     T = eltype(state.trackers.boundary_measures)
     medium_ids = state.medium_ids
-    moment_change = _moment_delta(moment_tracker, state, proposal)
+    moment_change = stage_derived_observable_delta(moment_tracker, state, proposal)
     delta = ScientificTrackerDelta(
         is_cell_owner(proposal.losing) ? proposal.losing.value : UInt32(0),
         is_cell_owner(proposal.gaining) ? proposal.gaining.value : UInt32(0),
@@ -372,7 +372,7 @@ end
         else
             trackers.medium_volumes[Int(delta.gaining_medium)] += Int32(1)
         end
-        _apply_moment_delta!(trackers.moments, delta.moments, delta)
+        apply_derived_observable_delta!(trackers.moments, delta.moments, delta)
     end
     return nothing
 end

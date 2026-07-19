@@ -21,6 +21,14 @@ corresponding specification document.
 - [0014: Field-coupling scientific categories](0014-field-coupling-categories.md)
 - [0015: Focal-point springs and periodic centers](0015-focal-point-and-periodic-centers.md)
 - [0016: Phase 7 algorithms, normalized time, and first-class auxiliary state](0016-phase-7-algorithms-and-auxiliary-state.md)
+- [0017: Open scientific protocols with concrete device lowering](0017-open-protocol-extensibility.md)
+- [0018: Open transactional lifecycle events and division geometry](0018-open-lifecycle-event-protocols.md)
+- [0019: Schema-owned property and auxiliary lifecycle policies](0019-property-and-auxiliary-lifecycle-policies.md)
+- [0020: Phase 8 implements the minimum open vertical slice](0020-phase-8-minimality-boundary.md)
+- [0021: Minimal open and deterministic initialization](0021-minimal-open-initialization.md)
+- [0022: Completed-MCS canonical persistence](0022-canonical-persistence.md)
+- [0023: Lifecycle laws for fluctuating pressure and tension](0023-mechanical-lifecycle-laws.md)
+- [0024: Separately named random and periodic placement laws](0024-random-and-periodic-placement.md)
 
 ## Record Template
 

@@ -60,10 +60,8 @@ end
 
 function _property_column(descriptor::PropertyDescriptor, capacity::CellCapacity)
     T = value_type(descriptor)
-    initializer = descriptor.initializer
-    initializer isa ConstantInitializer || throw(ArgumentError(
-        "property `$(descriptor.key)` has no supported compiled initializer"))
-    return fill(convert(T, initializer.value), nslots(capacity))
+    retired = retired_property_value(descriptor.retirement, descriptor)
+    return fill(convert(T, retired), nslots(capacity))
 end
 
 function PropertyStore(schema::PropertySchema, capacity::CellCapacity)
@@ -206,6 +204,17 @@ function _default_property_value(descriptor::PropertyDescriptor)
     return convert(value_type(descriptor), initializer.value)
 end
 
+function _initialize_active_properties!(properties::PropertyStore, active::BitVector)
+    for descriptor in properties.schema.descriptors
+        values = property_values(properties, descriptor.key)
+        initial = _default_property_value(descriptor)
+        for index in eachindex(active)
+            active[index] && (values[index] = initial)
+        end
+    end
+    return properties
+end
+
 function _recompute_occupancy(owners, capacity::CellCapacity, media::Vector{MediumID})
     finite_volumes = zeros(Int, nslots(capacity))
     medium_volumes = zeros(Int, length(media))
@@ -283,13 +292,11 @@ function _logical_state_errors(owners, capacity::CellCapacity, active::BitVector
         values = property_values(properties, descriptor.key)
         length(values) == slot_count || push!(errors,
             "property `$(descriptor.key)` must cover every finite-cell slot")
-        if descriptor.retirement === ResetOnRetirement
-            default = _default_property_value(descriptor)
-            for index in 1:min(length(active), length(values))
-                !active[index] && values[index] != default &&
-                    push!(errors,
-                        "retired slot $index must hold reset value for property `$(descriptor.key)`")
-            end
+        default = retired_property_value(descriptor.retirement, descriptor)
+        for index in 1:min(length(active), length(values))
+            !active[index] && values[index] != default &&
+                push!(errors,
+                    "retired slot $index must hold canonical value for property `$(descriptor.key)`")
         end
     end
     derived.finite_volumes == finite_occupancy || push!(errors,
@@ -346,6 +353,7 @@ function LogicalPottsState(owners::AbstractArray{OwnerRef, N}, capacity::CellCap
     isempty(declared_media) &&
         throw(ArgumentError("at least one medium domain must be declared"))
     properties = PropertyStore(property_schema, capacity)
+    _initialize_active_properties!(properties, active)
     derived = _recompute_occupancy(copied_owners, capacity, declared_media)
     state = LogicalPottsState(copied_owners, capacity, active, reusable, generation_values,
         types, declared_media, properties, derived)

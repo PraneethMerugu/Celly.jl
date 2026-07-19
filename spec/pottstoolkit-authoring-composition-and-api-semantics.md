@@ -303,6 +303,26 @@ scientific relations, field coupling, and capability requirements.
 
 Layouts and initial placement belong to the problem rather than the reusable scientific model.
 
+PottsToolkit layout values lower through CorePotts' minimal claim-emission protocol. Built-in dense
+labels or masks, coordinates, and paper-required procedural shapes share that path. Users identify
+provisional entities semantically rather than choosing runtime integer cell IDs. Overlap rejects by
+default; an explicit stable-priority policy is order independent and appears in `explain` and
+provenance.
+
+PottsToolkit reports whether initialization is host-finalized or device-native. Loading an image,
+table, or domain-specific file remains the job of ordinary Julia data packages that produce a
+supported array, coordinate collection, or custom layout value; PottsToolkit does not create a
+parallel file-loader framework.
+
+Level 1 does not expose one ambiguous `RandomLayout` meaning. It distinguishes uniform one-site
+seeds from sequential rejection placement of declared shapes. Each spelling exposes its placement
+domain, distributions, attempt bound, periodic behavior, failure semantics, and guarantee profile.
+Dictionary order, the default Julia RNG, and silent overwrite are never part of initialization.
+
+Sequential rejection is not described as uniform packing or guaranteed confluence. PottsToolkit
+uses deterministic tiling or explicit masks for paper workflows requiring confluent ownership until
+a separately named packing algorithm has its own statistical and failure contract.
+
 Scientific relation definitions and boundary semantics belong to the model or its domain
 specification. Concrete lattice sizes, spacing realization, and storage belong to the problem. A
 model can be reused across compatible geometries and initial conditions; dimension-, topology-, or
@@ -349,7 +369,9 @@ constructor.
 ### Properties and observables
 
 Custom properties are declared independently of rules. A property schema declares owner, type,
-units, initialization, lifecycle inheritance, visibility, and conversion policy.
+units, initialization, separate division/transition/retirement policy values, visibility, and
+conversion policy. Each operation must be explicitly supported or explicitly rejected; PottsToolkit
+does not fill missing lifecycle behavior from a global default.
 
 Built-in components MAY supply common schemas without verbose user declarations. Supplied schemas
 appear in `explain`, participate in conflict detection, and cannot silently override explicit user
@@ -365,8 +387,9 @@ Events are ordinary model components participating in dependency, effect, capabi
 and composition analysis. Growth, division, death, transition, property update, and field coupling
 retain distinct effect semantics despite sharing the component framework.
 
-Schedules are reusable typed values. Periodic integer-MCS schedules, one-time schedules, conditional
-schedules, and future accepted schedules are inspectable independently of an event.
+Schedules are reusable typed values. Every-boundary, periodic, one-time, explicit finite-time, and
+future conforming positive integer-MCS schedules are inspectable independently of an event. A
+state-dependent condition is a trigger rather than a schedule.
 
 ### Rule ownership and roles
 

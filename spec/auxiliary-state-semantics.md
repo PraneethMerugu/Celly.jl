@@ -213,7 +213,80 @@ whenever it can affect continuation. Checkpoints include the mechanical contract
 
 Division, transition, extinction, and slot reuse follow the accepted transaction law in
 `lifecycle.md`. Mechanical inheritance or conservation is family specific. Missing lifecycle
-semantics make the operation unsupported rather than selecting a generic fallback.
+semantics make the operation unsupported rather than selecting a generic fallback. Every stable
+family explicitly declares initialization, division, transition, progressive-death, immediate-
+death, extinction, retirement, and reuse behavior where applicable. A policy may explicitly reject
+an operation; omission is not an implicit reset.
+
+The family plans lifecycle updates from the common pre-lifecycle snapshot and commits through the
+same property transaction used by ordinary state. A GPU-qualified family lowers each supported
+policy to concrete bounded device behavior. It MUST NOT rely on a family enum, parallel inheritance
+hierarchy, arbitrary callback, per-event allocation, or host intervention.
+
+For an equilibrium auxiliary family, every state-creating or identity-changing operation requires a
+derived post-operation joint conditional distribution and validation evidence. A mechanical family
+instead states its physical conservation, transformation, initialization, or reset meaning and does
+not inherit an equilibrium claim merely by using the same storage protocol.
+
+### Stable pressure and tension division
+
+Pressure and tension are intensive generalized forces. They are not extensive conserved quantities:
+binary division MUST NOT halve them or preserve their sum across descendants.
+
+The default division policy is **constitutive reset**. After lattice partition, descendant types,
+target and strength policies, and derived volume or surface observables have committed, each
+descendant receives
+
+```text
+q_r = 2 * lambda_r * (O_r - O_target_r).
+```
+
+This deterministic default introduces no division noise and makes no claim that pre-mitotic
+mechanical memory survives division.
+
+Two explicit alternatives are stable:
+
+- **Intensive preservation** copies the pre-division `q` to both descendants. This preserves
+  mechanical memory but is not conservation; each value subsequently relaxes toward its own mean.
+- **Stationary redraw** independently samples each descendant from
+  `Normal(2 * lambda_r * (O_r - O_target_r), 2 * lambda_r * Theta_r)` after post-division state is
+  final.
+
+Stationary-redraw addresses include the lifecycle RNG contract, division event identity, MCS,
+component instance, parent identity and generation, descendant role, child generation where
+applicable, and draw identity. They do not consume initialization or ordinary evolution addresses.
+General correlated daughter noise is unsupported until a separately named policy supplies a
+positive covariance law and conformance evidence.
+
+### Growth, transition, death, and reuse
+
+Growth, target changes, progressive shrink death, and a type transition that retains the same
+compatible mechanical component preserve `q` continuously. Changed target, strength, noise, or type
+parameters affect subsequent OU evolution, allowing the accepted relaxation law to approach its new
+constitutive mean without an unrequested instantaneous jump.
+
+An explicit transition MAY instead request constitutive reset or stationary redraw. Adding a
+mechanical component invokes its declared initializer after destination state is valid. Removing a
+component clears its state in the type-transition transaction.
+
+Immediate death and stochastic extinction clear pressure and tension atomically with retirement.
+Progressive shrink death preserves and evolves them until terminal removal. Reusing a numerical slot
+creates a new generation and invokes ordinary mechanical initialization; preserving retired state is
+always invalid.
+
+### Independent biological policies
+
+Mechanical-state lifecycle policy does not determine target or strength inheritance. Target volume
+MAY use an explicit conservative split, including exact-total stochastic rounding where required.
+Strength, relaxation, and noise parameters follow their own schema or component/type policies.
+
+Surface target is not an extensive quantity and MUST NOT receive an undocumented halving default. A
+named similar-shape policy MAY scale a target by `f^((D - 1) / D)` for daughter volume fraction `f`,
+but it must declare its geometric and surface-metric assumptions. Otherwise the model supplies an
+explicit surface-target policy or division with that component is unsupported.
+
+Pressure or tension division behavior is evaluated only after these independent biological policies
+and derived observables are final.
 
 ## Lean Conformance Gate
 
@@ -223,6 +296,8 @@ A stable family needs:
 - constitutive-mean and stationary-normal initialization evidence;
 - a reference mechanical-work calculation and semantic RNG evidence;
 - algorithm-level transaction and normalized-time tests;
+- constitutive-reset, intensive-preservation, stationary-redraw, transition-continuity, death-clear,
+  and slot-reuse lifecycle tests;
 - statistical CPU, Metal, and ROCm evidence in required dimensions; and
 - no incidental steady-state host synchronization.
 

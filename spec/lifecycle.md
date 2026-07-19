@@ -34,10 +34,81 @@ IDs retired during MCS `t` MUST NOT be reused until MCS `t + 1`.
 
 ## Event Scheduling
 
-Each event owns an integer-MCS schedule. Stable schedules MAY include periodic schedules, one-time
-schedules, and bounded periodic schedules. A single global `check_interval` is not normative.
+Each event owns a reusable integer-MCS schedule value. Schedule membership is a pure query of the
+completed MCS boundary and MUST NOT depend on launch count, internal algorithm rounds, wall-clock
+time, declaration order, or mutable iteration state.
+
+The required built-in schedule meanings are:
+
+- every positive integer-MCS boundary;
+- exactly one positive integer MCS;
+- an explicit finite collection of positive integer MCS values; and
+- a periodic schedule with an inclusive positive start, positive period, and optional inclusive
+  stop.
+
+MCS `0` denotes the finalized initial condition. It is not an ordinary lifecycle boundary, and a
+stable lifecycle schedule MUST reject MCS `0` and negative times during construction. Initialization
+behavior belongs to the initialization protocol rather than a lifecycle event disguised as a
+zero-time callback.
+
+Schedule families are an open Julia protocol. A host schedule MAY use convenient construction-time
+state, but a GPU-qualified schedule MUST lower to an immutable bitstype-compatible descriptor with
+stable identity and semantic serialization. Built-in forms are conveniences rather than an
+exhaustive enum. A single global `check_interval` is not normative.
 
 Lower-level scheduling rounds remain internal and MUST NOT be used as biological event time.
+
+## Event Structure and Pre-Event Snapshot
+
+A lifecycle event composes four independently typed semantic values:
+
+1. a target domain;
+2. a schedule;
+3. a trigger; and
+4. an effect.
+
+Conflict resolution is a typed phase-level policy rather than an incidental property of container
+order. Required Phase 8 target domains are active finite cells and one global model target.
+Additional domains MAY be defined through the same public protocol. Active-link targets are deferred
+until dynamic link lifecycle becomes a qualified stable feature.
+
+Every due trigger at MCS `t` observes the same immutable `PreLifecycleSnapshot(t)`. A trigger MUST
+declare its target domain, required reads, stochastic operation labels, workspace bound, and
+capabilities. Trigger evaluation is side-effect free: it returns a compact decision or mask and
+MUST NOT mutate model state. Stochastic triggers MAY use only semantically addressed lifecycle RNG;
+their addressed draws remain pure functions of the accepted randomness contract.
+
+Post-event values do not exist for trigger evaluation. They become observable only after the entire
+validated lifecycle transaction commits. An event cannot read a value written by another event at
+the same boundary unless the model expresses both operations as one explicitly composed effect with
+defined internal semantics.
+
+Host-only triggers MAY be offered as explicitly synchronizing, non-stable alternatives. They MUST
+NOT be described as GPU-compatible or hidden inside a device-resident lifecycle step.
+
+## Effect Planning and Commit
+
+Stable lifecycle effects are typed transactions. An effect MUST declare, as applicable:
+
+- target, read, write, identity-change, and conflict scopes;
+- required properties, observables, relations, fields, and auxiliary families;
+- capacity, workspace, reduction, atomic, RNG, and synchronization requirements;
+- supported dimensions, algorithms, numerical modes, and backends; and
+- its reference planning, validation, and commit behavior.
+
+The top-level transaction categories and their phase order are a controlled closed taxonomy because
+the lifecycle engine must exhaustively establish atomicity. Family membership within an applicable
+category remains open. A new family member is added through owned types and public methods, not by
+editing a central effect enum or `isa` switch.
+
+Planning reads only the common `PreLifecycleSnapshot`. Validation completes before any affected
+state mutates. Commit occurs only through category-owned transaction machinery so declared writes,
+identity changes, capacity use, derived-state repair, diagnostics, and rollback behavior cannot be
+bypassed.
+
+Arbitrary imperative mutation MAY exist only as an explicitly synchronizing host facility outside
+the stable hardware-agnostic GPU contract. It MUST NOT be silently lowered, treated as a stable
+effect, or executed between the planning and commit kernels of a device transaction.
 
 ## Event Conflicts
 
@@ -47,8 +118,22 @@ changing outcomes include division, immediate death, and type transition.
 Models with potentially overlapping identity-changing triggers MUST provide an explicit resolver or
 an explicitly composed lifecycle event. Silent vector-order priority is prohibited.
 
+Conflict resolution is an open typed policy under the closed one-outcome and atomicity laws. The
+required Phase 8 built-in meanings are reject ambiguity and resolve by an explicit stable semantic
+priority. An explicitly typed composition MAY be added when a concrete model requires combined
+behavior; Phase 8 does not implement a general resolver-composition algebra. A priority key is model
+semantics; declaration position, tuple layout, cell ID, compiler batching, workgroup size, launch
+decomposition, thread scheduling, and atomic arrival order are not implicit priority keys.
+
 A default resolver MAY define category priority, but its policy MUST be public and stable. Statically
-detectable unresolved conflicts SHOULD fail model construction.
+detectable unresolved conflicts MUST fail model construction. A conflict discovered only from the
+runtime trigger set MUST abort the affected phase before any lifecycle mutation and produce a
+bounded structured diagnostic or error.
+
+For the same pre-snapshot, trigger decisions, semantic identities, and explicit resolver, the
+resolved transaction set MUST be invariant under permutation of declarations, tuple representation,
+homogeneous compilation batches, and device launch tuning. Atomics may implement a proven resolver;
+they do not define its scientific outcome.
 
 Property updates MAY coexist if their snapshot, read, write, and conflict behavior is valid under the
 future rule-language specification.
@@ -75,6 +160,27 @@ No public permanent lineage identity is required in specification version `0.2-d
 
 ## Division Geometry
 
+Division geometry is an open site-partition protocol. A host geometry value declares its scientific
+meaning, requirements, capabilities, and lowering. A GPU-qualified geometry lowers to an immutable
+bitstype-compatible descriptor and an allocation-free device method that assigns each parent-owned
+site a compact descendant-region label.
+
+Phase 8 qualifies binary division: every valid proposal must contain exactly two nonempty descendant
+regions, one retaining the parent identity and one receiving the new child identity. The compiled
+partition result MUST NOT be represented by a permanently binary Boolean contract; compact region
+labels preserve a future path to additional arities without claiming or implementing them in Phase
+8.
+
+Required built-in geometries include random orientation, explicit vector direction, major-axis
+orientation, and minor-axis orientation for their applicable 2D and 3D domains. They are not the
+complete protocol. Downstream geometries MAY be asymmetric, off-center, nonplanar, field-directed,
+property-directed, or otherwise specialized when they satisfy the same transaction invariants and
+device contract.
+
+Phase 8 implements the four required families and one non-built-in conformance geometry. Other
+geometry catalogs and nonbinary division remain deferred even though the protocol must not prevent
+their later addition.
+
 A successful division MUST satisfy:
 
 1. Parent and daughter each own at least one site.
@@ -86,9 +192,9 @@ A successful division MUST satisfy:
 The default minimum daughter volume is one site. Connectivity is optional and MUST NOT be imposed
 unless requested by the model.
 
-A geometrically invalid division affects only that parent. Other valid divisions MAY proceed. The
-failed parent receives no child ID and remains eligible for reevaluation at a later scheduled event.
-The failure MUST be recorded in diagnostics.
+A geometrically invalid division affects only that parent and is rejected before child-ID
+allocation. Other valid divisions MAY proceed. The failed parent receives no child ID and remains
+eligible for reevaluation at a later scheduled event. The failure MUST be recorded in diagnostics.
 
 ## Division Transaction and Capacity
 
@@ -114,8 +220,14 @@ NOT leave a partially committed biological transaction.
 
 ## Property Inheritance
 
-Every biological property has a schema-level division policy. Division events MAY explicitly
-override compatible policies.
+Every biological property has a schema-level typed division policy. Division events MAY explicitly
+override compatible policies. The schema value is used otherwise; declaration order never resolves
+two competing overrides.
+
+Division, type transition, and retirement use separate operation-specific policy protocols. Policy
+behavior is selected by multiple dispatch on the owned policy value, not a behavioral enum, one
+large callback object, or a central concrete-family switch. The property schema described in
+`state-model.md` is the only lifecycle-policy authority.
 
 Supported policy families MAY include:
 
@@ -126,10 +238,15 @@ Supported policy families MAY include:
 - Conservatively split
 - Apply an explicit device-compatible transformation
 
-Arbitrary user properties MUST NOT receive an undocumented global inheritance default.
+Arbitrary user properties MUST NOT receive an undocumented global inheritance default. A custom
+property must select a documented division policy or explicitly mark division unsupported. If an
+unsupported operation is reachable in the compiled model, construction fails with the property,
+requesting event, and compatible policy requirements.
 
 Derived properties, including volume, surface area, centroid, inertia, current length, contact
-counts, and neighbor summaries, MUST be recomputed from the committed post-division lattice.
+counts, and neighbor summaries, have no ordinary inheritance policy. They MUST be recomputed or
+incrementally repaired from authoritative committed post-division state through their declared
+derived-property protocol.
 
 For conserved integer properties split by a fraction, the default policy SHOULD use keyed stochastic
 rounding while preserving the exact total. The draw MUST use the lifecycle RNG stream and remain
@@ -138,10 +255,15 @@ available explicitly.
 
 ## Auxiliary State After Division
 
-Every auxiliary family MUST define an explicit lifecycle policy. For an equilibrium auxiliary
-constraint, both daughters are sampled from the derived joint conditional distribution after the
-post-division lattice and derived observables are final. Blind cloning is prohibited. A conditional-
-mean initializer MAY be used only as an explicitly selected, documented policy.
+Every auxiliary family owns explicit typed policies for initialization, division, type transition,
+progressive death, immediate death, extinction, retirement, and slot reuse wherever those operations
+can affect its state. Family policy methods use the ordinary lifecycle transaction and schema
+protocols; they do not introduce a second inheritance engine.
+
+For an equilibrium auxiliary constraint, both daughters are sampled from the derived joint
+conditional distribution after the post-division lattice and derived observables are final. Blind
+cloning is prohibited. A conditional-mean initializer MAY be used only as an explicitly selected,
+documented policy.
 
 Mechanical auxiliary components MAY define conservation, inheritance, transformation, or reset
 policies, but each policy MUST state its physical meaning and MUST NOT inherit an equilibrium claim.
@@ -151,7 +273,20 @@ and slot reuse creates a new generation, initialization event, and semantic RNG 
 
 The family-specific distributions remain required Phase 8 evidence. A family whose lifecycle law is
 not derived is incompatible with that lifecycle operation rather than silently applying a generic
-fallback.
+clone, reset, zero, or conservation fallback. Missing family behavior MUST fail model construction
+when the operation is reachable.
+
+### Property-policy planning
+
+A compiled property or auxiliary policy plans from the common `PreLifecycleSnapshot` and returns a
+compact update description without mutating model state. The plan declares all written slots,
+parent/descendant roles, RNG operation labels, invalidated derived state, and bounded workspace.
+Variable-sized work uses preallocated capacity established during model compilation.
+
+All applicable property and family plans are validated before the enclosing lifecycle transaction
+commits. A failure aborts that transaction without partially applying another property's update.
+GPU-qualified planning and commit are allocation-free, statically specialized, and device-resident
+under the accepted lifecycle execution contract.
 
 ## Type Transitions
 
@@ -166,6 +301,10 @@ A type transition is transactional. Before mutation, the engine MUST:
 Property transition policies include preserving the current value, resetting to the destination
 type's default, applying an explicit transformation, invalidating an unsupported transition, or
 recomputing derived state.
+
+Each custom biological property selects one of these documented policy families, defines another
+conforming typed policy, or explicitly declares transition unsupported. Derived state is repaired
+through its derived-property protocol rather than an ordinary transition policy.
 
 Type-level rigid parameters use the destination type immediately after commit. Per-cell flexible
 parameters follow their property transition policies.
@@ -197,16 +336,35 @@ Retirement MUST:
 4. Increment or prepare the slot generation for future reuse according to the chosen representation.
 5. Add the ID to the next-MCS reusable collection exactly once.
 
+Retirement cleanup is exhaustive and schema-driven. Each authoritative biological property and
+auxiliary family supplies its explicit canonical retired value or retirement operation; derived
+state is invalidated and cleared or recomputed by its family. Missing cleanup behavior is invalid at
+model construction, not a request for a universal zeroing fallback.
+
 Retirement causes SHOULD distinguish programmed death, immediate death, completed shrink death, and
 stochastic extinction.
 
 ## Lifecycle Execution Locations
 
-The stable GPU lifecycle path accepts compiled device-executable triggers, transformations, and
-actions. Host actions MAY be offered only as explicitly synchronizing alternatives and MUST be
-identified as such in the API.
+The stable GPU lifecycle path accepts compiled device-executable schedules, target domains,
+triggers, planners, conflict resolvers, validators, transformations, and commit operations. The
+public host object need not itself be a bitstype, but every GPU-qualified value MUST lower to an
+immutable bitstype-compatible descriptor and bounded device storage.
+
+The device path MUST use concrete argument types, static specialization, preallocated workspaces,
+and portable KernelAbstractions behavior before optional backend specialization. It MUST NOT use
+runtime device dispatch, per-event allocation, device exceptions, reflection, heap-backed policy
+objects, or unbounded retry. Accelerated operations and intrinsics are implementation choices and
+must separately satisfy transaction, reproducibility, and CPU/Metal/ROCm qualification.
+
+Host actions MAY be offered only as explicitly synchronizing alternatives and MUST be identified as
+such in the API.
 
 An arbitrary host callback MUST NOT hide synchronization inside an otherwise device-resident event.
+
+Kernel launch order is execution machinery, not event precedence. No GPU lifecycle compatibility
+claim is valid unless the complete schedule-through-commit path compiles and runs on every claimed
+backend without hidden host fallback or synchronization.
 
 ## Diagnostics
 
@@ -226,3 +384,12 @@ Lifecycle diagnostics MUST expose inexpensive counters including, where applicab
 
 Detailed event logs and lineage histories MAY be optional output backends rather than mandatory
 in-memory state.
+
+## Phase 8 Minimal Implementation Boundary
+
+The accepted semantics do not require Phase 8 to implement every family admitted by these open
+protocols. Production scope is limited by the
+[Phase 8 Minimality Pass](../design/audits/phase-8-minimality-pass.md): paper-required built-ins, one
+combined downstream extension fixture, and the generic behavior shared by them. Dynamic-link
+events, general conflict-composition algebra, nonbinary division, arbitrary host callbacks,
+lineage-history infrastructure, and a universal equilibrium-auxiliary system are deferred.

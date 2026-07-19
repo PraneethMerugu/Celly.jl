@@ -70,8 +70,11 @@ Backend and statistical qualification remain conformance work rather than open s
 
 ### SEM-HST-003: Lifecycle distributions
 
-Required Phase 8 evidence. Derive division, transition, death, initialization, slot-reuse, and link-
-lifecycle distributions for each stable auxiliary family. Generic cloning is prohibited.
+Resolved for the stable fluctuating volume-pressure and surface-tension families by
+[Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md) and Decision 0023.
+Constitutive reset is the default division policy; intensive preservation and independent stationary
+redraw are explicit alternatives. Transition continuity, death clearing, and generation-safe reuse
+are specified. Dynamic link lifecycle remains deferred with the experimental focal family.
 
 ## Topology
 
@@ -235,17 +238,23 @@ hidden synchronization.
 
 ### SEM-IO-001: Snapshot versus checkpoint
 
-Define synchronized snapshots, exact continuation checkpoints, backend-independent restart, schema
-fingerprints, and RNG state.
+Resolved by [Snapshots, Checkpoints, Restore, and Logical Storage](persistence.md): stable capture is
+limited to finalized MCS boundaries; snapshots and exact checkpoints are distinct immutable values;
+compatible resume and explicit logical import have separate guarantee semantics.
 
 ### SEM-IO-002: Storage equivalence
 
-Define logical equivalence among memory, Zarr, HDF5, and future output backends.
+Resolved by [Snapshots, Checkpoints, Restore, and Logical Storage](persistence.md): memory, HDF5, and
+Zarr implement one versioned canonical logical schema and share conformance evidence through package
+extensions.
 
 ### SEM-INIT-001: Coordinate and rasterization semantics
 
-Define public coordinate indexing, shape rasterization, random-layout sampling, periodic placement,
-and initial auxiliary constraint or mechanical state.
+Resolved by [State Model](state-model.md), Decisions 0021 and 0024, the accepted Cartesian coordinate
+contract, and [Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md). Layouts emit
+semantic claims; uniform site seeding and sequential rejection are separately named; periodic shapes
+use minimum-image rasterization with self-alias rejection; property and auxiliary initialization
+occur only after canonical ownership finalization.
 
 ## Numerical and Backend Semantics
 

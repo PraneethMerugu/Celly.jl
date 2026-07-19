@@ -14,9 +14,11 @@ function required_properties(component::ReferenceVolumeEnergy)
     requester = component_identity(component)
     return PropertySchema(
         PropertyDescriptor(component.target_key, Float64, ConstantInitializer(0.0);
-            requester, kind = BiologicalProperty),
+            requester, division = SplitOnDivision(), transition = PreserveOnTransition(),
+            kind = BiologicalProperty),
         PropertyDescriptor(component.strength_key, Float64, ConstantInitializer(0.0);
-            requester, kind = BiologicalProperty),
+            requester, division = CloneOnDivision(), transition = PreserveOnTransition(),
+            kind = BiologicalProperty),
     )
 end
 

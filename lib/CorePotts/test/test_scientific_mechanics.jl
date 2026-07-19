@@ -40,8 +40,10 @@ end
     @test component_identity(surface).category == :mechanical
     @test property_descriptor(required_properties(volume), :volume_pressure).kind ===
           AuxiliaryProperty
-    @test property_descriptor(required_properties(surface), :surface_tension).division ===
-          TransformOnDivision
+    @test property_descriptor(required_properties(surface), :surface_tension).division isa
+          ConstitutiveResetAfterDivision
+    @test property_descriptor(required_properties(surface), :target_boundary).division isa
+          UnsupportedDivision
     @test scientific_access(volume).cell_wide
     @test only(scientific_access(surface).relations) == relation
     @test validate_mechanical_component(volume).category == :mechanical
