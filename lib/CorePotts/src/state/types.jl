@@ -269,7 +269,7 @@ abstract type AbstractPottsProblem <: SciMLBase.AbstractSciMLProblem end
 abstract type AbstractPottsAlgorithm <: SciMLBase.AbstractSciMLAlgorithm end
 
 """
-    PottsProblem{uType, tType, pType} <: AbstractPottsProblem
+    LegacyPottsProblem{uType, tType, pType} <: AbstractPottsProblem
 
 A SciML-compatible problem definition for a Cellular Potts Model.
 
@@ -278,21 +278,21 @@ A SciML-compatible problem definition for a Cellular Potts Model.
 - `tspan`: A tuple `(t_start, t_end)` defining the simulation duration in Monte Carlo steps.
 - `p`: The simulation parameters (`PottsParameters`).
 """
-struct PottsProblem{uType, tType, pType, KType} <: AbstractPottsProblem
+struct LegacyPottsProblem{uType, tType, pType, KType} <: AbstractPottsProblem
     u0::uType
     tspan::Tuple{tType, tType}
     p::pType
     kwargs::KType
 end
-function PottsProblem(u0, tspan, p; kwargs...)
-    return PottsProblem(u0, tspan, p, kwargs)
+function LegacyPottsProblem(u0, tspan, p; kwargs...)
+    return LegacyPottsProblem(u0, tspan, p, kwargs)
 end
-function Functors.functor(::Type{<:PottsProblem}, x)
+function Functors.functor(::Type{<:LegacyPottsProblem}, x)
     children = (u0 = x.u0, p = x.p)
     reconstruct(y) = Base.typename(typeof(x)).wrapper(y.u0, x.tspan, y.p, x.kwargs)
     return children, reconstruct
 end
-function Adapt.adapt_structure(to, x::PottsProblem)
+function Adapt.adapt_structure(to, x::LegacyPottsProblem)
     children, reconstruct = Functors.functor(typeof(x), x)
     return reconstruct(Adapt.adapt(to, children))
 end
@@ -330,7 +330,7 @@ end
 """
     ParallelMetropolis(; sampler=MetropolisSampler(), sweeps_per_step=10, active_fraction=0.1f0, T=1.0f0)
 
-The solver algorithm for `PottsProblem`s. Specifies how Monte Carlo Sweeps are executed.
+The solver algorithm for `LegacyPottsProblem`s. Specifies how Monte Carlo Sweeps are executed.
 
 # Keyword Arguments
 - `sampler`: The sampling strategy (default `MetropolisSampler()`).
@@ -375,12 +375,12 @@ A strictly sequential CPU algorithm that processes sites randomly one-by-one. No
 const SequentialMetropolis = MetropolisAlgorithm{SequentialStrategy}
 
 """
-    PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType}
+    LegacyPottsIntegrator{uType, pType, tType, algType, cacheType, OptsType}
 
 The active simulation state, holding `u`, `p`, `t`, `alg`, and the `cache`.
 Provides SciML-compatible continuous integration for the Potts.
 """
-mutable struct PottsIntegrator{uType, pType, tType, algType, cacheType, OptsType, SolUType, ProbType}
+mutable struct LegacyPottsIntegrator{uType, pType, tType, algType, cacheType, OptsType, SolUType, ProbType}
     u::uType
     p::pType
     t::tType
@@ -399,12 +399,12 @@ end
 include("backends.jl")
 
 """
-    PottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution
+    LegacyPottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution
 
 The result of a completed simulation. Contains the saved grid states and cell property states over time.
 Accessible like an array: `sol[i]` returns the state at time `sol.t[i]`.
 """
-struct PottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, 1, Any}
+struct LegacyPottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, 1, Any}
     u::T
     t::Vector{Int}
     prob::P
@@ -413,12 +413,12 @@ struct PottsSolution{T, P, A} <: SciMLBase.AbstractTimeseriesSolution{Any, 1, An
 end
 
 # Make it behave like an array over time steps
-Base.length(sol::PottsSolution) = length(sol.t)
-Base.getindex(sol::PottsSolution, i::Int) = sol.u[i]
-Base.firstindex(sol::PottsSolution) = 1
-Base.lastindex(sol::PottsSolution) = length(sol.t)
+Base.length(sol::LegacyPottsSolution) = length(sol.t)
+Base.getindex(sol::LegacyPottsSolution, i::Int) = sol.u[i]
+Base.firstindex(sol::LegacyPottsSolution) = 1
+Base.lastindex(sol::LegacyPottsSolution) = length(sol.t)
 
-function Base.getproperty(sol::PottsSolution, sym::Symbol)
+function Base.getproperty(sol::LegacyPottsSolution, sym::Symbol)
     if sym === :interp || sym === :destats || sym === :stats
         return nothing
     elseif sym === :dense

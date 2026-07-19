@@ -27,7 +27,7 @@ using SciMLBase
     p = PottsParameters(MooreTopology{2}(), penalties, trackers)
 
     alg = SequentialMetropolis(; T = 1.0f0)
-    prob = PottsProblem(u0, (0.0, 10.0), p)
+    prob = LegacyPottsProblem(u0, (0.0, 10.0), p)
 
     # 2. Create the Mermaid component
     cpm_comp = PottsComponent(prob, alg; name = "Tissue", timestep = 1.0)

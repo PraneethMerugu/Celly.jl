@@ -10,6 +10,9 @@ using SciMLBase
 using StaticArrays
 using Statistics
 using TOML
+import CorePotts: LegacyPottsProblem, PottsState, PottsParameters, PottsCache,
+                  SequentialMetropolis, ParallelMetropolis, CheckerboardMetropolis,
+                  IntrinsicCheckerboardMetropolis
 
 const SCHEMA_VERSION = "1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
@@ -1892,6 +1895,200 @@ function qualify_persistence_backend(name::String)
     )
 end
 
+struct Phase9QualificationCounter{A} <: AbstractPottsDeviceCallback
+    values::A
+end
+CorePotts.device_callback_requirements(::Phase9QualificationCounter) = ()
+CorePotts.device_callback_effects(::Phase9QualificationCounter) =
+    (DeviceObservationEffect(),)
+CorePotts.device_callback_priority(::Phase9QualificationCounter) = 0
+
+struct Phase9QualificationParameterization{V}
+    volume::V
+end
+(parameterization::Phase9QualificationParameterization)(parameters) =
+    ScientificComponentSet(energies = (parameterization.volume,),
+        kinetic_modifiers = (PositiveYield(parameters.yield),))
+CorePotts.device_callback_due(::Phase9QualificationCounter, mcs::Integer) = isodd(mcs)
+@kernel function _phase9_counter_kernel!(values)
+    index = @index(Global, Linear)
+    index == 1 && (@inbounds values[1] += UInt32(1))
+end
+function CorePotts.execute_device_callback!(callback::Phase9QualificationCounter, integrator)
+    kernel = _phase9_counter_kernel!(integrator.inner.plan.backend, 1)
+    launch!(integrator.inner.plan, kernel, callback.values; ndrange = 1)
+    return integrator
+end
+
+function _phase9_problem(::Val{N}; tspan = (0, 3), seed::UInt64 = 0x7068617365390001) where {N}
+    dims = ntuple(_ -> 6, Val(N))
+    spacing = ntuple(_ -> 1.0f0, Val(N))
+    domain = CartesianDomain(dims; spacing)
+    proposal = first_shell_relation(ProposalRole(), Val(N); spacing)
+    surface = first_shell_relation(SurfaceRole(), Val(N); spacing)
+    tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
+    volume = QuadraticVolumeHamiltonian(number_type = Float32)
+    owners = fill(MediumOwner(1), dims)
+    region = ntuple(_ -> 2:4, Val(N))
+    fill!(view(owners, region...), CellOwner(1))
+    logical = LogicalPottsState(owners, CellCapacity(3);
+        cell_types = Dict(CellID(1) => CellTypeID(1)),
+        medium_domains = (MediumID(1),), property_schema = required_properties(volume))
+    property_values(logical, :target_volume)[1] = Float32(prod(length, region))
+    property_values(logical, :volume_strength)[1] = 1.0f0
+    components = ScientificComponentSet(energies = (volume,))
+    model = PottsModel(proposal, tracker; components, observables = (:cell_count,))
+    problem = PottsProblem(model, logical, domain, tspan; seed)
+    return (; problem, logical, domain, proposal, tracker, components)
+end
+
+function _phase9_direct_integrator(name::String, fixture, algorithm)
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor, compile_scientific_state(
+        deepcopy(fixture.problem.u0), fixture.domain, fixture.tracker))
+    components = Adapt.adapt(adaptor, fixture.components)
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    plan = ExecutionPlan(backend; block_size = 128, metrics = ExecutionMetrics())
+    integrator = init_scientific(state, fixture.proposal, components, algorithm;
+        seed = fixture.problem.seed, plan)
+    return integrator, backend, adaptor
+end
+
+function _phase9_interface_run(name::String, ::Val{N}, algorithm,
+        seed::UInt64) where {N}
+    fixture = _phase9_problem(Val(N); seed)
+    direct, backend, adaptor = _phase9_direct_integrator(name, fixture, algorithm)
+    wrapped = init(fixture.problem, algorithm; backend, adaptor, verbose = false,
+        save_start = false, save_end = false)
+    report = compatibility_report(fixture.problem, algorithm, backend)
+    report.qualified || error("$name $(nameof(typeof(algorithm))) $N-D compatibility failed")
+    direct_launches = direct.plan.metrics.launches
+    wrapped_launches = wrapped.inner.plan.metrics.launches
+    direct_syncs = direct.plan.metrics.host_synchronizations
+    wrapped_syncs = wrapped.inner.plan.metrics.host_synchronizations
+    direct_transfers = direct.plan.metrics.device_to_host_transfers
+    wrapped_transfers = wrapped.inner.plan.metrics.device_to_host_transfers
+    SciMLBase.step!(direct)
+    SciMLBase.step!(wrapped)
+    direct_launch_delta = direct.plan.metrics.launches - direct_launches
+    wrapper_launch_delta = wrapped.inner.plan.metrics.launches - wrapped_launches
+    direct_launch_delta == wrapper_launch_delta || error(
+        "$name $(nameof(typeof(algorithm))) $N-D wrapper changed the launch graph")
+    direct.plan.metrics.host_synchronizations - direct_syncs == 0 || error(
+        "$name direct MCS introduced a host synchronization")
+    wrapped.inner.plan.metrics.host_synchronizations - wrapped_syncs == 0 || error(
+        "$name wrapped MCS introduced a host synchronization")
+    direct.plan.metrics.device_to_host_transfers - direct_transfers == 0 || error(
+        "$name direct MCS introduced a device-to-host transfer")
+    wrapped.inner.plan.metrics.device_to_host_transfers - wrapped_transfers == 0 || error(
+        "$name wrapped MCS introduced a device-to-host transfer")
+    KernelAbstractions.synchronize(backend)
+    lattice_storage(logical_state(direct)) == lattice_storage(logical_state(wrapped)) ||
+        error("$name $(nameof(typeof(algorithm))) $N-D wrapper trajectory differs")
+
+    checkpoint = capture_checkpoint(wrapped)
+    restored = restore_checkpoint(checkpoint, fixture.problem, algorithm;
+        backend, adaptor, verbose = false, save_start = false, save_end = false)
+    SciMLBase.step!(wrapped)
+    SciMLBase.step!(restored)
+    KernelAbstractions.synchronize(backend)
+    lattice_storage(logical_state(wrapped)) == lattice_storage(logical_state(restored)) ||
+        error("$name $(nameof(typeof(algorithm))) $N-D wrapper restore differs")
+
+    saved = solve(fixture.problem, algorithm; backend, adaptor, verbose = false,
+        saveat = (1, 2), save_start = true, save_end = true)
+    saved.t == [0, 1, 2, 3] || error(
+        "$name $(nameof(typeof(algorithm))) $N-D save schedule differs")
+    saved.u[1].state === saved.u[2].state && error(
+        "$name $(nameof(typeof(algorithm))) $N-D snapshots alias")
+    return Dict(
+        "direct_launches_per_mcs" => direct_launch_delta,
+        "wrapper_launches_per_mcs" => wrapper_launch_delta,
+        "wrapper_extra_host_synchronizations" => 0,
+        "wrapper_extra_device_to_host_transfers" => 0,
+        "checkpoint_restore_exact" => true,
+        "backend_resident_snapshots" => all(
+            entry -> entry.residency == (name == "cpu" ? :host : :device), saved.u),
+    )
+end
+
+"""Qualify the final SciML wrapper on the same CPU/Metal/ROCm semantic matrix."""
+function qualify_phase9_backend(name::String)
+    algorithms = (SequentialCPM(temperature = 2.0f0),
+        CheckerboardSweepCPM(temperature = 2.0f0), LotteryCPM(temperature = 2.0f0))
+    profiles = Dict{String, Any}()
+    for (algorithm_index, algorithm) in enumerate(algorithms)
+        label = string(nameof(typeof(algorithm)))
+        dimensions = Dict{String, Any}()
+        for N in (2, 3)
+            seed = UInt64(0x7068617365391000) + UInt64(16algorithm_index + N)
+            dimensions["$(N)d"] = _phase9_interface_run(name, Val(N), algorithm, seed)
+        end
+        profiles[label] = dimensions
+    end
+
+    fixture = _phase9_problem(Val(2); tspan = (0, 2))
+    _, backend, adaptor = _phase9_direct_integrator(name, fixture, SequentialCPM())
+    counter = _backend_array(name, zeros(UInt32, 1))
+    callback_solution = solve(fixture.problem, SequentialCPM(temperature = 2.0f0);
+        backend, adaptor, verbose = false, callback = Phase9QualificationCounter(counter),
+        save_start = false, save_end = false)
+    Array(counter)[1] == 1 || error("$name device callback did not remain executable")
+    callback_solution.stats.host_callback_boundaries == 0 || error(
+        "$name device callback introduced a host callback boundary")
+
+    observable = solve(fixture.problem, SequentialCPM(temperature = 2.0f0);
+        backend, adaptor, verbose = false, save_start = false,
+        snapshot_policy = ObservableSnapshotPolicy(integrator ->
+            (cell_count = n_cells(logical_state(integrator)),)))
+    observable[PottsObservableHandle(:cell_count)] == [1] || error(
+        "$name observable snapshot differs")
+
+    parameter_model = PottsModel(fixture.proposal, fixture.tracker;
+        parameters = (yield = 1.0f0,),
+        parameterization = Phase9QualificationParameterization(
+            first(fixture.components.energies)))
+    parameter_problem = PottsProblem(parameter_model, fixture.logical,
+        fixture.domain, (0, 2); seed = fixture.problem.seed)
+    parameter_integrator = init(parameter_problem, SequentialCPM(temperature = 2.0f0);
+        backend, adaptor, verbose = false, save_start = false, save_end = false)
+    before_parameter_syncs = parameter_integrator.inner.plan.metrics.host_synchronizations
+    before_parameter_transfers =
+        parameter_integrator.inner.plan.metrics.device_to_host_transfers
+    set_parameter!(parameter_integrator, PottsParameterHandle(:yield), 2.0f0)
+    parameter_integrator.p[PottsParameterHandle(:yield)] == 2.0f0 || error(
+        "$name typed parameter update did not commit")
+    parameter_integrator.inner.plan.metrics.host_synchronizations ==
+        before_parameter_syncs || error(
+        "$name typed parameter update introduced a host synchronization")
+    parameter_integrator.inner.plan.metrics.device_to_host_transfers ==
+        before_parameter_transfers || error(
+        "$name typed parameter update introduced a device-to-host transfer")
+    solve!(parameter_integrator)
+
+    ensemble = EnsembleProblem(fixture.problem; seed = fixture.problem.seed)
+    ensemble_solution = solve(ensemble, SequentialCPM(temperature = 2.0f0),
+        EnsembleSerial(); trajectories = 2, backend, adaptor, verbose = false,
+        save_start = false, save_end = false)
+    expected_seeds = [ensemble_seed(EnsembleSeedDerivationV1(),
+        fixture.problem.seed, index) for index in 1:2]
+    [solution.provenance.seed for solution in ensemble_solution.u] == expected_seeds ||
+        error("$name semantic ensemble seeds differ")
+
+    return Dict(
+        "backend" => name,
+        "algorithms" => collect(keys(profiles)),
+        "dimensions" => [2, 3],
+        "profiles" => profiles,
+        "device_callback_zero_host_boundaries" => true,
+        "explicit_observable_boundary" => true,
+        "typed_parameter_update_gpu_compatible" => true,
+        "serial_ensemble_semantic_seeds" => true,
+        "same_device_threaded_gpu_qualified" => name == "cpu",
+        "hidden_host_fallback" => false,
+    )
+end
+
 function _timed_scientific_steps!(integrator, steps::Int)
     KernelAbstractions.synchronize(integrator.plan.backend)
     elapsed = @elapsed begin
@@ -1899,6 +2096,55 @@ function _timed_scientific_steps!(integrator, steps::Int)
         KernelAbstractions.synchronize(integrator.plan.backend)
     end
     return elapsed / steps
+end
+
+function _timed_phase9_steps!(integrator::PottsIntegrator, steps::Int)
+    KernelAbstractions.synchronize(integrator.inner.plan.backend)
+    elapsed = @elapsed begin
+        SciMLBase.step!(integrator, steps)
+        KernelAbstractions.synchronize(integrator.inner.plan.backend)
+    end
+    return elapsed / steps
+end
+
+"""Measure direct-versus-SciML steady execution and construction overhead."""
+function measure_phase9_backend(name::String)
+    algorithms = (SequentialCPM(temperature = 2.0f0),
+        CheckerboardSweepCPM(temperature = 2.0f0), LotteryCPM(temperature = 2.0f0))
+    results = Dict{String, Any}()
+    for (index, algorithm) in enumerate(algorithms)
+        fixture = _phase9_problem(Val(2); tspan = (0, 20),
+            seed = UInt64(0x7068617365392000) + UInt64(index))
+        direct_construction = @elapsed direct, backend, adaptor =
+            _phase9_direct_integrator(name, fixture, algorithm)
+        wrapper_construction = @elapsed wrapped = init(fixture.problem, algorithm;
+            backend, adaptor, verbose = false, save_start = false, save_end = false)
+        _timed_scientific_steps!(direct, 1)
+        _timed_phase9_steps!(wrapped, 1)
+        direct_seconds = _timed_scientific_steps!(direct, 5)
+        wrapper_seconds = _timed_phase9_steps!(wrapped, 5)
+        results[string(nameof(typeof(algorithm)))] = Dict(
+            "direct_construction_seconds" => direct_construction,
+            "wrapper_construction_seconds" => wrapper_construction,
+            "direct_steady_mcs_seconds" => direct_seconds,
+            "wrapper_steady_mcs_seconds" => wrapper_seconds,
+            "wrapper_to_direct_ratio" => wrapper_seconds / direct_seconds,
+            "direct_launches" => direct.plan.metrics.launches,
+            "wrapper_launches" => wrapped.inner.plan.metrics.launches,
+            "wrapper_host_synchronizations" => wrapped.inner.plan.metrics.host_synchronizations,
+            "wrapper_device_to_host_transfers" =>
+                wrapped.inner.plan.metrics.device_to_host_transfers,
+        )
+    end
+    return Dict(
+        "backend" => name,
+        "dimension" => 2,
+        "steps_per_steady_sample" => 5,
+        "algorithms" => results,
+        "timed_regions_backend_synchronized" => true,
+        "semantic_baseline" => "direct qualified scientific integrator",
+        "regression_threshold" => "5% on dedicated paper workloads; smoke results are diagnostic",
+    )
 end
 
 function _checkpoint_material_bytes(checkpoint::CanonicalCheckpoint)
@@ -2033,7 +2279,7 @@ function build_workload(spec::WorkloadSpec{N}) where {N}
     parameters = PottsParameters(topology, penalties, trackers)
     cache = PottsCache(state, topology)
     CorePotts.sync_cell_data!(state, parameters, cache, spec.cells)
-    return PottsProblem(state, (0, 1_000), parameters)
+    return LegacyPottsProblem(state, (0, 1_000), parameters)
 end
 
 function load_backend(name::String)

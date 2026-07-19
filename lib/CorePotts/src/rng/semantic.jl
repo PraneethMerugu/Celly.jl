@@ -6,6 +6,33 @@ struct Philox4x32x10V1 <: AbstractRNGContract end
 
 rng_contract_version(::Philox4x32x10V1) = v"1.0.0"
 
+"""Stable 128-bit identity for one extension-owned stochastic namespace."""
+struct RNGNamespaceIdentity
+    high::UInt64
+    low::UInt64
+end
+
+function RNGNamespaceIdentity(value::Integer)
+    0 <= value <= typemax(UInt128) || throw(ArgumentError(
+        "RNG namespace identity must fit UInt128"))
+    bits = UInt128(value)
+    return RNGNamespaceIdentity(UInt64(bits >> 64), UInt64(bits))
+end
+
+Base.UInt128(identity::RNGNamespaceIdentity) =
+    (UInt128(identity.high) << 64) | UInt128(identity.low)
+
+struct RNGNamespaceCollisionError <: Exception
+    left::RNGNamespaceIdentity
+    right::RNGNamespaceIdentity
+    operation::UInt16
+end
+function Base.showerror(io::IO, error::RNGNamespaceCollisionError)
+    print(io, "RNG extension namespace collision at v1 operation ", error.operation,
+        ": 0x", string(UInt128(error.left), base = 16, pad = 32), " and 0x",
+        string(UInt128(error.right), base = 16, pad = 32))
+end
+
 """Stable named stream families. Numeric values are part of the RNG contract."""
 @enum RNGStream::UInt8 begin
     LayoutPlacementStream = 1
@@ -109,6 +136,7 @@ const _PHILOX_M4X32_1 = UInt32(0xcd9e8d57)
 const _PHILOX_W32_0 = UInt32(0x9e3779b9)
 const _PHILOX_W32_1 = UInt32(0xbb67ae85)
 const _RNG_GENERATION_DOMAIN = UInt64(0xd2b74407b1ce6e93)
+const _RNG_EXTENSION_DOMAIN = UInt64(0x706f7474732d6578)
 const _F32_OPEN_SCALE = Float32(0x1.0p-24)
 
 @inline function _philox_round(counter::NTuple{4, UInt32}, key::NTuple{2, UInt32})
@@ -162,6 +190,57 @@ end
     value = xor(value, value >> 30) * UInt64(0xbf58476d1ce4e5b9)
     value = xor(value, value >> 27) * UInt64(0x94d049bb133111eb)
     return xor(value, value >> 31)
+end
+
+"""Stable v1 operation slot for a 128-bit extension namespace; collisions are rejected."""
+@inline function extension_rng_operation(identity::RNGNamespaceIdentity)
+    mixed = _rng_mix64(xor(identity.high, _rng_mix64(identity.low)))
+    return UInt16(mixed & UInt64(_RNG_MAX_OPERATION))
+end
+
+"""Domain-separated trajectory seed for one extension instance."""
+@inline function extension_rng_seed(master_seed::UInt64,
+        identity::RNGNamespaceIdentity, instance::UInt64 = UInt64(0))
+    return _rng_mix64(xor(master_seed, _RNG_EXTENSION_DOMAIN,
+        _rng_mix64(identity.high), _rng_mix64(identity.low), _rng_mix64(instance)))
+end
+function extension_rng_seed(master_seed::Integer, identity::RNGNamespaceIdentity,
+        instance::Integer = 0)
+    0 <= master_seed <= typemax(UInt64) || throw(ArgumentError(
+        "extension RNG master seed must fit UInt64"))
+    0 <= instance <= typemax(UInt64) || throw(ArgumentError(
+        "extension RNG instance identity must fit UInt64"))
+    return extension_rng_seed(UInt64(master_seed), identity, UInt64(instance))
+end
+
+"""Validate and lower extension namespace identities without a runtime registry."""
+function compile_rng_namespaces(identities::Tuple)
+    seen_identities = Set{UInt128}()
+    seen_operations = Dict{UInt16, RNGNamespaceIdentity}()
+    operations = map(identities) do identity
+        identity isa RNGNamespaceIdentity || throw(ArgumentError(
+            "extension RNG namespaces must use RNGNamespaceIdentity"))
+        bits = UInt128(identity)
+        bits in seen_identities && throw(ArgumentError(
+            "duplicate extension RNG namespace 0x$(string(bits, base = 16, pad = 32))"))
+        push!(seen_identities, bits)
+        operation = extension_rng_operation(identity)
+        if haskey(seen_operations, operation)
+            throw(RNGNamespaceCollisionError(seen_operations[operation], identity, operation))
+        end
+        seen_operations[operation] = identity
+        operation
+    end
+    return operations
+end
+
+function extension_rng_address(identity::RNGNamespaceIdentity;
+        mcs::Integer = 0, subround::Integer = 0,
+        entity_kind::RNGEntityKind = GlobalEntity, entity::Integer = 0,
+        generation::Integer = 0, invocation::Integer = 0, draw::Integer = 0)
+    return RNGAddress(stream = RuleStream, mcs = mcs, subround = subround,
+        operation = extension_rng_operation(identity), entity_kind = entity_kind,
+        entity = entity, generation = generation, invocation = invocation, draw = draw)
 end
 
 """Pack one valid semantic address into the exact Philox `(counter0, counter1, key)` input."""

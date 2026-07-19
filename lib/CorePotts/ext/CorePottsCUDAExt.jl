@@ -8,4 +8,6 @@ CorePotts.backend_capabilities(::CUDA.CUDABackend) = CorePotts.BackendCapabiliti
     CorePotts.CUDAFamily, CorePotts.DeferredBackend,
     CUDA.functional(), true, true, true, ())
 
+CorePotts.execution_adaptor(::CUDA.CUDABackend) = CUDA.CuArray
+
 end

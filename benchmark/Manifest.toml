@@ -210,7 +210,7 @@ version = "1.6.0"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Random", "SHA", "SciMLBase", "StaticArrays", "Statistics", "StructArrays"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Random", "SHA", "SciMLBase", "Serialization", "StaticArrays", "Statistics", "StructArrays"]
 path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"

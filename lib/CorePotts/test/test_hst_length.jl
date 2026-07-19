@@ -123,7 +123,7 @@ end
 
     u0 = PottsState(grid, cell_data)
     p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-    problem = PottsProblem(u0, (0, 500), p_sys)
+    problem = LegacyPottsProblem(u0, (0, 500), p_sys)
     integrator = init(problem, ParallelMetropolis(; T = 1.0f0, active_fraction = 0.1f0, sweeps_per_step = 1))
 
     CorePotts.sync_cell_data!(integrator.u, integrator.p, integrator.cache, 1)

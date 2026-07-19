@@ -35,7 +35,7 @@ using SciMLBase
     end
 
     # Apply Growth manually for the test (equivalent to rate=1.0)
-    prob = PottsProblem(u0, (0, 10), p_sys)
+    prob = LegacyPottsProblem(u0, (0, 10), p_sys)
     integrator = init(prob, ParallelMetropolis(T = 0.0f0))
     
     targets = Array(integrator.u.cell_data.target_volumes)

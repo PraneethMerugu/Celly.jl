@@ -16,7 +16,7 @@ using SciMLBase
 
     u0 = PottsState(grid, cell_data)
     p_sys = PottsParameters(VonNeumannTopology{2}(), penalties, trackers)
-    prob = PottsProblem(u0, (0, 10), p_sys)
+    prob = LegacyPottsProblem(u0, (0, 10), p_sys)
     alg = ParallelMetropolis(; T = 1.0f0)
 
     @testset "Default Saving" begin

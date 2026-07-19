@@ -55,7 +55,7 @@ using SciMLBase
 
     u0 = PottsState(grid, cell_data)
     p_sys = PottsParameters(MooreTopology{2}(), (vol_pen, chem_pen, adh_pen), (vol_tracker,))
-    problem = PottsProblem(u0, (0, 1000), p_sys)
+    problem = LegacyPottsProblem(u0, (0, 1000), p_sys)
     integrator = init(problem, ParallelMetropolis(; T = 10.0f0, active_fraction = 0.1f0, sweeps_per_step = 1))
 
     solve!(integrator)

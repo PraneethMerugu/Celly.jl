@@ -9,6 +9,15 @@ abstract type AbstractKineticModifier end
 """Scientific category for stateful non-equilibrium mechanical work."""
 abstract type AbstractMechanicalComponent end
 
+"""Open scientific proposal-law family, independent of algorithm scheduling."""
+abstract type AbstractProposalLaw end
+
+"""Conventional neighboring-owner copy proposal used by the current CPM algorithms."""
+struct NeighborCopyProposal <: AbstractProposalLaw end
+
+"""Proposal law selected by an algorithm; downstream algorithms may extend this method."""
+proposal_law(::AbstractPottsAlgorithm) = NeighborCopyProposal()
+
 """Typed backend- and dimension-level scientific capability declaration."""
 struct ScientificCapabilities{D <: Tuple}
     dimensions::D
@@ -190,6 +199,12 @@ end
         losing, gaining, direction_id, mcs_id, semantic_id_u64, forward, reverse)
 end
 
+@inline function construct_proposal_attempt(::NeighborCopyProposal, state, domain,
+        relation, recipient, direction, mcs, semantic_id)
+    return _construct_copy_attempt_unchecked(
+        state, domain, relation, recipient, direction, mcs, semantic_id)
+end
+
 """
     construct_copy_attempt(state, domain, proposal_relation, recipient, direction; mcs, semantic_id)
 
@@ -211,7 +226,7 @@ function construct_copy_attempt(state,
     mcs <= typemax(UInt64) || throw(ArgumentError("proposal MCS must fit UInt64"))
     semantic_id <= typemax(UInt64) ||
         throw(ArgumentError("proposal semantic ID must fit UInt64"))
-    attempt = _construct_copy_attempt_unchecked(
+    attempt = construct_proposal_attempt(NeighborCopyProposal(),
         state, domain, relation, recipient, direction, mcs, semantic_id)
     forward = attempt.forward_multiplicity
     attempt.outcome === ActionableCopy && forward == 0 &&
@@ -486,6 +501,8 @@ function rebuild_tracker end
 function event_effects end
 """Inspectable scientific algorithm guarantee profile; extensions implement this method."""
 function algorithm_guarantees end
+"""Acceptance law selected by an ordered scientific algorithm."""
+function acceptance_law end
 """Supported Cartesian dimensions of a topology; extensions implement this method."""
 function topology_dimensions end
 

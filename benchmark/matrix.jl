@@ -38,6 +38,10 @@ persistence_qualification = PottsBenchmarks.qualify_persistence_backend(backend)
 println("PERSISTENCE_QUALIFICATION=", persistence_qualification)
 phase8_performance = PottsBenchmarks.measure_phase8_backend(backend)
 println("PHASE8_PERFORMANCE=", phase8_performance)
+phase9_qualification = PottsBenchmarks.qualify_phase9_backend(backend)
+println("PHASE9_QUALIFICATION=", phase9_qualification)
+phase9_performance = PottsBenchmarks.measure_phase9_backend(backend)
+println("PHASE9_PERFORMANCE=", phase9_performance)
 
 workloads = profile == "smoke" ? ("volume_2d_small",) :
             ("volume_2d_small", "adhesion_2d_medium", "volume_3d_small",

@@ -25,7 +25,7 @@ using HDF5
     tspan = (0, 10)
 
     # We must deepcopy u0 for each solve because solve! modifies it in-place!
-    prob_mem = PottsProblem(deepcopy(u0), tspan, p)
+    prob_mem = LegacyPottsProblem(deepcopy(u0), tspan, p)
     alg = ParallelMetropolis(; T = 10.0f0, sweeps_per_step = 1)
 
     # 2. Run with MemoryBackend (In-memory)
@@ -35,7 +35,7 @@ using HDF5
 
     # 3. Run with ZarrBackend
     zarr_path = tempname() * ".zarr"
-    prob_zarr = PottsProblem(deepcopy(u0), tspan, p)
+    prob_zarr = LegacyPottsProblem(deepcopy(u0), tspan, p)
     sol_zarr = solve(prob_zarr, alg; backend = ZarrBackend(zarr_path))
 
     @test isdir(zarr_path)
@@ -52,7 +52,7 @@ using HDF5
 
     # 4. Run with HDF5Backend
     h5_path = tempname() * ".h5"
-    prob_h5 = PottsProblem(deepcopy(u0), tspan, p)
+    prob_h5 = LegacyPottsProblem(deepcopy(u0), tspan, p)
     sol_h5 = solve(prob_h5, alg; backend = HDF5Backend(h5_path))
 
     @test isfile(h5_path)

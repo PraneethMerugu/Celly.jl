@@ -334,7 +334,9 @@ stamp. A field update becomes visible only at a declared synchronization point. 
 partway through a simultaneous batch.
 
 The exact Lie, Strang, or other operator splitting; PDE substeps; secretion; uptake; and conservation
-laws are Deferred to the SciML coupling specification. The compiled model nevertheless reports every
+laws belong to a separately scoped evolving-field semantics phase after the paper core unless a
+required paper experiment promotes them explicitly. The present contract does not freeze a
+speculative coupled-problem or split-integrator API. The compiled model nevertheless reports every
 CPM/field synchronization point and rejects sampling a field whose time relation is undefined.
 
 ### Backend Residency

@@ -4,17 +4,18 @@ using CorePotts
 using Mermaid
 using Adapt
 using CommonSolve
+import CorePotts: LegacyPottsProblem
 import CommonSolve: init, step!
 import Mermaid: AbstractTimeDependentComponent, AbstractComponentIntegrator,
                 ConnectedVariable
 
 """
-    PottsComponent(model::PottsProblem, alg::AbstractPottsAlgorithm;
+    PottsComponent(model::LegacyPottsProblem, alg::AbstractPottsAlgorithm;
                  name::String="Tissue", timestep::Real=1.0)
 
 A Mermaid component that wraps a Cellular Potts Model simulation.
 """
-struct _PottsComponent{P <: PottsProblem, A <: AbstractPottsAlgorithm} <:
+struct _PottsComponent{P <: LegacyPottsProblem, A <: AbstractPottsAlgorithm} <:
        AbstractTimeDependentComponent
     model::P
     alg::A
@@ -23,7 +24,7 @@ struct _PottsComponent{P <: PottsProblem, A <: AbstractPottsAlgorithm} <:
     state_names::Dict{String, Any}
 end
 
-function CorePotts.PottsComponent(model::PottsProblem, alg::AbstractPottsAlgorithm;
+function CorePotts.PottsComponent(model::LegacyPottsProblem, alg::AbstractPottsAlgorithm;
         name::AbstractString = "Tissue", timestep::Real = 1.0)
     return _PottsComponent(model, alg, name, timestep, Dict{String, Any}())
 end

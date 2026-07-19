@@ -1,6 +1,7 @@
 module Problem
 
 using CorePotts
+import CorePotts: PottsState, PottsParameters, PottsCache
 using Random
 using ..System
 using ..Layouts
@@ -448,7 +449,7 @@ function CorePotts.PottsProblem(sys::PottsSystem,
     cache = CorePotts.PottsCache(state, topology)
     CorePotts.sync_cell_data!(state, p, cache, state.N_cells[]; set_targets = false)
 
-    return PottsProblem(state, tspan, p)
+    return CorePotts.LegacyPottsProblem(state, tspan, p)
 end
 
 function CorePotts.PottsProblem(sys::PottsSystem,
@@ -492,7 +493,7 @@ function CorePotts.PottsProblem(sys::PottsSystem, state::PottsState; tspan = (0,
 
     p = PottsParameters(topology, compiled_penalties, all_trackers, resolved_events)
 
-    return PottsProblem(state, tspan, p)
+    return CorePotts.LegacyPottsProblem(state, tspan, p)
 end
 
 end

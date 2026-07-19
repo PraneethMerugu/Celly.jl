@@ -99,14 +99,20 @@ Engineering realization is described separately in:
 Refactor execution evidence:
 
 - [Open-Protocol Audit](../design/audits/open-protocol-audit.md)
+- [Phase 9 Current-Code and Gap Audit](../design/audits/phase-9-current-code-and-gap-audit.md)
+- [Phase 9 SciML and JuliaGPU Research](../design/audits/phase-9-sciml-and-gpu-research.md)
+- [Phase 9 Implementation Chunk Plan](../design/audits/phase-9-chunk-plan.md)
+- [Phase 9 Legacy Final-Name Evacuation](../design/audits/phase-9-legacy-evacuation.md)
+- [Phase 9 Completion Audit](../design/audits/phase-9-completion-audit.md)
 - [Phase 8 Minimality Pass](../design/audits/phase-8-minimality-pass.md)
 - [Phase 8 Mechanical Lifecycle Research](../design/audits/phase-8-mechanical-lifecycle-research.md)
 - [JuliaGPU and Open-Protocol Community Validation](../design/audits/juliagpu-open-protocol-research.md)
 - [Phase 0 Current-Code Audit](../design/audits/phase-0-current-code-audit.md)
 - [Phase 0 Paper-Scope Map](../design/audits/phase-0-paper-scope-map.md)
 
-Future documents will cover the remaining algorithm proofs, final rule-language details,
-persistence, and additional SciML coupling semantics.
+Future documents will cover the remaining algorithm proofs, final rule-language details, and the
+separately scoped evolving-field semantics required for PDE stepping, secretion, uptake, and named
+operator splitting.
 
 ## Conformance Principle
 

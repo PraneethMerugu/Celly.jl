@@ -39,5 +39,6 @@ include("conformance/ConformanceHarness.jl")
     if run_shard("conformance")
         include("conformance/test_reference_semantics.jl")
         include("conformance/test_harness.jl")
+        include("conformance/test_phase9_distributed.jl")
     end
 end

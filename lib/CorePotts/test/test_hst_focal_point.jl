@@ -31,7 +31,7 @@ using Test
 
             u0 = PottsState(grid, cell_data)
             p_sys = PottsParameters(MooreTopology{2}(), penalties, trackers)
-            prob = PottsProblem(u0, (0, 100), p_sys)
+            prob = LegacyPottsProblem(u0, (0, 100), p_sys)
             alg = AlgType(; active_fraction = 0.1f0, sweeps_per_step = 10, T = 5.0f0)
             integrator = init(prob, alg)
 

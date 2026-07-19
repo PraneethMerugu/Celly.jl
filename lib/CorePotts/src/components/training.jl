@@ -10,7 +10,7 @@ struct PottsTrainingCache{State, Params, Alg, Cache}
     caches::Vector{Cache}
 end
 
-function PottsTrainingCache(base_prob::PottsProblem, num_chains::Int, alg::AbstractPottsAlgorithm)
+function PottsTrainingCache(base_prob::LegacyPottsProblem, num_chains::Int, alg::AbstractPottsAlgorithm)
     persistent_states = [deepcopy(base_prob.u0) for _ in 1:num_chains]
     caches = [PottsCache(s, base_prob.p.topology) for s in persistent_states]
     return PottsTrainingCache(persistent_states, base_prob.p, alg, caches)

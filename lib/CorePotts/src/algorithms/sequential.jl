@@ -1,5 +1,8 @@
+"""Open family for ordered one-proposal-at-a-time scientific algorithms."""
+abstract type AbstractSequentialCPMAlgorithm <: AbstractPottsAlgorithm end
+
 """Conventional modified-Metropolis CPM with exactly `N` selections per MCS."""
-struct SequentialCPM{T <: AbstractFloat} <: AbstractPottsAlgorithm
+struct SequentialCPM{T <: AbstractFloat} <: AbstractSequentialCPMAlgorithm
     temperature::T
 
     function SequentialCPM(temperature::T) where {T <: AbstractFloat}
@@ -12,7 +15,7 @@ end
 SequentialCPM(; temperature::AbstractFloat = 20.0f0) = SequentialCPM(temperature)
 
 """Metropolis-Hastings sequential sampler for capability-qualified equilibrium models."""
-struct SequentialEquilibrium{T <: AbstractFloat} <: AbstractPottsAlgorithm
+struct SequentialEquilibrium{T <: AbstractFloat} <: AbstractSequentialCPMAlgorithm
     temperature::T
 
     function SequentialEquilibrium(temperature::T) where {T <: AbstractFloat}
@@ -166,8 +169,8 @@ algorithm_guarantees(::LotteryCPM) = AlgorithmGuaranteeProfile(
     dimensions = (2, 3),
 )
 
-@inline _sequential_acceptance_law(::SequentialCPM) = ConventionalMetropolis()
-@inline _sequential_acceptance_law(::SequentialEquilibrium) = MetropolisHastings()
+@inline acceptance_law(::SequentialCPM) = ConventionalMetropolis()
+@inline acceptance_law(::SequentialEquilibrium) = MetropolisHastings()
 
 """Accounting for one completed normalized MCS."""
 struct ScientificMCSReport
@@ -191,7 +194,7 @@ struct NoAlgorithmWorkspace end
 
 mutable struct ScientificPottsIntegrator{S <: CompiledScientificState,
         C <: ScientificComponentSet, R <: StaticCartesianRelation{<:ProposalRole},
-        A <: Union{SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM},
+        A <: AbstractPottsAlgorithm,
         G <: AbstractRNGContract, P <: ExecutionPlan, W, M, Q, L,
         B <: AbstractVector{UInt64}}
     state::S
@@ -207,6 +210,20 @@ mutable struct ScientificPottsIntegrator{S <: CompiledScientificState,
     report_storage::B
     seed::UInt64
     mcs::UInt64
+end
+
+"""Open initialization hook for downstream scientific algorithms."""
+function initialize_scientific_algorithm(state, proposal_relation, components,
+        algorithm::AbstractPottsAlgorithm; kwargs...)
+    throw(MethodError(initialize_scientific_algorithm,
+        (state, proposal_relation, components, algorithm)))
+end
+
+function init_scientific(state::CompiledScientificState,
+        proposal_relation::StaticCartesianRelation{<:ProposalRole},
+        components::ScientificComponentSet, algorithm::AbstractPottsAlgorithm; kwargs...)
+    return initialize_scientific_algorithm(
+        state, proposal_relation, components, algorithm; kwargs...)
 end
 
 """Return the immutable scientific guarantee profile owned by this integrator's algorithm."""
@@ -233,6 +250,10 @@ function _allocate_connectivity_workspace(state::CompiledScientificState)
 end
 
 function _validate_sequential_components(::SequentialCPM, components)
+    return components
+end
+
+function _validate_sequential_components(::AbstractSequentialCPMAlgorithm, components)
     return components
 end
 
@@ -316,7 +337,7 @@ function _validate_scientific_initialization(state, proposal_relation, component
     _validate_scientific_interfaces(components, algorithm)
     _validate_mechanical_components(state, components.mechanics)
     _requires_device_float64(state, proposal_relation, components, algorithm) &&
-        require_capability(plan.capabilities, :device_float64)
+        require_capability(plan.capabilities, DeviceFloat64Capability())
     return mutable_count
 end
 
@@ -339,7 +360,7 @@ performed during construction.
 function init_scientific(state::CompiledScientificState,
         proposal_relation::StaticCartesianRelation{<:ProposalRole},
         components::ScientificComponentSet,
-        algorithm::Union{SequentialCPM, SequentialEquilibrium}; seed::Integer = 0,
+        algorithm::AbstractSequentialCPMAlgorithm; seed::Integer = 0,
         rng::AbstractRNGContract = Philox4x32x10V1(), plan::ExecutionPlan =
             _default_execution_plan(state), connectivity_workspace = nothing,
         moment_tracker = nothing, lifecycle = NoCompiledLifecycle(),
@@ -413,7 +434,8 @@ end
         constraint_rejections = UInt64(0)
         acceptance_rejections = UInt64(0)
         accepted = UInt64(0)
-        law = _sequential_acceptance_law(algorithm)
+        proposal_process = proposal_law(algorithm)
+        accepted_law = acceptance_law(algorithm)
         # init_scientific proves candidate_count fits UInt32; the loop proves each attempt ID.
         for raw_attempt in 1:candidate_count
             attempt_id = Base.unsafe_trunc(UInt32, raw_attempt)
@@ -424,7 +446,7 @@ end
             recipient = Int(@inbounds mutable_sites[Int(mutable_index)])
             direction_address = _attempt_address(ProposalDirectionStream, mcs, attempt_id)
             direction = bounded_uint(rng, seed, direction_address, direction_total) + UInt32(1)
-            attempt = _construct_copy_attempt_unchecked(state, state.domain,
+            attempt = construct_proposal_attempt(proposal_process, state, state.domain,
                 proposal_relation, recipient, direction, mcs, attempt_id)
             if attempt.outcome === SameOwnerAttempt
                 same_owner += UInt64(1)
@@ -450,7 +472,8 @@ end
                 continue
             end
             inputs = _unchecked_acceptance_inputs(evaluation)
-            probability = _acceptance_probability(law, inputs, algorithm.temperature)
+            probability = _acceptance_probability(
+                accepted_law, inputs, algorithm.temperature)
             acceptance_address = _attempt_address(AcceptanceStream, mcs, attempt_id)
             draw = uniform_open01(
                 typeof(algorithm.temperature), rng, seed, acceptance_address)
@@ -483,8 +506,9 @@ end
     @inbounds workspace.visited_epochs[index] = UInt32(0)
 end
 
-function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R, A}) where {
-        S, C, R, A <: Union{SequentialCPM, SequentialEquilibrium}}
+function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R, A},
+        ::A) where {
+        S, C, R, A <: AbstractSequentialCPMAlgorithm}
     next_mcs = integrator.mcs + UInt64(1)
     half_interval = typeof(integrator.algorithm.temperature)(0.5)
     _advance_mechanics!(integrator, next_mcs, UInt8(0), UInt8(0), half_interval)
@@ -506,6 +530,11 @@ function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R, A}) wher
     return integrator
 end
 
+"""Dispatch one complete MCS through the algorithm-owned open hook."""
+function SciMLBase.step!(integrator::ScientificPottsIntegrator)
+    return perform_scientific_mcs!(integrator, integrator.algorithm)
+end
+
 function SciMLBase.step!(integrator::ScientificPottsIntegrator, steps::Integer)
     steps >= 0 || throw(ArgumentError("scientific step count must be non-negative"))
     for _ in 1:steps
@@ -518,8 +547,7 @@ function current_mcs_report(integrator::ScientificPottsIntegrator)
     return _current_mcs_report(integrator, integrator.algorithm)
 end
 
-function _current_mcs_report(integrator::ScientificPottsIntegrator,
-        ::Union{SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM})
+function _standard_current_mcs_report(integrator::ScientificPottsIntegrator)
     integrator.mcs > 0 || return nothing
     synchronize_observation!(integrator.plan)
     if !(integrator.plan.backend isa KernelAbstractions.CPU)
@@ -528,6 +556,13 @@ function _current_mcs_report(integrator::ScientificPottsIntegrator,
     values = Array(integrator.report_storage)
     return ScientificMCSReport(values...)
 end
+
+_current_mcs_report(integrator::ScientificPottsIntegrator, ::SequentialCPM) =
+    _standard_current_mcs_report(integrator)
+_current_mcs_report(integrator::ScientificPottsIntegrator, ::SequentialEquilibrium) =
+    _standard_current_mcs_report(integrator)
+_current_mcs_report(integrator::ScientificPottsIntegrator, ::CheckerboardSweepCPM) =
+    _standard_current_mcs_report(integrator)
 
 function logical_state(integrator::ScientificPottsIntegrator)
     return logical_snapshot(integrator.plan, integrator.state.potts)

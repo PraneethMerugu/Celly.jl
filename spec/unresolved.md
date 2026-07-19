@@ -27,7 +27,8 @@ transforms. Specify which transforms are bitwise portable and which are only sta
 ### SEM-RNG-006: Default generator implementation
 
 Validate Philox4x32-10 performance, compilation, known-answer vectors, and raw-bit identity on CPU,
-CUDA, Metal, and AMDGPU before making it the accepted default implementation.
+Metal, and AMDGPU before making it the accepted default implementation. CUDA qualification remains
+separate from the current first-class backend contract.
 
 ## Energy, Proposals, and Trackers
 
@@ -131,7 +132,8 @@ operators require their own explicit aggregation semantics.
 
 Resolved for field identity, geometry, sampling, boundary independence, and immutable transaction
 snapshots by [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md).
-Operator splitting, secretion, uptake, and PDE substeps remain under the SciML coupling phase.
+Operator splitting, secretion, uptake, and PDE substeps remain in a separately scoped evolving-field
+semantics phase after the paper core unless an explicitly required paper experiment promotes them.
 
 ## Algorithms
 

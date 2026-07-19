@@ -6,14 +6,16 @@ using KernelAbstractions
 using StructArrays
 using StaticArrays
 using Adapt
+using ConstructionBase
 using Random
+using Serialization
 using SciMLBase
 using LinearAlgebra: issymmetric, eigen, Symmetric
 using SHA
 import Atomix
-import SciMLBase: solve
+import SciMLBase: solve, savevalues!
 
-export solve, fmap
+export solve, savevalues!, fmap
 
 const DEFAULT_BLOCK_SIZE = 256
 
@@ -55,6 +57,7 @@ include("lifecycle/events.jl")
 include("kernels/metropolis.jl")
 include("kernels/intrinsics.jl")
 include("sciml/simulator.jl")
+include("sciml/interface.jl")
 
 # ==============================================================================
 # UNIFIED USER API EXPORTS
@@ -79,12 +82,27 @@ export AbstractBoundaryCondition, PeriodicBoundary, ClosedBoundary, FixedExterio
        realize_neighbor, fixed_owner,
        validate_relation_domain, domain_storage_valid, domain_semantics_report,
        relation_semantics_report
-export AbstractSampler, MetropolisSampler
-export AbstractPottsProblem, AbstractPottsAlgorithm, PottsProblem, ParallelMetropolis,
-       CheckerboardMetropolis, SequentialMetropolis,
-       IntrinsicCheckerboardMetropolis,
-       PottsIntegrator,
-       PottsSolution, PottsState, PottsParameters, PottsCache
+export AbstractPottsProblem, AbstractPottsAlgorithm, PottsModel, PottsProblem,
+       PottsIntegrator, PottsSolution
+export default_parameters, realize_components, proposal_relation, boundary_tracker,
+       moment_tracker, lifecycle_events, lifecycle_resolver, observable_symbols,
+       AbstractInitialStateOwnership, CopyInitialState, AliasInitialState, DeviceInitialState,
+       AbstractReproducibilityProfile, StrictReproducibility, StatisticalReproducibility,
+       AbstractPottsExecutionPolicy, DefaultPottsExecution,
+       AbstractSnapshotPolicy, BackendSnapshotPolicy, HostSnapshotPolicy,
+       ObservableSnapshotPolicy, SavedPottsState, PottsStats,
+       AbstractPottsDeviceCallback, AbstractPottsDeviceCallbackEffect,
+       DeviceObservationEffect, device_callback_requirements,
+       device_callback_effects, device_callback_priority, device_callback_due,
+       execute_device_callback!, validate_device_callback,
+       PottsParameterHandle, PottsObservableHandle, parameter_name, observable_name,
+       PottsCompilationCache, PottsCompatibilityReport, PottsCompilationReport,
+       compatibility_report, compilation_report, set_parameter!,
+       InvalidPottsProblemError, UnsupportedSolverOptionError,
+       IntegratorTerminatedError, UnsavedTimeError, UnsavedObservableError,
+       PottsCallbackConflictError, UnsafePottsSerializationError,
+       execution_adaptor, AbstractEnsembleSeedPolicy, EnsembleSeedDerivationV1,
+       UserManagedEnsembleSeeds, ensemble_seed
 export AbstractPottsState, FlexibilityTrait, Rigid, Flex
 export lattice_storage
 export AbstractEvent
@@ -161,11 +179,13 @@ export NoCompiledLifecycle, CompiledPropertyLifecycle, CompiledLifecycleDescript
        CompiledLifecycleError, current_lifecycle_report
 export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticModifier,
        AbstractMechanicalComponent,
+       AbstractProposalLaw, NeighborCopyProposal, proposal_law,
+       construct_proposal_attempt,
        ScientificCapabilities, AlgorithmGuaranteeProfile, CopyProposal,
        CopyAttemptOutcome, ActionableCopy, SameOwnerAttempt, BoundaryNullAttempt,
        ImmutableRecipientAttempt, CopyAttempt, is_actionable, actionable_proposal,
        construct_copy_attempt, proposal_probabilities, AbstractAcceptanceLaw,
-       ConventionalMetropolis, MetropolisHastings, AcceptanceInputs,
+       ConventionalMetropolis, MetropolisHastings, acceptance_law, AcceptanceInputs,
        acceptance_probability, acceptance_decision,
        ScientificInterfaceError, ScientificInterfaceReport, component_identity,
        required_properties, required_observables, required_relations, capabilities,
@@ -217,9 +237,11 @@ export UnwrappedMomentTracker, UnwrappedMomentStorage, UnwrappedMomentDelta,
 export ScientificComponentSet, NoConnectivityWorkspace, ScientificProposalContext,
        ScientificCopyEvaluation, evaluate_copy, acceptance_inputs,
        scientific_components_report
-export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM,
+export AbstractSequentialCPMAlgorithm, SequentialCPM, SequentialEquilibrium,
+       CheckerboardSweepCPM, LotteryCPM,
        ScientificPottsIntegrator,
-       ScientificMCSReport, init_scientific, current_mcs_report
+       ScientificMCSReport, init_scientific, initialize_scientific_algorithm,
+       perform_scientific_mcs!, current_mcs_report
 export ScientificAnalysisSnapshot, ExactContinuationProfile,
        CanonicalPropertyColumn, CanonicalCheckpoint,
        CheckpointIntegrityError, CheckpointCompatibilityError,
@@ -235,6 +257,8 @@ export ReferenceVolumeEnergy, ReferenceContactEnergy, ReferenceModel, Sequential
        ReferenceIntegrator, ReferenceMCSReport, reference_energy, init_reference,
        step_reference!, reference_rng_version
 export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddress,
+       RNGNamespaceIdentity, RNGNamespaceCollisionError, extension_rng_operation,
+       extension_rng_seed, extension_rng_address, compile_rng_namespaces,
        LayoutPlacementStream, LayoutPermutationStream, ProposalRecipientStream,
        ProposalDirectionStream, AcceptanceStream, LotteryActivationStream,
        LotteryPriorityStream, CheckerboardOrderStream, AuxiliaryEvolutionStream, RuleStream,
@@ -249,8 +273,11 @@ export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddres
        small_permutation!, distribution_profile
 export BackendFamily, CPUFamily, CUDAFamily, AMDGPUFamily, MetalFamily,
        BackendContractStatus, QualifiedBackend, DeferredBackend, BackendCapabilities,
+       AbstractBackendCapability, QualifiedBackendCapability,
+       FunctionalBackendCapability, OrderedLaunchCapability,
+       DeviceFloat64Capability, SubgroupIntrinsicCapability, SemanticRNGCapability,
        UnsupportedBackendCapability, UnsupportedBackendType, backend_capabilities,
-       require_capability, CompiledStateDescriptor, CompiledStateStorage,
+       supports, require_capability, CompiledStateDescriptor, CompiledStateStorage,
        CompiledPottsState, compile_state, execution_storage, adapt_execution,
        device_storage_valid, logical_snapshot, WorkspaceRequirements, workspace_bytes,
        ExecutionWorkspace, allocate_workspace, TransactionRequirements,

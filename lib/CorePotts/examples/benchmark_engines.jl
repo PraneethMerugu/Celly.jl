@@ -26,7 +26,7 @@ function setup_benchmark()
 
     u0 = PottsState(grid, cell_data, N_cells)
     p = PottsParameters(VonNeumannTopology{2}(), penalties, trackers)
-    prob = PottsProblem(u0, (0, 100), p)
+    prob = CorePotts.LegacyPottsProblem(u0, (0, 100), p)
 
     return prob
 end

@@ -3,6 +3,9 @@ module PottsToolkit
 using Reexport
 
 @reexport using CorePotts
+using CorePotts: AbstractSampler, MetropolisSampler, PottsState, PottsParameters,
+                 PottsCache, ParallelMetropolis, CheckerboardMetropolis,
+                 SequentialMetropolis, IntrinsicCheckerboardMetropolis
 
 include("models.jl")
 include("domains.jl")
@@ -28,5 +31,11 @@ export PottsToolkitEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, A
 export MitosisEvent, ApoptosisEvent, TransitionEvent
 export TestProblems
 export @rule
+
+# Temporary Phase 7 compatibility surface. CorePotts no longer exports these historical engine
+# names; Phase 10 removes this explicit Toolkit bridge when the typed compiler and DSL migrate.
+export AbstractSampler, MetropolisSampler, PottsState, PottsParameters, PottsCache,
+       ParallelMetropolis, CheckerboardMetropolis, SequentialMetropolis,
+       IntrinsicCheckerboardMetropolis
 
 end

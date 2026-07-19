@@ -1,5 +1,9 @@
 using Test
 using CorePotts
+import CorePotts: LegacyPottsProblem, LegacyPottsIntegrator, LegacyPottsSolution,
+                  AbstractSampler, MetropolisSampler, PottsState, PottsParameters,
+                  PottsCache, ParallelMetropolis, CheckerboardMetropolis,
+                  SequentialMetropolis, IntrinsicCheckerboardMetropolis
 
 backend_zeros(::Type{T}, dims...) where {T} = zeros(T, dims...)
 
@@ -39,6 +43,7 @@ const TEST_ALGORITHMS = (
     include("test_phase8_protocols.jl")
     include("test_phase8_lifecycle.jl")
     include("test_phase8_persistence.jl")
+    include("test_phase9_sciml_interface.jl")
     include("test_topology_abstractions.jl")
     include("test_cartesian_relations.jl")
     include("test_proposal_acceptance.jl")

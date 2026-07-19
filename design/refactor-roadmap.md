@@ -15,7 +15,8 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 6: Scientific Inner Loop | Complete | Typed component folds, staged transactions, CPU/Metal/ROCm Phase 6 qualification, and tracker reconciliation |
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
-| Phases 9-15 | Not started | Blocked by preceding phase gates |
+| Phase 9: SciML Integration | Candidate | [Phase 9 completion audit](audits/phase-9-completion-audit.md); implementation, CPU, and Metal gates pass locally; authoritative ROCm and repository CI remain required |
+| Phases 10-15 | Not started | Blocked by the Phase 9 authoritative CI gate |
 
 ## Objective
 
@@ -478,23 +479,39 @@ code.
 
 ## Phase 9: SciML Integration
 
+Pre-interview evidence:
+
+- [Phase 9 current-code and gap audit](audits/phase-9-current-code-and-gap-audit.md)
+- [Phase 9 SciML and JuliaGPU research audit](audits/phase-9-sciml-and-gpu-research.md)
+- [Phase 9 implementation chunk plan](audits/phase-9-chunk-plan.md)
+- [Accepted Phase 9 interface decision](../spec/decisions/0025-phase-9-sciml-and-gpu-interface.md)
+- [Phase 9 legacy evacuation](audits/phase-9-legacy-evacuation.md)
+- [Phase 9 completion audit](audits/phase-9-completion-audit.md)
+
 ### Required gate
 
 Resolve the algorithm, proposal, backend-capability, RNG-namespace, and compiled-component P1
 findings in the [open-protocol audit](audits/open-protocol-audit.md) before declaring the Level 3 API
-candidate.
+candidate. Evacuate the historical `PottsProblem`, `PottsIntegrator`, and `PottsSolution` bindings
+to internal legacy names before the replacement receives those names. Capture direct-engine
+structural and timing baselines before changing the authoritative call path.
 
 ### Deliverables
 
 - Implement final model/problem ownership and `PottsProblem` construction.
 - Implement `init`, `solve!`, `solve`, integer-MCS `step!`, stopping, return codes, and mutation rules.
-- Implement `remake` with correct reuse and invalidation of compilation products and workspaces.
+- Implement `remake`, distinct scientific/structural fingerprints, and an explicit trajectory-free
+  compilation cache with correct reuse and invalidation.
 - Implement MCS-boundary saving, observations, callbacks, snapshots, and checkpoints.
 - Implement `PottsSolution` indexing, interpolation restrictions, metadata, display, and provenance.
-- Implement ensembles with independent semantic seeds, backend selection, output functions, and
-  failure handling.
+- Implement SciML ensembles with `EnsembleSeedDerivationV1`, independent semantic seeds, backend
+  selection, output functions, bounded reruns, and structured failure handling.
+- Implement applicable symbolic indexing through typed handles; reject generic AD through `solve`
+  and unsafe live-integrator or device-workspace serialization.
 - Ensure qualified device observations remain resident and host observations synchronize only at
   declared boundaries.
+- Establish the layered JuliaGPU benchmark suite and qualify Julia 1.12.6 CPU, Metal, and ROCm paths
+  in 2D and 3D. Keep CUDA and evolving PDE-field execution explicitly deferred.
 
 ### Exit gate
 
@@ -502,6 +519,11 @@ candidate.
 - SciMLBase interface tests and Potts-specific conformance tests pass.
 - Saving, callbacks, displays, and ensemble execution introduce no hidden observation points.
 - Remake and checkpoint tests prove correct cache, RNG, and workspace invalidation or reuse.
+- A warm unobserved SciML MCS adds zero launches, synchronization, transfers, device allocations,
+  state copies, or RNG draws over the direct engine.
+- The Phase 9.0 legacy-containment/open-protocol gate and every gate in the
+  [chunk plan](audits/phase-9-chunk-plan.md) pass on their applicable backends.
+- Dedicated-runner baselines show no unexplained supported-workload regression greater than 5%.
 
 ## Phase 10: PottsToolkit Typed API and Compiler
 
