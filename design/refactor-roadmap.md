@@ -14,7 +14,8 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 5: Execution, RNG, Workspaces, and Backends | Complete | [Phase 5 completion audit](audits/phase-5-completion-audit.md), CPU/Metal/ROCm qualification, and Decision 0013 |
 | Phase 6: Scientific Inner Loop | Complete | Typed component folds, staged transactions, CPU/Metal/ROCm Phase 6 qualification, and tracker reconciliation |
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
-| Phases 8-15 | Not started | Blocked by preceding phase gates |
+| Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
+| Phases 9-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
 
@@ -383,9 +384,9 @@ intended for stable support; auxiliary state is not deferred around the algorith
 
 ## Phase 8: Lifecycle, Initialization, and Persistence
 
-Implementation is organized by the active
-[Phase 8 chunk plan](audits/phase-8-chunk-plan.md). Candidate implementation evidence and the
-remaining authoritative ROCm/CI closure condition are in the
+Implementation followed the completed
+[Phase 8 chunk plan](audits/phase-8-chunk-plan.md). Authoritative CPU/Metal/ROCm and repository-CI
+closure evidence is in the
 [Phase 8 completion audit](audits/phase-8-completion-audit.md).
 
 ### Required gates

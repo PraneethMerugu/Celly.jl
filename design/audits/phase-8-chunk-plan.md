@@ -2,7 +2,7 @@
 
 Date: 2026-07-19
 
-Status: Candidate implemented; authoritative ROCm and repository CI pending
+Status: Complete
 
 ## Objective
 
@@ -22,8 +22,8 @@ The repository already contains useful scalar foundations:
 - semantically addressed Philox streams and stable pressure/tension mechanics; and
 - package-extension shells for HDF5, Zarr, Metal, and AMDGPU.
 
-The candidate now implements all eight chunks. The detailed evidence and remaining authoritative
-hardware/CI closure condition are recorded in the
+All eight chunks and their required CPU, Metal, ROCm, repository-CI, and documentation evidence are
+complete. The detailed closure evidence is recorded in the
 [Phase 8 completion audit](phase-8-completion-audit.md). Historical event, output, and PottsToolkit
 implementations remain quarantined; they are not fallback paths for the scientific implementation.
 
