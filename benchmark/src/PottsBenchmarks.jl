@@ -192,8 +192,9 @@ function qualify_rng_backend(name::String)
     observed = Array(output)
     observed == expected || error("$name Philox words differ from the CPU contract")
 
-    distribution_addresses = [RNGAddress(stream = HSTStream, mcs = 23,
-                                  subround = 2, operation = 9, entity_kind = SiteEntity, entity = index,
+    distribution_addresses = [RNGAddress(stream = AuxiliaryEvolutionStream, mcs = 23,
+                                  subround = 2, operation = 9,
+                                  entity_kind = SiteEntity, entity = index,
                                   draw = 11) for index in 1:4096]
     device_distribution_addresses = _backend_array(name, distribution_addresses)
     table = CategoricalTable((1.0f0, 2.0f0, 3.0f0))
@@ -685,6 +686,419 @@ function qualify_scientific_backend(name::String)
         "internal_host_synchronizations" => 0,
         "compiled_bytes" => compiled_bytes,
         "workspace_bytes" => workspace_byte_counts
+    )
+end
+
+function _phase7_components(fixture)
+    return ScientificComponentSet(
+        energies = (fixture.volume, fixture.contact, fixture.boundary),
+        constraints = (fixture.connectivity,),
+        kinetic_modifiers = (PositiveYield(0.75f0),)
+    )
+end
+
+function _phase7_sequential_run(name::String, fixture, seed::UInt64)
+    adaptor = _backend_adaptor(name)
+    compiled = compile_scientific_state(
+        fixture.logical, fixture.domain, fixture.boundary_tracker)
+    state = Adapt.adapt(adaptor, compiled)
+    components = Adapt.adapt(adaptor, _phase7_components(fixture))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    integrator = init_scientific(state, fixture.proposal_relation, components,
+        SequentialCPM(temperature = 5.0f0); seed, plan)
+    SciMLBase.step!(integrator, 3)
+    metrics.host_synchronizations == 0 || error(
+        "$name SequentialCPM synchronized before an observation boundary")
+    report = current_mcs_report(integrator)
+    expected_attempts = UInt64(mutable_site_count(fixture.domain))
+    report.mcs == 3 || error("$name SequentialCPM reported the wrong MCS")
+    report.scheduler_candidates == expected_attempts || error(
+        "$name SequentialCPM scheduler count differs from the mutable-site count")
+    report.activated_attempts == expected_attempts || error(
+        "$name SequentialCPM did not execute exactly N attempts")
+    report.realized_proposals == report.constraint_rejections +
+        report.acceptance_rejections + report.accepted_copies || error(
+        "$name SequentialCPM proposal accounting does not reconcile")
+    report.activated_attempts == report.same_owner_no_ops + report.boundary_no_ops +
+        report.immutable_recipient_no_ops + report.constraint_rejections +
+        report.acceptance_rejections + report.accepted_copies || error(
+        "$name SequentialCPM attempt accounting does not partition one MCS")
+    snapshot = logical_state(integrator)
+    isempty(state_invariant_errors(snapshot)) || error(
+        "$name SequentialCPM produced an invalid logical state")
+    host_state = Adapt.adapt(Array, integrator.state)
+    isempty(tracker_conformance_errors(
+        host_state, fixture.boundary_tracker, snapshot)) || error(
+        "$name SequentialCPM tracker caches differ from recomputation")
+    return (; report, snapshot, host_state, metrics)
+end
+
+"""Qualify exact sequential accounting, replay, and scientific commits on one backend."""
+function qualify_sequential_backend(name::String)
+    dimensions = Int[]
+    for N in (2, 3)
+        fixture = _phase6_fixture(Val(N))
+        first_run = _phase7_sequential_run(
+            name, fixture, UInt64(0x7068617365370000) + UInt64(N))
+        second_run = _phase7_sequential_run(
+            name, fixture, UInt64(0x7068617365370000) + UInt64(N))
+        first_run.report == second_run.report || error(
+            "$name SequentialCPM $N-D report replay differs for the same seed")
+        lattice_storage(first_run.snapshot) == lattice_storage(second_run.snapshot) || error(
+            "$name SequentialCPM $N-D state replay differs for the same seed")
+        first_run.host_state.trackers.finite_volumes ==
+        second_run.host_state.trackers.finite_volumes || error(
+            "$name SequentialCPM $N-D volume replay differs for the same seed")
+        first_run.host_state.trackers.boundary_measures ==
+        second_run.host_state.trackers.boundary_measures || error(
+            "$name SequentialCPM $N-D boundary replay differs for the same seed")
+        push!(dimensions, N)
+    end
+    return Dict(
+        "backend" => name,
+        "algorithm" => "SequentialCPM",
+        "dimensions" => dimensions,
+        "number_type" => "Float32",
+        "normalized_attempt_accounting" => true,
+        "same_backend_replay" => true,
+        "scientific_component_path" => true,
+        "connectivity_workspace" => true,
+        "tracker_conformance" => true,
+        "internal_host_synchronizations" => 0
+    )
+end
+
+function _phase7_checkerboard_components(fixture)
+    return ScientificComponentSet(
+        energies = (fixture.volume, fixture.contact, fixture.boundary),
+        kinetic_modifiers = (PositiveYield(0.75f0),)
+    )
+end
+
+function _phase7_checkerboard_run(name::String, fixture, seed::UInt64)
+    adaptor = _backend_adaptor(name)
+    compiled = compile_scientific_state(
+        fixture.logical, fixture.domain, fixture.boundary_tracker)
+    state = Adapt.adapt(adaptor, compiled)
+    components = Adapt.adapt(adaptor, _phase7_checkerboard_components(fixture))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    integrator = init_scientific(state, fixture.proposal_relation, components,
+        CheckerboardSweepCPM(temperature = 5.0f0); seed, plan)
+    initialization_synchronizations = metrics.host_synchronizations
+    SciMLBase.step!(integrator, 3)
+    metrics.host_synchronizations == initialization_synchronizations || error(
+        "$name CheckerboardSweepCPM synchronized inside an MCS")
+    report = current_mcs_report(integrator)
+    expected_attempts = UInt64(mutable_site_count(fixture.domain))
+    report.mcs == 3 || error("$name CheckerboardSweepCPM reported the wrong MCS")
+    report.scheduler_candidates == expected_attempts || error(
+        "$name CheckerboardSweepCPM scheduler count differs from the mutable-site count")
+    report.activated_attempts == expected_attempts || error(
+        "$name CheckerboardSweepCPM did not visit every mutable site exactly once")
+    report.realized_proposals == report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name CheckerboardSweepCPM proposal accounting does not reconcile")
+    report.activated_attempts == report.same_owner_no_ops + report.boundary_no_ops +
+        report.immutable_recipient_no_ops + report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name CheckerboardSweepCPM attempt accounting does not partition one MCS")
+    snapshot = logical_state(integrator)
+    isempty(state_invariant_errors(snapshot)) || error(
+        "$name CheckerboardSweepCPM produced an invalid logical state")
+    host_state = Adapt.adapt(Array, integrator.state)
+    isempty(tracker_conformance_errors(
+        host_state, fixture.boundary_tracker, snapshot)) || error(
+        "$name CheckerboardSweepCPM tracker caches differ from recomputation")
+    return (; report, snapshot, host_state, metrics, initialization_synchronizations)
+end
+
+"""Qualify exact colored sweeps, replay, conflicts, and tracker commits on one backend."""
+function qualify_checkerboard_backend(name::String)
+    dimensions = Int[]
+    initialization_synchronizations = Int[]
+    for N in (2, 3)
+        fixture = _phase6_fixture(Val(N))
+        seed = UInt64(0x7068617365371000) + UInt64(N)
+        first_run = _phase7_checkerboard_run(name, fixture, seed)
+        second_run = _phase7_checkerboard_run(name, fixture, seed)
+        first_run.report == second_run.report || error(
+            "$name CheckerboardSweepCPM $N-D report replay differs for the same seed")
+        lattice_storage(first_run.snapshot) == lattice_storage(second_run.snapshot) || error(
+            "$name CheckerboardSweepCPM $N-D state replay differs for the same seed")
+        first_run.host_state.trackers.finite_volumes ==
+        second_run.host_state.trackers.finite_volumes || error(
+            "$name CheckerboardSweepCPM $N-D volume replay differs for the same seed")
+        first_run.host_state.trackers.boundary_measures ==
+        second_run.host_state.trackers.boundary_measures || error(
+            "$name CheckerboardSweepCPM $N-D boundary replay differs for the same seed")
+        push!(dimensions, N)
+        push!(initialization_synchronizations, first_run.initialization_synchronizations)
+    end
+    return Dict(
+        "backend" => name,
+        "algorithm" => "CheckerboardSweepCPM",
+        "dimensions" => dimensions,
+        "number_type" => "Float32",
+        "exact_once_per_site_accounting" => true,
+        "realized_graph_coloring" => true,
+        "deterministic_conflicts" => true,
+        "linear_fixed_capacity_conflict_pipeline" => true,
+        "same_backend_replay" => true,
+        "tracker_conformance" => true,
+        "initialization_host_synchronizations" => initialization_synchronizations,
+        "internal_host_synchronizations" => 0
+    )
+end
+
+function _phase7_lottery_run(name::String, fixture, seed::UInt64)
+    adaptor = _backend_adaptor(name)
+    compiled = compile_scientific_state(
+        fixture.logical, fixture.domain, fixture.boundary_tracker)
+    state = Adapt.adapt(adaptor, compiled)
+    components = Adapt.adapt(adaptor, _phase7_checkerboard_components(fixture))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    integrator = init_scientific(state, fixture.proposal_relation, components,
+        LotteryCPM(temperature = 5.0f0); seed, plan)
+    initialization_synchronizations = metrics.host_synchronizations
+    SciMLBase.step!(integrator, 3)
+    metrics.host_synchronizations == initialization_synchronizations || error(
+        "$name LotteryCPM synchronized inside an MCS")
+    report = current_mcs_report(integrator)
+    expected_sites = UInt64(mutable_site_count(fixture.domain))
+    report.mcs == 3 || error("$name LotteryCPM reported the wrong MCS")
+    report.scheduler_candidates == expected_sites * report.internal_rounds || error(
+        "$name LotteryCPM scheduler accounting differs from sites times rounds")
+    report.realized_proposals == report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name LotteryCPM proposal accounting does not reconcile")
+    report.activated_attempts == report.same_owner_no_ops + report.boundary_no_ops +
+        report.immutable_recipient_no_ops + report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name LotteryCPM activated-attempt accounting does not reconcile")
+    snapshot = logical_state(integrator)
+    isempty(state_invariant_errors(snapshot)) || error(
+        "$name LotteryCPM produced an invalid logical state")
+    host_state = Adapt.adapt(Array, integrator.state)
+    isempty(tracker_conformance_errors(
+        host_state, fixture.boundary_tracker, snapshot)) || error(
+        "$name LotteryCPM tracker caches differ from recomputation")
+    return (; report, snapshot, host_state, metrics, initialization_synchronizations)
+end
+
+"""Qualify topology-calibrated lottery accounting, replay, and commits on one backend."""
+function qualify_lottery_backend(name::String)
+    dimensions = Int[]
+    initialization_synchronizations = Int[]
+    for N in (2, 3)
+        fixture = _phase6_fixture(Val(N))
+        seed = UInt64(0x7068617365372000) + UInt64(N)
+        first_run = _phase7_lottery_run(name, fixture, seed)
+        second_run = _phase7_lottery_run(name, fixture, seed)
+        first_run.report == second_run.report || error(
+            "$name LotteryCPM $N-D report replay differs for the same seed")
+        lattice_storage(first_run.snapshot) == lattice_storage(second_run.snapshot) || error(
+            "$name LotteryCPM $N-D state replay differs for the same seed")
+        first_run.host_state.trackers.finite_volumes ==
+        second_run.host_state.trackers.finite_volumes || error(
+            "$name LotteryCPM $N-D volume replay differs for the same seed")
+        first_run.host_state.trackers.boundary_measures ==
+        second_run.host_state.trackers.boundary_measures || error(
+            "$name LotteryCPM $N-D boundary replay differs for the same seed")
+        push!(dimensions, N)
+        push!(initialization_synchronizations, first_run.initialization_synchronizations)
+    end
+    return Dict(
+        "backend" => name,
+        "algorithm" => "LotteryCPM",
+        "dimensions" => dimensions,
+        "number_type" => "Float32",
+        "topology_derived_rounds" => true,
+        "equal_per_site_expected_activation" => true,
+        "deterministic_conflicts" => true,
+        "same_backend_replay" => true,
+        "tracker_conformance" => true,
+        "initialization_host_synchronizations" => initialization_synchronizations,
+        "internal_host_synchronizations" => 0
+    )
+end
+
+function _phase7_mechanical_clock_fixture(::Val{N}) where {N}
+    dims = N == 2 ? (4, 4) : (3, 3, 3)
+    spacing = ntuple(_ -> 1.0f0, N)
+    surface_relation = first_shell_relation(SurfaceRole(), Val(N); spacing)
+    volume = FluctuatingVolumePressure(; eta = 1.25f0,
+        noise = FixedMechanicalNoise(0.0f0),
+        initialization = PreserveMechanicalInitialization,
+        instance_id = 1)
+    surface = FluctuatingSurfaceTension(BoundaryEdgeCount(), surface_relation;
+        eta = 0.75f0, noise = FixedMechanicalNoise(0.0f0),
+        initialization = PreserveMechanicalInitialization,
+        instance_id = 2)
+    schema = merge_property_schemas(
+        required_properties(volume), required_properties(surface))
+    logical = LogicalPottsState(fill(CellOwner(1), dims), CellCapacity(1);
+        cell_types = Dict(CellID(1) => CellTypeID(1)),
+        medium_domains = [MediumID(1)], property_schema = schema)
+    property_values(logical, :target_volume)[1] = Float32(prod(dims) - 6)
+    property_values(logical, :volume_strength)[1] = 2.0f0
+    property_values(logical, :target_boundary)[1] = 4
+    property_values(logical, :boundary_strength)[1] = 1.5f0
+    domain = CartesianDomain(dims; spacing)
+    tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
+    proposal_relation = first_shell_relation(ProposalRole(), Val(N); spacing)
+    components = ScientificComponentSet(mechanics = (volume, surface))
+    return (; logical, domain, tracker, proposal_relation, components)
+end
+
+function _phase7_mechanical_clock_run(name::String, ::Val{N}, algorithm,
+        seed::UInt64) where {N}
+    fixture = _phase7_mechanical_clock_fixture(Val(N))
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor, compile_scientific_state(
+        fixture.logical, fixture.domain, fixture.tracker))
+    components = Adapt.adapt(adaptor, fixture.components)
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    integrator = init_scientific(state, fixture.proposal_relation, components,
+        algorithm; seed, plan)
+    initialization_synchronizations = metrics.host_synchronizations
+    SciMLBase.step!(integrator)
+    metrics.host_synchronizations == initialization_synchronizations || error(
+        "$name $(nameof(typeof(algorithm))) synchronized inside mechanical MCS execution")
+    snapshot = logical_state(integrator)
+    pressure = property_values(snapshot, :volume_pressure)[1]
+    tension = property_values(snapshot, :surface_tension)[1]
+    expected_pressure = 24.0f0 * (1.0f0 - exp(-1.25f0))
+    expected_tension = -12.0f0 * (1.0f0 - exp(-0.75f0))
+    isapprox(pressure, expected_pressure; rtol = 16eps(Float32)) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D volume-pressure clock is not one MCS")
+    isapprox(tension, expected_tension; rtol = 16eps(Float32)) || error(
+        "$name $(nameof(typeof(algorithm))) $N-D surface-tension clock is not one MCS")
+    return (; pressure, tension, initialization_synchronizations)
+end
+
+function _phase7_stationary_pressure_sample(name::String)
+    dims = (64, 64)
+    slot_count = prod(dims)
+    component = FluctuatingVolumePressure(; eta = 1.0f0,
+        initialization = StationaryMechanicalInitialization, instance_id = 9)
+    owners = reshape(
+        OwnerRef[CellOwner(CellID(index)) for index in 1:slot_count], dims)
+    cell_types = Dict(CellID(index) => CellTypeID(1) for index in 1:slot_count)
+    logical = LogicalPottsState(owners, CellCapacity(slot_count);
+        cell_types, medium_domains = [MediumID(1)],
+        property_schema = required_properties(component))
+    property_values(logical, :target_volume) .= 1.0f0
+    property_values(logical, :volume_strength) .= 2.0f0
+    spacing = (1.0f0, 1.0f0)
+    domain = CartesianDomain(dims; spacing)
+    surface_relation = first_shell_relation(SurfaceRole(), Val(2); spacing)
+    tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
+    proposal_relation = first_shell_relation(ProposalRole(), Val(2); spacing)
+    adaptor = _backend_adaptor(name)
+    state = Adapt.adapt(adaptor,
+        compile_scientific_state(logical, domain, tracker))
+    components = Adapt.adapt(adaptor,
+        ScientificComponentSet(mechanics = (component,)))
+    backend = KernelAbstractions.get_backend(state.potts.storage.active)
+    metrics = ExecutionMetrics()
+    plan = ExecutionPlan(backend; block_size = 128, metrics)
+    init_scientific(state, proposal_relation, components,
+        SequentialCPM(temperature = 3.0f0); seed = 0x61757873746174, plan)
+    metrics.host_synchronizations == 0 || error(
+        "$name stationary mechanical initialization synchronized internally")
+    KernelAbstractions.synchronize(backend)
+    samples = Array(state.potts.storage.properties.volume_pressure)
+    sample_mean = mean(samples)
+    sample_variance = var(samples; corrected = false)
+    abs(sample_mean) < 0.2f0 || error(
+        "$name stationary volume-pressure mean exceeds its qualification margin")
+    abs(sample_variance - 12.0f0) < 0.6f0 || error(
+        "$name stationary volume-pressure variance exceeds its qualification margin")
+
+    evolution_component = FluctuatingVolumePressure(; eta = 1.0f0,
+        initialization = PreserveMechanicalInitialization, instance_id = 10)
+    evolution_state = Adapt.adapt(adaptor,
+        compile_scientific_state(logical, domain, tracker))
+    evolution_backend = KernelAbstractions.get_backend(
+        evolution_state.potts.storage.active)
+    evolution_metrics = ExecutionMetrics()
+    evolution_plan = ExecutionPlan(
+        evolution_backend; block_size = 128, metrics = evolution_metrics)
+    evolution_integrator = init_scientific(evolution_state, proposal_relation,
+        Adapt.adapt(adaptor,
+            ScientificComponentSet(mechanics = (evolution_component,))),
+        SequentialCPM(temperature = 3.0f0);
+        seed = 0x65766f6c7574696f, plan = evolution_plan)
+    CorePotts._advance_mechanics!(evolution_integrator, UInt64(1), UInt8(0),
+        UInt8(0), 1.0f0)
+    evolution_metrics.host_synchronizations == 0 || error(
+        "$name mechanical evolution synchronized internally")
+    KernelAbstractions.synchronize(evolution_backend)
+    evolution_samples = Array(
+        evolution_state.potts.storage.properties.volume_pressure)
+    evolution_mean = mean(evolution_samples)
+    evolution_variance = var(evolution_samples; corrected = false)
+    expected_variance = 12.0f0 * (1.0f0 - exp(-2.0f0))
+    abs(evolution_mean) < 0.2f0 || error(
+        "$name evolving volume-pressure mean exceeds its qualification margin")
+    abs(evolution_variance - expected_variance) < 0.6f0 || error(
+        "$name evolving volume-pressure variance exceeds its qualification margin")
+    return (; sample_mean, sample_variance, evolution_mean, evolution_variance)
+end
+
+"""Qualify stable volume-pressure and surface-tension mechanics on one backend."""
+function qualify_mechanics_backend(name::String)
+    algorithms = (
+        SequentialCPM(temperature = 5.0f0),
+        CheckerboardSweepCPM(temperature = 5.0f0),
+        LotteryCPM(temperature = 5.0f0),
+    )
+    synchronization_counts = Dict{String, Vector{Int}}()
+    for algorithm in algorithms
+        label = string(nameof(typeof(algorithm)))
+        synchronization_counts[label] = Int[]
+        for N in (2, 3)
+            seed = UInt64(0x7068617365373000) + UInt64(16N) +
+                   UInt64(length(synchronization_counts))
+            first_run = _phase7_mechanical_clock_run(
+                name, Val(N), algorithm, seed)
+            second_run = _phase7_mechanical_clock_run(
+                name, Val(N), algorithm, seed)
+            first_run.pressure == second_run.pressure || error(
+                "$name $label $N-D volume-pressure replay differs")
+            first_run.tension == second_run.tension || error(
+                "$name $label $N-D surface-tension replay differs")
+            push!(synchronization_counts[label],
+                first_run.initialization_synchronizations)
+        end
+    end
+    stationary = _phase7_stationary_pressure_sample(name)
+    return Dict(
+        "backend" => name,
+        "families" => ["FluctuatingVolumePressure", "FluctuatingSurfaceTension"],
+        "algorithms" => collect(keys(synchronization_counts)),
+        "dimensions" => [2, 3],
+        "exact_frozen_observable_ou" => true,
+        "normalized_mcs_clock" => true,
+        "same_backend_replay" => true,
+        "stationary_initialization_mean" => stationary.sample_mean,
+        "stationary_initialization_variance" => stationary.sample_variance,
+        "evolution_mean" => stationary.evolution_mean,
+        "evolution_variance" => stationary.evolution_variance,
+        "initialization_host_synchronizations" => synchronization_counts,
+        "internal_host_synchronizations" => 0,
     )
 end
 

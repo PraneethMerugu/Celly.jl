@@ -1,13 +1,14 @@
 """Typed scientific component bundle lowered once and passed unchanged to hot kernels."""
-struct ScientificComponentSet{E <: Tuple, D <: Tuple, C <: Tuple, K <: Tuple}
+struct ScientificComponentSet{E <: Tuple, D <: Tuple, C <: Tuple, K <: Tuple, M <: Tuple}
     energies::E
     drives::D
     constraints::C
     kinetic_modifiers::K
+    mechanics::M
 end
 
 function ScientificComponentSet(; energies::Tuple = (), drives::Tuple = (),
-        constraints::Tuple = (), kinetic_modifiers::Tuple = ())
+        constraints::Tuple = (), kinetic_modifiers::Tuple = (), mechanics::Tuple = ())
     all(component -> component isa AbstractEnergy, energies) || throw(ArgumentError(
         "every energy component must subtype AbstractEnergy"))
     all(component -> component isa AbstractDrive, drives) || throw(ArgumentError(
@@ -18,7 +19,10 @@ function ScientificComponentSet(; energies::Tuple = (), drives::Tuple = (),
     all(component -> component isa AbstractKineticModifier, kinetic_modifiers) ||
         throw(ArgumentError(
             "every kinetic modifier must subtype AbstractKineticModifier"))
-    return ScientificComponentSet(energies, drives, constraints, kinetic_modifiers)
+    all(component -> component isa AbstractMechanicalComponent, mechanics) ||
+        throw(ArgumentError(
+            "every mechanical component must subtype AbstractMechanicalComponent"))
+    return ScientificComponentSet(energies, drives, constraints, kinetic_modifiers, mechanics)
 end
 
 function Adapt.adapt_structure(to, components::ScientificComponentSet)
@@ -27,7 +31,8 @@ function Adapt.adapt_structure(to, components::ScientificComponentSet)
         adapt_tuple(components.energies),
         adapt_tuple(components.drives),
         adapt_tuple(components.constraints),
-        adapt_tuple(components.kinetic_modifiers)
+        adapt_tuple(components.kinetic_modifiers),
+        adapt_tuple(components.mechanics)
     )
 end
 
@@ -93,6 +98,10 @@ end
     yield = kinetic_barrier(
         component, proposal, context.state))
 
+@inline _copy_mechanical_work(component::AbstractMechanicalComponent,
+    proposal, context) = mechanical_work(
+    component, proposal, context.state, context.transaction)
+
 @inline _fold_energies(::Tuple{}, proposal, context, result) = result
 @inline function _fold_energies(components::Tuple, proposal, context, result)
     updated = result + _copy_energy_delta(first(components), proposal, context)
@@ -118,9 +127,16 @@ end
         kinetic + contribution.kinetic, yield + contribution.yield)
 end
 
+@inline _fold_mechanics(::Tuple{}, proposal, context, result) = result
+@inline function _fold_mechanics(components::Tuple, proposal, context, result)
+    updated = result + _copy_mechanical_work(first(components), proposal, context)
+    return _fold_mechanics(Base.tail(components), proposal, context, updated)
+end
+
 """Category-preserving scalar result consumed by a separately selected acceptance law."""
 struct ScientificCopyEvaluation{T <: AbstractFloat}
     delta_h::T
+    mechanical_work::T
     drive_log_bias::T
     kinetic_modifier::T
     yield_barrier::T
@@ -133,12 +149,13 @@ end
 @inline function evaluate_copy(components::ScientificComponentSet, proposal::CopyProposal,
         context::ScientificProposalContext, ::Type{T}) where {T <: AbstractFloat}
     delta_h = T(_fold_energies(components.energies, proposal, context, zero(T)))
+    mechanical = T(_fold_mechanics(components.mechanics, proposal, context, zero(T)))
     drive_bias = T(_fold_drives(components.drives, proposal, context, zero(T)))
     constraints_allowed = _fold_constraints(
         components.constraints, proposal, context, true)
     kinetic, yield = _fold_modifiers(
         components.kinetic_modifiers, proposal, context, zero(T), zero(T))
-    return ScientificCopyEvaluation(delta_h, T(drive_bias), T(kinetic), T(yield),
+    return ScientificCopyEvaluation(delta_h, mechanical, T(drive_bias), T(kinetic), T(yield),
         proposal.forward_multiplicity, proposal.reverse_multiplicity,
         constraints_allowed)
 end
@@ -150,7 +167,7 @@ function evaluate_copy(components::ScientificComponentSet, proposal::CopyProposa
 end
 
 function acceptance_inputs(evaluation::ScientificCopyEvaluation)
-    return AcceptanceInputs(evaluation.delta_h;
+    return AcceptanceInputs(evaluation.delta_h + evaluation.mechanical_work;
         drive_log_bias = evaluation.drive_log_bias,
         kinetic_modifier = evaluation.kinetic_modifier,
         yield_barrier = evaluation.yield_barrier,
@@ -165,6 +182,28 @@ function scientific_components_report(components::ScientificComponentSet)
         energies = identities(components.energies),
         drives = identities(components.drives),
         constraints = identities(components.constraints),
-        kinetic_modifiers = identities(components.kinetic_modifiers)
+        kinetic_modifiers = identities(components.kinetic_modifiers),
+        mechanics = identities(components.mechanics)
     )
 end
+
+# These traits are host-side compiler evidence. Unknown extensions remain conservatively
+# unsupported until they declare their own auditable access behavior.
+scientific_access(::QuadraticVolumeHamiltonian) =
+    SnapshotScientificAccess(; cell_wide = true)
+scientific_access(component::UnorderedContactHamiltonian) =
+    SnapshotScientificAccess((component.relation,); cell_wide = true)
+scientific_access(component::QuadraticBoundaryHamiltonian) =
+    SnapshotScientificAccess((component.relation,); cell_wide = true)
+scientific_access(::ExternalFieldOccupancyHamiltonian) =
+    SnapshotScientificAccess(; cell_wide = true)
+scientific_access(::ChemotaxisDrive) =
+    SnapshotScientificAccess(; cell_wide = true)
+scientific_access(::PositiveYield) = SnapshotScientificAccess()
+scientific_access(component::PreserveConnectedCells) =
+    SnapshotScientificAccess((component.relation,);
+        cell_wide = true, private_workspace = true)
+scientific_access(::FluctuatingVolumePressure) =
+    SnapshotScientificAccess(; cell_wide = true)
+scientific_access(component::FluctuatingSurfaceTension) =
+    SnapshotScientificAccess((component.relation,); cell_wide = true)

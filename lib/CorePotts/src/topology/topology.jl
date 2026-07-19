@@ -192,27 +192,29 @@ num_dirs(topo::NoFluxExtendedMooreTopology) = Val(length(offsets(topo)))
     x -> 1.0f0 / sqrt(Float32(sum(y -> y^2, x))), offsets(topo))
 
 # Branchless math for 1D <-> ND coordinates
-@inline function idx_to_coord(idx::UInt32, dims::NTuple{2, Int})
+@inline function idx_to_coord(idx::UInt32, dims::NTuple{2, I}) where {I <: Integer}
     idx0 = idx - UInt32(1)
-    W = UInt32(dims[1])
+    W = Base.unsafe_trunc(UInt32, dims[1])
     return (idx0 % W, idx0 ÷ W)
 end
 
-@inline function idx_to_coord(idx::UInt32, dims::NTuple{3, Int})
+@inline function idx_to_coord(idx::UInt32, dims::NTuple{3, I}) where {I <: Integer}
     idx0 = idx - UInt32(1)
-    W = UInt32(dims[1])
-    H = UInt32(dims[2])
+    W = Base.unsafe_trunc(UInt32, dims[1])
+    H = Base.unsafe_trunc(UInt32, dims[2])
     stride = W * H
     z = idx0 ÷ stride
     rem = idx0 % stride
     return (rem % W, rem ÷ W, z)
 end
 
-@inline function coord_to_idx(coords::NTuple{2, UInt32}, dims::NTuple{2, Int})
+@inline function coord_to_idx(
+        coords::NTuple{2, UInt32}, dims::NTuple{2, I}) where {I <: Integer}
     return coords[1] + coords[2] * UInt32(dims[1]) + UInt32(1)
 end
 
-@inline function coord_to_idx(coords::NTuple{3, UInt32}, dims::NTuple{3, Int})
+@inline function coord_to_idx(
+        coords::NTuple{3, UInt32}, dims::NTuple{3, I}) where {I <: Integer}
     return coords[1] + coords[2] * UInt32(dims[1]) +
            coords[3] * UInt32(dims[1]) * UInt32(dims[2]) + UInt32(1)
 end

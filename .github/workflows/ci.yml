@@ -32,6 +32,10 @@ jobs:
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
       - name: Enforce repository and package structure
         run: julia --startup-file=no scripts/check_structure.jl
+      - name: Enforce Phase 7 legacy containment
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: julia --startup-file=no scripts/check_legacy_containment.jl
       - name: Resolve the package workspace without mutation
         run: |
           julia --project=. --startup-file=no -e '

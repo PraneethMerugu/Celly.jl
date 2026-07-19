@@ -104,7 +104,7 @@ Every slot maintains an internal generation counter. Assigning a retired slot to
 increment the counter. RNG streams for cell-specific behavior MUST distinguish different generations
 of the same cell ID.
 
-Slot generation is not a public lineage identifier in specification version `0.1-draft`.
+Slot generation is not a public lineage identifier in specification version `0.2-draft`.
 
 ## Property Schema
 

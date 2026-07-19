@@ -97,6 +97,11 @@ Status: Accepted unless an entry is marked otherwise
 : One independent recipient-site selection followed by one donor-direction selection. Same-owner and
   invalid no-flux selections remain attempts but are no-ops.
 
+**Activated attempt**
+: In a lottery algorithm, a topology-lottery winner that receives one copy-attempt opportunity.
+  Once activated, same-owner, invalid-boundary, dynamic-conflict, constraint-rejected, and
+  acceptance-rejected outcomes consume that attempt. Ticket-only participation does not.
+
 **Proposal**
 : A non-no-op candidate state transition produced by a copy attempt.
 
@@ -139,9 +144,13 @@ Status: Accepted unless an entry is marked otherwise
 **Penalty**
 : A contribution to the model's energy or proposal acceptance rule.
 
-**Auxiliary field**
-: Additional thermodynamic or algorithmic state, including HST variables. Auxiliary fields require
-  explicit time-integration and lifecycle semantics.
+**Auxiliary constraint state**
+: Additional state belonging to a positive, real augmented model whose declared marginal or joint
+  distribution and update law are explicit. An equilibrium claim requires a derived invariant law.
+
+**Mechanical auxiliary state**
+: Additional pressure-, tension-, or force-like state with explicitly declared stochastic or
+  deterministic kinetics. It is not presumed to be an equilibrium augmentation.
 
 **Snapshot**
 : A synchronized observable state at a specified MCS. A snapshot is not necessarily sufficient for

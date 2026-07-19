@@ -2,6 +2,8 @@
 
 Status: Accepted
 
+Lottery details refined by Decision 0016.
+
 Date: 2026-07-17
 
 ## Context
@@ -20,15 +22,18 @@ Same-owner and invalid no-flux selections count as no-op attempts. Invalid no-fl
 not clamped or renormalized.
 
 `sweeps_per_step` is removed from the intended public API. `active_fraction` is an internal execution
-parameter. Lottery execution uses topology-derived expected proposal-budget normalization. All
-algorithms report attempt diagnostics and use comparable MCS units.
+detail. Lottery execution uses topology-derived expected activated-attempt normalization with equal
+per-site expectation. Once activated, a same-owner, invalid-boundary, dynamic-conflict, rejected, or
+accepted outcome consumes the opportunity; evolving contention does not create compensating work.
+All algorithms report attempt diagnostics and use comparable MCS units.
 
 Checkerboard colors execute sequentially in a randomized per-MCS order.
 
 ## Consequences
 
 - Algorithm implementations must translate internal work into normalized MCS fractions.
-- Lottery realized proposal count may fluctuate around `N`.
+- Lottery activated-attempt count may fluctuate around `N` while retaining an expectation of one
+  opportunity per mutable site.
 - Auxiliary integration must use normalized MCS fractions rather than kernel-launch count.
 - Existing simulations using `sweeps_per_step * active_fraction` will change behavior during
   migration.

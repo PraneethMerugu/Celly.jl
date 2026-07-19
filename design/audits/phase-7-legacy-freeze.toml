@@ -1,0 +1,36 @@
+version = 1
+
+# These files contain the known historical engine or a current production consumer. Their exact
+# Phase 7 contents are frozen. A deliberate migration must delete a consumer or update this
+# manifest with an accompanying audit; silent expansion fails CI.
+[files]
+"lib/CorePotts/src/components/components.jl" = "1c28cb66f05b60faea3cac348fdae63c619e236a1788f55cb261b3a4e8f446be"
+"lib/CorePotts/src/components/constraints/connectivity.jl" = "51a94067d360fb2914562adf3c931bbb9133717efb5a1cdb26f2829517f91c9d"
+"lib/CorePotts/src/components/energies/adhesion.jl" = "38e3fe4e4dedbadea9685b163459a3ff1dcdf852cd55ec5a2804abd5483f652a"
+"lib/CorePotts/src/components/energies/chemotaxis.jl" = "402a7442674044e1cfc2a7464e97b987e715bf03f8ba0d44ffdcfe03e5cef09f"
+"lib/CorePotts/src/components/energies/focal_point.jl" = "600060248dbd8193ea461bf1fc71536cbd447e6cbf0bb49697ed417e71d1cbae"
+"lib/CorePotts/src/components/energies/length.jl" = "f3351b2d55b4feac6cd249fd33e1b40646f94748672c5af66af6f633bbb821c7"
+"lib/CorePotts/src/components/energies/surface_area.jl" = "2593b92ecda954ab7eb39fdff4bb82dd7c37bd4b9aac48c63cf3edae8fd8fe9e"
+"lib/CorePotts/src/components/energies/volume.jl" = "84909f09e4f88484f6f8ad20f3c091987a730d37a29b5749785faf0fbb9178b8"
+"lib/CorePotts/src/components/trackers/trackers.jl" = "35802ad4bc2e5ee4555460980bbde18b44d404ce06c3ff7760655a37488ea6bf"
+"lib/CorePotts/src/components/training.jl" = "9ca34a90ec66bcb143705af3b7cd1e30c4342f5ceead093e67b2f8fdceb108c0"
+"lib/CorePotts/src/initialization/initialization.jl" = "2a2cc6e3db6470c4df0bcb2e3da819d10f6bf4259003ec282181e6e870c81209"
+"lib/CorePotts/src/kernels/events/mitosis_kernels.jl" = "5e23090d04992c55deacb7805754356ff950466356ff6ca86dc5438aa93940f8"
+"lib/CorePotts/src/kernels/events/property_kernels.jl" = "9562f07c5bc35bd5b0c04d338769b993be96f796ae579b31e155313c100a43bb"
+"lib/CorePotts/src/kernels/intrinsics.jl" = "91c74bc53405023aea30cc7f8cb66572cc90a7b97e2cca33591df3bbdebdf6f4"
+"lib/CorePotts/src/kernels/metropolis.jl" = "dd51895d242a48490ae94d328af6a2e1367476e42fd0bee0c52f313e35364dc1"
+"lib/CorePotts/src/proposals/samplers.jl" = "9061c8b7eb74e4df61407ed3c45e82b43c5512815ca9a2ced238e00a296cdb22"
+"lib/CorePotts/src/sciml/simulator.jl" = "4b3d968a65ccb299ef2de32155d57a1cdb8d1427a6a5fe67eff02effbced1ee2"
+"lib/CorePotts/src/state/types.jl" = "8def37f8006ba6af652c7e87d9aff17205ac0aec19468dcb810926a5da342846"
+"lib/NeuralPotts/src/NeuralPotts.jl" = "8d6694aa8beab72cf4dfe51139bdad5a9a9621efceffd5450a1a502e472c9b92"
+"src/models.jl" = "8c9d4bab9748b66198a2fdc539f622ccf8ac2da48a5b2757b72d5c4a18c98e02"
+"src/models/test_problems.jl" = "380353455111e61bf01660c581e8775a0e34473111587d99a388e0a76f70b36a"
+"src/problems.jl" = "9436b0c6b5d21644532f986e72bbb74584c36a2913b28f1a98ef9628a2dbde98"
+
+# Mixed replacement/legacy files remain open to clean Phase 7 work. Only the ordered lines that
+# contain quarantined vocabulary are frozen, so new scientific qualifiers and exports are not
+# blocked while any alteration or expansion of the historical region is review-visible.
+[signatures]
+"benchmark/src/PottsBenchmarks.jl" = "0b7eacaf1948d3f2da6ba6925ab9890c80edc2c863eb46898bce05fdc1a413ee"
+"lib/CorePotts/src/CorePotts.jl" = "283f1d5a499400fa0632c04bd4011eadc4d8e2c41eb1a99c0fd5f734aee6c4f1"
+"lib/CorePotts/src/topology/topology.jl" = "c543e6c3aea25a5ff0124287a0f90a7242f76d665116f9690308dcc5d633deaa"

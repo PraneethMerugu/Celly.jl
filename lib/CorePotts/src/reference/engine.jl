@@ -176,11 +176,26 @@ end
 
 component_identity(::SequentialReference) =
     ComponentIdentity(:sequential_reference, v"1.0.0", :algorithm)
-algorithm_guarantees(::SequentialReference) = (
-    time = :exact_candidate_budget,
-    kinetics = :conventional_sequential_cpm,
-    equilibrium = :not_claimed,
-    reproducibility = :same_reference_contract,
+algorithm_guarantees(::SequentialReference) = AlgorithmGuaranteeProfile(
+    proposal_process = (
+        recipient = :uniform_with_replacement,
+        donor = :uniform_direction_with_boundary_no_ops,
+    ),
+    equilibrium_status = :not_claimed,
+    kinetic_interpretation = :conventional_sequential_cpm,
+    transaction_semantics = (
+        snapshot = :ordered_current_state,
+        conflicts = :not_applicable,
+        commit = :immediate_serial,
+    ),
+    mcs_normalization = :exact_n_independent_attempts,
+    reproducibility_scope = :same_reference_contract,
+    compatible_component_scopes = (
+        supported = (:reference_volume, :reference_contact),
+        rejected = (:unimplemented_reference_component,),
+    ),
+    validation_evidence = (:checked_scalar_execution, :exact_attempt_accounting),
+    backend_contract = (:cpu_reference,),
     dimensions = (2,),
 )
 

@@ -76,8 +76,12 @@ CorePotts is the stable engine and extension destination. MakiePotts should cons
 observation interfaces. NeuralPotts is an experimental satellite until the classical simulation
 foundation and differentiation contracts mature.
 
-Hubbard-Stratonovich-transformed penalties are a defining project capability, but they MUST
-participate through the same extensible penalty and lifecycle interfaces as other penalty families.
+Auxiliary constraint and fluctuating mechanical-state components are a defining project capability.
+They MUST participate through the same extensible component, algorithm-capability, backend,
+randomness, checkpoint, and lifecycle interfaces as other scientific families. Historical
+`HST...Penalty` names and detailed-balance claims are not normative: the Hubbard-Stratonovich name
+MUST be used only when a valid transformation has been derived. Equilibrium auxiliary constraints
+and nonequilibrium fluctuating-pressure or fluctuating-tension mechanics MUST be separately named.
 
 ## Compatibility and Release Goal
 

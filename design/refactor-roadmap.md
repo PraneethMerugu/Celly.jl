@@ -12,7 +12,9 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 3: Reference Semantics and Conformance Foundation | Complete | [Conformance-foundation audit](audits/phase-3-conformance-foundation-audit.md), [specification-to-test evidence index](../spec/conformance-evidence.md), and integration `conformance` shard |
 | Phase 4: Core State and Scientific Protocols | Complete | [Phase 4 chunk plan](audits/phase-4-chunk-plan.md), [runtime migration audit](audits/phase-4-runtime-migration-audit.md), and sequential reference vertical slice |
 | Phase 5: Execution, RNG, Workspaces, and Backends | Complete | [Phase 5 completion audit](audits/phase-5-completion-audit.md), CPU/Metal/ROCm qualification, and Decision 0013 |
-| Phases 6-15 | Not started | Blocked by preceding phase gates |
+| Phase 6: Scientific Inner Loop | Complete | Typed component folds, staged transactions, CPU/Metal/ROCm Phase 6 qualification, and tracker reconciliation |
+| Phase 7: Algorithms and Normalized MCS | Pending ROCm | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU and Metal |
+| Phases 8-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
 
@@ -22,7 +24,9 @@ repository migration, engine replacement, API construction, optimization, docume
 qualification so that correctness and performance remain measurable throughout the refactor.
 
 The destination is the accepted architecture, not an intermediate compatibility layer. A phase is
-complete only when its exit gate passes and its obsolete path is removed.
+complete only when its exit gate passes and every obsolete path owned by that phase is removed. A
+quarantined path may be reassigned only when its future owning exit gate is named explicitly and
+new consumers are prohibited.
 
 ## Governing Rules
 
@@ -58,7 +62,8 @@ complete only when its exit gate passes and its obsolete path is removed.
 
 ### Deferred without blocking the paper release
 
-- HST dynamics, until its Hamiltonian, integration, and lifecycle distributions are accepted
+- Stable auxiliary length and focal-point families beyond their required first-class architecture;
+  volume and surface auxiliary families remain on the paper critical path
 - Hexagonal, rhombic-dodecahedral, irregular, and graph-lattice engines
 - Crofton surface estimators
 - Validated CC3D, Morpheus, and Artistoo compatibility presets
@@ -313,23 +318,45 @@ Complete D3 for every required field coupling before freezing its scientific cat
 
 ## Phase 7: Algorithms and Normalized MCS
 
+Current implementation status and requirement-level evidence live in the
+[Phase 7 completion audit](audits/phase-7-completion-audit.md). The only unfinished Phase 7 exit
+condition is real ROCm qualification. Broader performance comparison belongs to Phase 12,
+family-specific lifecycle distributions belong to Phase 8, and no equilibrium or sequential-
+kinetic equivalence is inferred for processes whose guarantee profile explicitly does not claim it.
+
 ### Required gate
 
-Complete D1 for every algorithm intended for implementation or a paper claim.
+Complete D1 for every algorithm intended for implementation or a paper claim. Complete the
+augmented/mechanical law and normalized-time contract for every volume or surface auxiliary family
+intended for stable support; auxiliary state is not deferred around the algorithm architecture.
 
 ### Deliverables
 
 - Implement the conventional sequential reference algorithm first.
-- Replace and delete the quarantined historical penalty, sampler, topology, tracker, and kernel
-  stack atomically as each final algorithm path becomes executable; no compatibility layer is
-  required before the paper API freeze.
-- Implement separately named exact and approximate parallel families only with explicit guarantee
-  profiles.
+- Keep the historical penalty, sampler, topology, tracker, and kernel stack quarantined and prohibit
+  new consumers. PottsToolkit's production compiler, events, persistence paths, docs, and tutorials
+  still depend on that engine, so deleting it before their migration would strand the repository.
+  Delete the stack atomically with the PottsToolkit production-compiler migration in Phases 10-11;
+  no compatibility layer is required before the paper API freeze.
+- Implement `SequentialCPM`, `SequentialEquilibrium`, `CheckerboardSweepCPM`, and `LotteryCPM` as
+  separately named scientific processes with explicit guarantee profiles. Use `Approximate` in a
+  name only for a deliberate relaxation of a named contract; qualify every use of `exact` by the
+  particular guarantee.
+- Make `SequentialCPM` the backend-independent no-algorithm default. GPU selection emits one
+  informational message and never silently changes the scientific algorithm.
 - Make every public step advance exactly one normalized MCS.
-- Make lottery algorithms derive active fraction and internal sweep count from compiled topology and
-  expected proposal-budget normalization.
+- Make lottery algorithms derive activation and internal rounds from qualified compiled topology,
+  with one activated attempt per mutable site in expectation. Activated no-ops and dynamic conflict
+  losers consume their budget; evolving contention does not trigger compensating work.
+- Randomize residual-round placement and any semantically meaningful round order; validate per-site
+  activation, boundary classes, waiting times, and spatial correlation rather than only global `N`.
+- Implement checkerboard as the explicitly distinct once-per-site `CheckerboardSweepCPM` process.
 - Update time-dependent quantities between internal sub-rounds at their accepted rate without
   exposing sweeps as public time.
+- Integrate first-class mechanical state through the same component, semantic RNG, conflict,
+  backend, snapshot, and lifecycle protocols. Remove the invalid historical HST terminology; require
+  fluctuating volume pressure and surface tension for the paper and keep length and focal auxiliary
+  families experimental until independently qualified.
 - Implement conflict handling, acceptance, tracker commits, and RNG addressing without scheduling
   races.
 - Prove or statistically characterize checkerboard, lottery, and intrinsic behavior before naming
@@ -341,8 +368,15 @@ Complete D1 for every algorithm intended for implementation or a paper claim.
 - Attempt accounting equals the normalized MCS contract for every algorithm.
 - Same-run reproducibility passes at each algorithm's accepted guarantee level.
 - Statistical reference batteries pass for every stable algorithm and required workload.
-- Approximate algorithms are visibly named and cannot be selected by an unlabeled exact default.
+- Deliberately approximate algorithms are visibly named and cannot silently replace the sequential
+  reference default.
 - No algorithm relies on a public `sweeps_per_step` or `active_fraction` control.
+- Stable volume and surface auxiliary families pass their claimed marginal or mechanical law,
+  normalized-time, RNG, transaction, and CPU/Metal/ROCm evidence without incidental host sync.
+- The SHA-frozen quarantine inventory, clean replacement-path scan, and base-diff consumer scan pass
+  in required CI. No new package, test, benchmark, tutorial, example, fallback, or production call
+  edge is added against the quarantined engine; final removal is owned by the explicit
+  PottsToolkit compiler-migration gate.
 
 ## Phase 8: Lifecycle, Initialization, and Persistence
 
@@ -362,7 +396,9 @@ Complete D4 and D5 before freezing persistence or initialization APIs.
 - Implement logical snapshots, exact continuation checkpoints, backend-independent restart where
   promised, schema fingerprints, RNG continuation, and provenance.
 - Define and test equivalent logical storage through memory and required HDF5/Zarr extensions.
-- Remove HST-specific behavior from the stable path until HST gates are accepted.
+- Complete family-specific auxiliary initialization, division, transition, death, extinction, and
+  link-lifecycle distributions. Unsupported combinations fail rather than applying a generic HST
+  reset or clone policy.
 
 ### Exit gate
 
@@ -447,6 +483,9 @@ Complete D6 and D7 before declaring the public API candidate.
 - Level 1 and equivalent Level 2 models normalize to the same semantic fingerprint.
 - Macro expansion contains no engine execution and diagnostics identify user source.
 - The complete API candidate has no legacy aliases, constructors, or duplicate modeling paths.
+- The quarantined engine, compiler path, penalties, samplers, topology presets, trackers, kernels,
+  and historical HST implementation are deleted from released package source after conformance
+  parity; no production package, test, or benchmark depends on them.
 
 ## Phase 12: Performance Recovery and Backend Qualification
 

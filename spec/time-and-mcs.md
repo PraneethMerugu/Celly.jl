@@ -12,7 +12,7 @@ with replacement. Exterior ghosts and excluded obstacle storage are not sites an
 to `N`. Ordinary mutable medium sites do contribute.
 
 `step!(integrator)` MUST advance the simulation by exactly one MCS. Fractional public steps are not
-part of specification version `0.1-draft`.
+part of specification version `0.2-draft`.
 
 ## Copy-Attempt Accounting
 
@@ -61,30 +61,65 @@ The lottery algorithm uses expected proposal-budget normalization. Its internal 
 activation fraction and round count MUST be calculated by the algorithm rather than supplied as
 user-facing time controls.
 
-One lottery MCS MUST produce `N` realized proposals in expectation. Actual realized proposal count
-MAY fluctuate. The algorithm MUST report at least:
+An **activated attempt** is a topology-lottery winner that has received one copy-attempt
+opportunity. Sites that participate only by drawing a ticket are scheduler work, not copy attempts.
+Once activated, an attempt consumes the MCS budget even when it becomes a same-owner or invalid-
+boundary no-op, loses a dynamic semantic conflict, is rejected, or is accepted. A dynamic conflict
+loser MUST NOT be retried or replaced by extra work in the same MCS.
 
-- Candidate attempts
-- Lottery conflicts
-- Realized proposals
-- No-op attempts
-- Rejected proposals
+Every mutable recipient site MUST receive one activated attempt per MCS in expectation. A global
+expectation of `N` is necessary but insufficient: boundary or low-conflict-degree sites MUST NOT be
+systematically over-activated. Qualification MUST measure per-site and boundary-class activation,
+waiting-time distributions, repeated activation, and spatial correlation against the sequential
+reference process.
+
+Activation probabilities, full-round count, and residual expected work MUST be derived solely from
+the compiled realized topology and conflict relation. They MUST NOT respond to the current number or
+shape of cells, acceptance rate, observed conflict rate, or other evolving model state. A topology
+for which this calibration has not been established is unsupported by stable `LotteryCPM`; model
+initialization MUST fail with the reason and compatible alternatives rather than silently using a
+biased schedule.
+
+Compilation MAY construct full rounds plus one residual round. The expected round contributions
+MUST sum to one MCS. Any residual placement and any semantically meaningful full-round order MUST be
+randomized per MCS through addressed algorithm streams so that one permanently special final round
+does not define the kinetics. Kernel count still does not define time.
+
+The first stable Cartesian calibration uses the realized compiled conflict graph. If site `i` has
+degree `d_i` and the graph has maximum degree `Delta`, one MCS contains `Delta + 1` randomly ordered
+rounds. In each round site `i` is independently eligible with exact rational probability
+`(d_i + 1) / (Delta + 1)` and is activated only when its collision-free 128-bit semantic ticket is
+the strict maximum over itself and its realized neighbors. The local-maximum probability is
+`1 / (d_i + 1)`, hence every site has round activation probability `1 / (Delta + 1)` and exactly one
+activated opportunity per MCS in expectation. Ineligible sites still draw tickets and can block an
+eligible neighbor; this scheduler work is intentional and is not an activated attempt.
+
+Actual activated-attempt and proposal counts MAY fluctuate. The algorithm MUST report at least:
+
+- Ticket participants or scheduler candidates
+- Activated attempts
+- Dynamic conflict losers
+- Same-owner and invalid-boundary no-ops
+- Constraint and acceptance rejections
 - Accepted moves
 
 The equilibrium and kinetic consequences of expected normalization remain under investigation and
 MUST be documented in the algorithm's guarantee profile.
 
-## Checkerboard Scheduling
+## Checkerboard Sweep Scheduling
 
-Checkerboard color classes execute sequentially. A later color observes mutations committed by
-earlier colors in the same MCS.
+The stable site-sweep family is named `CheckerboardSweepCPM`. Every mutable site is scheduled exactly
+once per MCS without replacement. Its color classes execute sequentially, and a later color observes
+mutations committed by earlier colors in the same MCS.
 
 Color order MUST be randomized once per MCS using a dedicated RNG stream. Proposals within one color
-pass observe the state defined by that algorithm's accepted parallel-execution contract, which remains
-under investigation.
+pass observe one common logical snapshot and commit together through the algorithm's transaction
+law.
 
 The existence of a conflict-free lattice coloring does not by itself establish reference kinetic or
-equilibrium equivalence because nonadjacent sites may modify shared cell-wide state.
+equilibrium equivalence because nonadjacent sites may modify shared cell-wide state. A deterministic
+site sweep has a more regular waiting-time law than recipient sampling with replacement and MUST NOT
+be presented as ordinary sequential CPM kinetics.
 
 ## Algorithm Comparability
 
@@ -101,6 +136,24 @@ applicable:
 
 The unqualified term "exact" MUST NOT serve as an algorithm guarantee.
 
+### Stable Phase 7 Capability Matrix
+
+Algorithm stability does not require every component to run under every scheduler. The accepted
+paper capability boundary is:
+
+| Capability | Sequential families | `CheckerboardSweepCPM` | `LotteryCPM` |
+| --- | --- | --- | --- |
+| Local/cell-wide Hamiltonians, fields, drives, and rate modifiers | Supported subject to the selected equilibrium profile | Supported with declared snapshot access | Supported with declared snapshot access |
+| Fluctuating volume pressure and surface tension | `SequentialCPM` only | Supported | Supported |
+| Exact connectivity constraint with proposal-private traversal | Supported | Rejected at initialization | Rejected at initialization |
+| Unwrapped moments and focal-point links | Supported | Rejected at initialization | Rejected at initialization |
+
+These rejections are valid stable capabilities, not silent fallbacks or incomplete clocks.
+Fragmentation is valid model behavior unless a user selects the connectivity constraint; users who
+select it can use the sequential family. Parallel connectivity or focal coupling becomes a separate
+optimization task only when a concrete paper workload requires it and its transaction law is
+derived. It does not block qualification of the current parallel processes.
+
 ## Event Time
 
 Stable events are scheduled at integer MCS boundaries. Each event owns its own schedule. A global
@@ -111,8 +164,9 @@ schedule. Exact MCS-zero behavior will be specified with the event scheduling AP
 
 ## Parameter Time Scale
 
-Temperature, penalty parameters, growth rates, event schedules, HST rates, and other temporal model
-parameters MUST be interpreted in MCS units independently of the chosen execution algorithm.
+Temperature, penalty parameters, growth rates, event schedules, auxiliary relaxation rates, and
+other temporal model parameters MUST be interpreted in MCS units independently of the chosen
+execution algorithm.
 
 An algorithm whose kinetics are not reference-equivalent MUST document the limitation and any
 calibration. Routine runtime warnings are not required.
@@ -131,7 +185,9 @@ sum(delta_tau_r) = 1 MCS
 For stochastic internal-round counts, auxiliary time SHOULD use expected normalized work rather than
 the realized random proposal count, so contention does not make the physical clock stochastic.
 
-A symmetric operator-splitting strategy is the current recommendation:
+A symmetric operator-splitting strategy is the accepted default composition for first-class
+auxiliary constraint or mechanical state when the component's mathematics does not require another
+invariant composition:
 
 ```text
 advance auxiliary state by delta_tau / 2
@@ -139,5 +195,7 @@ execute normalized proposal work for delta_tau
 advance auxiliary state by delta_tau / 2
 ```
 
-The HST integration scheme, substep policy, and proof obligations remain under investigation and are
-not yet accepted semantics.
+Every such component MUST define its augmented or mechanical state law, update over `delta_tau`, RNG
+addressing, algorithm compatibility, and claimed invariant or kinetic interpretation. A derived
+invariant composition overrides the symmetric default. PDE and other external-field evolution
+remain separately selected SciML couplings and are not implied by this rule.

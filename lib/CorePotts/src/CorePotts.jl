@@ -37,6 +37,10 @@ include("components/scientific_fields.jl")
 include("components/scientific_queries.jl")
 include("components/scientific_focal_points.jl")
 include("components/scientific_inner_loop.jl")
+include("components/scientific_mechanics.jl")
+include("algorithms/sequential.jl")
+include("algorithms/checkerboard.jl")
+include("algorithms/lottery.jl")
 include("reference/engine.jl")
 
 include("initialization/initialization.jl")
@@ -109,7 +113,8 @@ export DivisionRequest, LogicalDivisionResult, LogicalRetirementResult,
        retire_zero_volume, release_retired_slots, immediately_remove_cell,
        transition_cell_type
 export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticModifier,
-       ScientificCapabilities, CopyProposal,
+       AbstractMechanicalComponent,
+       ScientificCapabilities, AlgorithmGuaranteeProfile, CopyProposal,
        CopyAttemptOutcome, ActionableCopy, SameOwnerAttempt, BoundaryNullAttempt,
        ImmutableRecipientAttempt, CopyAttempt, is_actionable, actionable_proposal,
        construct_copy_attempt, proposal_probabilities, AbstractAcceptanceLaw,
@@ -117,10 +122,12 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticMod
        acceptance_probability, acceptance_decision,
        ScientificInterfaceError, ScientificInterfaceReport, component_identity,
        required_properties, required_observables, required_relations, capabilities,
+       UnsupportedScientificAccess, SnapshotScientificAccess, scientific_access,
        energy_change, drive_log_bias, is_allowed, rebuild_tracker, event_effects,
        LogicalCopyResult, commit_copy_proposal,
        algorithm_guarantees, topology_dimensions, validate_energy_component,
        validate_drive_component, validate_constraint_component, validate_tracker_component,
+       validate_mechanical_component,
        validate_event_component, validate_algorithm_component, validate_topology_component,
        test_energy_component, test_tracker, test_event, test_algorithm, test_topology
 export CellPropertyRef, property_key, MediumTypeTable, owner_type,
@@ -128,7 +135,12 @@ export CellPropertyRef, property_key, MediumTypeTable, owner_type,
        AbstractBoundaryMetric, BoundaryEdgeCount, WeightedBoundaryCount,
        MagnoAxisCalibrationV1, NormalizedKernelMeasure,
        boundary_measure, boundary_measure_change, QuadraticBoundaryHamiltonian,
-       global_energy, surface_semantics_report
+       global_energy, surface_semantics_report,
+       MechanicalInitialization, ConstitutiveMeanInitialization,
+       StationaryMechanicalInitialization, PreserveMechanicalInitialization,
+       AlgorithmTemperatureNoise, FixedMechanicalNoise,
+       FluctuatingVolumePressure, FluctuatingSurfaceTension, mechanical_work,
+       mechanical_ou_transition
 export OwnershipVolumeTracker, BoundaryMeasureTracker, NoMomentStorage, NoMomentDelta,
        ScientificTrackerStorage, ScientificExecutionState, scientific_execution,
        CompiledScientificState, compile_scientific_state, scientific_storage_valid,
@@ -156,13 +168,18 @@ export UnwrappedMomentTracker, UnwrappedMomentStorage, UnwrappedMomentDelta,
 export ScientificComponentSet, NoConnectivityWorkspace, ScientificProposalContext,
        ScientificCopyEvaluation, evaluate_copy, acceptance_inputs,
        scientific_components_report
+export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM,
+       ScientificPottsIntegrator,
+       ScientificMCSReport, init_scientific, current_mcs_report
 export ReferenceVolumeEnergy, ReferenceContactEnergy, ReferenceModel, SequentialReference,
        ReferenceIntegrator, ReferenceMCSReport, reference_energy, init_reference,
        step_reference!, reference_rng_version
 export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddress,
        LayoutPlacementStream, LayoutPermutationStream, ProposalRecipientStream,
        ProposalDirectionStream, AcceptanceStream, LotteryActivationStream,
-       LotteryPriorityStream, CheckerboardOrderStream, HSTStream, RuleStream,
+       LotteryPriorityStream, CheckerboardOrderStream, AuxiliaryEvolutionStream, RuleStream,
+       CheckerboardPriorityStream,
+       AuxiliaryInitializationStream,
        EventStream, DivisionOrientationStream, PropertyInheritanceStream,
        StochasticRoundingStream, TypeTransitionStream, EnsembleStream,
        GlobalEntity, SiteEntity, CellEntity, EnsembleEntity,

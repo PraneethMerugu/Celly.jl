@@ -17,7 +17,7 @@ Each problem has one realized master seed covering stochastic initialization and
 model randomness never depends on Julia's global or task-local RNG.
 
 Random draws use a versioned counter-based mapping from semantic identity. Named streams isolate
-layout, proposal, acceptance, algorithm scheduling, HST, rules, events, lifecycle, inheritance, and
+layout, proposal, acceptance, algorithm scheduling, auxiliary mechanics, rules, events, lifecycle, inheritance, and
 ensemble randomness. Thread identity, workgroup structure, launch order, and asynchronous scheduling
 do not define draws.
 

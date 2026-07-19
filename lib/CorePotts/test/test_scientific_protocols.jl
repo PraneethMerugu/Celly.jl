@@ -26,7 +26,23 @@ CorePotts.event_effects(::ProtocolEvent) = ()
 
 struct ProtocolAlgorithm <: AbstractPottsAlgorithm end
 CorePotts.component_identity(::ProtocolAlgorithm) = ComponentIdentity(:protocol_algorithm, v"1.0.0", :algorithm)
-CorePotts.algorithm_guarantees(::ProtocolAlgorithm) = :reference
+CorePotts.algorithm_guarantees(::ProtocolAlgorithm) = AlgorithmGuaranteeProfile(
+    proposal_process = :protocol_reference,
+    equilibrium_status = :not_claimed,
+    kinetic_interpretation = :protocol_reference,
+    transaction_semantics = :serial,
+    mcs_normalization = :exact_reference_budget,
+    reproducibility_scope = :test_fixture,
+    compatible_component_scopes = (:protocol,),
+    validation_evidence = (:protocol_fixture,),
+    backend_contract = (:cpu,),
+    dimensions = (2,),
+)
+
+struct MalformedProtocolAlgorithm <: AbstractPottsAlgorithm end
+CorePotts.component_identity(::MalformedProtocolAlgorithm) =
+    ComponentIdentity(:malformed_protocol_algorithm, v"1.0.0", :algorithm)
+CorePotts.algorithm_guarantees(::MalformedProtocolAlgorithm) = :unstructured
 
 struct ProtocolTopology <: AbstractTopology{2} end
 CorePotts.component_identity(::ProtocolTopology) = ComponentIdentity(:protocol_topology, v"1.0.0", :topology)
@@ -46,6 +62,7 @@ struct IncompleteEnergy <: AbstractEnergy end
     @test test_tracker(ProtocolTracker(), state).category === :tracker
     @test test_event(ProtocolEvent()).category === :event
     @test test_algorithm(ProtocolAlgorithm()).category === :algorithm
+    @test_throws ArgumentError test_algorithm(MalformedProtocolAlgorithm())
     @test test_topology(ProtocolTopology()).category === :topology
     @test rebuild_tracker(ProtocolTracker(), state) == 1
     @test_throws ScientificInterfaceError validate_energy_component(IncompleteEnergy())

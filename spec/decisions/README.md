@@ -20,6 +20,7 @@ corresponding specification document.
 - [0013: Current first-class backend contract](0013-current-backend-contract.md)
 - [0014: Field-coupling scientific categories](0014-field-coupling-categories.md)
 - [0015: Focal-point springs and periodic centers](0015-focal-point-and-periodic-centers.md)
+- [0016: Phase 7 algorithms, normalized time, and first-class auxiliary state](0016-phase-7-algorithms-and-auxiliary-state.md)
 
 ## Record Template
 

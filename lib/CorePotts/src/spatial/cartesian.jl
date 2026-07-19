@@ -77,6 +77,14 @@ function CartesianDomain(dims::NTuple{N, <:Integer};
     normalized_dims = ntuple(i -> Int(dims[i]), Val(N))
     all(>(0), normalized_dims) ||
         throw(ArgumentError("Cartesian dimensions must be positive"))
+    all(<=(typemax(Int32)), normalized_dims) || throw(ArgumentError(
+        "Cartesian dimensions must fit the compiled Int32 coordinate representation"))
+    site_count = UInt64(1)
+    for extent in normalized_dims
+        site_count <= UInt64(typemax(UInt32)) ÷ UInt64(extent) || throw(ArgumentError(
+            "Cartesian site count must fit the compiled UInt32 site representation"))
+        site_count *= UInt64(extent)
+    end
     length(boundaries) == N ||
         throw(ArgumentError("one boundary pair is required per axis"))
     boundary_tuple = Tuple(boundaries)
@@ -121,9 +129,9 @@ function immutable_owner(domain::CartesianDomain, site)
     return OwnerRef(domain.immutable_tags[index], domain.immutable_ids[index])
 end
 
-"""Host-only domain information required to interpret compiled storage."""
+"""Device-safe domain metadata required to interpret compiled storage."""
 struct CartesianDomainDescriptor{N, T <: AbstractFloat, B <: Tuple}
-    dims::NTuple{N, Int}
+    dims::NTuple{N, Int32}
     spacing::SVector{N, T}
     boundaries::B
 end
@@ -156,7 +164,8 @@ function Adapt.adapt_structure(to, domain::CompiledCartesianDomain)
 end
 
 function compile_domain(domain::CartesianDomain)
-    descriptor = CartesianDomainDescriptor(domain.dims, domain.spacing, domain.boundaries)
+    device_dims = ntuple(i -> Int32(domain.dims[i]), Val(length(domain.dims)))
+    descriptor = CartesianDomainDescriptor(device_dims, domain.spacing, domain.boundaries)
     mutable_sites = UInt32.(findall(vec(domain.mutable_mask)))
     storage = CompiledCartesianDomainStorage(
         UInt8.(domain.mutable_mask), mutable_sites,
@@ -400,20 +409,25 @@ function fixed_owner(neighbor::RealizedNeighbor)
         "the realized neighbor does not carry a fixed owner"))
 end
 
-@inline function _linear_index(coordinates::SVector{N, Int32}, dims::NTuple{
-        N, Int}) where {N}
+@inline _fixed_owner_unchecked(neighbor::RealizedNeighbor) =
+    _owner_ref_unchecked(neighbor.owner_tag, neighbor.owner_id)
+
+@inline function _linear_index(coordinates::SVector{N, Int32},
+        dims::NTuple{N, I}) where {N, I <: Integer}
     index = Int32(0)
     stride = Int32(1)
     for dimension in 1:N
         index += coordinates[dimension] * stride
         stride *= Int32(dims[dimension])
     end
-    return UInt32(index + Int32(1))
+    return Base.unsafe_trunc(UInt32, index + Int32(1))
 end
 
-@inline function _site_coordinates(site::Integer, dims::NTuple{N, Int}) where {N}
-    coordinates = idx_to_coord(UInt32(site), dims)
-    return SVector{N, Int32}(ntuple(i -> Int32(coordinates[i]), Val(N)))
+@inline function _site_coordinates(
+        site::Integer, dims::NTuple{N, I}) where {N, I <: Integer}
+    coordinates = idx_to_coord(Base.unsafe_trunc(UInt32, site), dims)
+    return SVector{N, Int32}(ntuple(
+        i -> Base.unsafe_trunc(Int32, coordinates[i]), Val(N)))
 end
 
 struct BoundaryResolution{N}
@@ -425,20 +439,28 @@ struct BoundaryResolution{N}
     owner_id::UInt32
 end
 
-@inline function _resolve_face(::PeriodicBoundary, value::Int32, extent::Int,
+@inline function _resolve_face(::PeriodicBoundary, value::Int32, extent::Integer,
         state::BoundaryResolution{N}, ::Val{D}) where {N, D}
-    coordinates = setindex(state.coordinates, Int32(mod(value, extent)), D)
+    extent32 = Base.unsafe_trunc(Int32, extent)
+    wrapped = value
+    while wrapped < Int32(0)
+        wrapped += extent32
+    end
+    while wrapped >= extent32
+        wrapped -= extent32
+    end
+    coordinates = setindex(state.coordinates, wrapped, D)
     return BoundaryResolution(coordinates, state.closed, state.fixed, state.invalid,
         state.owner_tag, state.owner_id)
 end
 
-@inline function _resolve_face(::ClosedBoundary, value::Int32, extent::Int,
+@inline function _resolve_face(::ClosedBoundary, value::Int32, extent::Integer,
         state::BoundaryResolution{N}, ::Val{D}) where {N, D}
     return BoundaryResolution(state.coordinates, true, state.fixed,
         state.invalid | state.fixed, state.owner_tag, state.owner_id)
 end
 
-@inline function _resolve_face(face::FixedExterior, value::Int32, extent::Int,
+@inline function _resolve_face(face::FixedExterior, value::Int32, extent::Integer,
         state::BoundaryResolution{N}, ::Val{D}) where {N, D}
     owner = face.owner
     incompatible_owner = state.fixed &
@@ -447,11 +469,12 @@ end
         state.invalid | state.closed | incompatible_owner, owner.tag, owner.value)
 end
 
-@inline _resolve_axes(::Tuple{}, candidate::SVector{N, Int32}, dims::NTuple{N, Int},
-    state::BoundaryResolution{N}, ::Val{D}) where {N, D} = state
+@inline _resolve_axes(::Tuple{}, candidate::SVector{N, Int32}, dims::NTuple{N, I},
+    state::BoundaryResolution{N}, ::Val{D}) where {N, I <: Integer, D} = state
 
 @inline function _resolve_axes(boundaries::Tuple, candidate::SVector{N, Int32},
-        dims::NTuple{N, Int}, state::BoundaryResolution{N}, ::Val{D}) where {N, D}
+        dims::NTuple{N, I}, state::BoundaryResolution{N}, ::Val{D}) where {
+        N, I <: Integer, D}
     axis = first(boundaries)
     value = candidate[D]
     next_state = if value < 0
@@ -464,14 +487,13 @@ end
     return _resolve_axes(Base.tail(boundaries), candidate, dims, next_state, Val(D + 1))
 end
 
-@inline function _realize_neighbor(dims::NTuple{N, Int}, boundaries, mutable_mask,
+@inline function _realize_neighbor_unchecked(dims::NTuple{N, I}, boundaries, mutable_mask,
         immutable_tags, immutable_ids, relation::StaticCartesianRelation{R, N},
-        site::Integer, direction::Integer) where {R, N}
-    1 <= site <= prod(dims) || throw(BoundsError(1:prod(dims), site))
-    1 <= direction <= direction_count(relation) ||
-        throw(BoundsError(relation.offsets, direction))
+        site::Integer, direction::Integer) where {R, N, I <: Integer}
+    # Preconditions are established by CartesianDomain, relation validation, and the caller's
+    # checked public boundary. Keeping them out of this path avoids device exception branches.
     coordinates = _site_coordinates(site, dims)
-    candidate = coordinates + relation_offset(relation, direction)
+    candidate = coordinates + @inbounds(relation.offsets[direction])
     initial = BoundaryResolution(candidate, false, false, false, UInt8(0), UInt32(0))
     resolution = _resolve_axes(boundaries, candidate, dims, initial, Val(1))
     if resolution.invalid
@@ -485,14 +507,39 @@ end
             resolution.owner_tag, resolution.owner_id)
     end
     neighbor_site = _linear_index(resolution.coordinates, dims)
-    if mutable_mask[neighbor_site] != 0
+    if @inbounds(mutable_mask[neighbor_site]) != 0
         return RealizedNeighbor(MutableNeighbor, neighbor_site, 0, 0)
     elseif _allows_fixed_owner(relation.role)
         return RealizedNeighbor(FixedNeighbor, neighbor_site,
-            immutable_tags[neighbor_site], immutable_ids[neighbor_site])
+            @inbounds(immutable_tags[neighbor_site]),
+            @inbounds(immutable_ids[neighbor_site]))
     else
         return RealizedNeighbor(AbsentNeighbor, 0, 0, 0)
     end
+end
+
+@inline function _realize_neighbor(dims::NTuple{N, I}, boundaries, mutable_mask,
+        immutable_tags, immutable_ids, relation::StaticCartesianRelation{R, N},
+        site::Integer, direction::Integer) where {R, N, I <: Integer}
+    1 <= site <= prod(dims) || throw(BoundsError(1:prod(dims), site))
+    1 <= direction <= direction_count(relation) ||
+        throw(BoundsError(relation.offsets, direction))
+    return _realize_neighbor_unchecked(dims, boundaries, mutable_mask,
+        immutable_tags, immutable_ids, relation, site, direction)
+end
+
+@inline function _realize_neighbor_unchecked(
+        domain::Union{CartesianDomain, CompiledCartesianDomain},
+        relation::StaticCartesianRelation, site::Integer, direction::Integer)
+    if domain isa CartesianDomain
+        return _realize_neighbor_unchecked(domain.dims, domain.boundaries,
+            domain.mutable_mask, domain.immutable_tags, domain.immutable_ids,
+            relation, site, direction)
+    end
+    return _realize_neighbor_unchecked(domain.descriptor.dims,
+        domain.descriptor.boundaries, domain.storage.mutable_mask,
+        domain.storage.immutable_tags, domain.storage.immutable_ids,
+        relation, site, direction)
 end
 
 function realize_neighbor(domain::CartesianDomain, relation::StaticCartesianRelation,
@@ -509,24 +556,40 @@ function realize_neighbor(
         domain.storage.immutable_ids, relation, site, direction)
 end
 
-"""Reject self-edges, periodic aliases, ambiguous corners, and role/domain dimension mismatch."""
-function validate_relation_domain(domain::CartesianDomain{N},
-        relation::StaticCartesianRelation{R, M}) where {N, R, M}
+function _validate_relation_geometry(dims, boundaries, relation, ::Val{N},
+        ::Val{M}) where {N, M}
     N == M || throw(ArgumentError("relation and Cartesian domain dimensions must match"))
-    for site in findall(vec(domain.mutable_mask))
+    for site in 1:prod(dims)
         realized_sites = UInt32[]
         for direction in 1:direction_count(relation)
-            neighbor = realize_neighbor(domain, relation, site, direction)
-            neighbor.kind === InvalidNeighbor && throw(ArgumentError(
+            coordinates = _site_coordinates(site, dims)
+            candidate = coordinates + relation_offset(relation, direction)
+            initial = BoundaryResolution(candidate, false, false, false, UInt8(0), UInt32(0))
+            resolution = _resolve_axes(boundaries, candidate, dims, initial, Val(1))
+            resolution.invalid && throw(ArgumentError(
                 "a relation crosses incompatible boundary faces at site $site"))
-            if neighbor.site != 0
-                neighbor.site == site && throw(ArgumentError(
-                    "a nonzero relation offset realizes a self-edge at site $site"))
-                neighbor.site in realized_sites && throw(ArgumentError(
-                    "distinct relation offsets realize the same neighbor at site $site"))
-                push!(realized_sites, neighbor.site)
-            end
+            (resolution.closed || resolution.fixed) && continue
+            neighbor_site = _linear_index(resolution.coordinates, dims)
+            neighbor_site == site && throw(ArgumentError(
+                "a nonzero relation offset realizes a self-edge at site $site"))
+            neighbor_site in realized_sites && throw(ArgumentError(
+                "distinct relation offsets realize the same neighbor at site $site"))
+            push!(realized_sites, neighbor_site)
         end
     end
     return relation
+end
+
+"""Reject self-edges, periodic aliases, ambiguous corners, and role/domain dimension mismatch."""
+function validate_relation_domain(domain::CartesianDomain{N},
+        relation::StaticCartesianRelation{R, M}) where {N, R, M}
+    return _validate_relation_geometry(
+        domain.dims, domain.boundaries, relation, Val(N), Val(M))
+end
+
+function validate_relation_domain(domain::CompiledCartesianDomain{<:CartesianDomainDescriptor{N}},
+        relation::StaticCartesianRelation{R, M}) where {N, R, M}
+    descriptor = domain.descriptor
+    return _validate_relation_geometry(
+        descriptor.dims, descriptor.boundaries, relation, Val(N), Val(M))
 end
