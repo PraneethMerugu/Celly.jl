@@ -51,7 +51,7 @@ and lottery initialization errors. Length and focal auxiliary mechanics remain e
 | Stable mechanical law and clock | Volume pressure and surface tension pass exact transition, work-sign, initialization, one-MCS composition, replay, and transaction fixtures | Complete on CPU and Metal |
 | No incidental host synchronization | Algorithm and mechanics qualifiers report zero synchronization inside an MCS; observation remains explicit | Complete on CPU and Metal |
 | Current backend contract | CPU and real Metal pass; the repository workflow is wired to run the same matrix on AMDGPU | **ROCm pending** |
-| Quarantine discipline | `scripts/check_legacy_containment.jl` validates frozen digests, a clean replacement path, and no base-diff consumer additions; final atomic deletion remains owned by the PottsToolkit compiler migration in Phases 10--11 | Complete |
+| Quarantine discipline | `scripts/check_legacy_containment.jl` validates frozen production digests, frozen consumer signatures, an exhaustive inventory, and a clean replacement path independently of pull-request history; final atomic deletion remains owned by the PottsToolkit compiler migration in Phases 10--11 | Complete |
 
 ## Local and Metal evidence
 

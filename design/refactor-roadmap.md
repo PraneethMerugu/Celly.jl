@@ -373,10 +373,10 @@ intended for stable support; auxiliary state is not deferred around the algorith
 - No algorithm relies on a public `sweeps_per_step` or `active_fraction` control.
 - Stable volume and surface auxiliary families pass their claimed marginal or mechanical law,
   normalized-time, RNG, transaction, and CPU/Metal/ROCm evidence without incidental host sync.
-- The SHA-frozen quarantine inventory, clean replacement-path scan, and base-diff consumer scan pass
-  in required CI. No new package, test, benchmark, tutorial, example, fallback, or production call
-  edge is added against the quarantined engine; final removal is owned by the explicit
-  PottsToolkit compiler-migration gate.
+- The SHA-frozen production inventory, ordered consumer-signature inventory, and clean
+  replacement-path scan pass in required CI independently of pull-request history. No new package,
+  test, benchmark, tutorial, example, fallback, or production call edge is added against the
+  quarantined engine; final removal is owned by the explicit PottsToolkit compiler-migration gate.
 
 ## Phase 8: Lifecycle, Initialization, and Persistence
 

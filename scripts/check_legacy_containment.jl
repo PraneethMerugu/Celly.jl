@@ -76,6 +76,12 @@ function forbidden_matches(text)
     return [string(pattern) for pattern in FORBIDDEN_PATTERNS if occursin(pattern, text)]
 end
 
+function quarantined_signature(path)
+    matching_lines = [line for line in eachline(path)
+                      if !isempty(forbidden_matches(line))]
+    return bytes2hex(sha256(codeunits(join(matching_lines, "\n") * "\n")))
+end
+
 require(isfile(FREEZE_FILE), "missing Phase 7 legacy freeze manifest")
 freeze = TOML.parsefile(FREEZE_FILE)
 require(get(freeze, "version", nothing) == 1, "unsupported legacy freeze manifest version")
@@ -83,6 +89,8 @@ frozen_files = get(freeze, "files", Dict{String, Any}())
 require(!isempty(frozen_files), "legacy freeze manifest has no files")
 frozen_signatures = get(freeze, "signatures", Dict{String, Any}())
 require(!isempty(frozen_signatures), "legacy freeze manifest has no mixed-file signatures")
+consumer_signatures = get(freeze, "consumer_signatures", Dict{String, Any}())
+require(!isempty(consumer_signatures), "legacy freeze manifest has no consumer signatures")
 
 for (path, expected_digest) in sort!(collect(frozen_files); by = first)
     absolute = joinpath(ROOT, path)
@@ -96,63 +104,39 @@ end
 for (path, expected_digest) in sort!(collect(frozen_signatures); by = first)
     absolute = joinpath(ROOT, path)
     require(isfile(absolute), "mixed legacy consumer `$path` disappeared without manifest cleanup")
-    matching_lines = [line for line in eachline(absolute)
-                      if !isempty(forbidden_matches(line))]
-    actual_digest = bytes2hex(sha256(codeunits(join(matching_lines, "\n") * "\n")))
+    actual_digest = quarantined_signature(absolute)
     require(actual_digest == expected_digest,
         "quarantined lines in mixed source `$path` changed; update only through an explicit audit")
 end
 
+
+for (path, expected_digest) in sort!(collect(consumer_signatures); by = first)
+    absolute = joinpath(ROOT, path)
+    require(isfile(absolute),
+        "legacy test/tutorial consumer `$path` disappeared without manifest cleanup")
+    actual_digest = quarantined_signature(absolute)
+    require(actual_digest == expected_digest,
+        "quarantined lines in consumer `$path` changed; update only through an explicit migration audit")
+end
+
 all_sources = relative_julia_sources(ROOT)
-inventory = union(Set(keys(frozen_files)), Set(keys(frozen_signatures)))
+production_inventory = union(Set(keys(frozen_files)), Set(keys(frozen_signatures)))
 for path in all_sources
+    matches = forbidden_matches(read(joinpath(ROOT, path), String))
     if production_source(path)
-        matches = forbidden_matches(read(joinpath(ROOT, path), String))
-        require(isempty(matches) || path in inventory,
+        require(isempty(matches) || path in production_inventory,
             "production legacy consumer `$path` is absent from the frozen inventory: " *
+            join(matches, ", "))
+    elseif path != "scripts/check_legacy_containment.jl"
+        require(isempty(matches) || haskey(consumer_signatures, path),
+            "test/tutorial legacy consumer `$path` is absent from the frozen inventory: " *
             join(matches, ", "))
     end
     protected_scientific_source(path) || continue
-    matches = forbidden_matches(read(joinpath(ROOT, path), String))
     require(isempty(matches),
         "scientific source `$path` references quarantined vocabulary: $(join(matches, ", "))")
 end
 
-# The change-level check covers packages, tests, benchmarks, tutorials, examples, and integration
-# fixtures. Deletions are allowed; added historical references are not. The checker itself is the
-# sole control-file exception because it must spell the rejected vocabulary.
-base = get(ENV, "BASE_SHA", "")
-diff_command = if isempty(base)
-    `git -C $ROOT diff --unified=0 HEAD -- '*.jl'`
-else
-    `git -C $ROOT diff --unified=0 $base...HEAD -- '*.jl'`
-end
-function added_legacy_violations(diff_text)
-    current_path = ""
-    violations = String[]
-    for line in eachline(IOBuffer(diff_text))
-        if startswith(line, "+++ b/")
-            current_path = line[7:end]
-        elseif startswith(line, "+") && !startswith(line, "+++") &&
-               current_path != "scripts/check_legacy_containment.jl"
-            matches = forbidden_matches(line[2:end])
-            isempty(matches) || push!(violations,
-                "$current_path adds $(join(matches, ", ")): $(line[2:end])")
-        end
-    end
-    return violations
-end
-
-require(isempty(added_legacy_violations("diff --git a/src/new.jl b/src/new.jl\n" *
-    "+++ b/src/new.jl\n+SequentialCPM()\n")),
-    "legacy diff checker rejected replacement API vocabulary")
-require(length(added_legacy_violations("diff --git a/src/new.jl b/src/new.jl\n" *
-    "+++ b/src/new.jl\n+active_fraction = 0.1\n")) == 1,
-    "legacy diff checker failed its rejection self-test")
-violations = added_legacy_violations(read(diff_command, String))
-require(isempty(violations),
-    "new Julia code consumes quarantined legacy vocabulary:\n" * join(violations, "\n"))
-
 println("Phase 7 legacy containment passes: $(length(frozen_files)) frozen files, " *
-        "$(length(frozen_signatures)) mixed-file signatures, clean scientific path, and no " *
-        "added legacy consumers")
+        "$(length(frozen_signatures)) mixed production signatures, " *
+        "$(length(consumer_signatures)) frozen consumer signatures, and a clean scientific path")
