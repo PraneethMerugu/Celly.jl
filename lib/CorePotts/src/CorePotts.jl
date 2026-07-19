@@ -8,7 +8,8 @@ using StaticArrays
 using Adapt
 using Random
 using SciMLBase
-using LinearAlgebra: issymmetric
+using LinearAlgebra: issymmetric, eigen, Symmetric
+using SHA
 import Atomix
 import SciMLBase: solve
 
@@ -23,6 +24,7 @@ include("state/types.jl")
 include("state/logical.jl")
 include("spatial/cartesian.jl")
 include("state/lifecycle.jl")
+include("lifecycle/scientific.jl")
 include("execution/dispatch.jl")
 include("rng/semantic.jl")
 include("execution/contracts.jl")
@@ -32,15 +34,18 @@ include("components/components.jl")
 include("components/training.jl")
 include("protocols/scientific.jl")
 include("components/scientific_components.jl")
+include("lifecycle/reference.jl")
 include("components/scientific_trackers.jl")
 include("components/scientific_fields.jl")
 include("components/scientific_queries.jl")
 include("components/scientific_focal_points.jl")
 include("components/scientific_inner_loop.jl")
 include("components/scientific_mechanics.jl")
+include("lifecycle/compiled.jl")
 include("algorithms/sequential.jl")
 include("algorithms/checkerboard.jl")
 include("algorithms/lottery.jl")
+include("persistence/scientific.jl")
 include("reference/engine.jl")
 
 include("initialization/initialization.jl")
@@ -93,10 +98,15 @@ export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGenerat
        PropertyKind, BiologicalProperty, DerivedProperty, AuxiliaryProperty,
        TransientProperty,
        PropertyMutability, ReadOnlyProperty, MutableProperty,
-       DivisionPolicy, CloneOnDivision, SplitOnDivision, ResetChildOnDivision,
-       ResetBothOnDivision, AsymmetricResetOnDivision, TransformOnDivision,
-       TransitionPolicy, PreserveOnTransition, ResetOnTransition, TransformOnTransition,
-       RecomputeOnTransition, InvalidTransition, RetirementPolicy, ResetOnRetirement,
+       AbstractDivisionPolicy, CloneOnDivision, SplitOnDivision, ResetChildOnDivision,
+       ResetBothOnDivision, AsymmetricResetOnDivision, UnsupportedDivision,
+       AbstractMechanicalDivisionPolicy, ConstitutiveResetAfterDivision,
+       PreserveMechanicalOnDivision, StationaryRedrawAfterDivision,
+       AbstractTransitionPolicy, PreserveOnTransition, ResetOnTransition,
+       RecomputeOnTransition, UnsupportedTransition,
+       AbstractRetirementPolicy, ResetOnRetirement,
+       DivisionPropertyContext, DivisionPropertyUpdate, TransitionPropertyContext,
+       division_property_update, transition_property_value, retired_property_value,
        ComponentIdentity, ConstantInitializer, AbstractPropertyDescriptor,
        PropertyDescriptor,
        PropertySchema, PropertySchemaConflictError, property_keys, property_descriptor,
@@ -112,6 +122,43 @@ export DivisionRequest, LogicalDivisionResult, LogicalRetirementResult,
        apply_division_batch,
        retire_zero_volume, release_retired_slots, immediately_remove_cell,
        transition_cell_type
+export AbstractMCSSchedule, EveryMCS, OnceAtMCS, AtMCS, PeriodicMCS, is_due,
+       AbstractLifecycleTarget, ActiveCellsTarget, GlobalModelTarget,
+       PreLifecycleSnapshot, AbstractLifecycleTrigger, AbstractLifecycleEffect,
+       lifecycle_triggered, plan_lifecycle_effect, LifecycleEvent,
+       LifecycleConflictClaim, AbstractLifecycleConflictResolver,
+       RejectLifecycleConflicts, StableLifecyclePriority, LifecycleConflictError,
+       resolve_lifecycle_conflicts,
+       AbstractDivisionGeometry, DivisionSiteContext, division_region,
+       BinaryPartitionReport, validate_binary_partition
+export LifecycleRNGContext, AlwaysLifecycleTrigger, PropertyAtLeast,
+       BernoulliCellTrigger,
+       AbstractLifecyclePlan, AbstractPropertyLifecyclePlan,
+       AbstractTransitionLifecyclePlan, AbstractDivisionLifecyclePlan,
+       AbstractDeathLifecyclePlan,
+       AddCellProperty, TransitionCell, DivideCell, InitiateShrinkDeath,
+       AbstractRemovalCause, ProgrammedImmediateDeath, StochasticExtinction,
+       RemoveCellImmediately,
+       AddCellPropertyPlan, TransitionCellPlan, DivideCellPlan, ShrinkDeathPlan,
+       RemoveCellPlan,
+       VectorDivision, RandomOrientationDivision, MajorAxisDivision, MinorAxisDivision,
+       prepare_division_geometry, division_sites, identity_target,
+       validate_lifecycle_plan, commit_property_plan!, repair_division_state!, LifecyclePhaseReport,
+       apply_lifecycle_phase
+export NoCompiledLifecycle, CompiledPropertyLifecycle, CompiledLifecycleDescriptor,
+       CompiledLifecycleWorkspace, CompiledLifecycle, compile_lifecycle,
+       compiled_lifecycle_bytes, run_compiled_lifecycle!,
+       AbstractCompiledEffectCategory, CompiledPropertyEffect,
+       CompiledTransitionEffect, CompiledDivisionEffect, CompiledDeathEffect,
+       CompiledCustomEffect, compiled_effect_category, compiled_schedule_due,
+       compiled_identity_change, compiled_is_division, compiled_effect_phase,
+       compiled_target_applies, compiled_lifecycle_triggered,
+       compiled_prepare_division_geometry, compiled_division_region,
+       compiled_division_property_update, compiled_transition_property_value,
+       compiled_retired_property_value, compiled_apply_effect!,
+       compiled_prepare_derived_division!, compiled_accumulate_derived_division!,
+       compiled_retire_derived!,
+       CompiledLifecycleError, current_lifecycle_report
 export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticModifier,
        AbstractMechanicalComponent,
        ScientificCapabilities, AlgorithmGuaranteeProfile, CopyProposal,
@@ -142,6 +189,8 @@ export CellPropertyRef, property_key, MediumTypeTable, owner_type,
        FluctuatingVolumePressure, FluctuatingSurfaceTension, mechanical_work,
        mechanical_ou_transition
 export OwnershipVolumeTracker, BoundaryMeasureTracker, NoMomentStorage, NoMomentDelta,
+       compile_derived_observable, derived_observable_arrays,
+       stage_derived_observable_delta, apply_derived_observable_delta!,
        ScientificTrackerStorage, ScientificExecutionState, scientific_execution,
        CompiledScientificState, compile_scientific_state, scientific_storage_valid,
        scientific_state_bytes, ScientificTrackerDelta, StagedCopyTransaction,
@@ -171,6 +220,17 @@ export ScientificComponentSet, NoConnectivityWorkspace, ScientificProposalContex
 export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM,
        ScientificPottsIntegrator,
        ScientificMCSReport, init_scientific, current_mcs_report
+export ScientificAnalysisSnapshot, ExactContinuationProfile,
+       CanonicalPropertyColumn, CanonicalCheckpoint,
+       CheckpointIntegrityError, CheckpointCompatibilityError,
+       IncompleteCheckpointError, LogicalImportReport,
+       analysis_snapshot, capture_checkpoint, validate_checkpoint,
+       checkpoint_logical_state, scientific_model_fingerprint,
+       restore_checkpoint, import_checkpoint,
+       AbstractCheckpointStore, MemoryCheckpointStore,
+       HDF5CheckpointStore, ZarrCheckpointStore,
+       write_checkpoint!, read_checkpoint,
+       checkpoint_storage_payload, checkpoint_from_storage_payload
 export ReferenceVolumeEnergy, ReferenceContactEnergy, ReferenceModel, SequentialReference,
        ReferenceIntegrator, ReferenceMCSReport, reference_energy, init_reference,
        step_reference!, reference_rng_version
@@ -199,8 +259,16 @@ export BackendFamily, CPUFamily, CUDAFamily, AMDGPUFamily, MetalFamily,
        OrderedAsynchronousLaunches,
        ExplicitObservationSynchronization, ExecutionMetrics, ExecutionPlan, launch!,
        synchronize_observation!, record_transfer!, record_allocation!
-export LayoutOverlapPolicy, ErrorOnOverlap, ReplaceOnOverlap, PreserveOnOverlap,
-       AbstractInitialLayout, InitialCellLayout, InitialMediumLayout,
+export AbstractInitialOverlapPolicy, RejectInitialOverlap, StableInitialPriority,
+       ProvisionalCellID, AbstractInitialLayout, InitialLayoutRequirements,
+       initial_layout_requirements, emit_initial_claims!,
+       InitialCellLayout, InitialMediumLayout, CoordinateCellLayout,
+       InitialCellProperties,
+       DenseCellLabels, AbstractLatticeShape, LatticeBall, LatticeBox,
+       shape_extent, shape_contains, ShapeCellLayout,
+       UniformSiteSeeds, SequentialRejectionPlacement, InitialPlacementError,
+       ProvisionalCellDeclaration, InitialClaimCollector,
+       declare_initial_cell!, emit_initial_cell_claim!, emit_initial_medium_claim!,
        InitialLayoutOverlapError,
        LogicalInitializationReport, InitializedLogicalState, logical_state,
        initialization_report,

@@ -113,26 +113,94 @@ end
     MutableProperty = 2
 end
 
-@enum DivisionPolicy::UInt8 begin
-    CloneOnDivision = 1
-    SplitOnDivision = 2
-    ResetChildOnDivision = 3
-    ResetBothOnDivision = 4
-    AsymmetricResetOnDivision = 5
-    TransformOnDivision = 6
+abstract type AbstractDivisionPolicy end
+abstract type AbstractTransitionPolicy end
+abstract type AbstractRetirementPolicy end
+
+"""Copy one authoritative parent value to both binary descendants."""
+struct CloneOnDivision <: AbstractDivisionPolicy end
+
+"""Conservatively split a numeric value, assigning `child_fraction` to the child."""
+struct SplitOnDivision{T <: AbstractFloat} <: AbstractDivisionPolicy
+    child_fraction::T
+
+    function SplitOnDivision(child_fraction::T) where {T <: AbstractFloat}
+        isfinite(child_fraction) && zero(T) <= child_fraction <= one(T) ||
+            throw(ArgumentError("division child fraction must lie in [0, 1]"))
+        new{T}(child_fraction)
+    end
 end
 
-@enum TransitionPolicy::UInt8 begin
-    PreserveOnTransition = 1
-    ResetOnTransition = 2
-    TransformOnTransition = 3
-    RecomputeOnTransition = 4
-    InvalidTransition = 5
+SplitOnDivision() = SplitOnDivision(0.5f0)
+SplitOnDivision(fraction::Real) = SplitOnDivision(float(fraction))
+
+"""Preserve the parent and initialize the child from the property initializer."""
+struct ResetChildOnDivision <: AbstractDivisionPolicy end
+"""Initialize both descendants from the property initializer."""
+struct ResetBothOnDivision <: AbstractDivisionPolicy end
+
+abstract type AbstractMechanicalDivisionPolicy <: AbstractDivisionPolicy end
+"""Reset both descendant forces to their post-commit constitutive means."""
+struct ConstitutiveResetAfterDivision <: AbstractMechanicalDivisionPolicy end
+"""Clone an intensive mechanical state into both descendants."""
+struct PreserveMechanicalOnDivision <: AbstractMechanicalDivisionPolicy end
+"""Redraw both descendant forces from their post-commit stationary laws."""
+struct StationaryRedrawAfterDivision <: AbstractMechanicalDivisionPolicy end
+
+"""Assign explicit parent and child values after division."""
+struct AsymmetricResetOnDivision{P, C} <: AbstractDivisionPolicy
+    parent::P
+    child::C
 end
 
-@enum RetirementPolicy::UInt8 begin
-    ResetOnRetirement = 1
+"""Explicitly reject division when this property is present."""
+struct UnsupportedDivision{Reason} <: AbstractDivisionPolicy end
+UnsupportedDivision(reason::Symbol) = UnsupportedDivision{reason}()
+UnsupportedDivision() = UnsupportedDivision(:unspecified)
+
+"""Preserve one property value across a compatible type transition."""
+struct PreserveOnTransition <: AbstractTransitionPolicy end
+"""Initialize one property from its schema initializer after transition."""
+struct ResetOnTransition <: AbstractTransitionPolicy end
+"""Mark a derived value for reconstruction after transition."""
+struct RecomputeOnTransition <: AbstractTransitionPolicy end
+"""Explicitly reject a type transition when this property is present."""
+struct UnsupportedTransition{Reason} <: AbstractTransitionPolicy end
+UnsupportedTransition(reason::Symbol) = UnsupportedTransition{reason}()
+UnsupportedTransition() = UnsupportedTransition(:unspecified)
+
+"""Reset a retired property slot to its canonical initializer value."""
+struct ResetOnRetirement <: AbstractRetirementPolicy end
+
+"""Context supplied to a schema-owned binary division policy."""
+struct DivisionPropertyContext
+    parent::CellID
+    child::CellID
+    original_volume::Int
+    parent_volume::Int
+    child_volume::Int
+    dimensions::UInt8
 end
+DivisionPropertyContext(parent, child, original_volume, parent_volume, child_volume) =
+    DivisionPropertyContext(parent, child, original_volume, parent_volume, child_volume, UInt8(0))
+
+"""Complete parent/child result returned by a division policy."""
+struct DivisionPropertyUpdate{T}
+    parent::T
+    child::T
+end
+
+"""Context supplied to a schema-owned type-transition policy."""
+struct TransitionPropertyContext
+    cell::CellID
+    source::CellTypeID
+    destination::CellTypeID
+end
+
+"""Open property lifecycle operations implemented by policy-value dispatch."""
+function division_property_update end
+function transition_property_value end
+function retired_property_value end
 
 """Stable provenance for a scientific component or extension request."""
 struct ComponentIdentity
@@ -165,28 +233,32 @@ ConstantInitializer(value::T) where {T} = ConstantInitializer{T}(value)
 abstract type AbstractPropertyDescriptor end
 
 """Immutable, provenance-aware declaration for one logical fixed-capacity property."""
-struct PropertyDescriptor{T, I, P} <: AbstractPropertyDescriptor
+struct PropertyDescriptor{T, I, D, X, R, P} <: AbstractPropertyDescriptor
     key::Symbol
     initializer::I
     mutability::PropertyMutability
-    division::DivisionPolicy
-    transition::TransitionPolicy
-    retirement::RetirementPolicy
+    division::D
+    transition::X
+    retirement::R
     kind::PropertyKind
     requesters::P
 end
 
 function PropertyDescriptor(key::Symbol, ::Type{T}, initializer::I;
         mutability::PropertyMutability = MutableProperty,
-        division::DivisionPolicy = CloneOnDivision,
-        transition::TransitionPolicy = PreserveOnTransition,
-        retirement::RetirementPolicy = ResetOnRetirement,
+        division::D = UnsupportedDivision(),
+        transition::X = UnsupportedTransition(),
+        retirement::R = ResetOnRetirement(),
         kind::PropertyKind = BiologicalProperty,
-        requester::ComponentIdentity) where {T, I}
+        requester::ComponentIdentity) where {T, I, D <: AbstractDivisionPolicy,
+        X <: AbstractTransitionPolicy, R <: AbstractRetirementPolicy}
     isempty(String(key)) && throw(ArgumentError("property key must not be empty"))
     isbitstype(T) || throw(ArgumentError("property `$key` must use an isbits logical type"))
     isbitstype(I) || throw(ArgumentError("property `$key` initializer must be isbits"))
-    return PropertyDescriptor{T, I, Tuple{ComponentIdentity}}(
+    isbitstype(D) || throw(ArgumentError("property `$key` division policy must be isbits"))
+    isbitstype(X) || throw(ArgumentError("property `$key` transition policy must be isbits"))
+    isbitstype(R) || throw(ArgumentError("property `$key` retirement policy must be isbits"))
+    return PropertyDescriptor{T, I, D, X, R, Tuple{ComponentIdentity}}(
         key, initializer, mutability, division, transition, retirement, kind, (requester,))
 end
 
@@ -196,13 +268,15 @@ property_requesters(descriptor::PropertyDescriptor) = descriptor.requesters
 function _same_property_contract(left::PropertyDescriptor, right::PropertyDescriptor)
     return left.key === right.key && value_type(left) === value_type(right) &&
            isequal(left.initializer, right.initializer) &&
-           left.mutability === right.mutability && left.division === right.division &&
-           left.transition === right.transition && left.retirement === right.retirement &&
+           left.mutability === right.mutability && isequal(left.division, right.division) &&
+           isequal(left.transition, right.transition) &&
+           isequal(left.retirement, right.retirement) &&
            left.kind === right.kind
 end
 
-function _with_requesters(descriptor::PropertyDescriptor{T, I}, requesters) where {T, I}
-    return PropertyDescriptor{T, I, typeof(requesters)}(
+function _with_requesters(descriptor::PropertyDescriptor{T, I, D, X, R}, requesters) where {
+        T, I, D, X, R}
+    return PropertyDescriptor{T, I, D, X, R, typeof(requesters)}(
         descriptor.key, descriptor.initializer, descriptor.mutability, descriptor.division,
         descriptor.transition, descriptor.retirement, descriptor.kind, requesters)
 end

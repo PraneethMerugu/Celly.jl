@@ -2,7 +2,7 @@ using TOML
 
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 const JULIA_TARGET = "1.12.6"
-const STDLIBS = Set(["LinearAlgebra", "Random", "Statistics", "Test"])
+const STDLIBS = Set(["LinearAlgebra", "Random", "SHA", "Statistics", "Test"])
 const RELEASED_PROJECTS = [
     joinpath(ROOT, "Project.toml"),
     joinpath(ROOT, "lib", "CorePotts", "Project.toml"),

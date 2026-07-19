@@ -121,6 +121,35 @@ stream.
 Named streams isolate generator inputs; they do not assert statistical independence beyond the
 quality guarantees of the selected counter-based generator.
 
+### Extension RNG Namespaces
+
+The built-in numeric stream encoding is closed within one RNG contract version. An extension gains
+randomness through a semantic namespace derived from its stable component identity, instance
+identity, operation label, entity identity, and contract version. It MUST NOT select an undocumented
+raw numeric stream offset.
+
+The compiler-assigned mapping MUST be injective over the supported model domain and recorded in the
+model fingerprint or provenance. Adding, removing, or reordering an unrelated extension MUST NOT
+change an existing component's complete address. If the accepted address representation cannot
+express a collision-free mapping, the RNG contract MUST be revised rather than silently aliasing
+streams.
+
+A stochastic lifecycle trigger or division geometry declares its operation labels before lowering.
+Its device result remains a pure function of the pre-lifecycle snapshot and addressed draws; branch
+behavior MUST NOT shift random identities belonging to other targets or operations.
+
+Stochastic layout placement is addressed by stable layout-instance, provisional-entity, logical
+site or candidate, operation, invocation, and draw identities before runtime cell IDs exist.
+Overlap rejection and removal of an empty provisional entity MUST NOT shift draws belonging to an
+unrelated entity. Biological and auxiliary property initialization draws occur only for finalized
+surviving runtime identities and include their slot generations.
+
+Uniform site seeding and sequential rejection shape placement use distinct operation identities.
+Site seeding defines an unbiased without-replacement sampling algorithm. Rejection placement uses a
+local candidate-attempt index for each provisional entity; rejection never consumes another
+entity's addresses. Randomizing canonical entity order, when explicitly requested, uses a separate
+layout-permutation operation identity.
+
 ## Distribution Semantics
 
 Every public random primitive MUST specify:
@@ -371,6 +400,10 @@ complete trajectories after a model change.
 
 ## Snapshots, Checkpoints, and Provenance
 
+The authoritative capture boundary, canonical schema, restore, import, integrity, and storage rules
+are defined in [Snapshots, Checkpoints, Restore, and Logical Storage](persistence.md). This section
+defines the RNG and reproducibility content of that contract.
+
 A saved observation that omits continuation data is a snapshot and MUST NOT be advertised as an exact
 checkpoint.
 
@@ -408,6 +441,10 @@ Checkpoint writing MUST be transactional: an incomplete artifact is written and 
 is published as complete. Loading verifies checksums and semantic compatibility before mutating a
 simulation. Incompatible exact continuation MUST be rejected; an explicit state import MAY start a
 run with a weaker guarantee.
+
+Stable exact checkpoints are captured only at finalized MCS `0` or completed positive integer-MCS
+boundaries. They reconstruct replaceable caches and execution workspaces rather than serializing
+backend machinery.
 
 Same-compatible-profile checkpoint continuation is exact. Moving a checkpoint to a different
 backend is a logically valid import when supported, but provides statistical rather than exact

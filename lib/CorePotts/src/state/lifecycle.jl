@@ -35,7 +35,8 @@ end
 
 function _set_reset_properties!(state::LogicalPottsState, index::Int)
     for descriptor in state.properties.schema.descriptors
-        property_values(state, descriptor.key)[index] = _default_property_value(descriptor)
+        property_values(state, descriptor.key)[index] =
+            retired_property_value(descriptor.retirement, descriptor)
     end
     return state
 end
@@ -48,27 +49,71 @@ function _available_lifecycle_slots(state::LogicalPottsState)
     return vcat(reusable, fresh)
 end
 
-function _apply_division_properties!(state::LogicalPottsState, parent::Int, child::Int)
+function _split_division_value(value::Integer, fraction::AbstractFloat)
+    child = convert(typeof(value), floor(value * fraction))
+    return DivisionPropertyUpdate(value - child, child)
+end
+function _split_division_value(value::AbstractFloat, fraction::AbstractFloat)
+    child = value * convert(typeof(value), fraction)
+    return DivisionPropertyUpdate(value - child, child)
+end
+
+division_property_update(::CloneOnDivision, descriptor, value,
+    context::DivisionPropertyContext) = DivisionPropertyUpdate(value, value)
+division_property_update(policy::SplitOnDivision, descriptor, value::Number,
+    context::DivisionPropertyContext) = _split_division_value(value, policy.child_fraction)
+division_property_update(::ResetChildOnDivision, descriptor, value,
+    context::DivisionPropertyContext) =
+    DivisionPropertyUpdate(value, _default_property_value(descriptor))
+function division_property_update(::ResetBothOnDivision, descriptor, value,
+        context::DivisionPropertyContext)
+    reset = _default_property_value(descriptor)
+    return DivisionPropertyUpdate(reset, reset)
+end
+function division_property_update(::ConstitutiveResetAfterDivision, descriptor, value,
+        context::DivisionPropertyContext)
+    reset = _default_property_value(descriptor)
+    return DivisionPropertyUpdate(reset, reset)
+end
+division_property_update(::PreserveMechanicalOnDivision, descriptor, value,
+    context::DivisionPropertyContext) = DivisionPropertyUpdate(value, value)
+function division_property_update(::StationaryRedrawAfterDivision, descriptor, value,
+        context::DivisionPropertyContext)
+    reset = _default_property_value(descriptor)
+    return DivisionPropertyUpdate(reset, reset)
+end
+function division_property_update(policy::AsymmetricResetOnDivision, descriptor, value,
+        context::DivisionPropertyContext)
+    T = value_type(descriptor)
+    return DivisionPropertyUpdate(convert(T, policy.parent), convert(T, policy.child))
+end
+function division_property_update(::UnsupportedDivision{Reason}, descriptor, value,
+        context::DivisionPropertyContext) where {Reason}
+    throw(ArgumentError("property `$(descriptor.key)` does not support division ($Reason)"))
+end
+
+transition_property_value(::PreserveOnTransition, descriptor, value,
+    context::TransitionPropertyContext) = value
+transition_property_value(::ResetOnTransition, descriptor, value,
+    context::TransitionPropertyContext) = _default_property_value(descriptor)
+transition_property_value(::RecomputeOnTransition, descriptor, value,
+    context::TransitionPropertyContext) = _default_property_value(descriptor)
+function transition_property_value(::UnsupportedTransition{Reason}, descriptor, value,
+        context::TransitionPropertyContext) where {Reason}
+    throw(ArgumentError(
+        "property `$(descriptor.key)` does not support type transition ($Reason)"))
+end
+
+retired_property_value(::ResetOnRetirement, descriptor) = _default_property_value(descriptor)
+
+function _apply_division_properties!(state::LogicalPottsState, parent::Int, child::Int,
+        context::DivisionPropertyContext)
     for descriptor in state.properties.schema.descriptors
         values = property_values(state, descriptor.key)
-        if descriptor.kind === DerivedProperty || descriptor.division === ResetChildOnDivision
-            values[child] = _default_property_value(descriptor)
-        elseif descriptor.division === CloneOnDivision
-            values[child] = values[parent]
-        elseif descriptor.division === ResetBothOnDivision
-            default = _default_property_value(descriptor)
-            values[parent] = default
-            values[child] = default
-        elseif descriptor.division === SplitOnDivision
-            value = values[parent]
-            value isa Number || throw(ArgumentError(
-                "property `$(descriptor.key)` cannot use SplitOnDivision without a numeric value"))
-            child_value = value isa Integer ? fld(value, 2) : value / 2
-            values[child] = child_value
-            values[parent] = value - child_value
-        else
-            throw(ArgumentError("property `$(descriptor.key)` requires an explicit lifecycle transform"))
-        end
+        update = division_property_update(
+            descriptor.division, descriptor, values[parent], context)
+        values[parent] = convert(eltype(values), update.parent)
+        values[child] = convert(eltype(values), update.child)
     end
     return state
 end
@@ -124,9 +169,12 @@ function apply_division_batch(state::LogicalPottsState,
         end
         candidate._active[child_index] = true
         filter!(existing -> existing != slot, candidate._reusable)
-        candidate._generations[child_index] = CellGeneration(value(candidate._generations[child_index]) + 1)
         candidate._cell_types[child_index] = candidate._cell_types[parent_index]
-        _apply_division_properties!(candidate, parent_index, child_index)
+        original_volume = finite_volume(state, request.parent)
+        child_volume = length(request.daughter_sites)
+        context = DivisionPropertyContext(request.parent, child, original_volume,
+            original_volume - child_volume, child_volume, UInt8(ndims(state._owners)))
+        _apply_division_properties!(candidate, parent_index, child_index, context)
         push!(assignments, request.parent => child)
     end
     rebuild_derived_state!(candidate)
@@ -144,6 +192,7 @@ function retire_zero_volume(state::LogicalPottsState)
         index = Int(value(id))
         candidate._active[index] = false
         candidate._cell_types[index] = UInt32(0)
+        candidate._generations[index] = CellGeneration(value(candidate._generations[index]) + 1)
         _set_reset_properties!(candidate, index)
     end
     rebuild_derived_state!(candidate)
@@ -182,16 +231,12 @@ function transition_cell_type(state::LogicalPottsState, id::CellID, destination:
     is_active(state, id) || throw(ArgumentError("cell $id is not active"))
     candidate = _copy_logical_state(state)
     index = Int(value(id))
+    source = cell_type(state, id)
+    context = TransitionPropertyContext(id, source, destination)
     for descriptor in candidate.properties.schema.descriptors
         values = property_values(candidate, descriptor.key)
-        if descriptor.transition === PreserveOnTransition
-            nothing
-        elseif descriptor.transition === ResetOnTransition || descriptor.transition === RecomputeOnTransition ||
-               descriptor.kind === DerivedProperty
-            values[index] = _default_property_value(descriptor)
-        else
-            throw(ArgumentError("property `$(descriptor.key)` requires an explicit transition transform"))
-        end
+        values[index] = convert(eltype(values), transition_property_value(
+            descriptor.transition, descriptor, values[index], context))
     end
     candidate._cell_types[index] = value(destination)
     rebuild_derived_state!(candidate)

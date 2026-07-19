@@ -176,7 +176,8 @@ function init_scientific(state::CompiledScientificState,
         components::ScientificComponentSet, algorithm::CheckerboardSweepCPM;
         seed::Integer = 0, rng::AbstractRNGContract = Philox4x32x10V1(),
         plan::ExecutionPlan = _default_execution_plan(state), moment_tracker = nothing,
-        connectivity_workspace = nothing)
+        connectivity_workspace = nothing, lifecycle = NoCompiledLifecycle(),
+        initialize_mechanics::Bool = true)
     connectivity_workspace === nothing || throw(ArgumentError(
         "CheckerboardSweepCPM owns its conflict workspace; connectivity workspace is unsupported"))
     _validate_scientific_initialization(
@@ -189,9 +190,9 @@ function init_scientific(state::CompiledScientificState,
         _SEQUENTIAL_REPORT_FIELDS)
     _record_checkerboard_array!(plan, report_storage)
     integrator = ScientificPottsIntegrator(state, components, proposal_relation, algorithm, rng,
-        plan, NoConnectivityWorkspace(), nothing, workspace, report_storage,
+        plan, NoConnectivityWorkspace(), nothing, workspace, lifecycle, report_storage,
         UInt64(seed), UInt64(0))
-    return _initialize_mechanics!(integrator)
+    return initialize_mechanics ? _initialize_mechanics!(integrator) : integrator
 end
 
 @inline function _checkerboard_address(stream, mcs, site; draw = UInt16(0))
@@ -540,6 +541,7 @@ function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R,
     launch!(integrator.plan, report_kernel, integrator.report_storage,
         workspace.attempts, workspace.dispositions, workspace.color_count,
         next_mcs; ndrange = 1)
+    run_compiled_lifecycle!(integrator, integrator.lifecycle, next_mcs)
     integrator.mcs = next_mcs
     return integrator
 end

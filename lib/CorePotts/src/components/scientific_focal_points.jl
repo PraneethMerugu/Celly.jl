@@ -37,7 +37,7 @@ function Adapt.adapt_structure(to, storage::UnwrappedMomentStorage)
     )
 end
 
-function _moment_arrays(storage::UnwrappedMomentStorage)
+function derived_observable_arrays(storage::UnwrappedMomentStorage)
     (storage.tracked, storage.coordinate_sums...)
 end
 
@@ -105,7 +105,7 @@ function rebuild_tracker(tracker::UnwrappedMomentTracker, state::LogicalPottsSta
     _canonical_unwrapped_sums(tracker, state, domain)
 end
 
-function _compile_moment_storage(tracker::UnwrappedMomentTracker,
+function compile_derived_observable(tracker::UnwrappedMomentTracker,
         state::LogicalPottsState, domain::CartesianDomain)
     validate_relation_domain(domain, tracker.relation)
     return rebuild_tracker(tracker, state, domain)
@@ -163,7 +163,7 @@ struct UnwrappedMomentDelta{N, T <: AbstractFloat}
     gaining_position::SVector{N, T}
 end
 
-function _moment_delta(tracker::UnwrappedMomentTracker{T},
+function stage_derived_observable_delta(tracker::UnwrappedMomentTracker{T},
         state::Union{CompiledScientificState, ScientificExecutionState},
         proposal::CopyProposal) where {T}
     storage = state.trackers.moments
@@ -182,7 +182,7 @@ function _moment_delta(tracker::UnwrappedMomentTracker{T},
     return UnwrappedMomentDelta(losing, gaining, losing_position, gaining_position)
 end
 
-@inline function _apply_moment_delta!(storage::UnwrappedMomentStorage,
+@inline function apply_derived_observable_delta!(storage::UnwrappedMomentStorage,
         moments::UnwrappedMomentDelta{N}, delta) where {N}
     if moments.losing_tracked
         index = Int(delta.losing_cell)

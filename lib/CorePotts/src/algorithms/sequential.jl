@@ -192,7 +192,7 @@ struct NoAlgorithmWorkspace end
 mutable struct ScientificPottsIntegrator{S <: CompiledScientificState,
         C <: ScientificComponentSet, R <: StaticCartesianRelation{<:ProposalRole},
         A <: Union{SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM},
-        G <: AbstractRNGContract, P <: ExecutionPlan, W, M, Q,
+        G <: AbstractRNGContract, P <: ExecutionPlan, W, M, Q, L,
         B <: AbstractVector{UInt64}}
     state::S
     components::C
@@ -203,6 +203,7 @@ mutable struct ScientificPottsIntegrator{S <: CompiledScientificState,
     connectivity_workspace::W
     moment_tracker::M
     algorithm_workspace::Q
+    lifecycle::L
     report_storage::B
     seed::UInt64
     mcs::UInt64
@@ -341,7 +342,8 @@ function init_scientific(state::CompiledScientificState,
         algorithm::Union{SequentialCPM, SequentialEquilibrium}; seed::Integer = 0,
         rng::AbstractRNGContract = Philox4x32x10V1(), plan::ExecutionPlan =
             _default_execution_plan(state), connectivity_workspace = nothing,
-        moment_tracker = nothing)
+        moment_tracker = nothing, lifecycle = NoCompiledLifecycle(),
+        initialize_mechanics::Bool = true)
     _validate_scientific_initialization(
         state, proposal_relation, components, algorithm, seed, rng, plan)
     _validate_sequential_components(algorithm, components)
@@ -366,9 +368,9 @@ function init_scientific(state::CompiledScientificState,
         record_allocation!(plan, domain, workspace_bytes(workspace))
     end
     integrator = ScientificPottsIntegrator(state, components, proposal_relation, algorithm, rng,
-        plan, workspace, moment_tracker, NoAlgorithmWorkspace(), report_storage,
+        plan, workspace, moment_tracker, NoAlgorithmWorkspace(), lifecycle, report_storage,
         UInt64(seed), UInt64(0))
-    return _initialize_mechanics!(integrator)
+    return initialize_mechanics ? _initialize_mechanics!(integrator) : integrator
 end
 
 function init_scientific(state::CompiledScientificState,
@@ -499,6 +501,7 @@ function SciMLBase.step!(integrator::ScientificPottsIntegrator{S, C, R, A}) wher
         integrator.seed, next_mcs, integrator.connectivity_workspace,
         integrator.moment_tracker; ndrange = 1)
     _advance_mechanics!(integrator, next_mcs, UInt8(0), UInt8(1), half_interval)
+    run_compiled_lifecycle!(integrator, integrator.lifecycle, next_mcs)
     integrator.mcs = next_mcs
     return integrator
 end

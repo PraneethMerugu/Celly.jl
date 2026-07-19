@@ -127,6 +127,11 @@ Status: Accepted unless an entry is marked otherwise
 : The integer-MCS boundary phase in which event triggers observe a common snapshot, conflicts are
   resolved, and lifecycle/property transactions commit.
 
+**Pre-lifecycle snapshot**
+: The one immutable logical state observed by every due lifecycle trigger and effect planner at a
+  positive integer-MCS boundary before any lifecycle mutation. Values created by that boundary's
+  transaction are not part of this snapshot.
+
 ## State and Physics Terms
 
 **Biological property**

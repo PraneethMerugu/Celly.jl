@@ -41,6 +41,9 @@ new consumers are prohibited.
 7. Breaking changes are allowed until the paper API freeze. No migration layer is required.
 8. One migrated subsystem has one implementation. Temporary comparison code lives in test,
    benchmark, or archival baselines rather than the released package.
+9. Scientific invariants and taxonomies may be closed, but scientific families and execution
+   mechanisms remain open Julia protocols under the
+   [Open Protocol and Extensibility Standard](open-protocol-and-extensibility-standard.md).
 
 ## Scope Classification
 
@@ -83,8 +86,8 @@ unrelated earlier work.
 | D1 | Paper algorithm inventory and guarantee profile for sequential, checkerboard, lottery, and intrinsic families | Algorithm replacement |
 | D2 | Philox qualification and exact portable transforms for every distribution used by required features | RNG engine freeze |
 | D3 | Conservative versus nonconservative classification of required field couplings | Energy/component freeze |
-| D4 | Snapshot, exact checkpoint, backend-independent restart, storage equivalence, and schema/RNG provenance | Persistence and SciML saving |
-| D5 | Coordinates, rasterization, random placement, periodic placement, and initialization finalization | Initialization replacement |
+| D4 | Snapshot, exact checkpoint, backend-independent import, storage equivalence, and schema/RNG provenance — resolved by Decision 0022 | Persistence and SciML saving |
+| D5 | Coordinates, rasterization, random placement, periodic placement, and initialization finalization — resolved by Decisions 0021 and 0024 | Initialization replacement |
 | D6 | Extension registration, semantic fingerprints, cache invalidation, and expert escape-hatch contract | Compiler/API freeze |
 | D7 | Final Level 1 model declarations, fragments, phase spelling, displays, and Level 2 constructor names | PottsToolkit API candidate |
 
@@ -380,25 +383,72 @@ intended for stable support; auxiliary state is not deferred around the algorith
 
 ## Phase 8: Lifecycle, Initialization, and Persistence
 
+Implementation is organized by the active
+[Phase 8 chunk plan](audits/phase-8-chunk-plan.md). Candidate implementation evidence and the
+remaining authoritative ROCm/CI closure condition are in the
+[Phase 8 completion audit](audits/phase-8-completion-audit.md).
+
 ### Required gates
 
 Complete D4 and D5 before freezing persistence or initialization APIs.
+Resolve every P0 finding in the
+[open-protocol audit](audits/open-protocol-audit.md) before freezing or implementing its owning
+lifecycle or initialization interface.
+Apply the [Phase 8 minimality pass](audits/phase-8-minimality-pass.md): only scientific invariants,
+paper-required built-ins, minimal extension seams, and their evidence receive Phase 8 production
+code.
 
 ### Deliverables
 
 - Implement deterministic event detection, ordering, conflict resolution, validation, and atomic
-  commit between internal sub-rounds.
+  commit once at the integer-MCS lifecycle boundary after the complete proposal and mechanics MCS.
+  Internal checkerboard and lottery rounds are not lifecycle time.
 - Implement growth, division, inheritance, transition, death, extinction, retirement, capacity
   failure, fragmentation policy, and optional connectivity constraint.
+- Implement schedules, triggers, resolvers, effects, division geometry, property lifecycle,
+  auxiliary lifecycle, initialization, and persistence as open Julia protocols with required
+  built-ins rather than closed behavioral enums or central `isa` switches.
+- Make the property schema the only lifecycle-policy authority. Use separate typed policies for
+  division, transition, and retirement; derived families declare recomputation, and auxiliary
+  families own their operation-specific scientific laws without generic clone/reset fallbacks.
+- Lower flexible lifecycle authoring values into concrete device descriptors. All triggers at a
+  boundary read one `PreLifecycleSnapshot`; effect planning, explicit permutation-invariant conflict
+  resolution, validation, and atomic commit remain distinct phases.
+- Qualify binary division with compact descendant-region labels through an open geometry protocol;
+  do not encode the public partition contract as a permanently binary Boolean.
 - Keep lifecycle detection, planning, and commit device-resident where supported, with explicit
   bounded error reporting rather than hidden host polling.
 - Implement public coordinate, rasterization, placement, and initialization semantics.
+- Use one minimal layout claim-emission protocol with stable provisional identities, order-independent
+  overlap resolution, generic deterministic finalization, and explicit host-finalized or
+  device-native capability. Add device-native built-ins only where construction benchmarks justify
+  them.
+- Replace ambiguous random layout behavior with uniform site seeding and bounded sequential rejection
+  placement. Qualify periodic minimum-image rasterization, self-alias rejection, atomic placement
+  failure, and exact semantic RNG addressing.
 - Implement logical snapshots, exact continuation checkpoints, backend-independent restart where
   promised, schema fingerprints, RNG continuation, and provenance.
 - Define and test equivalent logical storage through memory and required HDF5/Zarr extensions.
+- Capture stable checkpoints only at finalized MCS boundaries. Persist canonical scientific state
+  and semantic counters, reconstruct replaceable caches/workspaces, require compatible fingerprints
+  for exact resume, and expose changed-profile restoration as explicit logical import.
 - Complete family-specific auxiliary initialization, division, transition, death, extinction, and
-  link-lifecycle distributions. Unsupported combinations fail rather than applying a generic HST
-  reset or clone policy.
+  retirement laws for the stable fluctuating pressure and tension families. Unsupported
+  combinations fail rather than applying a generic reset or clone policy.
+- Implement constitutive reset as the default mechanical division law; expose intensive preservation
+  and independent stationary redraw explicitly. Preserve compatible state through growth,
+  transition, and shrink death; clear on removal, immediate death, extinction, and retirement.
+
+### Explicitly deferred from Phase 8
+
+- Dynamic-link event targets and focal-link creation, breakage, inheritance, or persistence.
+- General conflict-resolver composition, nonbinary division, exotic-geometry catalogs, lineage
+  graphs, arbitrary imperative host lifecycle callbacks, and universal equilibrium-auxiliary
+  machinery.
+- A universal initialization source/rasterizer/placer hierarchy, arbitrary image-format loaders,
+  multiple production medium domains, and mandatory GPU kernels for every custom layout.
+- Remote checkpoint stores, automatic environment installation, a universal artifact framework,
+  every future storage format, and unproven cross-backend bitwise continuation.
 
 ### Exit gate
 
@@ -406,10 +456,32 @@ Complete D4 and D5 before freezing persistence or initialization APIs.
   and all required backends.
 - Checkpoint continuation meets the advertised exactness profile.
 - Backend-independent restart and storage-equivalence fixtures pass where claimed.
+- In-memory, HDF5, and Zarr records reconstruct one canonical logical checkpoint; incomplete or
+  corrupt writes never load or appear complete.
 - Initialization is reproducible under its semantic seed and finalizes every required invariant.
+- Layout and emission-order permutations preserve canonical ownership and runtime IDs; rejected or
+  empty provisional entities allocate neither slots nor property-initialization RNG identities.
+- Site-seed distribution and rejection-placement retry/failure tests pass; periodic 2D/3D shapes
+  preserve canonical volume without clipping or self-aliasing.
 - No required lifecycle path introduces incidental per-event host synchronization.
+- One combined downstream fixture adds a non-built-in GPU-valid division geometry, property
+  lifecycle policy, schedule/effect, derived observable, and initialization source without modifying
+  CorePotts.
+- Missing, explicitly unsupported, incompatible, and ambiguous property policies fail before
+  execution; multi-property failures prove atomic rollback and derived-state repair.
+- Stable pressure/tension fixtures qualify constitutive reset, preservation, addressed redraw,
+  transition continuity, death clearing, and generation-safe reuse on CPU, Metal, and ROCm.
+- Conflict fixtures are invariant under declaration order, tuple layout, compiler batching,
+  workgroup size, and launch decomposition; launch scheduling and atomic arrival never define
+  biological priority.
 
 ## Phase 9: SciML Integration
+
+### Required gate
+
+Resolve the algorithm, proposal, backend-capability, RNG-namespace, and compiled-component P1
+findings in the [open-protocol audit](audits/open-protocol-audit.md) before declaring the Level 3 API
+candidate.
 
 ### Deliverables
 
@@ -447,6 +519,8 @@ Complete the non-surface-syntax portions of D6 before compiler identities become
 - Lower normalized IR into concrete CorePotts descriptors and callable structs.
 - Implement stable semantic fingerprints, compilation reports, source maps, and invalidation.
 - Bound specialization and replace unnecessary generated functions with ordinary implementations.
+- Prove the zero-compiler-switch rule with downstream Level 2 and direct CorePotts extensions;
+  require registration only for Level 1 spelling, semantic serialization, or compatibility names.
 - Establish canonical `show`, inspection, semantic serialization, and diagnostic behavior.
 - Remove closure-first and MLStyle-dependent prototype paths once conformance parity is reached.
 
@@ -458,6 +532,8 @@ Complete the non-surface-syntax portions of D6 before compiler identities become
 - Invalid models fail before backend launch with source-located, actionable diagnostics.
 - Compile time, native code size, allocations, and representative device register use meet budgets.
 - CorePotts remains directly usable without PottsToolkit IR.
+- A conforming Level 3 component lowers through PottsToolkit Level 2 without a central concrete-type
+  switch or a mandatory runtime registry.
 
 ## Phase 11: PottsToolkit Level 1 DSL
 

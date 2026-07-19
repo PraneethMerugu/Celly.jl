@@ -63,6 +63,31 @@ portability, serialization, and capability requirements.
 Every required extension function is documented and public. Internal underscored helpers are not
 extension contracts.
 
+## Open Protocol Boundary
+
+Scientific invariants and semantic category taxonomies MAY define closed, versioned sets.
+Scientific family membership and execution mechanisms MUST remain open Julia protocols unless an
+accepted specification explicitly requires exhaustiveness.
+
+A finite built-in inventory does not define the complete extension surface. A downstream package
+MUST be able to add a conforming scientific family member through owned types and documented public
+methods without editing a central CorePotts enum, method-signature `Union`, `isa` ladder, or runtime
+registry. Closed local result tags remain valid when they are not required of every implementation
+of a broader protocol.
+
+Host-level openness does not permit dynamic device dispatch. Model compilation lowers accepted
+scientific values into concrete, bounded, device-valid descriptors and operations. GPU-capable
+extensions specialize through ordinary dispatch on their concrete compiled types and satisfy the
+same allocation, synchronization, effect, RNG, and conformance contracts as built-ins.
+
+Direct Level 3 execution does not require registration. PottsToolkit MAY require versioned
+registration for Level 1 spelling, semantic serialization, compatibility translation, or other
+boundaries that genuinely require durable names.
+
+Every stable protocol MUST include a downstream-style conformance fixture demonstrating that a
+non-built-in implementation works through public interfaces without a CorePotts source edit. A
+device-capable protocol fixture MUST compile and run on every backend it claims.
+
 ## Stable Scientific Identity
 
 Every stable scientific component declares:
@@ -202,6 +227,14 @@ update!(tracker_state, tracker, accepted_move, state)
 
 Initialization, complete reconstruction, incremental update, and validation are separate operations.
 Incremental behavior must equal reconstruction under the applicable numerical contract.
+
+The stable compiled derived-observable seam consists of `compile_derived_observable`,
+`derived_observable_arrays`, `stage_derived_observable_delta`, and
+`apply_derived_observable_delta!`, plus the lifecycle repair operations
+`compiled_prepare_derived_division!`, `compiled_accumulate_derived_division!`, and
+`compiled_retire_derived!`. A compiled storage value is an adaptable concrete array tree; its
+definition remains host-side. These names generalize the current moment-storage slot without making
+moment tensors the universal observable representation.
 
 An observable is what a scientist requests. A tracker is one possible maintained implementation.
 Some observables are computed on demand. Components request scientific observables; compilation

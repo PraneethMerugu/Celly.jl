@@ -71,9 +71,11 @@ function required_properties(component::QuadraticVolumeHamiltonian)
     T = typeof(component).parameters[3]
     return PropertySchema(
         PropertyDescriptor(property_key(_volume_target(component)), T,
-            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+            ConstantInitializer(zero(T)); requester, division = SplitOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_volume_strength(component)), T,
-            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty)
+            ConstantInitializer(zero(T)); requester, division = CloneOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty)
     )
 end
 
@@ -136,18 +138,21 @@ FixedMechanicalNoise(value::Real) = FixedMechanicalNoise(float(value))
 
 """Non-equilibrium per-cell pressure with an exact frozen-volume OU transition."""
 struct FluctuatingVolumePressure{TargetKey, StrengthKey, StateKey,
-    T <: AbstractFloat, N} <: AbstractMechanicalComponent
+    T <: AbstractFloat, N, D <: AbstractMechanicalDivisionPolicy} <: AbstractMechanicalComponent
     eta::T
     noise::N
     initialization::MechanicalInitialization
     instance_id::UInt16
+    division::D
 end
 
 function FluctuatingVolumePressure(; target::Symbol = :target_volume,
         strength::Symbol = :volume_strength, state::Symbol = :volume_pressure,
         eta::Real = 1.0f0, noise = AlgorithmTemperatureNoise(),
         initialization::MechanicalInitialization = ConstitutiveMeanInitialization,
+        division::D = ConstitutiveResetAfterDivision(),
         instance_id::Integer = 1, number_type::Type{T} = Float32) where {
+        D <: AbstractMechanicalDivisionPolicy,
         T <: AbstractFloat}
     rate = T(eta)
     isfinite(rate) && rate > zero(T) || throw(ArgumentError(
@@ -159,8 +164,8 @@ function FluctuatingVolumePressure(; target::Symbol = :target_volume,
     length(unique((target, strength, state))) == 3 || throw(ArgumentError(
         "volume-pressure target, strength, and state properties must be distinct"))
     return FluctuatingVolumePressure{
-        target, strength, state, T, typeof(noise)}(
-        rate, noise, initialization, UInt16(instance_id))
+        target, strength, state, T, typeof(noise), D}(
+        rate, noise, initialization, UInt16(instance_id), division)
 end
 
 _mechanical_target(::FluctuatingVolumePressure{T}) where {T} = CellPropertyRef(T)
@@ -175,12 +180,15 @@ function required_properties(component::FluctuatingVolumePressure)
     T = typeof(component).parameters[4]
     return PropertySchema(
         PropertyDescriptor(property_key(_mechanical_target(component)), T,
-            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+            ConstantInitializer(zero(T)); requester, division = SplitOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_mechanical_strength(component)), T,
-            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+            ConstantInitializer(zero(T)); requester, division = CloneOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_mechanical_state(component)), T,
             ConstantInitializer(zero(T)); requester, mutability = MutableProperty,
-            division = TransformOnDivision, transition = InvalidTransition,
+            division = component.division,
+            transition = PreserveOnTransition(),
             kind = AuxiliaryProperty)
     )
 end
@@ -465,9 +473,12 @@ function required_properties(component::QuadraticBoundaryHamiltonian)
     target_default = zero(target_type)
     return PropertySchema(
         PropertyDescriptor(property_key(_boundary_target(component)), target_type,
-            ConstantInitializer(target_default); requester, kind = BiologicalProperty),
+            ConstantInitializer(target_default); requester,
+            division = UnsupportedDivision(:surface_target_policy_required),
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_boundary_strength(component)), number_type,
-            ConstantInitializer(zero(number_type)); requester, kind = BiologicalProperty)
+            ConstantInitializer(zero(number_type)); requester, division = CloneOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty)
     )
 end
 
@@ -517,7 +528,8 @@ end
 """Non-equilibrium per-cell tension with an exact frozen-surface OU transition."""
 struct FluctuatingSurfaceTension{TargetKey, StrengthKey, StateKey,
     T <: AbstractFloat, N, M <: AbstractBoundaryMetric,
-    R <: StaticCartesianRelation{<:SurfaceRole}} <: AbstractMechanicalComponent
+    R <: StaticCartesianRelation{<:SurfaceRole}, TD <: AbstractDivisionPolicy,
+    D <: AbstractMechanicalDivisionPolicy} <: AbstractMechanicalComponent
     eta::T
     noise::N
     initialization::MechanicalInitialization
@@ -525,6 +537,8 @@ struct FluctuatingSurfaceTension{TargetKey, StrengthKey, StateKey,
     metric::M
     relation::R
     tracker_identity::NTuple{2, UInt64}
+    target_division::TD
+    division::D
 end
 
 function FluctuatingSurfaceTension(metric::AbstractBoundaryMetric,
@@ -533,8 +547,11 @@ function FluctuatingSurfaceTension(metric::AbstractBoundaryMetric,
         state::Symbol = :surface_tension, eta::Real = 1.0f0,
         noise = AlgorithmTemperatureNoise(),
         initialization::MechanicalInitialization = ConstitutiveMeanInitialization,
+        target_division::TD = UnsupportedDivision(:surface_target_policy_required),
+        division::D = ConstitutiveResetAfterDivision(),
         instance_id::Integer = 1, number_type::Type{T} = Float32) where {
-        T <: AbstractFloat}
+        T <: AbstractFloat, TD <: AbstractDivisionPolicy,
+        D <: AbstractMechanicalDivisionPolicy}
     rate = T(eta)
     isfinite(rate) && rate > zero(T) || throw(ArgumentError(
         "surface-tension relaxation rate must be finite and positive"))
@@ -545,9 +562,9 @@ function FluctuatingSurfaceTension(metric::AbstractBoundaryMetric,
     length(unique((target, strength, state))) == 3 || throw(ArgumentError(
         "surface-tension target, strength, and state properties must be distinct"))
     return FluctuatingSurfaceTension{
-        target, strength, state, T, typeof(noise), typeof(metric), typeof(relation)}(
+        target, strength, state, T, typeof(noise), typeof(metric), typeof(relation), TD, D}(
         rate, noise, initialization, UInt16(instance_id), metric, relation,
-        _boundary_tracker_identity(metric, relation))
+        _boundary_tracker_identity(metric, relation), target_division, division)
 end
 
 _mechanical_target(::FluctuatingSurfaceTension{T}) where {T} = CellPropertyRef(T)
@@ -564,12 +581,16 @@ function required_properties(component::FluctuatingSurfaceTension)
     target_type = component.metric isa BoundaryEdgeCount ? Int64 : T
     return PropertySchema(
         PropertyDescriptor(property_key(_mechanical_target(component)), target_type,
-            ConstantInitializer(zero(target_type)); requester, kind = BiologicalProperty),
+            ConstantInitializer(zero(target_type)); requester,
+            division = component.target_division,
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_mechanical_strength(component)), T,
-            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+            ConstantInitializer(zero(T)); requester, division = CloneOnDivision(),
+            transition = PreserveOnTransition(), kind = BiologicalProperty),
         PropertyDescriptor(property_key(_mechanical_state(component)), T,
             ConstantInitializer(zero(T)); requester, mutability = MutableProperty,
-            division = TransformOnDivision, transition = InvalidTransition,
+            division = component.division,
+            transition = PreserveOnTransition(),
             kind = AuxiliaryProperty)
     )
 end

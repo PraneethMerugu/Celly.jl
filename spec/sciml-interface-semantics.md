@@ -304,10 +304,14 @@ documented deterministic order.
 An analysis snapshot and continuation checkpoint are distinct APIs.
 
 A snapshot represents observable state at a named MCS. A checkpoint promises continuation and
-therefore includes all required model, execution, algorithm, RNG, phase, and workspace state under
-its checkpoint contract.
+therefore includes all required model, scientific state, algorithm, RNG, identity, and semantic
+counter state under its checkpoint contract. Stable capture occurs only at finalized MCS `0` or a
+completed positive integer MCS; replaceable caches and execution workspaces are rebuilt.
 
 They MAY share storage infrastructure but neither silently claims the other's guarantees.
+
+Canonical storage, exact resume, logical import, and compatibility follow
+[Snapshots, Checkpoints, Restore, and Logical Storage](persistence.md).
 
 ## Ensembles
 

@@ -32,6 +32,12 @@ lottery_qualification = PottsBenchmarks.qualify_lottery_backend(backend)
 println("LOTTERY_QUALIFICATION=", lottery_qualification)
 mechanics_qualification = PottsBenchmarks.qualify_mechanics_backend(backend)
 println("MECHANICS_QUALIFICATION=", mechanics_qualification)
+lifecycle_qualification = PottsBenchmarks.qualify_lifecycle_backend(backend)
+println("LIFECYCLE_QUALIFICATION=", lifecycle_qualification)
+persistence_qualification = PottsBenchmarks.qualify_persistence_backend(backend)
+println("PERSISTENCE_QUALIFICATION=", persistence_qualification)
+phase8_performance = PottsBenchmarks.measure_phase8_backend(backend)
+println("PHASE8_PERFORMANCE=", phase8_performance)
 
 workloads = profile == "smoke" ? ("volume_2d_small",) :
             ("volume_2d_small", "adhesion_2d_medium", "volume_3d_small",
