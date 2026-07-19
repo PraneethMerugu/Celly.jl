@@ -36,6 +36,14 @@ end
     @test rng_words(contract, seed, address) ==
           (0x5b00c369, 0x92f3ce04, 0x12df44ce, 0x8daeafe9)
     @test rng_contract_version(contract) == v"1.0.0"
+    @test UInt8(AuxiliaryEvolutionStream) == 9
+    @test UInt8(AuxiliaryInitializationStream) == 18
+    auxiliary_evolution = RNGAddress(stream = AuxiliaryEvolutionStream,
+        operation = 3, entity_kind = CellEntity, entity = 2, generation = 1)
+    auxiliary_initialization = RNGAddress(stream = AuxiliaryInitializationStream,
+        operation = 3, entity_kind = CellEntity, entity = 2, generation = 1)
+    @test rng_words(contract, seed, auxiliary_evolution) !=
+          rng_words(contract, seed, auxiliary_initialization)
 
     reused = RNGAddress(stream = EventStream, mcs = 4, operation = 2,
         entity_kind = CellEntity, entity = 8, generation = 3)
@@ -89,7 +97,7 @@ end
     normals = Vector{Float64}(undef, sample_count)
     poisson = Vector{Int}(undef, sample_count)
     for index in 1:sample_count
-        address = RNGAddress(stream = HSTStream, mcs = index, operation = 1,
+        address = RNGAddress(stream = AuxiliaryEvolutionStream, mcs = index, operation = 1,
             entity_kind = GlobalEntity)
         normals[index] = normal_box_muller(Float64, contract, seed, address)
         poisson[index] = poisson_inversion(contract, seed, address, 4.0)

@@ -170,7 +170,8 @@ publication-scale throughput models. Scientific workloads include:
 - Death and transitions
 - Dense tissue
 - Sparse occupancy
-- HST after its relevant semantics are accepted
+- Stable auxiliary volume and surface families after their relevant laws are accepted; experimental
+  length and focal-point auxiliary results remain separately labeled
 
 Every stable algorithm family is reported separately. Exact and approximate algorithms do not share
 an unlabeled leaderboard.

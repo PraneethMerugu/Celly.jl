@@ -1,6 +1,6 @@
 # Potts.jl Semantics Specification
 
-Version: `0.1-draft`
+Version: `0.2-draft`
 
 Status: Draft
 
@@ -70,6 +70,7 @@ behavior.
 - [Glossary](glossary.md)
 - [State Model](state-model.md)
 - [Time and Monte Carlo Steps](time-and-mcs.md)
+- [Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md)
 - [Lifecycle](lifecycle.md)
 - [Randomness and Reproducibility](randomness-and-reproducibility.md)
 - [Energy, Proposals, Acceptance, and Trackers](energy-proposals-and-trackers.md)
@@ -98,8 +99,8 @@ Refactor execution evidence:
 - [Phase 0 Current-Code Audit](../design/audits/phase-0-current-code-audit.md)
 - [Phase 0 Paper-Scope Map](../design/audits/phase-0-paper-scope-map.md)
 
-Future documents will cover HST dynamics, algorithm guarantees, final rule-language details, SciML
-integration, persistence, and backend numerical semantics.
+Future documents will cover the remaining algorithm proofs, final rule-language details,
+persistence, and additional SciML coupling semantics.
 
 ## Conformance Principle
 

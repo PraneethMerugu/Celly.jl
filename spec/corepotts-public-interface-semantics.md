@@ -91,6 +91,7 @@ required_properties(component)
 required_observables(component)
 required_relations(component)
 capabilities(component)
+scientific_access(component)
 ```
 
 Requirements do not use unstructured symbol lists when typed descriptions can carry ownership,
@@ -105,6 +106,15 @@ problem initialization.
 
 Incidental `hasmethod` discovery does not define scientific support. Explicit declarations and
 conformance evidence do.
+
+`scientific_access` is the conservative deterministic-parallel trait. The default is
+`UnsupportedScientificAccess`; an extension opts in with `SnapshotScientificAccess`, declaring
+every static spatial relation whose simultaneous recipient writes could interact, whether it reads
+mutable cell-wide state, and whether proposal-private workspace is required. Parallel algorithm
+compilation unions those relations with the proposal and maintained-tracker relations, colors the
+realized finite graph, and derives remaining cell-wide conflicts from proposal owner identities.
+An undeclared component is rejected rather than silently scheduled under an incomplete conflict
+relation.
 
 Direct Level 3 use does not require a global component registry. Julia dispatch provides direct
 extension. PottsToolkit maintains a versioned registry only where Level 1 naming, DSL parsing,
@@ -157,6 +167,19 @@ semantics are unambiguous.
 Every optimized energy component has a simple ordinary CPU/scalar reference implementation wherever
 feasible. Fused and backend-specialized implementations are tested against that behavior.
 
+## Mechanical Interface
+
+A stateful non-equilibrium mechanical component implements pure proposal work through
+`mechanical_work(component, proposal, state, transaction)` and a separately declared state-update
+law. Mechanical work remains a distinct field in proposal diagnostics even though the acceptance
+law consumes `delta_h + mechanical_work`. It is not smuggled into a Hamiltonian or drive category.
+
+Stable volume pressure and surface tension use ordinary immutable component values, per-cell
+auxiliary property columns, tuple folds specialized by Julia dispatch, and one fused cell-indexed
+update kernel for all mechanics. Their CPU scalar transition is the reference for CPU and GPU
+kernels. Component instance IDs, state-property keys, access traits, initialization, and lifecycle
+requirements are validated before execution.
+
 The first executable consumer of a proposed stable scientific protocol MUST be the sequential
 reference engine. A public protocol remains provisional for API-freeze purposes until it has been
 used by that engine, tested through a complete MCS, and—when it has a PottsToolkit spelling—reached
@@ -205,11 +228,19 @@ launch code is not itself the scientific event definition.
 Algorithms are ordinary immutable values passed through the SciML-shaped interface:
 
 ```julia
-solve(problem, CheckerboardMetropolis(...))
+solve(problem, CheckerboardSweepCPM(...))
 ```
 
 They contain scientific algorithm configuration and guarantee selection, not live streams, backend
 buffers, or workspaces.
+
+Every stable algorithm returns one immutable `AlgorithmGuaranteeProfile` through
+`algorithm_guarantees`. The profile has a fixed schema for proposal process, equilibrium status,
+kinetic interpretation, transaction semantics, MCS normalization, reproducibility scope,
+compatible component scopes, validation evidence, backend contract, and dimensions. Algorithm
+extensions returning an ad hoc symbol, tuple, or mapping fail interface validation. An initialized
+scientific integrator delegates `algorithm_guarantees(integrator)` to its selected algorithm, so
+execution provenance retains the exact profile without copying mutable state into the algorithm.
 
 Workgroup size, tile size, scratch strategy, and similar performance choices are execution policy
 unless an accepted algorithm contract explicitly makes them observable. Scientists do not construct

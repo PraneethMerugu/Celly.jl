@@ -76,8 +76,27 @@ callbacks, saving, and result construction.
 The Monte Carlo algorithm is an ordinary immutable value passed separately:
 
 ```julia
-solve(prob, CheckerboardMetropolis(...))
+solve(prob, LotteryCPM(...))
 ```
+
+The Phase 7 stable algorithm vocabulary is:
+
+- `SequentialCPM`: conventional modified-Metropolis reference dynamics;
+- `SequentialEquilibrium`: sequential Metropolis-Hastings equilibrium sampling when the complete
+  model satisfies its capability requirements;
+- `CheckerboardSweepCPM`: randomized-color, once-per-site parallel sweep dynamics; and
+- `LotteryCPM`: topology-calibrated, conflict-resolved parallel dynamics.
+
+Intrinsic or subgroup kernels are implementations of one of these algorithms when they preserve
+the complete contract. If they change transactions, RNG identities, state freshness, or observable
+results, they require another algorithm name and guarantee profile.
+
+`solve(prob)` and `init(prob)` without an explicit algorithm select `SequentialCPM`. Backend choice
+MUST NOT silently select different scientific dynamics. Selecting a GPU with this default emits one
+informational message during integrator construction, before the first MCS, explaining that the
+sequential process is intentional and naming compatible explicit parallel alternatives. The message
+uses Julia's logging system, occurs once per integrator construction, and never changes the selected
+algorithm.
 
 Algorithm compatibility is checked during `init`, before device adaptation or expensive compilation
 where possible. Diagnostics report all known incompatible components, topology, dimension,
@@ -88,7 +107,7 @@ reproducibility, numerical, and backend requirements together.
 Backend selection is an `init`/`solve` execution choice:
 
 ```julia
-solve(prob, alg; backend = CUDABackend())
+solve(prob, alg; backend = MetalBackend())
 ```
 
 Host initial data is adapted during `init` only after model, problem, algorithm, numerical, RNG, and

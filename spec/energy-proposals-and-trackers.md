@@ -31,7 +31,8 @@ Every state-evolution component belongs to exactly one semantic category:
 - Nonconservative drive
 - Hard constraint
 - Derived tracker
-- Stochastic auxiliary dynamics
+- Equilibrium auxiliary constraint
+- Fluctuating mechanical state
 - Lifecycle operation
 
 The implementation MAY share lower-level machinery, but a catch-all "penalty" classification MUST
@@ -309,9 +310,9 @@ A target-surface component explicitly selects its metric and metric neighborhood
 exact integer accumulation; weighted/geometric metrics declare floating accumulation.
 
 The ordinary conservative surface law is `lambda * (S - S_target)^2`, with metric semantics defined
-in [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md). HST surface
-dynamics are a separately named stochastic-auxiliary family and MUST NOT implement the ordinary
-`SurfaceConstraint` API.
+in [Cartesian Surface, Queries, and Fields](cartesian-surface-queries-and-fields.md). Equilibrium
+auxiliary surface constraints and fluctuating surface-tension mechanics are separately identified
+first-class families. They MUST NOT be silently substituted for the ordinary quadratic formulation.
 
 Invalid no-flux directions are absent realized edges. They contribute nothing to energy, surface,
 moments, reverse-edge multiplicities, or tracker deltas. A conventional bulk-direction proposal MAY

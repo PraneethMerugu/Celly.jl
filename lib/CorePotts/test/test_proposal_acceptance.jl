@@ -22,6 +22,11 @@
     @test proposal.donor == 4
     @test proposal.mcs == 7
     @test proposal.semantic_id == 99
+    oversized_id = big(typemax(UInt64)) + 1
+    @test_throws ArgumentError construct_copy_attempt(
+        state, domain, relation, 5, 1; mcs = oversized_id)
+    @test_throws ArgumentError construct_copy_attempt(
+        state, domain, relation, 5, 1; semantic_id = oversized_id)
     @test proposal_probabilities(proposal, mutable_site_count(domain),
         direction_count(relation)) == (q_forward = 2 / 36, q_reverse = 2 / 36)
 

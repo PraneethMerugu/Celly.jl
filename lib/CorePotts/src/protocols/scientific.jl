@@ -6,6 +6,8 @@ abstract type AbstractDrive end
 abstract type AbstractHardConstraint end
 """Scientific category for non-Hamiltonian transition-rate modifiers."""
 abstract type AbstractKineticModifier end
+"""Scientific category for stateful non-equilibrium mechanical work."""
+abstract type AbstractMechanicalComponent end
 
 """Typed backend- and dimension-level scientific capability declaration."""
 struct ScientificCapabilities{D <: Tuple}
@@ -15,6 +17,41 @@ end
 
 function ScientificCapabilities(; dimensions = (2, 3), portable::Bool = true)
     ScientificCapabilities(Tuple(Int.(dimensions)), portable)
+end
+
+"""Programmatically inspectable scientific contract for one named algorithm process."""
+struct AlgorithmGuaranteeProfile{P, T, M, R, C, V, B, D <: Tuple}
+    proposal_process::P
+    equilibrium_status::Symbol
+    kinetic_interpretation::Symbol
+    transaction_semantics::T
+    mcs_normalization::M
+    reproducibility_scope::R
+    compatible_component_scopes::C
+    validation_evidence::V
+    backend_contract::B
+    dimensions::D
+end
+
+function AlgorithmGuaranteeProfile(; proposal_process,
+        equilibrium_status::Symbol, kinetic_interpretation::Symbol,
+        transaction_semantics, mcs_normalization, reproducibility_scope,
+        compatible_component_scopes, validation_evidence,
+        backend_contract, dimensions)
+    isempty(validation_evidence) && throw(ArgumentError(
+        "algorithm guarantee profiles require validation evidence"))
+    backends = Tuple(Symbol.(backend_contract))
+    isempty(backends) && throw(ArgumentError(
+        "algorithm guarantee profiles require a backend contract"))
+    dims = Tuple(Int.(dimensions))
+    isempty(dims) && throw(ArgumentError(
+        "algorithm guarantee profiles require supported dimensions"))
+    all(dimension -> dimension > 0, dims) || throw(ArgumentError(
+        "algorithm guarantee dimensions must be positive"))
+    return AlgorithmGuaranteeProfile(proposal_process, equilibrium_status,
+        kinetic_interpretation, transaction_semantics, mcs_normalization,
+        reproducibility_scope, compatible_component_scopes, validation_evidence,
+        backends, dims)
 end
 
 """
@@ -104,7 +141,7 @@ _proposal_dims(domain::CartesianDomain) = domain.dims
 _proposal_dims(domain::CompiledCartesianDomain) = domain.descriptor.dims
 _proposal_mutable(domain::CartesianDomain, site) = domain.mutable_mask[site]
 function _proposal_mutable(domain::CompiledCartesianDomain, site)
-    domain.storage.mutable_mask[site] != 0
+    @inbounds domain.storage.mutable_mask[site] != 0
 end
 _proposal_owner_at(state::LogicalPottsState, site) = owner_at(state, site)
 function _proposal_owner_at(state::CompiledPottsState, site)
@@ -113,15 +150,44 @@ end
 _proposal_state_dims(state::LogicalPottsState) = lattice_size(state)
 _proposal_state_dims(state::CompiledPottsState) = state.descriptor.lattice_dims
 
-function _owner_multiplicity(state, domain, relation, recipient, owner)
+@inline function _owner_multiplicity_unchecked(state, domain, relation, recipient, owner)
     multiplicity = UInt32(0)
     for candidate_direction in 1:direction_count(relation)
-        neighbor = realize_neighbor(domain, relation, recipient, candidate_direction)
+        neighbor = _realize_neighbor_unchecked(
+            domain, relation, recipient, candidate_direction)
         if neighbor.site != 0 && _proposal_owner_at(state, neighbor.site) == owner
             multiplicity += UInt32(1)
         end
     end
     return multiplicity
+end
+
+@inline function _construct_copy_attempt_unchecked(state, domain, relation, recipient,
+        direction, mcs, semantic_id)
+    # The public constructor or compiled scheduler proves every narrowing conversion below.
+    recipient_id = Base.unsafe_trunc(UInt32, recipient)
+    direction_id = Base.unsafe_trunc(UInt32, direction)
+    mcs_id = Base.unsafe_trunc(UInt64, mcs)
+    semantic_id_u64 = Base.unsafe_trunc(UInt64, semantic_id)
+    losing = _proposal_owner_at(state, recipient)
+    if !_proposal_mutable(domain, recipient)
+        return CopyAttempt(ImmutableRecipientAttempt, recipient_id, recipient_id,
+            losing, losing, direction_id, mcs_id, semantic_id_u64, 0, 0)
+    end
+    neighbor = _realize_neighbor_unchecked(domain, relation, recipient, direction)
+    if neighbor.site == 0
+        return CopyAttempt(BoundaryNullAttempt, recipient_id, recipient_id,
+            losing, losing, direction_id, mcs_id, semantic_id_u64, 0, 0)
+    end
+    gaining = _proposal_owner_at(state, neighbor.site)
+    if gaining == losing
+        return CopyAttempt(SameOwnerAttempt, recipient_id, neighbor.site,
+            losing, gaining, direction_id, mcs_id, semantic_id_u64, 0, 0)
+    end
+    forward = _owner_multiplicity_unchecked(state, domain, relation, recipient, gaining)
+    reverse = _owner_multiplicity_unchecked(state, domain, relation, recipient, losing)
+    return CopyAttempt(ActionableCopy, recipient_id, neighbor.site,
+        losing, gaining, direction_id, mcs_id, semantic_id_u64, forward, reverse)
 end
 
 """
@@ -142,26 +208,15 @@ function construct_copy_attempt(state,
         relation.offsets, direction))
     mcs >= 0 || throw(ArgumentError("proposal MCS must be non-negative"))
     semantic_id >= 0 || throw(ArgumentError("proposal semantic ID must be non-negative"))
-    losing = _proposal_owner_at(state, recipient)
-    if !_proposal_mutable(domain, recipient)
-        return CopyAttempt(ImmutableRecipientAttempt, UInt32(recipient), UInt32(recipient),
-            losing, losing, UInt32(direction), UInt64(mcs), UInt64(semantic_id), 0, 0)
-    end
-    neighbor = realize_neighbor(domain, relation, recipient, direction)
-    if neighbor.site == 0
-        return CopyAttempt(BoundaryNullAttempt, UInt32(recipient), UInt32(recipient),
-            losing, losing, UInt32(direction), UInt64(mcs), UInt64(semantic_id), 0, 0)
-    end
-    gaining = _proposal_owner_at(state, neighbor.site)
-    if gaining == losing
-        return CopyAttempt(SameOwnerAttempt, UInt32(recipient), neighbor.site,
-            losing, gaining, UInt32(direction), UInt64(mcs), UInt64(semantic_id), 0, 0)
-    end
-    forward = _owner_multiplicity(state, domain, relation, recipient, gaining)
-    forward > 0 || error("constructed proposal has zero forward multiplicity")
-    reverse = _owner_multiplicity(state, domain, relation, recipient, losing)
-    return CopyAttempt(ActionableCopy, UInt32(recipient), neighbor.site,
-        losing, gaining, UInt32(direction), UInt64(mcs), UInt64(semantic_id), forward, reverse)
+    mcs <= typemax(UInt64) || throw(ArgumentError("proposal MCS must fit UInt64"))
+    semantic_id <= typemax(UInt64) ||
+        throw(ArgumentError("proposal semantic ID must fit UInt64"))
+    attempt = _construct_copy_attempt_unchecked(
+        state, domain, relation, recipient, direction, mcs, semantic_id)
+    forward = attempt.forward_multiplicity
+    attempt.outcome === ActionableCopy && forward == 0 &&
+        error("constructed proposal has zero forward multiplicity")
+    return attempt
 end
 
 function proposal_probabilities(proposal::Union{CopyProposal, CopyAttempt},
@@ -228,9 +283,14 @@ end
 function acceptance_probability(::ConventionalMetropolis, inputs::AcceptanceInputs,
         temperature::Real)
     _validate_temperature(temperature)
+    iszero(temperature) && _zero_temperature_bias_check(inputs)
+    return _acceptance_probability(ConventionalMetropolis(), inputs, temperature)
+end
+
+@inline function _acceptance_probability(::ConventionalMetropolis,
+        inputs::AcceptanceInputs, temperature::Real)
     inputs.constraints_allowed || return zero(float(temperature))
     if iszero(temperature)
-        _zero_temperature_bias_check(inputs)
         effective_delta = inputs.delta_h + inputs.yield_barrier
         return effective_delta <= zero(effective_delta) ? one(float(temperature)) :
                zero(float(temperature))
@@ -245,12 +305,17 @@ end
 function acceptance_probability(::MetropolisHastings, inputs::AcceptanceInputs,
         temperature::Real)
     _validate_temperature(temperature)
+    iszero(temperature) && _zero_temperature_bias_check(inputs)
+    return _acceptance_probability(MetropolisHastings(), inputs, temperature)
+end
+
+@inline function _acceptance_probability(::MetropolisHastings,
+        inputs::AcceptanceInputs, temperature::Real)
     inputs.constraints_allowed || return zero(float(temperature))
     inputs.reverse_multiplicity == 0 && return zero(float(temperature))
     T = float(promote_type(typeof(temperature), typeof(inputs.delta_h)))
     proposal_ratio = T(inputs.reverse_multiplicity) / T(inputs.forward_multiplicity)
     if iszero(temperature)
-        _zero_temperature_bias_check(inputs)
         effective_delta = inputs.delta_h + inputs.yield_barrier
         effective_delta < zero(effective_delta) && return one(T)
         effective_delta > zero(effective_delta) && return zero(T)
@@ -333,6 +398,33 @@ required_observables(::Any) = ()
 required_relations(::Any) = ()
 capabilities(::Any) = ScientificCapabilities()
 
+"""Host-side trait for a component not yet qualified for deterministic parallel snapshots."""
+struct UnsupportedScientificAccess end
+
+"""
+    SnapshotScientificAccess(relations=(); cell_wide=false, private_workspace=false)
+
+Auditable access trait for a component evaluated against a common immutable subround snapshot.
+`relations` contains every realized spatial relation whose simultaneous recipient writes could
+interact. `cell_wide` declares dependence on mutable finite-cell state, and `private_workspace`
+requires proposal-private scratch storage before parallel execution can be qualified.
+"""
+struct SnapshotScientificAccess{R <: Tuple}
+    relations::R
+    cell_wide::Bool
+    private_workspace::Bool
+end
+
+function SnapshotScientificAccess(relations::Tuple = (); cell_wide::Bool = false,
+        private_workspace::Bool = false)
+    all(relation -> relation isa StaticCartesianRelation, relations) ||
+        throw(ArgumentError("scientific access relations must be static Cartesian relations"))
+    return SnapshotScientificAccess(relations, cell_wide, private_workspace)
+end
+
+"""Return the component's conservative deterministic-parallel access declaration."""
+scientific_access(::Any) = UnsupportedScientificAccess()
+
 function _interface_report(category::Symbol, component, essential::Tuple)
     missing = Symbol[]
     hasmethod(component_identity, Tuple{typeof(component)}) ||
@@ -363,6 +455,9 @@ end
 function validate_constraint_component(component::AbstractHardConstraint)
     _interface_report(:constraint, component, (:is_allowed,))
 end
+function validate_mechanical_component(component::AbstractMechanicalComponent)
+    _interface_report(:mechanical, component, (:mechanical_work,))
+end
 function validate_tracker_component(component::AbstractTracker)
     _interface_report(:tracker, component, (:rebuild_tracker,))
 end
@@ -370,7 +465,10 @@ function validate_event_component(component::AbstractEvent)
     _interface_report(:event, component, (:event_effects,))
 end
 function validate_algorithm_component(component::AbstractPottsAlgorithm)
-    _interface_report(:algorithm, component, (:algorithm_guarantees,))
+    report = _interface_report(:algorithm, component, (:algorithm_guarantees,))
+    algorithm_guarantees(component) isa AlgorithmGuaranteeProfile || throw(ArgumentError(
+        "algorithm_guarantees must return AlgorithmGuaranteeProfile"))
+    return report
 end
 function validate_topology_component(component::AbstractTopology)
     _interface_report(:topology, component, (:topology_dimensions,))

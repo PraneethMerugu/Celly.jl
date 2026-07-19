@@ -164,7 +164,8 @@ struct UnwrappedMomentDelta{N, T <: AbstractFloat}
 end
 
 function _moment_delta(tracker::UnwrappedMomentTracker{T},
-        state::CompiledScientificState, proposal::CopyProposal) where {T}
+        state::Union{CompiledScientificState, ScientificExecutionState},
+        proposal::CopyProposal) where {T}
     storage = state.trackers.moments
     storage isa UnwrappedMomentStorage || throw(ArgumentError(
         "moment tracker was requested but no moment storage was compiled"))

@@ -24,6 +24,14 @@ execution_qualification = PottsBenchmarks.qualify_execution_backend(backend)
 println("EXECUTION_QUALIFICATION=", execution_qualification)
 scientific_qualification = PottsBenchmarks.qualify_scientific_backend(backend)
 println("SCIENTIFIC_QUALIFICATION=", scientific_qualification)
+sequential_qualification = PottsBenchmarks.qualify_sequential_backend(backend)
+println("SEQUENTIAL_QUALIFICATION=", sequential_qualification)
+checkerboard_qualification = PottsBenchmarks.qualify_checkerboard_backend(backend)
+println("CHECKERBOARD_QUALIFICATION=", checkerboard_qualification)
+lottery_qualification = PottsBenchmarks.qualify_lottery_backend(backend)
+println("LOTTERY_QUALIFICATION=", lottery_qualification)
+mechanics_qualification = PottsBenchmarks.qualify_mechanics_backend(backend)
+println("MECHANICS_QUALIFICATION=", mechanics_qualification)
 
 workloads = profile == "smoke" ? ("volume_2d_small",) :
             ("volume_2d_small", "adhesion_2d_medium", "volume_3d_small",

@@ -104,8 +104,8 @@ Independent named stream families MUST exist for at least:
 - Proposal direction selection
 - Acceptance sampling
 - Lottery activation and ticketing
-- Checkerboard color ordering
-- Each HST family or stochastic auxiliary property
+- Checkerboard color ordering and deterministic transaction priority, in separate streams
+- Auxiliary initialization and evolution as separate streams, partitioned by stable component instance identity
 - Rule-language randomness
 - Event triggers
 - Division orientation
@@ -211,9 +211,10 @@ random streams.
 
 ### Checkerboard Algorithms
 
-Checkerboard dynamics are not the reference sequential kinetics. Each MCS uses an unbiased random
-permutation of colors. A color observes one common snapshot, commits through its documented
-transaction, and the next color observes the committed state.
+`CheckerboardSweepCPM` dynamics are not the reference sequential kinetics. Each mutable site is
+scheduled exactly once without replacement, and each MCS uses an unbiased random permutation of
+colors. A color observes one common snapshot, commits through its documented transaction, and the
+next color observes the committed state.
 
 Checkerboard equilibrium correctness remains under `SEM-ALG-001`. It MUST NOT be described as
 equilibrium-exact until its transition kernel is derived for shared cell state, trackers, boundaries,
@@ -231,10 +232,18 @@ Lottery tickets and tie-breaking MUST be pure functions of the seed, MCS, scient
 internal round, and site identity. The selected set MUST be independent of scheduling and workgroup
 structure.
 
+Stable Cartesian `LotteryCPM` compares the complete four-word Philox block lexicographically. Since
+Philox is a bijection and semantic site addresses pack injectively, distinct sites in one round have
+distinct 128-bit tickets; finite-width ticket collisions and canonical-identity activation bias are
+therefore absent. A separately stored first word may be reused as deterministic dynamic-conflict
+priority after activation, where exact ties are resolved by canonical proposal identity.
+
 Topology determines activation and internal rounds. One public step advances one normalized MCS by
-expected proposal-budget normalization. Each round observes the previous round's committed state;
-proposals within a round use one common snapshot and transaction law. A conflict loser becomes a
-no-op and MUST NOT be resampled.
+expected activated-attempt normalization with equal per-site expectation. The compiled schedule is
+independent of evolving model state. Each round observes the previous round's committed state;
+proposals within a round use one common snapshot and transaction law. A dynamic conflict loser
+consumes its activated attempt as a no-op and MUST NOT be resampled. Residual-round placement and
+semantically meaningful round order use addressed algorithm streams.
 
 Lottery kinetics are distinct parallel kinetics and MUST NOT be called exact sequential kinetics.
 Equilibrium correctness remains under `SEM-ALG-002` until its composed transition kernel, including

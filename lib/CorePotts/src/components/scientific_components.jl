@@ -112,6 +112,91 @@ function energy_change(component::QuadraticVolumeHamiltonian, proposal::CopyProp
     return delta
 end
 
+@enum MechanicalInitialization::UInt8 begin
+    ConstitutiveMeanInitialization = 1
+    StationaryMechanicalInitialization = 2
+    PreserveMechanicalInitialization = 3
+end
+
+"""Use the selected CPM algorithm temperature as a visible mechanical-noise default."""
+struct AlgorithmTemperatureNoise end
+
+"""Mechanical-noise scale independent of the CPM acceptance temperature."""
+struct FixedMechanicalNoise{T <: AbstractFloat}
+    value::T
+
+    function FixedMechanicalNoise(value::T) where {T <: AbstractFloat}
+        isfinite(value) && value >= zero(T) || throw(ArgumentError(
+            "mechanical noise scale must be finite and non-negative"))
+        return new{T}(value)
+    end
+end
+
+FixedMechanicalNoise(value::Real) = FixedMechanicalNoise(float(value))
+
+"""Non-equilibrium per-cell pressure with an exact frozen-volume OU transition."""
+struct FluctuatingVolumePressure{TargetKey, StrengthKey, StateKey,
+    T <: AbstractFloat, N} <: AbstractMechanicalComponent
+    eta::T
+    noise::N
+    initialization::MechanicalInitialization
+    instance_id::UInt16
+end
+
+function FluctuatingVolumePressure(; target::Symbol = :target_volume,
+        strength::Symbol = :volume_strength, state::Symbol = :volume_pressure,
+        eta::Real = 1.0f0, noise = AlgorithmTemperatureNoise(),
+        initialization::MechanicalInitialization = ConstitutiveMeanInitialization,
+        instance_id::Integer = 1, number_type::Type{T} = Float32) where {
+        T <: AbstractFloat}
+    rate = T(eta)
+    isfinite(rate) && rate > zero(T) || throw(ArgumentError(
+        "volume-pressure relaxation rate must be finite and positive"))
+    noise isa Union{AlgorithmTemperatureNoise, FixedMechanicalNoise} ||
+        throw(ArgumentError("unsupported mechanical-noise declaration"))
+    0 < instance_id <= typemax(UInt16) || throw(ArgumentError(
+        "mechanical component instance ID must be positive and fit UInt16"))
+    length(unique((target, strength, state))) == 3 || throw(ArgumentError(
+        "volume-pressure target, strength, and state properties must be distinct"))
+    return FluctuatingVolumePressure{
+        target, strength, state, T, typeof(noise)}(
+        rate, noise, initialization, UInt16(instance_id))
+end
+
+_mechanical_target(::FluctuatingVolumePressure{T}) where {T} = CellPropertyRef(T)
+_mechanical_strength(::FluctuatingVolumePressure{T, S}) where {T, S} = CellPropertyRef(S)
+_mechanical_state(::FluctuatingVolumePressure{T, S, Q}) where {T, S, Q} = CellPropertyRef(Q)
+
+component_identity(::FluctuatingVolumePressure) =
+    ComponentIdentity(:fluctuating_volume_pressure, v"1.0.0", :mechanical)
+
+function required_properties(component::FluctuatingVolumePressure)
+    requester = component_identity(component)
+    T = typeof(component).parameters[4]
+    return PropertySchema(
+        PropertyDescriptor(property_key(_mechanical_target(component)), T,
+            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+        PropertyDescriptor(property_key(_mechanical_strength(component)), T,
+            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+        PropertyDescriptor(property_key(_mechanical_state(component)), T,
+            ConstantInitializer(zero(T)); requester, mutability = MutableProperty,
+            division = TransformOnDivision, transition = InvalidTransition,
+            kind = AuxiliaryProperty)
+    )
+end
+
+@inline function mechanical_work(component::FluctuatingVolumePressure,
+        proposal::CopyProposal, state, transaction)
+    values = _property_column(state, _mechanical_state(component))
+    T = eltype(values)
+    result = zero(T)
+    is_cell_owner(proposal.losing) &&
+        (result -= @inbounds values[Int(proposal.losing.value)])
+    is_cell_owner(proposal.gaining) &&
+        (result += @inbounds values[Int(proposal.gaining.value)])
+    return result
+end
+
 """Symmetric unordered contact Hamiltonian over one explicit contact relation."""
 struct UnorderedContactHamiltonian{T <: AbstractFloat, N, A <: SMatrix{N, N, T},
     M <: MediumTypeTable,
@@ -154,7 +239,7 @@ end
 
 @inline function _realized_owner(state, neighbor::RealizedNeighbor)
     return neighbor.kind === MutableNeighbor ? _proposal_owner_at(state, neighbor.site) :
-           fixed_owner(neighbor)
+           _fixed_owner_unchecked(neighbor)
 end
 
 @inline _metric_edge_weight(::Nothing, relation, direction) = relation_weight(relation, direction)
@@ -319,11 +404,25 @@ end
 function boundary_measure_change(
         state, domain, relation::StaticCartesianRelation{<:SurfaceRole},
         proposal::CopyProposal, metric::AbstractBoundaryMetric)
+    return _boundary_measure_change(
+        realize_neighbor, state, domain, relation, proposal, metric)
+end
+
+@inline function _boundary_measure_change_unchecked(
+        state, domain, relation::StaticCartesianRelation{<:SurfaceRole},
+        proposal::CopyProposal, metric::AbstractBoundaryMetric)
+    return _boundary_measure_change(
+        _realize_neighbor_unchecked, state, domain, relation, proposal, metric)
+end
+
+@inline function _boundary_measure_change(realize, state, domain,
+        relation::StaticCartesianRelation{<:SurfaceRole}, proposal::CopyProposal,
+        metric::AbstractBoundaryMetric)
     T = metric isa BoundaryEdgeCount ? Int64 : eltype(relation.weights)
     losing_delta = zero(T)
     gaining_delta = zero(T)
     for direction in 1:direction_count(relation)
-        neighbor = realize_neighbor(domain, relation, proposal.recipient, direction)
+        neighbor = realize(domain, relation, proposal.recipient, direction)
         neighbor.kind in (AbsentNeighbor, InvalidNeighbor) && continue
         owner = _realized_owner(state, neighbor)
         weight = T(_boundary_weight(metric, relation, direction))
@@ -412,6 +511,79 @@ function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyPr
             (T(measure + deltas.gaining) - T(targets[index]))^2 -
             (T(measure) - T(targets[index]))^2)
     end
+    return result
+end
+
+"""Non-equilibrium per-cell tension with an exact frozen-surface OU transition."""
+struct FluctuatingSurfaceTension{TargetKey, StrengthKey, StateKey,
+    T <: AbstractFloat, N, M <: AbstractBoundaryMetric,
+    R <: StaticCartesianRelation{<:SurfaceRole}} <: AbstractMechanicalComponent
+    eta::T
+    noise::N
+    initialization::MechanicalInitialization
+    instance_id::UInt16
+    metric::M
+    relation::R
+    tracker_identity::NTuple{2, UInt64}
+end
+
+function FluctuatingSurfaceTension(metric::AbstractBoundaryMetric,
+        relation::StaticCartesianRelation{<:SurfaceRole};
+        target::Symbol = :target_boundary, strength::Symbol = :boundary_strength,
+        state::Symbol = :surface_tension, eta::Real = 1.0f0,
+        noise = AlgorithmTemperatureNoise(),
+        initialization::MechanicalInitialization = ConstitutiveMeanInitialization,
+        instance_id::Integer = 1, number_type::Type{T} = Float32) where {
+        T <: AbstractFloat}
+    rate = T(eta)
+    isfinite(rate) && rate > zero(T) || throw(ArgumentError(
+        "surface-tension relaxation rate must be finite and positive"))
+    noise isa Union{AlgorithmTemperatureNoise, FixedMechanicalNoise} ||
+        throw(ArgumentError("unsupported mechanical-noise declaration"))
+    0 < instance_id <= typemax(UInt16) || throw(ArgumentError(
+        "mechanical component instance ID must be positive and fit UInt16"))
+    length(unique((target, strength, state))) == 3 || throw(ArgumentError(
+        "surface-tension target, strength, and state properties must be distinct"))
+    return FluctuatingSurfaceTension{
+        target, strength, state, T, typeof(noise), typeof(metric), typeof(relation)}(
+        rate, noise, initialization, UInt16(instance_id), metric, relation,
+        _boundary_tracker_identity(metric, relation))
+end
+
+_mechanical_target(::FluctuatingSurfaceTension{T}) where {T} = CellPropertyRef(T)
+_mechanical_strength(::FluctuatingSurfaceTension{T, S}) where {T, S} = CellPropertyRef(S)
+_mechanical_state(::FluctuatingSurfaceTension{T, S, Q}) where {T, S, Q} = CellPropertyRef(Q)
+
+component_identity(::FluctuatingSurfaceTension) =
+    ComponentIdentity(:fluctuating_surface_tension, v"1.0.0", :mechanical)
+required_relations(::FluctuatingSurfaceTension) = (:surface,)
+
+function required_properties(component::FluctuatingSurfaceTension)
+    requester = component_identity(component)
+    T = typeof(component).parameters[4]
+    target_type = component.metric isa BoundaryEdgeCount ? Int64 : T
+    return PropertySchema(
+        PropertyDescriptor(property_key(_mechanical_target(component)), target_type,
+            ConstantInitializer(zero(target_type)); requester, kind = BiologicalProperty),
+        PropertyDescriptor(property_key(_mechanical_strength(component)), T,
+            ConstantInitializer(zero(T)); requester, kind = BiologicalProperty),
+        PropertyDescriptor(property_key(_mechanical_state(component)), T,
+            ConstantInitializer(zero(T)); requester, mutability = MutableProperty,
+            division = TransformOnDivision, transition = InvalidTransition,
+            kind = AuxiliaryProperty)
+    )
+end
+
+@inline function mechanical_work(component::FluctuatingSurfaceTension,
+        proposal::CopyProposal, state, transaction)
+    values = _property_column(state, _mechanical_state(component))
+    T = eltype(values)
+    delta = transaction.trackers
+    result = zero(T)
+    is_cell_owner(proposal.losing) &&
+        (result += @inbounds values[Int(proposal.losing.value)] * T(delta.losing_boundary))
+    is_cell_owner(proposal.gaining) &&
+        (result += @inbounds values[Int(proposal.gaining.value)] * T(delta.gaining_boundary))
     return result
 end
 

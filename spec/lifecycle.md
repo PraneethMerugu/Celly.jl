@@ -1,6 +1,6 @@
 # Cell Lifecycle
 
-Status: Accepted except HST-specific rules marked provisional
+Status: Accepted except family-specific auxiliary distributions that remain required evidence
 
 ## Lifecycle Phase
 
@@ -71,7 +71,7 @@ For a successful division:
 - Both resulting cells preserve the parent's type by default.
 - A division rule MAY explicitly assign different valid parent and daughter types.
 
-No public permanent lineage identity is required in specification version `0.1-draft`.
+No public permanent lineage identity is required in specification version `0.2-draft`.
 
 ## Division Geometry
 
@@ -136,17 +136,22 @@ rounding while preserving the exact total. The draw MUST use the lifecycle RNG s
 repeatable under the accepted reproducibility contract. A deterministic remainder policy MAY be
 available explicitly.
 
-## HST State After Division
+## Auxiliary State After Division
 
-Status: Provisional
+Every auxiliary family MUST define an explicit lifecycle policy. For an equilibrium auxiliary
+constraint, both daughters are sampled from the derived joint conditional distribution after the
+post-division lattice and derived observables are final. Blind cloning is prohibited. A conditional-
+mean initializer MAY be used only as an explicitly selected, documented policy.
 
-Each HST family MUST define an explicit division policy. Candidate policies include conditional-
-equilibrium sampling, resetting to the post-division mean, conservative splitting, and cloning.
+Mechanical auxiliary components MAY define conservation, inheritance, transformation, or reset
+policies, but each policy MUST state its physical meaning and MUST NOT inherit an equilibrium claim.
+Focal-link auxiliary state is created only after both endpoint generations and link geometry commit;
+link removal retires its state in the same transaction. Extinction clears auxiliary state atomically,
+and slot reuse creates a new generation, initialization event, and semantic RNG identity.
 
-The intended default is a sample from the scientifically correct post-division conditional
-distribution. This distribution MUST be derived and validated before it becomes accepted semantics.
-Until then, resetting to the post-division thermodynamic mean MAY be used only as a documented
-provisional policy. Cloning an HST field MUST NOT be assumed correct by default.
+The family-specific distributions remain required Phase 8 evidence. A family whose lifecycle law is
+not derived is incompatible with that lifecycle operation rather than silently applying a generic
+fallback.
 
 ## Type Transitions
 

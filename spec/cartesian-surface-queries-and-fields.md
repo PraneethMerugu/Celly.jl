@@ -123,9 +123,11 @@ Physical contact coefficients have energy per length units in 2D or energy per a
 multiply the declared physical contact quadrature. Lattice-scaled `J` values instead name their raw
 or weighted lattice metric. Changing a relation does not reinterpret either parameter silently.
 
-`SurfaceConstraint` denotes this ordinary Hamiltonian and provides global energy plus exact local
-delta. `HSTSurface` denotes a distinct stochastic-auxiliary family. HST MUST NOT be selected by the
-ordinary surface API or presented as the default implementation of surface mechanics.
+`SurfaceConstraint` defaults to this ordinary Hamiltonian and provides global energy plus exact
+local delta. An equilibrium auxiliary formulation is selected explicitly and must satisfy
+[Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md). A fluctuating-surface-
+tension component is distinct mechanical state. Neither auxiliary category may be selected silently
+or presented as an implementation detail of the ordinary quadratic constraint.
 
 ## Fixed Owners and Obstacles
 

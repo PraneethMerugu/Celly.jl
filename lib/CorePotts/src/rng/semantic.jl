@@ -16,7 +16,7 @@ rng_contract_version(::Philox4x32x10V1) = v"1.0.0"
     LotteryActivationStream = 6
     LotteryPriorityStream = 7
     CheckerboardOrderStream = 8
-    HSTStream = 9
+    AuxiliaryEvolutionStream = 9
     RuleStream = 10
     EventStream = 11
     DivisionOrientationStream = 12
@@ -24,6 +24,8 @@ rng_contract_version(::Philox4x32x10V1) = v"1.0.0"
     StochasticRoundingStream = 14
     TypeTransitionStream = 15
     EnsembleStream = 16
+    CheckerboardPriorityStream = 17
+    AuxiliaryInitializationStream = 18
 end
 
 """Semantic identity domain for an addressed random operation."""
@@ -71,6 +73,20 @@ struct RNGAddress
         return new(stream, mcs, subround, operation, entity_kind, entity, generation,
             invocation, draw)
     end
+
+    function RNGAddress(stream::RNGStream, mcs::UInt64, subround::UInt8,
+            operation::UInt16, entity_kind::RNGEntityKind, entity::UInt32,
+            generation::UInt64, invocation::UInt8, draw::UInt16, ::Val{:unchecked})
+        return new(stream, mcs, subround, operation, entity_kind, entity, generation,
+            invocation, draw)
+    end
+end
+
+@inline function _rng_address_unchecked(stream::RNGStream, mcs::UInt64,
+        subround::UInt8, operation::UInt16, entity_kind::RNGEntityKind,
+        entity::UInt32, generation::UInt64, invocation::UInt8, draw::UInt16)
+    return RNGAddress(stream, mcs, subround, operation, entity_kind, entity,
+        generation, invocation, draw, Val(:unchecked))
 end
 
 function RNGAddress(; stream::RNGStream, mcs::Integer = 0, subround::Integer = 0,
@@ -192,8 +208,9 @@ end
 end
 
 @inline function _with_invocation(address::RNGAddress, invocation::UInt8)
-    return RNGAddress(address.stream, address.mcs, address.subround, address.operation,
-        address.entity_kind, address.entity, address.generation, invocation, address.draw)
+    return _rng_address_unchecked(address.stream, address.mcs, address.subround,
+        address.operation, address.entity_kind, address.entity, address.generation,
+        invocation, address.draw)
 end
 
 """Unbiased integer in `0:(bound - 1)` using local retry-addressed rejection."""
@@ -243,8 +260,9 @@ end
 end
 
 @inline function _with_draw(address::RNGAddress, draw::UInt16)
-    return RNGAddress(address.stream, address.mcs, address.subround, address.operation,
-        address.entity_kind, address.entity, address.generation, address.invocation, draw)
+    return _rng_address_unchecked(address.stream, address.mcs, address.subround,
+        address.operation, address.entity_kind, address.entity, address.generation,
+        address.invocation, draw)
 end
 
 """

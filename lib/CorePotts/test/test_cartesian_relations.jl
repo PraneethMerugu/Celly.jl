@@ -40,6 +40,10 @@ end
     wrapped = realize_neighbor(periodic2, proposal, 1, 1)
     @test wrapped.kind === MutableNeighbor
     @test wrapped.site == 16
+    multiwrap = static_relation(
+        SpatialQueryRole(), ((0, -9), (0, 9)); symmetric = true)
+    @test realize_neighbor(periodic2, multiwrap, 1, 1).site == 16
+    @test realize_neighbor(periodic2, multiwrap, 1, 2).site == 6
 
     closed2 = CartesianDomain((5, 4);
         boundaries = (
@@ -104,6 +108,8 @@ end
         boundaries = (
             AxisBoundary(PeriodicBoundary(), ClosedBoundary()),
             AxisBoundary(ClosedBoundary())))
+    @test_throws ArgumentError CartesianDomain((Int(typemax(Int32)) + 1, 1))
+    @test_throws ArgumentError CartesianDomain((65_536, 65_536))
     @test_throws ArgumentError static_relation(ContactRole(), ((1, 0), (1, 0)))
     @test_throws ArgumentError static_relation(ContactRole(), ((1, 0), (0, 1)))
     @test_throws ArgumentError static_relation(

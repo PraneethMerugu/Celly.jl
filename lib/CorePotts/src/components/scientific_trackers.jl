@@ -107,8 +107,10 @@ function Adapt.adapt_structure(to, state::ScientificExecutionState)
 end
 
 _proposal_state_dims(state::ScientificExecutionState) = state.domain.descriptor.dims
-function _proposal_owner_at(state::ScientificExecutionState, site)
-    owner_at(state.core.ownership, site)
+@inline function _proposal_owner_at(state::ScientificExecutionState, site)
+    ownership = state.core.ownership
+    return _owner_ref_unchecked(
+        @inbounds(ownership.tags[site]), @inbounds(ownership.ids[site]))
 end
 @inline _property_column(state::ScientificExecutionState, ::CellPropertyRef{K}) where {K} = getproperty(
     state.core.properties, K)
@@ -285,24 +287,38 @@ end
 
 function stage_copy_transaction(state::CompiledScientificState,
         tracker::BoundaryMeasureTracker, proposal::CopyProposal; moment_tracker = nothing)
+    return stage_copy_transaction(
+        scientific_execution(state), tracker, proposal; moment_tracker)
+end
+
+@inline function stage_copy_transaction(state::ScientificExecutionState,
+        tracker::BoundaryMeasureTracker, proposal::CopyProposal; moment_tracker = nothing)
     tracker == state.boundary_tracker || throw(ArgumentError(
         "staged transaction tracker does not match the compiled boundary tracker descriptor"))
-    core = state.potts
+    core = state.core
     domain = state.domain
-    1 <= proposal.recipient <= prod(core.descriptor.lattice_dims) || throw(BoundsError(
-        1:prod(core.descriptor.lattice_dims), proposal.recipient))
+    1 <= proposal.recipient <= prod(domain.descriptor.dims) || throw(BoundsError(
+        1:prod(domain.descriptor.dims), proposal.recipient))
     domain.storage.mutable_mask[proposal.recipient] != 0 || throw(ArgumentError(
         "an immutable domain site cannot be a copy recipient"))
-    owner_at(core.storage.ownership, proposal.recipient) == proposal.losing ||
+    owner_at(core.ownership, proposal.recipient) == proposal.losing ||
         throw(ArgumentError(
             "proposal losing owner does not match the staged snapshot"))
-    owner_at(core.storage.ownership, proposal.donor) == proposal.gaining ||
+    owner_at(core.ownership, proposal.donor) == proposal.gaining ||
         throw(ArgumentError(
             "proposal gaining owner does not match the staged snapshot"))
-    changes = boundary_measure_change(
-        core, domain, tracker.relation, proposal, tracker.metric)
+    return _stage_copy_transaction_unchecked(
+        state, tracker, proposal; moment_tracker)
+end
+
+@inline function _stage_copy_transaction_unchecked(state::ScientificExecutionState,
+        tracker::BoundaryMeasureTracker, proposal::CopyProposal; moment_tracker = nothing)
+    # Proposal construction proves recipient/donor bounds and snapshot ownership.
+    domain = state.domain
+    changes = _boundary_measure_change_unchecked(
+        state, domain, tracker.relation, proposal, tracker.metric)
     T = eltype(state.trackers.boundary_measures)
-    medium_ids = core.descriptor.medium_ids
+    medium_ids = state.medium_ids
     moment_change = _moment_delta(moment_tracker, state, proposal)
     delta = ScientificTrackerDelta(
         is_cell_owner(proposal.losing) ? proposal.losing.value : UInt32(0),

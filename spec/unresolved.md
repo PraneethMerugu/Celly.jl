@@ -45,20 +45,33 @@ connectivity requirements for a proposal that samples distinct neighboring owner
 Validate versioned CC3D, Morpheus, and Artistoo parameter conversions, acceptance variants,
 neighborhood conventions, and fixture corpora before advertising compatibility presets.
 
-## HST Semantics
+## Auxiliary-State Semantics
+
+The accepted category, naming, state ownership, normalized-time, RNG, backend, and lifecycle
+architecture is defined in [Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md).
+The historical `HST...Penalty` names and implementations are not normative.
 
 ### SEM-HST-001: Augmented Hamiltonian
 
-Derive and document the augmented Hamiltonian and stationary distribution for each HST family.
+Resolved by [Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md). The
+historical real `HST...Penalty` law is not a valid Gibbs augmentation: its conditional-mean and copy-
+work signs cannot arise from one real joint density, while the genuine positive-quadratic Gaussian
+identity has an imaginary linear coupling. Stable equilibrium support therefore remains the exact
+classical quadratic Hamiltonian. Stable stateful support is separately named fluctuating volume-
+pressure and surface-tension mechanics with no marginal-equivalence or detailed-balance claim.
 
 ### SEM-HST-002: MCS integration
 
-Define the stochastic integration scheme, operator splitting, noise variance, and algorithm-
-independent substep policy.
+Resolved for stable volume and surface mechanics by
+[Auxiliary Constraints and Mechanical State](auxiliary-state-semantics.md). The accepted law is the
+exact frozen-observable OU transition under symmetric composition. Algorithm sub-round intervals sum
+to one MCS: sequential `1`, checkerboard realized color fractions, and lottery `1 / (Delta + 1)`.
+Backend and statistical qualification remain conformance work rather than open semantics.
 
 ### SEM-HST-003: Lifecycle distributions
 
-Derive division, transition, death, and initialization distributions for HST auxiliary state.
+Required Phase 8 evidence. Derive division, transition, death, initialization, slot-reuse, and link-
+lifecycle distributions for each stable auxiliary family. Generic cloning is prohibited.
 
 ## Topology
 
@@ -121,12 +134,16 @@ Operator splitting, secretion, uptake, and PDE substeps remain under the SciML c
 
 ### SEM-ALG-001: Checkerboard equilibrium guarantee
 
-Determine whether each checkerboard algorithm preserves the intended invariant distribution in the
-presence of shared cell-wide state.
+The accepted `CheckerboardSweepCPM` process schedules every mutable site once without replacement in
+randomized color order and does not claim sequential kinetics. Determine whether any equilibrium
+variant preserves its intended invariant distribution in the presence of shared cell-wide state.
 
 ### SEM-ALG-002: Lottery equilibrium and kinetic guarantee
 
-Derive or statistically characterize expected-budget lottery sampling and normalized MCS kinetics.
+The accepted `LotteryCPM` clock gives every mutable site one activated opportunity in expectation
+from a static topology-qualified schedule; activated dynamic-conflict losers consume their attempt.
+Derive or statistically characterize the resulting equilibrium status, waiting-time law, spatial
+correlations, and kinetics.
 
 ### SEM-ALG-003: Intrinsic implementation equivalence
 
@@ -228,7 +245,7 @@ Define logical equivalence among memory, Zarr, HDF5, and future output backends.
 ### SEM-INIT-001: Coordinate and rasterization semantics
 
 Define public coordinate indexing, shape rasterization, random-layout sampling, periodic placement,
-and initial HST state.
+and initial auxiliary constraint or mechanical state.
 
 ## Numerical and Backend Semantics
 
