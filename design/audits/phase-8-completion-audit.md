@@ -2,11 +2,12 @@
 
 Date: 2026-07-19
 
-Status: Candidate complete locally; authoritative ROCm and repository CI pending
+Status: Complete
 
 This audit uses the Phase 8 deliverables and exit gate in `design/refactor-roadmap.md` as the
-definition of completion. CPU and real Apple Metal evidence is complete. Phase 8 closes only after
-the candidate commit passes the independent AMDGPU/ROCm runner and the required repository checks.
+definition of completion. Candidate commit
+[`7b2e9f8`](https://github.com/PraneethMerugu/Potts.jl/commit/7b2e9f8dc7796b50f68846de07f3e91b7a261f68)
+passes the required Julia 1.12.6 repository CI and independent real Metal and AMDGPU/ROCm runners.
 
 ## Delivered scientific scope
 
@@ -22,9 +23,9 @@ final PottsToolkit compiler remain in their owning later phases.
 | 8.3 scalar transactions | One pre-lifecycle snapshot; deterministic plan/resolve/validate/atomic commit; growth, transition, division, death, extinction, retirement, and bounded failures | Complete |
 | 8.4 mechanics and derived state | Constitutive reset, intensive preservation, addressed stationary redraw, target split, tracker repair, death clear, and generation-safe reuse | Complete |
 | 8.5 compiled CPU/integrator | Bounded concrete descriptors/workspaces and completed-MCS connection for sequential, checkerboard, and lottery | Complete |
-| 8.6 GPU | Staged schedule-through-commit KernelAbstractions pipeline, device failure buffer, 2D/3D geometry and tracker repair | CPU and Metal complete; ROCm pending CI |
+| 8.6 GPU | Staged schedule-through-commit KernelAbstractions pipeline, device failure buffer, 2D/3D geometry and tracker repair | CPU, Metal, and ROCm complete |
 | 8.7 persistence | Canonical completed-MCS record, strict continuation profile, exact resume, logical import, memory/HDF5/Zarr adapters, integrity and publication faults | Complete locally and exact Metal continuation complete |
-| 8.8 audit/performance | Machine-readable qualification and synchronized diagnostic measurements | Complete locally; authoritative CI pending |
+| 8.8 audit/performance | Machine-readable qualification and synchronized diagnostic measurements | Complete on required CI and hardware |
 
 ## GPU execution contract
 
@@ -109,13 +110,23 @@ not normalized MCS semantics.
 - `scripts/check_structure.jl`, `scripts/check_legacy_containment.jl`, all package/integration
   suites, and `git diff --check`: green locally.
 
-## Authoritative closure condition
+## Authoritative closure evidence
 
-This document becomes `Status: Complete` only after a pushed candidate commit passes:
+Candidate commit `7b2e9f8dc7796b50f68846de07f3e91b7a261f68` passed:
 
-1. the required Julia 1.12.6 repository CI, including structure and hard legacy containment;
-2. the real Metal job; and
-3. the independent real AMDGPU/ROCm job containing lifecycle, downstream-protocol, persistence, and
-   performance records.
+1. [required Julia 1.12.6 repository CI](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29700054143),
+   including the project-integrity and hard legacy-containment gate, both CPU architectures, all
+   four packages, and all integration shards;
+2. [real Apple Metal qualification](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29700054141/job/88227483586)
+   in 3 minutes 54 seconds; and
+3. [independent real AMDGPU/ROCm qualification](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29700054141/job/88227483563)
+   in 4 minutes 30 seconds.
+
+The Metal and ROCm jobs execute the same smoke-matrix entrypoint. That entrypoint requires the
+machine-readable `LIFECYCLE_QUALIFICATION`, combined zero-CorePotts-edit downstream protocol
+fixture, `PERSISTENCE_QUALIFICATION`, and `PHASE8_PERFORMANCE` records; a missing record or failed
+assertion terminates the job before artifact publication. The documentation environment manifest
+was refreshed to include CorePotts's declared `SHA` stdlib dependency, and the complete
+documentation build passes locally before the final audit commit.
 
 CUDA remains deferred under Decision 0013 and is not inferred from this phase.
