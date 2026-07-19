@@ -1,10 +1,10 @@
 # Phase 7 Completion Audit
 
-Status: Pending ROCm qualification
+Status: Complete
 
 This audit uses the Phase 7 deliverables and exit gate in `design/refactor-roadmap.md` as the
-definition of completion. Implementation, CPU qualification, and real Metal qualification are
-complete. Decision 0013 requires a real ROCm pass before Phase 7 can close.
+definition of completion. Implementation and real CPU, Metal, and ROCm qualification are complete
+under the three-backend contract in Decision 0013.
 
 ## Stable scientific scope
 
@@ -37,41 +37,53 @@ and lottery initialization errors. Length and focal auxiliary mechanics remain e
 | First-class mechanical state | Fifth scientific component category, exact OU transition, separate mechanical copy work, semantic initialization/evolution streams, and symmetric normalized sub-round integration | Implemented |
 | Explicit capability rejection | Undeclared/private parallel access, connectivity, and moment/focal state fail during initialization with a compatible sequential alternative | Implemented |
 | Diagnostics | Reports expose rounds, scheduler candidates, activated attempts, no-ops, conflicts, rejections, accepted moves, and guarantee profile | Implemented |
-| Historical-engine quarantine | A SHA-256 manifest exhaustively inventories and freezes 22 pure production/consumer files plus quarantined-line signatures in 3 mixed files; the required checker scans the complete replacement path and rejects added legacy references across packages, tests, benchmarks, integration, tutorials, and examples | Implemented and machine-enforced |
+| Historical-engine quarantine | A SHA-256 manifest exhaustively freezes 22 pure production files, quarantined-line signatures in 3 mixed production files, and ordered signatures for 57 test/tutorial/example consumers; the required checker independently scans the complete replacement path and rejects uninventoried legacy references | Implemented and machine-enforced |
 
 ## Exit-gate evidence
 
 | Gate | Current evidence | State |
 | --- | --- | --- |
-| Attempt accounting | Focused fixtures reconcile every outcome partition; CPU and Metal qualifiers cover all three schedules in 2D and 3D | Complete on CPU and Metal |
-| Same-run reproducibility | Strict same-seed report, ownership, volume, and surface replay on each tested backend | Complete on CPU and Metal |
-| Stable statistical batteries | CPU schedule tests prove every checkerboard/lottery order is a permutation and observe semantic order variation; lottery tests additionally cover boundary-degree uniformity, repeated activation, inactive waiting times, and nearest-neighbor covariance; CPU and Metal mechanical tests cover stationary initialization and finite-time OU moments | Complete for CPU schedules and CPU/Metal mechanics; ROCm mechanics pending |
+| Attempt accounting | Focused fixtures reconcile every outcome partition; CPU, Metal, and ROCm qualifiers cover all three schedules in 2D and 3D | Complete |
+| Same-run reproducibility | Strict same-seed report, ownership, volume, and surface replay on CPU, Metal, and ROCm | Complete |
+| Stable statistical batteries | CPU schedule tests prove every checkerboard/lottery order is a permutation and observe semantic order variation; lottery tests additionally cover boundary-degree uniformity, repeated activation, inactive waiting times, and nearest-neighbor covariance; CPU, Metal, and ROCm mechanical tests cover stationary initialization and finite-time OU moments | Complete |
 | Visible non-equivalence | Checkerboard and lottery are separately named and report `equilibrium = :not_claimed`; neither can replace the sequential default silently | Complete |
 | Removed time controls | The scientific algorithm API has no public `sweeps_per_step` or `active_fraction` | Complete |
-| Stable mechanical law and clock | Volume pressure and surface tension pass exact transition, work-sign, initialization, one-MCS composition, replay, and transaction fixtures | Complete on CPU and Metal |
-| No incidental host synchronization | Algorithm and mechanics qualifiers report zero synchronization inside an MCS; observation remains explicit | Complete on CPU and Metal |
-| Current backend contract | CPU and real Metal pass; the repository workflow is wired to run the same matrix on AMDGPU | **ROCm pending** |
+| Stable mechanical law and clock | Volume pressure and surface tension pass exact transition, work-sign, initialization, one-MCS composition, replay, and transaction fixtures | Complete |
+| No incidental host synchronization | CPU, Metal, and ROCm algorithm and mechanics qualifiers report zero synchronization inside an MCS; observation remains explicit | Complete |
+| Current backend contract | CPU, real Apple Metal, and real AMDGPU/ROCm pass the same Julia 1.12.6 smoke contract | Complete |
 | Quarantine discipline | `scripts/check_legacy_containment.jl` validates frozen production digests, frozen consumer signatures, an exhaustive inventory, and a clean replacement path independently of pull-request history; final atomic deletion remains owned by the PottsToolkit compiler migration in Phases 10--11 | Complete |
 
-## Local and Metal evidence
+## Local and hardware evidence
 
 The authoritative local package test on Julia 1.12.6 reports 2,628 passed tests and one intentional
 broken test. The CPU smoke matrix passes the 2D/3D sequential, checkerboard, lottery, mechanics,
 scientific-inner-loop, and existing workload qualifiers. `git diff --check` is clean.
 
-A real Apple Metal run passes every Phase 7 algorithm and both stable mechanical families in 2D and
-3D. Reports replay exactly for the same seed, mechanics remain device-resident, and internal host
-synchronization is zero. The statistical probes report stationary variance approximately 12.286
-for an expected 12 and finite-time evolution variance approximately 10.343 for an expected
-`12 * (1 - exp(-2))`.
+A real Apple Metal run and an independent real AMDGPU/ROCm run pass every Phase 7 algorithm and both
+stable mechanical families in 2D and 3D. Reports replay exactly for the same seed, mechanics remain
+device-resident, and internal host synchronization is zero. Both statistical probes report
+stationary variance approximately 12.286 for an expected 12 and finite-time evolution variance
+approximately 10.343 for an expected `12 * (1 - exp(-2))`.
 
-## Exact remaining closure action
+## Authoritative closure evidence
 
-Push a candidate commit and let `.github/workflows/gpu-validation.yml` execute
-`benchmark/matrix.jl --backend=amdgpu --profile=smoke` on the self-hosted ROCm runner. The workflow
-already uses Julia 1.12.6, the pinned KernelIntrinsics fork revision, the dedicated AMDGPU
-environment, bounds checking, and artifact upload. Phase 7 closes only if the ROCm report passes the
-algorithm and mechanics sections in both dimensions with zero internal synchronization.
+Candidate commit `895ea54` passed the authoritative
+[CI run](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29689911385) and
+[GPU Validation run](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29689911390):
+
+- [Metal / Apple Silicon](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29689911390/job/88200690577)
+  passed in 1m46s;
+- [ROCm / AMDGPU](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29689911390/job/88200690589)
+  passed in 1m57s;
+- both logs contain `SEQUENTIAL_QUALIFICATION`, `CHECKERBOARD_QUALIFICATION`,
+  `LOTTERY_QUALIFICATION`, and `MECHANICS_QUALIFICATION` records for 2D and 3D `Float32`, strict
+  same-backend replay, normalized MCS accounting, tracker/mechanics conformance, and
+  `internal_host_synchronizations = 0`; and
+- Linux x86_64, macOS ARM64, all package suites, all integration shards, project integrity, build,
+  and the aggregate required gate passed on Julia 1.12.6.
+
+This closes the Phase 7 three-backend contract. CUDA remains deferred by Decision 0013; no CUDA
+claim is inferred.
 
 No broader checkerboard/lottery equilibrium-equivalence claim is required for closure: these
 processes explicitly make no such claim. Broader comparative kinetics and performance studies are
