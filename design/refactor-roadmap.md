@@ -13,7 +13,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 4: Core State and Scientific Protocols | Complete | [Phase 4 chunk plan](audits/phase-4-chunk-plan.md), [runtime migration audit](audits/phase-4-runtime-migration-audit.md), and sequential reference vertical slice |
 | Phase 5: Execution, RNG, Workspaces, and Backends | Complete | [Phase 5 completion audit](audits/phase-5-completion-audit.md), CPU/Metal/ROCm qualification, and Decision 0013 |
 | Phase 6: Scientific Inner Loop | Complete | Typed component folds, staged transactions, CPU/Metal/ROCm Phase 6 qualification, and tracker reconciliation |
-| Phase 7: Algorithms and Normalized MCS | Pending ROCm | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU and Metal |
+| Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phases 8-15 | Not started | Blocked by preceding phase gates |
 
 ## Objective
@@ -319,10 +319,10 @@ Complete D3 for every required field coupling before freezing its scientific cat
 ## Phase 7: Algorithms and Normalized MCS
 
 Current implementation status and requirement-level evidence live in the
-[Phase 7 completion audit](audits/phase-7-completion-audit.md). The only unfinished Phase 7 exit
-condition is real ROCm qualification. Broader performance comparison belongs to Phase 12,
-family-specific lifecycle distributions belong to Phase 8, and no equilibrium or sequential-
-kinetic equivalence is inferred for processes whose guarantee profile explicitly does not claim it.
+[Phase 7 completion audit](audits/phase-7-completion-audit.md). The three-backend exit gate is
+complete. Broader performance comparison belongs to Phase 12, family-specific lifecycle
+distributions belong to Phase 8, and no equilibrium or sequential-kinetic equivalence is inferred
+for processes whose guarantee profile explicitly does not claim it.
 
 ### Required gate
 
