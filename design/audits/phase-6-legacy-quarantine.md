@@ -34,7 +34,7 @@ be cited as scientific authority.
 
 ## Enforcement
 
-`scripts/check_legacy_containment.jl` is a required CI gate and enforces three independent rules:
+`scripts/check_legacy_containment.jl` is a required CI gate and enforces four independent rules:
 
 1. Every pure inventoried file must retain its full SHA-256 digest, and every mixed file must retain
    the digest of its ordered quarantined lines. A deliberate migration must delete the consumer or
@@ -43,12 +43,13 @@ be cited as scientific authority.
    or fallback edge.
 3. Every production file containing quarantined vocabulary must appear in the manifest, making the
    inventory exhaustive even when a workflow has no base diff.
-4. Added Julia lines across packages, tests, benchmarks, integration fixtures, tutorials, and
-   examples are compared with the pull-request base and may not introduce historical constructors,
-   algorithms, time controls, or penalty evaluation names. Deletions remain unrestricted.
+4. Every test, benchmark, integration fixture, tutorial, and example containing quarantined
+   vocabulary must appear in an exhaustive manifest of ordered matching-line signatures. New
+   consumers, edits to quarantined lines, and fallback edges fail independently of pull-request
+   history; deliberate migrations update the manifest through explicit review.
 
-The checker is intentionally conservative and review-visible. Its own source is the sole exception
-to the added-vocabulary rule because a rejection checker must spell the rejected identifiers.
+The checker is intentionally conservative and review-visible. Its own source is outside the source
+roots it inventories because a rejection checker must spell the rejected identifiers.
 
 ## Removal owner
 

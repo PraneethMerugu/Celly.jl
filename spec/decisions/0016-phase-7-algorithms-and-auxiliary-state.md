@@ -68,8 +68,9 @@ remain experimental until independently qualified.
   family-specific division and transition distributions complete with lifecycle in Phase 8.
 - The historical engine remains a frozen implementation quarantine only until PottsToolkit's
   production compiler reaches conformance parity in Phases 10--11. Premature deletion is not a
-  Phase 7 gate; a checksum inventory, replacement-path scan, and base-diff scan prohibit edits,
-  fallback edges, and new consumers until the owning migration deletes it.
+  Phase 7 gate; frozen production digests, exhaustive consumer signatures, and a replacement-path
+  scan prohibit edits, fallback edges, and new consumers independently of pull-request history
+  until the owning migration deletes it.
 - GPU optimization remains free to change storage, kernel decomposition, and intrinsic use while
   preserving the selected algorithm and auxiliary contracts.
 

@@ -12,13 +12,16 @@ using .ConformanceHarness
         math = :qualified_fast, reductions = :tolerant, overflow = :qualified_unchecked)
     @test validate_numerical_policy(mixed_policy) === mixed_policy
     @test_throws ArgumentError ReferenceNumericalPolicy(real = Int32)
-    sequential_profile = AlgorithmGuaranteeProfile(:sequential, :uniform_recipient_direction,
+    sequential_profile = ConformanceHarness.AlgorithmGuaranteeProfile(
+        :sequential, :uniform_recipient_direction,
         :depends_on_acceptance_law, :reference, :sequential, :exact, :strict_cpu, :reference)
     @test validate_guarantee_profile(sequential_profile) === sequential_profile
-    lottery_profile = AlgorithmGuaranteeProfile(:lottery, :parallel_round, :unproven,
+    lottery_profile = ConformanceHarness.AlgorithmGuaranteeProfile(
+        :lottery, :parallel_round, :unproven,
         :parallel_distinct, :round_snapshot, :expected, :profile_dependent, :statistical_pending)
     @test validate_guarantee_profile(lottery_profile) === lottery_profile
-    @test_throws ArgumentError validate_guarantee_profile(AlgorithmGuaranteeProfile(:lottery,
+    @test_throws ArgumentError validate_guarantee_profile(
+        ConformanceHarness.AlgorithmGuaranteeProfile(:lottery,
         :parallel_round, :unproven, :parallel_distinct, :round_snapshot, :exact,
         :profile_dependent, :statistical_pending))
 
