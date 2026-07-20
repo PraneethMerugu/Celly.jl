@@ -1,6 +1,6 @@
 # Phase 10 PottsToolkit Typed API and Compiler Chunk Plan
 
-Status: Active execution plan
+Status: Complete execution record
 
 Date: 2026-07-20
 
@@ -22,23 +22,22 @@ Passing a vertical slice is the legacy-deletion trigger, not Phase 10 completion
 
 ## Implementation Checkpoint — 2026-07-20
 
-- Chunks 10.0–10.6 and the implementation portion of 10.7 are complete in the
-  [completion candidate](phase-10-completion-audit.md).
+- Chunks 10.0–10.7 are complete under the [completion audit](phase-10-completion-audit.md).
 - PottsToolkit's historical compiler, macros, event kernels, blanket CorePotts re-export, and
   obsolete runtime dependencies are deleted; the hard containment gate passes.
 - The Level 2 implementation covers immutable identities, bindings, laws, properties, fragments,
   lifecycle rules, reports, fingerprints, public lowering, typed layouts, all required component
   families, direct downstream CorePotts components, and one CorePotts/SciML problem.
 - PottsToolkit passes 129 tests. CorePotts passes 2,983 tests plus one intentional broken research
-  case. Integration, package, CPU, Metal, ROCm, documentation, and integrity CI passed at
-  `a52bef0`; the final benchmark-evidence commit still requires same-commit CI.
+  case. Integration, package, CPU, Metal, ROCm, documentation, and integrity CI passed for the
+  schema `2.0.0` implementation/evidence head `a75e376`.
 - All five required reference families have public constructors, stable smoke fixtures,
   paper-scalable configurations, literature scope, parameter interpretation, invariants, and
   declared ensemble observables.
 - Benchmark schema `2.0.0` now persists all eight reference configurations, actual proposal
   accounting, MCS/s, resident memory, allocations, launches, transfers, observation boundaries,
-  checkpoint cost, provenance, and the matched direct-Core comparison. CPU and real Metal pass
-  locally; authoritative ROCm artifact validation remains the final closure gate.
+  checkpoint cost, provenance, and the matched direct-Core comparison. CPU, real Metal, and real
+  ROCm pass authoritative CI; both GPU artifacts were downloaded and independently validated.
 
 ## Chunk 10.0 — Contract Baseline, Audit, and Freeze
 

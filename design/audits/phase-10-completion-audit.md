@@ -1,6 +1,6 @@
 # Phase 10 PottsToolkit Typed API and Compiler Completion Audit
 
-Status: Completion candidate; authoritative same-commit CPU/Metal/ROCm CI pending
+Status: Complete; authoritative CPU/Metal/ROCm evidence and exact-head CI passed
 
 Date: 2026-07-20
 
@@ -8,15 +8,16 @@ Authority: [Decision 0026](../../spec/decisions/0026-phase-10-typed-api-and-comp
 
 ## Verdict
 
-The Phase 10 implementation is structurally complete. PottsToolkit now has one immutable Level 2
+The Phase 10 implementation is complete. PottsToolkit now has one immutable Level 2
 semantic path, one normalization and lowering path, and one CorePotts/SciML runtime problem. The
 historical Toolkit compiler, rule macro prototype, Toolkit GPU kernels, blanket CorePotts re-export,
 and compatibility aliases are absent. All five mandatory reference families are ordinary Level 2
 compositions.
 
-This candidate becomes complete only when the final commit passes every required GitHub check,
-including the newly persisted reference-performance artifact on real Metal and ROCm runners. No
-local result substitutes for that same-commit gate.
+The implementation/evidence head `a75e376094e3e0c31ee85906481ed7d542eabae4` passed every required
+GitHub check, including persisted reference-performance artifacts from real Metal and ROCm runners.
+The documentation-only completion-record head then passed the same protected workflows before
+closure was accepted. No local result substituted for either CI gate.
 
 ## Requirement-to-Evidence Map
 
@@ -34,9 +35,9 @@ local result substitutes for that same-commit gate.
 | Five OpenVT reference categories | `src/reference_models.jl`, public docs, eight smoke configurations including three field profiles and 2D/3D angiogenesis | Pass |
 | Reusable small and paper-scalable configurations | explicit constructor keywords plus `smoke` and `full` benchmark profiles | Pass |
 | Literature scope, parameter meaning, invariants, and observables | `docs/src/pottstoolkit/reference_models.md` | Pass for model definition; emergent ensemble claims remain Phase 15 |
-| Resident CPU/Metal/ROCm execution | qualification matrix, zero undeclared warm transfer/sync, zero warm device allocation | CPU and local Metal pass; final ROCm CI pending |
+| Resident CPU/Metal/ROCm execution | qualification matrix, zero undeclared warm transfer/sync, zero warm device allocation | Pass on authoritative CPU, Metal, and ROCm CI |
 | Matched direct-Core runtime performance | identical problem type, launch graph, trajectory, transactions, and no runtime wrapper; synchronized Level 2/direct timing | Pass |
-| Machine-readable benchmark evidence | schema `2.0.0` reference-suite TOML with provenance, stage timings, MCS/s, actual proposals/s, memory, allocation, launch, transfer, observation, and checkpoint fields | CPU and local Metal pass; final artifact CI pending |
+| Machine-readable benchmark evidence | schema `2.0.0` reference-suite TOML with provenance, stage timings, MCS/s, actual proposals/s, memory, allocation, launch, transfer, observation, and checkpoint fields | Pass; Metal and ROCm artifacts downloaded and schema/invariants independently verified |
 | Curated Julia API and executable current documentation | curated exports, Level 2 overview/API/reference/lifecycle pages, docs build | Pass; full tutorial migration remains Phase 14 |
 | Legacy deletion and dependency cleanup | deleted historical Toolkit sources, root runtime dependencies reduced to CorePotts/SciMLBase/SHA | Pass |
 
@@ -61,7 +62,11 @@ Every reference measurement enforces:
 Local CPU and Metal executions pass all eight cases. Metal runs with scalar indexing disabled and
 reports zero undeclared warm synchronization, transfer, and device allocation; only the monolayer's
 declared lifecycle observation records two synchronizations and two D2H transfers across two timed
-MCS. The final ROCm result must come from its real self-hosted runner.
+MCS. GitHub GPU Validation run `29783107146` passed on the real Metal and ROCm self-hosted runners.
+Its uploaded schema `2.0.0` artifacts were downloaded and parsed independently: both contain all
+eight workloads and satisfy the fingerprint, proposal-budget, residency, transfer, synchronization,
+allocation, and finite-population invariants. Because this is a pull-request workflow, artifact
+provenance records the tested merge revision while workflow metadata records head `a75e376`.
 
 ## Benchmark and Resource Boundary
 
@@ -108,9 +113,9 @@ The following work does not reopen Phase 10 architecture:
 None may introduce another PottsToolkit compiler, runtime problem, semantic RNG, kernel path, or
 compatibility layer.
 
-## Final Closure Gate
+## Closure Evidence
 
-To change this document to `Complete`, one exact commit must pass:
+The completion gate required one exact branch head to pass:
 
 1. PottsToolkit, CorePotts, MakiePotts, and NeuralPotts package checks;
 2. all integration shards and repository/project-integrity checks;
@@ -119,3 +124,8 @@ To change this document to `Complete`, one exact commit must pass:
 5. documentation build;
 6. structure and hard legacy-containment scripts; and
 7. a clean worktree after publishing the completion update.
+
+All seven gates passed. CI run `29783107208` covers package, integration, integrity, and both CPU
+architectures; GPU Validation run `29783107146` covers Metal and ROCm plus artifact publication;
+Documentation run `29783107162` covers the executable docs build. CUDA is intentionally outside the
+current three-backend contract and is therefore skipped, not counted as a missing Phase 10 result.

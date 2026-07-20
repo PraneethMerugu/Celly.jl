@@ -16,7 +16,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
-| Phase 10: PottsToolkit Typed API and Compiler | Completion candidate | [Phase 10 completion audit](audits/phase-10-completion-audit.md); implementation, legacy deletion, reference workloads, and schema `2.0.0` evidence are complete, with same-commit authoritative CI pending |
+| Phase 10: PottsToolkit Typed API and Compiler | Complete | [Phase 10 completion audit](audits/phase-10-completion-audit.md); sole Level 2 semantic path, legacy deletion, reference workloads, schema `2.0.0` Metal/ROCm artifacts, and exact-head authoritative CI |
 | Phases 11-15 | Not started | Ordered by their own entry gates |
 
 ## Objective
