@@ -29,6 +29,7 @@ CorePotts.component_semantic_data(component::Phase10QualificationEnergy) =
     (value = component.value,)
 
 const SCHEMA_VERSION = "1.0.0"
+const PHASE10_SCHEMA_VERSION = "2.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
@@ -2420,6 +2421,375 @@ function measure_phase10_backend(name::String; steps::Int = 5)
         "interpretation" =>
             "Level 2 has no runtime wrapper; dedicated paper workloads set regression thresholds",
     )
+end
+
+function _phase10_reference_measurement_specs(profile::String, horizon::Int)
+    references = PottsToolkit.ReferenceModels
+    if profile == "smoke"
+        migration_shape = (24, 24)
+        sorting_shape = (24, 24)
+        angiogenesis_2d_shape = (24, 24)
+        angiogenesis_3d_shape = (12, 12, 12)
+        target_volume = 16
+        sorting_cells = 2
+        angiogenesis_2d_cells = 3
+        angiogenesis_3d_cells = 2
+        angiogenesis_3d_target = 32
+    elseif profile == "full"
+        migration_shape = (48, 48)
+        sorting_shape = (32, 32)
+        angiogenesis_2d_shape = (48, 48)
+        angiogenesis_3d_shape = (24, 24, 24)
+        target_volume = 32
+        sorting_cells = 8
+        angiogenesis_2d_cells = 12
+        angiogenesis_3d_cells = 8
+        angiogenesis_3d_target = 64
+    else
+        throw(ArgumentError("Phase 10 profile must be smoke or full"))
+    end
+
+    chemotaxis_spec(label, family, profile_name, seed) = (
+        label = label,
+        family = family,
+        scale = profile,
+        dimensions = length(migration_shape),
+        requires_lifecycle_observation = false,
+        model_builder = () -> references.chemotaxis_model(
+            migration_shape; profile = profile_name, target_volume),
+        problem_builder = () -> references.chemotaxis_problem(
+            migration_shape; profile = profile_name, target_volume,
+            capacity = 4, tspan = (0, horizon), seed),
+    )
+    return (
+        chemotaxis_spec("biased_migration", "single_cell_migration", :linear,
+            0x7068617365313101),
+        chemotaxis_spec("chemotaxis_linear", "prescribed_gradient_chemotaxis", :linear,
+            0x7068617365313102),
+        chemotaxis_spec("chemotaxis_half_normal", "prescribed_gradient_chemotaxis",
+            :half_normal, 0x7068617365313103),
+        chemotaxis_spec("chemotaxis_exponential", "prescribed_gradient_chemotaxis",
+            :exponential, 0x7068617365313104),
+        (
+            label = "monolayer_growth",
+            family = "monolayer_growth",
+            scale = profile,
+            dimensions = length(migration_shape),
+            requires_lifecycle_observation = true,
+            model_builder = () -> references.monolayer_growth_model(
+                target_volume = 8, division_target = 16),
+            problem_builder = () -> references.monolayer_growth_problem(
+                migration_shape; target_volume = 8, division_target = 16,
+                capacity = profile == "smoke" ? 16 : 128,
+                tspan = (0, horizon), seed = 0x7068617365313105),
+        ),
+        (
+            label = "differential_adhesion",
+            family = "differential_adhesion_sorting",
+            scale = profile,
+            dimensions = length(sorting_shape),
+            requires_lifecycle_observation = false,
+            model_builder = () -> references.differential_adhesion_model(
+                target_volume = profile == "smoke" ? 16 : 20),
+            problem_builder = () -> references.differential_adhesion_problem(
+                sorting_shape; cells_per_population = sorting_cells,
+                target_volume = profile == "smoke" ? 16 : 20,
+                capacity = profile == "smoke" ? 8 : 64,
+                tspan = (0, horizon), seed = 0x7068617365313106),
+        ),
+        (
+            label = "angiogenesis_2d",
+            family = "elongation_driven_angiogenesis",
+            scale = profile,
+            dimensions = length(angiogenesis_2d_shape),
+            requires_lifecycle_observation = false,
+            model_builder = () -> references.elongation_driven_angiogenesis_model(
+                target_volume = 16,
+                target_elongation = profile == "smoke" ? 1.5 : 3),
+            problem_builder = () -> references.elongation_driven_angiogenesis_problem(
+                angiogenesis_2d_shape; cells = angiogenesis_2d_cells,
+                target_volume = 16,
+                target_elongation = profile == "smoke" ? 1.5 : 3,
+                capacity = profile == "smoke" ? 8 : 64,
+                tspan = (0, horizon), seed = 0x7068617365313107),
+        ),
+        (
+            label = "angiogenesis_3d",
+            family = "elongation_driven_angiogenesis",
+            scale = profile,
+            dimensions = length(angiogenesis_3d_shape),
+            requires_lifecycle_observation = false,
+            model_builder = () -> references.elongation_driven_angiogenesis_model(
+                target_volume = angiogenesis_3d_target,
+                target_elongation = profile == "smoke" ? 1.5 : 3),
+            problem_builder = () -> references.elongation_driven_angiogenesis_problem(
+                angiogenesis_3d_shape; cells = angiogenesis_3d_cells,
+                target_volume = angiogenesis_3d_target,
+                target_elongation = profile == "smoke" ? 1.5 : 3,
+                capacity = profile == "smoke" ? 4 : 32,
+                tspan = (0, horizon), seed = 0x7068617365313108),
+        ),
+    )
+end
+
+_metric_snapshot(metrics::ExecutionMetrics) = (
+    launches = metrics.launches,
+    host_synchronizations = metrics.host_synchronizations,
+    host_to_device_transfers = metrics.host_to_device_transfers,
+    device_to_host_transfers = metrics.device_to_host_transfers,
+    host_allocations = metrics.host_allocations,
+    device_allocations = metrics.device_allocations,
+    host_allocated_bytes = metrics.host_allocated_bytes,
+    device_allocated_bytes = metrics.device_allocated_bytes,
+)
+
+function _metric_delta(after, before)
+    return Dict(string(key) => getproperty(after, key) - getproperty(before, key)
+        for key in keys(after))
+end
+
+function _timed_phase10_sample!(integrator::PottsIntegrator, steps::Int)
+    KernelAbstractions.synchronize(integrator.inner.plan.backend)
+    sample = @timed begin
+        SciMLBase.step!(integrator, steps)
+        KernelAbstractions.synchronize(integrator.inner.plan.backend)
+    end
+    return (seconds_per_mcs = sample.time / steps,
+        host_allocated_bytes_per_mcs = sample.bytes / steps)
+end
+
+_component_array_bytes(::StaticArrays.StaticArray) = 0
+_component_array_bytes(value::AbstractArray) = sizeof(eltype(value)) * length(value)
+_component_array_bytes(values::Tuple) = sum(_component_array_bytes, values; init = 0)
+_component_array_bytes(values::NamedTuple) = sum(_component_array_bytes, values; init = 0)
+function _component_array_bytes(value)
+    type = typeof(value)
+    isprimitivetype(type) && return 0
+    value isa Union{AbstractString, Symbol, Type, Function, Module} && return 0
+    isstructtype(type) || return 0
+    return sum(index -> _component_array_bytes(getfield(value, index)),
+        1:fieldcount(type); init = 0)
+end
+
+function _phase10_residency(inner::ScientificPottsIntegrator)
+    metrics = inner.plan.metrics
+    state_bytes = scientific_state_bytes(inner.state)
+    component_bytes = _component_array_bytes(inner.components)
+    workspace_bytes = inner.plan.backend isa KernelAbstractions.CPU ?
+                      metrics.host_allocated_bytes : metrics.device_allocated_bytes
+    return Dict(
+        "scientific_state_bytes" => state_bytes,
+        "component_array_bytes" => component_bytes,
+        "tracked_workspace_bytes" => workspace_bytes,
+        "backend_resident_bytes" => state_bytes + component_bytes + workspace_bytes,
+        "device_resident_bytes" => inner.plan.backend isa KernelAbstractions.CPU ?
+                                   0 : state_bytes + component_bytes + workspace_bytes,
+        "lifecycle_workspace_bytes" => compiled_lifecycle_bytes(inner.lifecycle),
+    )
+end
+
+function _phase10_kernel_resource_evidence(name::String)
+    return Dict(
+        "kernel_compilation_qualified" => true,
+        "dynamic_device_invocation_rejected_by_ci" => true,
+        "numeric_register_count_available" => false,
+        "measurement_boundary" => name == "cpu" ? "not applicable to the CPU backend" :
+            "KernelAbstractions exposes no portable per-kernel register-count interface",
+        "full_resource_capture" =>
+            "Phase 12 backend-native profiling; never infer register counts from occupancy",
+    )
+end
+
+"""Measure all mandatory Phase 10 reference families and retain actual MCS accounting."""
+function measure_phase10_reference_backend(name::String; profile::String = "smoke")
+    samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) : (10, 5, 2)
+    horizon = 1 + warmup_steps + samples * steps
+    adaptor = _backend_adaptor(name)
+    probe = _backend_array(name, zeros(UInt8, 1))
+    backend = KernelAbstractions.get_backend(probe)
+    algorithm = SequentialCPM(temperature = 2.0f0)
+    workloads = Dict{String, Any}()
+
+    for spec in _phase10_reference_measurement_specs(profile, horizon)
+        model_timing = @timed spec.model_builder()
+        model = model_timing.value
+        normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
+        normalized = normalization_timing.value
+        dimensions = spec.dimensions
+        lowering_timing = @timed PottsToolkit.Authoring.lower(model; dimensions)
+        lowered = lowering_timing.value
+        problem_timing = @timed spec.problem_builder()
+        problem = problem_timing.value
+        parentmodule(typeof(problem)) === CorePotts || error(
+            "$name $(spec.label) introduced a runtime authoring wrapper")
+        backend_report = PottsToolkit.backend_report(problem, algorithm, backend)
+        backend_report.qualified || error(
+            "$name $(spec.label) failed performance preflight: $(backend_report.diagnostics)")
+
+        initialization_timing = @timed init(problem, algorithm;
+            backend, adaptor, verbose = false, save_start = false, save_end = false)
+        integrator = initialization_timing.value
+        first_mcs = _timed_phase10_sample!(integrator, 1)
+        _timed_phase10_sample!(integrator, warmup_steps)
+        metrics = integrator.inner.plan.metrics
+        warm_before = _metric_snapshot(metrics)
+        steady_samples = [_timed_phase10_sample!(integrator, steps) for _ in 1:samples]
+        warm_after = _metric_snapshot(metrics)
+        seconds = getproperty.(steady_samples, :seconds_per_mcs)
+        host_bytes = getproperty.(steady_samples, :host_allocated_bytes_per_mcs)
+
+        observation_before = _metric_snapshot(metrics)
+        report = current_mcs_report(integrator)
+        snapshot = logical_state(integrator)
+        observation_after = _metric_snapshot(metrics)
+        report === nothing && error("$name $(spec.label) produced no completed-MCS report")
+        median_seconds = median(seconds)
+        warm_delta = _metric_delta(warm_after, warm_before)
+        observation_delta = _metric_delta(observation_after, observation_before)
+        sites = length(lattice_storage(snapshot))
+        expected_lifecycle_observations = spec.requires_lifecycle_observation ?
+                                          samples * steps : 0
+        expected_lifecycle_transfers = spec.requires_lifecycle_observation &&
+            !(backend isa KernelAbstractions.CPU) ? samples * steps : 0
+        warm_delta["host_synchronizations"] == expected_lifecycle_observations || error(
+            "$name $(spec.label) introduced an undeclared warm host synchronization")
+        warm_delta["device_to_host_transfers"] == expected_lifecycle_transfers || error(
+            "$name $(spec.label) introduced an undeclared warm device-to-host transfer")
+        warm_delta["host_to_device_transfers"] == 0 || error(
+            "$name $(spec.label) introduced a warm host-to-device transfer")
+        warm_delta["device_allocations"] == 0 || error(
+            "$name $(spec.label) introduced a warm device allocation")
+        observation_delta["host_synchronizations"] == 2 || error(
+            "$name $(spec.label) diagnostic observations must use two explicit boundaries")
+        if backend isa KernelAbstractions.CPU
+            observation_delta["device_to_host_transfers"] == 0 || error(
+                "$name $(spec.label) CPU observation introduced a device transfer")
+        else
+            observation_delta["device_to_host_transfers"] > 0 || error(
+                "$name $(spec.label) GPU observation did not record materialized arrays")
+        end
+        observation_delta["host_to_device_transfers"] == 0 || error(
+            "$name $(spec.label) diagnostic observation wrote state to the backend")
+        observation_delta["device_allocations"] == 0 || error(
+            "$name $(spec.label) diagnostic observation allocated device storage")
+        report.mcs == UInt64(integrator.t) || error(
+            "$name $(spec.label) report MCS differs from integrator time")
+        report.scheduler_candidates == UInt64(sites) || error(
+            "$name $(spec.label) sequential scheduler budget differs from mutable sites")
+        report.activated_attempts == UInt64(sites) || error(
+            "$name $(spec.label) sequential activated-attempt budget differs from one MCS")
+        report.realized_proposals <= report.activated_attempts || error(
+            "$name $(spec.label) realized proposals exceed activated attempts")
+        report.accepted_copies <= report.realized_proposals || error(
+            "$name $(spec.label) accepted copies exceed realized proposals")
+        normalized.fingerprint.digest == lowered.normalized.fingerprint.digest || error(
+            "$name $(spec.label) lowering changed the semantic fingerprint")
+        if profile == "smoke"
+            n_cells(snapshot) >= n_cells(problem.u0) || error(
+                "$name $(spec.label) lost a finite cell in the timing smoke fixture")
+        end
+        workloads[spec.label] = Dict(
+            "family" => spec.family,
+            "scale" => spec.scale,
+            "dimensions" => collect(size(lattice_storage(snapshot))),
+            "dimension_count" => dimensions,
+            "sites" => sites,
+            "initial_cells" => n_cells(problem.u0),
+            "final_cells" => n_cells(snapshot),
+            "algorithm" => string(nameof(typeof(algorithm))),
+            "semantic_fingerprint" => normalized.fingerprint.digest,
+            "lowered_semantic_fingerprint" => lowered.normalized.fingerprint.digest,
+            "model_construction_seconds" => model_timing.time,
+            "model_construction_host_bytes" => model_timing.bytes,
+            "normalization_seconds" => normalization_timing.time,
+            "normalization_host_bytes" => normalization_timing.bytes,
+            "lowering_seconds" => lowering_timing.time,
+            "lowering_host_bytes" => lowering_timing.bytes,
+            "problem_construction_seconds" => problem_timing.time,
+            "problem_construction_host_bytes" => problem_timing.bytes,
+            "initialization_seconds" => initialization_timing.time,
+            "initialization_host_bytes" => initialization_timing.bytes,
+            "first_mcs_seconds" => first_mcs.seconds_per_mcs,
+            "first_mcs_host_bytes" => first_mcs.host_allocated_bytes_per_mcs,
+            "steady_raw_seconds_per_mcs" => seconds,
+            "steady_minimum_seconds_per_mcs" => minimum(seconds),
+            "steady_median_seconds_per_mcs" => median_seconds,
+            "steady_mean_seconds_per_mcs" => mean(seconds),
+            "steady_maximum_seconds_per_mcs" => maximum(seconds),
+            "steady_median_mcs_per_second" => inv(median_seconds),
+            "steady_raw_host_allocated_bytes_per_mcs" => host_bytes,
+            "steady_median_host_allocated_bytes_per_mcs" => median(host_bytes),
+            "last_mcs_scheduler_candidates" => Int(report.scheduler_candidates),
+            "last_mcs_activated_attempts" => Int(report.activated_attempts),
+            "last_mcs_realized_proposals" => Int(report.realized_proposals),
+            "last_mcs_accepted_copies" => Int(report.accepted_copies),
+            "median_activated_attempts_per_second" =>
+                report.activated_attempts / median_seconds,
+            "median_realized_proposals_per_second" =>
+                report.realized_proposals / median_seconds,
+            "median_accepted_copies_per_second" =>
+                report.accepted_copies / median_seconds,
+            "last_mcs_acceptance_fraction" => report.realized_proposals == 0 ? 0.0 :
+                report.accepted_copies / report.realized_proposals,
+            "warm_execution_metrics" => warm_delta,
+            "explicit_observation_metrics" => observation_delta,
+            "residency" => _phase10_residency(integrator.inner),
+            "runtime_problem_wrapper" => false,
+            "declared_lifecycle_observation_per_mcs" =>
+                spec.requires_lifecycle_observation,
+            "timed_regions_backend_synchronized" => true,
+        )
+    end
+    return Dict(
+        "profile" => profile,
+        "samples" => samples,
+        "steps_per_sample" => steps,
+        "warmup_steps" => warmup_steps,
+        "algorithm" => string(nameof(typeof(algorithm))),
+        "workloads" => workloads,
+        "required_families" => [
+            "single_cell_migration", "prescribed_gradient_chemotaxis",
+            "monolayer_growth", "differential_adhesion_sorting",
+            "elongation_driven_angiogenesis"],
+        "kernel_resource_evidence" => _phase10_kernel_resource_evidence(name),
+    )
+end
+
+function phase10_result(name::String, profile::String, device::String;
+        qualification, direct_comparison, reference_performance, checkpoint_performance)
+    return Dict(
+        "schema_version" => PHASE10_SCHEMA_VERSION,
+        "recorded_at_utc" => string(now(UTC)),
+        "provenance" => provenance(name, device),
+        "profile" => profile,
+        "qualification" => qualification,
+        "direct_corepotts_comparison" => direct_comparison,
+        "reference_performance" => reference_performance,
+        "checkpoint_performance" => checkpoint_performance,
+        "measurement_contract" => Dict(
+            "public_time_unit" => "MCS",
+            "actual_proposal_counters" => true,
+            "construction_compilation_and_warm_execution_separated" => true,
+            "diagnostic_observations_excluded_from_warm_timing" => true,
+            "declared_lifecycle_safety_observations_retained_in_warm_timing" => true,
+            "gpu_timing_is_backend_synchronized" => true,
+            "state_evolves_across_steady_samples" => true,
+        ),
+    )
+end
+
+function write_phase10_result(result)
+    provenance_data = result["provenance"]
+    backend = provenance_data["backend"]
+    profile = result["profile"]
+    timestamp = Dates.format(now(UTC), dateformat"yyyymmddTHHMMSS")
+    directory = joinpath(RESULTS_ROOT, provenance_data["baseline_id"], backend)
+    mkpath(directory)
+    path = joinpath(directory, "$(timestamp)-phase10-reference-suite-$(profile).toml")
+    open(path, "w") do io
+        TOML.print(io, result; sorted = true)
+    end
+    return path
 end
 
 function _timed_scientific_steps!(integrator, steps::Int)

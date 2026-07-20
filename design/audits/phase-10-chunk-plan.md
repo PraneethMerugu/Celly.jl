@@ -22,29 +22,23 @@ Passing a vertical slice is the legacy-deletion trigger, not Phase 10 completion
 
 ## Implementation Checkpoint — 2026-07-20
 
-- Chunks 10.0 and the public-dispatch portion of 10.1 are implemented locally.
-- Chunks 10.2–10.4 have a working replacement slice: immutable names, bindings, properties,
-  fragments, explicit fragment requirements/exports, writer-conflict rejection, model operations,
-  normalization, staged structured diagnostics, typed provenance, dependencies and expansion
-  reports, semantic/execution fingerprints, a non-executable semantic manifest, public lowering,
-  typed 2D/3D layouts, one CorePotts `PottsProblem`, volume, adhesion, fluctuating-volume mechanics,
-  custom properties, stochastic property transactions, and direct downstream CorePotts components.
-- Public backend preflight now checks extension interfaces, component dimensionality and portability,
-  and algorithm/component incompatibilities before backend initialization.
-- The root suite passes 354/354 on Julia 1.12.6. The complete CorePotts suite passes 2,908 tests
-  (plus one intentional broken research case), including the external-extension, scientific,
-  lifecycle, algorithm, persistence, and SciML suites.
-- The replacement workload passes CPU and real Metal qualification in 2D and 3D. With Metal scalar
-  indexing disabled, a warm MCS reports zero host synchronizations, zero device-to-host transfers,
-  and zero device allocations. CPU and Metal produce the same semantic fingerprint.
-- A matched direct-CorePotts run now proves identical concrete problem types, launch graphs,
-  trajectories, property transactions, and residency counters on CPU and Metal. The benchmark
-  matrix separately records construction, normalization, lowering, initialization, and synchronized
-  warm-MCS timings for the Level 2 and direct-CorePotts paths. At commit `e551a9d`, fresh PR CI also
-  passes ROCm/AMDGPU, Metal, Linux x86_64, macOS ARM64, every package and integration shard, project
-  integrity, and documentation on Julia 1.12.6. The legacy-deletion gate is therefore open;
-  dedicated paper-workload throughput evidence and the remaining component/workload breadth remain
-  open.
+- Chunks 10.0–10.6 and the implementation portion of 10.7 are complete in the
+  [completion candidate](phase-10-completion-audit.md).
+- PottsToolkit's historical compiler, macros, event kernels, blanket CorePotts re-export, and
+  obsolete runtime dependencies are deleted; the hard containment gate passes.
+- The Level 2 implementation covers immutable identities, bindings, laws, properties, fragments,
+  lifecycle rules, reports, fingerprints, public lowering, typed layouts, all required component
+  families, direct downstream CorePotts components, and one CorePotts/SciML problem.
+- PottsToolkit passes 129 tests. CorePotts passes 2,983 tests plus one intentional broken research
+  case. Integration, package, CPU, Metal, ROCm, documentation, and integrity CI passed at
+  `a52bef0`; the final benchmark-evidence commit still requires same-commit CI.
+- All five required reference families have public constructors, stable smoke fixtures,
+  paper-scalable configurations, literature scope, parameter interpretation, invariants, and
+  declared ensemble observables.
+- Benchmark schema `2.0.0` now persists all eight reference configurations, actual proposal
+  accounting, MCS/s, resident memory, allocations, launches, transfers, observation boundaries,
+  checkpoint cost, provenance, and the matched direct-Core comparison. CPU and real Metal pass
+  locally; authoritative ROCm artifact validation remains the final closure gate.
 
 ## Chunk 10.0 — Contract Baseline, Audit, and Freeze
 
@@ -219,11 +213,17 @@ Deliverables:
 - curated exports and removal of blanket CorePotts re-export;
 - Julia-style names, constructors, displays, diagnostics, and executable component documentation;
 - benchmark lanes separating construction, normalization, lowering, compilation, and warm MCS;
-- MCS/s, proposals/s, allocation, memory, register, transfer, synchronization, observation, and
-  checkpoint evidence on CPU, Metal, and ROCm;
+- MCS/s, proposals/s, allocation, memory, transfer, synchronization, observation, and checkpoint
+  evidence on CPU, Metal, and ROCm; retain explicit compiler-resource status and never fabricate a
+  portable register count where KernelAbstractions exposes none;
 - root package and cross-package conformance, ambiguity, inference, stale-dependency, project
   integrity, legacy absence, and documentation API checks;
 - Phase 10 completion audit mapping every Decision 0026 and roadmap requirement to direct evidence.
+
+Backend-native register, spill, occupancy, and native-code-size capture remains mandatory in Phase
+12 after the target devices and budgets are frozen. Phase 10 requires successful real-device
+compilation, rejection of dynamic device invocation, zero warm device allocation, and an explicit
+machine-readable statement of the quantitative profiler boundary.
 
 Exit gate:
 

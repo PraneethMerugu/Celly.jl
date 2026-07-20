@@ -16,7 +16,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
-| Phase 10: PottsToolkit Typed API and Compiler | In progress | [Phase 10 chunk plan](audits/phase-10-chunk-plan.md), current-code audit, immutable Level 2 foundation, public CorePotts extension seams, and CPU/Metal replacement-slice evidence; ROCm and completion gates remain |
+| Phase 10: PottsToolkit Typed API and Compiler | Completion candidate | [Phase 10 completion audit](audits/phase-10-completion-audit.md); implementation, legacy deletion, reference workloads, and schema `2.0.0` evidence are complete, with same-commit authoritative CI pending |
 | Phases 11-15 | Not started | Ordered by their own entry gates |
 
 ## Objective
@@ -577,7 +577,10 @@ expansion, not at the Phase 10 or paper-release tail.
 - Host reference evaluation and compiled CPU/GPU evaluation agree under the applicable numerical
   contract.
 - Invalid models fail before backend launch with source-located, actionable diagnostics.
-- Compile time, native code size, allocations, and representative device register use meet budgets.
+- Construction, lowering, compilation/first-use, allocations, and warm execution are measured;
+  real-device compiler acceptance and zero warm device allocation pass. Quantitative native-code,
+  register, spill, and occupancy budgets are frozen and enforced in Phase 12 with backend-native
+  profilers rather than guessed through a nonexistent portable KernelAbstractions counter.
 - CorePotts remains directly usable without PottsToolkit IR.
 - A conforming Level 3 component lowers through PottsToolkit Level 2 without a central concrete-type
   switch or a mandatory runtime registry.

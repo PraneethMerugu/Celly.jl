@@ -48,5 +48,11 @@ Run a repeatable smoke or full matrix locally with `benchmark/matrix.jl`, or dis
 `Benchmarks` GitHub workflow and download its machine-readable artifact. GPU jobs run only on
 explicitly enabled, trusted, backend-labeled self-hosted runners.
 
+Every matrix now writes a versioned `phase10-reference-suite` TOML record in addition to the
+historical baselines. That record covers all five mandatory reference families, separates Level 2
+host stages from initialization and warm execution, and retains actual proposal accounting,
+residency, observation, checkpoint, and direct-CorePotts evidence. `smoke` is the CI gate; `full`
+uses paper-scalable problem sizes and longer synchronized samples.
+
 Phase 1 and the refactor target Julia 1.12.6 exclusively. Older-version compatibility is deferred
 until dedicated compatibility CI lanes are established during final release qualification.

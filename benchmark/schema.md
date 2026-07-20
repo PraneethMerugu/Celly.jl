@@ -1,4 +1,37 @@
-# Baseline Result Schema
+# Benchmark Result Schemas
+
+## Phase 10 reference-suite schema
+
+Schema version: `2.0.0`
+
+Each `phase10-reference-suite` TOML record is a self-contained artifact containing:
+
+- exact source, Julia, operating-system, architecture, thread, backend, device, and pinned
+  KernelIntrinsics provenance;
+- CPU/Metal/ROCm qualification for the Level 2 replacement slice and every mandatory reference
+  workload;
+- separate model construction, normalization, lowering, problem construction, initialization,
+  first-MCS, and synchronized warm-MCS timings;
+- raw and summary MCS/s samples plus actual scheduler, activated-attempt, realized-proposal, and
+  accepted-copy throughput from `ScientificMCSReport`;
+- host allocations, device allocations, launches, transfers, engine synchronization, explicit
+  observation cost, scientific-state bytes, adapted component-array bytes, lifecycle workspace
+  bytes, and total backend-resident bytes;
+- the matched direct-CorePotts comparison and canonical checkpoint capture/restore measurements;
+- explicit kernel-resource status. Kernel compilation and rejection of dynamic device invocation
+  are required in Phase 10. Numeric register counts are deliberately not fabricated: current
+  KernelAbstractions has no portable register-count interface, so backend-native register/spill and
+  occupancy profiling belongs to Phase 12.
+
+Smoke records are CI qualification evidence. Full records use paper-scalable configurations and
+more samples, but they are not publication claims until hardware, environment, repetition count,
+and regression budgets are frozen. GPU samples always synchronize the active backend inside the
+timed region. Diagnostic report and snapshot observations are measured separately from warm
+execution. A lifecycle capacity-failure observation is part of the monolayer step itself, so its
+declared synchronization and GPU transfer remain inside the timed region and are reported rather
+than hidden.
+
+## Historical pre-refactor baseline schema
 
 Schema version: `1.0.0`
 

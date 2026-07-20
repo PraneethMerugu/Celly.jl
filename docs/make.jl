@@ -70,6 +70,7 @@ makedocs(
         ],
         "PottsToolkit" => [
             "Overview" => "pottstoolkit/index.md",
+            "Lifecycle" => "pottstoolkit/events.md",
             "Reference Models" => "pottstoolkit/reference_models.md",
             "API Reference" => "pottstoolkit/api.md"
         ],
