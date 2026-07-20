@@ -2,32 +2,32 @@
 
 Date: 2026-07-19
 
-Status: Candidate — implementation, CPU, and Metal complete; authoritative ROCm and repository CI
-pending
+Status: Complete — implementation and authoritative Julia 1.12.6 CPU, Metal, and ROCm gates pass
 
 ## Verdict
 
-Phase 9 has a complete local implementation of the accepted SciML problem, integrator, solution,
+Phase 9 has a complete implementation of the accepted SciML problem, integrator, solution,
 callback, observation, checkpoint, symbolic-indexing, and ensemble contract. The final interface is
 a thin control and observation layer over the Phase 7--8 scientific integrator; it does not define
 a second proposal, acceptance, transaction, lifecycle, mechanics, or RNG path.
 
-The phase is not marked authoritative `Complete` until the candidate commit passes the existing
-Julia 1.12.6 required repository workflow and the independent AMDGPU/ROCm runner. This is an
-evidence gate, not missing design or local implementation work.
+Candidate commit `c87d7278f814a32401d717503375bae31db25354` passed the required Julia 1.12.6
+repository workflow and independent real Apple Metal and AMDGPU/ROCm runners. The candidate's
+implementation, semantics, structural containment, and backend qualification gates are therefore
+authoritatively complete.
 
 ## Chunk results
 
 | Chunk | Result | Evidence |
 | --- | --- | --- |
-| 9.0 legacy/open protocols | Locally complete | Final-name evacuation audit; hard containment checker; open downstream algorithm/proposal fixture; typed backend capabilities; extension RNG namespaces; curated CorePotts legacy exports |
+| 9.0 legacy/open protocols | Complete | Final-name evacuation audit; hard containment checker; open downstream algorithm/proposal fixture; typed backend capabilities; extension RNG namespaces; curated CorePotts legacy exports |
 | 9.1 model/problem/remake | Complete | Immutable typed model and problem; copy/alias/device ownership; integer MCS; fixed capacity; deterministic seed; aggregate errors; remake and explicit thread-safe trajectory-free cache |
 | 9.2 integrator/MCS | Complete | `__init`, `__solve`, `init`, `solve`, `solve!`, `step!`, `terminate!`; one algorithm-owned MCS operation; strict options and retcodes |
 | 9.3 observation/solution | Complete | Exact integer saving and lookup; independent backend, host, and observable snapshots; typed observable handles; stats and provenance; no-sync display |
 | 9.4 callbacks/control | Complete for accepted Phase 9 scope | Standard discrete host callbacks share one declared boundary; typed device callback hook remains resident; continuous callbacks are rejected; termination and type-preserving parameter updates are tested |
 | 9.5 persistence | Complete | Canonical checkpoint capture, retained checkpoint collection, exact restore, logical import, and uninterrupted-versus-restored equality |
 | 9.6 ensembles/indexing | Complete | Stable Philox-derived trajectory/rerun seeds; user-managed override; `prob_func` ordering; bounded reruns; serial/threaded CPU invariance; unsafe same-device GPU threading rejected; typed parameter/observable indexing |
-| 9.7 qualification/benchmarks | Local CPU and Metal complete | Same 2D/3D three-algorithm qualifier on both backends; direct/SciML launch and boundary counters; layered Phase 9 timing records; ROCm wired into the same CI matrix |
+| 9.7 qualification/benchmarks | Complete | Same 2D/3D three-algorithm qualifier on CPU, Metal, and ROCm; direct/SciML launch and boundary counters; layered Phase 9 timing records; required repository CI |
 
 ## Architectural and API evidence
 
@@ -75,8 +75,8 @@ validation.
 ## GPU and performance evidence
 
 The Phase 9 qualifier constructs one semantic fixture in 2D and 3D and runs `SequentialCPM`,
-`CheckerboardSweepCPM`, and `LotteryCPM` through both direct and SciML paths. On local CPU and real
-Apple Metal:
+`CheckerboardSweepCPM`, and `LotteryCPM` through both direct and SciML paths. On CPU, real Apple
+Metal, and independent real AMDGPU/ROCm:
 
 - direct and wrapped launches per MCS are identical: 1 for sequential, 16 for checkerboard, and
   42/58 for 2D/3D lottery on the qualification fixture;
@@ -91,9 +91,11 @@ Apple Metal:
 - serial GPU ensemble trajectories receive the specified semantic seeds.
 
 The layered timing function records construction plus synchronized direct and wrapped steady MCS
-times separately. Tiny smoke-fixture timing is diagnostic and is not used to claim speedups or
-regressions; the accepted 5% gate applies to dedicated paper workloads on frozen runners. Structural
-counters are the authoritative zero-extra-work evidence for the wrapper.
+times separately. The authoritative GPU runs measured wrapper/direct steady-MCS ratios of
+0.979/1.040/1.040 on Metal and 1.003/0.610/0.706 on ROCm for sequential/checkerboard/lottery. No
+measured wrapper overhead exceeds the 5% gate. These tiny smoke-fixture timings remain diagnostic,
+not paper speed claims; publication benchmarks still require the frozen Phase 14--15 workloads.
+Structural counters are the authoritative zero-extra-work evidence for the wrapper.
 
 ## Local verification
 
@@ -112,16 +114,25 @@ counters are the authoritative zero-extra-work evidence for the wrapper.
 - Hard legacy containment: green with 22 frozen files, 5 mixed production signatures, 57 frozen
   consumer signatures, and a clean protected path.
 
-## Remaining authoritative gate
+## Authoritative closure evidence
 
-The existing `gpu-validation.yml` Metal and ROCm jobs call `benchmark/matrix.jl`; the matrix now
-requires `PHASE9_QUALIFICATION` and `PHASE9_PERFORMANCE` in addition to all earlier phase records.
-The candidate becomes complete only after a pushed commit passes:
+Candidate commit `c87d7278f814a32401d717503375bae31db25354` passed:
 
-1. project structure, hard containment, whitespace, package, integration, macOS ARM64, and Linux
-   x86_64 required CI;
-2. real Apple Metal smoke qualification; and
-3. independent real AMDGPU/ROCm smoke qualification using the same Phase 9 code and fixtures.
+1. [required Julia 1.12.6 repository CI](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29708763238),
+   including the aggregate
+   [`Required`](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29708763238/job/88258577451)
+   gate, project integrity and hard legacy containment, macOS ARM64 and Linux x86_64 CPU lanes,
+   all four packages, and every integration shard;
+2. [real Apple Metal qualification](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29708763211/job/88249797975);
+3. [independent real AMDGPU/ROCm qualification](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29708763211/job/88249797989); and
+4. [documentation build](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29708763212/job/88249798007).
+
+Both GPU jobs execute `benchmark/matrix.jl` and publish the required `PHASE9_QUALIFICATION` and
+`PHASE9_PERFORMANCE` records in addition to every earlier phase record. Each record covers the same
+2D/3D three-algorithm fixtures. Both backends report exact direct/wrapper launch parity, zero extra
+wrapper synchronization and device-to-host transfer at the unobserved boundary, backend-resident
+snapshots, exact checkpoint restoration, explicit observation, device-callback residency,
+type-preserving parameter updates, and semantic ensemble seeds.
 
 CUDA and evolving PDE-field execution remain explicitly deferred. Tutorial and paper-facing API
 migration remain assigned to Phases 10--11 after the typed PottsToolkit compiler and DSL are final.
