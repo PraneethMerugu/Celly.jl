@@ -10,10 +10,6 @@ Set up the base environment:
 julia --project=benchmark benchmark/setup.jl
 ```
 
-The setup pins the unregistered Mermaid dependency to upstream commit
-`d4c89d0ea09af8d96bcdc42ef6bd5dd967fc7a0d`. Phase 2 is expected to remove this dependency from
-the core benchmark path.
-
 The environment pins the Apple-Silicon-compatible KernelIntrinsics fork to commit
 `b3a02b6e80f0839082a02f1838af7e10e992062c`. It does not follow the branch head, so a future force
 push or additional branch commit cannot silently change a paper baseline.

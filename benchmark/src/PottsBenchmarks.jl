@@ -2139,43 +2139,72 @@ function _phase10_direct_problem(problem::PottsProblem)
         p = problem.p, capacity = problem.capacity, seed = problem.seed)
 end
 
+function _phase10_elongation_division_problem(::Val{N}; seed) where {N}
+    L2 = PottsToolkit.Authoring
+    medium = L2.Medium(:Medium)
+    cell = L2.CellType(:DividingElongatedCell)
+    region = N == 2 ? ntuple(_ -> 3:6, Val(N)) : ntuple(_ -> 2:4, Val(N))
+    target_volume = prod(length, region)
+    volume = L2.VolumeConstraint(
+        cell => (target = target_volume, strength = 2.0))
+    elongation = L2.Elongation(
+        cell => (target = 2.0, strength = 4.0);
+        target_division = CloneOnDivision())
+    direction = ntuple(axis -> axis == 1 ? 1.0f0 : 0.0f0, Val(N))
+    division = L2.Division(cell;
+        geometry = VectorDivision(direction), schedule = OnceAtMCS(1))
+    model = L2.PottsModel(medium, cell, volume, elongation, division)
+    dims = ntuple(_ -> N == 2 ? 8 : 6, Val(N))
+    mask = falses(dims)
+    fill!(view(mask, region...), true)
+    return L2.problem(model, dims, L2.CellLayout(cell, 1, mask);
+        capacity = 4, tspan = (0, 1), seed)
+end
+
 function _phase10_reference_workloads()
     references = PottsToolkit.ReferenceModels
     return (
         ("biased_migration", references.single_cell_biased_migration_problem(
             (12, 12); target_volume = 4, capacity = 4,
-            tspan = (0, 1), seed = 0x7068617365312101), false),
+            tspan = (0, 1), seed = 0x7068617365312101), false, 1, 1),
         ("chemotaxis_linear", references.chemotaxis_problem(
             (12, 12); profile = :linear, target_volume = 4, capacity = 4,
-            tspan = (0, 1), seed = 0x7068617365312102), false),
+            tspan = (0, 1), seed = 0x7068617365312102), false, 1, 1),
         ("chemotaxis_half_normal", references.chemotaxis_problem(
             (12, 12); profile = :half_normal, target_volume = 4, capacity = 4,
-            tspan = (0, 1), seed = 0x7068617365312103), false),
+            tspan = (0, 1), seed = 0x7068617365312103), false, 1, 1),
         ("chemotaxis_exponential", references.chemotaxis_problem(
             (12, 12); profile = :exponential, target_volume = 4, capacity = 4,
-            tspan = (0, 1), seed = 0x7068617365312104), false),
+            tspan = (0, 1), seed = 0x7068617365312104), false, 1, 1),
         ("monolayer_growth", references.monolayer_growth_problem(
             (12, 12); target_volume = 4, division_target = 6,
-            capacity = 8, tspan = (0, 1), seed = 0x7068617365312105), true),
+            capacity = 8, tspan = (0, 1), seed = 0x7068617365312105), true, 1, 1),
         ("differential_adhesion", references.differential_adhesion_problem(
             (12, 12); cells_per_population = 2, capacity = 8,
-            tspan = (0, 1), seed = 0x7068617365312106), false),
+            tspan = (0, 1), seed = 0x7068617365312106), false, 4, 4),
         ("angiogenesis_2d", references.elongation_driven_angiogenesis_problem(
             (12, 12); cells = 3, capacity = 8, target_volume = 4,
             target_elongation = 1.5, tspan = (0, 1),
-            seed = 0x7068617365312107), false),
+            seed = 0x7068617365312107), false, 3, 3),
         ("angiogenesis_3d", references.elongation_driven_angiogenesis_problem(
-            (6, 6, 6); cells = 2, capacity = 4, target_volume = 4,
-            target_elongation = 1.2, tspan = (0, 1),
-            seed = 0x7068617365312108), false),
+            (8, 8, 8); cells = 2, capacity = 4, target_volume = 16,
+            target_elongation = 1.5, tspan = (0, 1),
+            seed = 0x7068617365312108), false, 2, 2),
+        ("elongation_division_2d", _phase10_elongation_division_problem(
+            Val(2); seed = 0x7068617365312109), true, 1, 2),
+        ("elongation_division_3d", _phase10_elongation_division_problem(
+            Val(3); seed = 0x7068617365312110), true, 1, 2),
     )
 end
 
 function _qualify_phase10_reference_workloads(name, backend, adaptor)
     results = Dict{String, Any}()
-    for (label, problem, requires_failure_observation) in _phase10_reference_workloads()
+    for (label, problem, requires_failure_observation,
+            initial_active_cells, expected_active_cells) in _phase10_reference_workloads()
         parentmodule(typeof(problem)) === CorePotts || error(
             "$name $label introduced a PottsToolkit runtime problem wrapper")
+        n_cells(problem.u0) == initial_active_cells || error(
+            "$name $label initial finite-cell count differs")
         algorithm = SequentialCPM(temperature = 2.0f0)
         report = PottsToolkit.backend_report(problem, algorithm, backend)
         report.qualified || error(
@@ -2203,7 +2232,8 @@ function _qualify_phase10_reference_workloads(name, backend, adaptor)
         KernelAbstractions.synchronize(backend)
         integrator.t == 1 || error("$name $label did not advance exactly one MCS")
         snapshot = logical_state(integrator)
-        n_cells(snapshot) > 0 || error("$name $label lost every finite cell")
+        n_cells(snapshot) == expected_active_cells || error(
+            "$name $label finite-cell count changed unexpectedly")
         results[label] = Dict(
             "dimensions" => ndims(lattice_storage(snapshot)),
             "algorithm" => string(nameof(typeof(algorithm))),
