@@ -2,7 +2,8 @@
 
 Semantic status: Accepted index structure
 
-Implementation maturity: Phases 5, 6, 7, and 8 complete on the CPU/Metal/ROCm backend contract
+Implementation maturity: Phases 5–9 complete; Phase 10 is a same-commit CI completion candidate on
+the CPU/Metal/ROCm backend contract
 
 This index is the authoritative map from accepted semantics to executable evidence. A green
 package-local regression suite does not satisfy a row by itself: evidence must exercise a stable
@@ -23,8 +24,8 @@ logical contract, a scalar reference, a validator, or a defined statistical proc
 | [CorePotts Public Interfaces](corepotts-public-interface-semantics.md) | typed proposal, five category-preserving component folds, proposal context, acceptance inputs, staged transaction, access traits, algorithm values and reports | Required Phase 6 inner-loop protocol and Phase 7 algorithms/mechanics slices implemented | CPU/Metal/ROCm execution for all three algorithm families and both stable mechanical families; explicit sequential-only connectivity/focal capabilities; old algorithms quarantined | PottsToolkit production compiler migration in Phases 10--11 |
 | [Sequential Reference Engine](reference-engine-semantics.md) | checked sequential CPU execution | Reference implemented for the 2D volume/contact slice | Deferred; it is not a production engine | Extend per later algorithm/component phases |
 | [SciML Interface Semantics](sciml-interface-semantics.md) | thin `ScientificPottsIntegrator`, `init_scientific`, and integer-MCS `step!` execution boundary | Final problem/solution oracle pending | CPU/Metal/ROCm sequential, checkerboard, and lottery stepping with explicit observation qualified | Final problem, solution, callbacks, and saving semantics in Phase 8 |
-| [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md) | volume-plus-contact authoring compilation | Reference implemented for one public spelling | Production compiler remains historical | Complete typed IR/compiler in Phases 10–11 |
-| [PottsToolkit Authoring and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md) | public `CellType`/`PottsSystem`/component/layout path | Reference implemented for one vertical slice | Full DSL/API remains provisional | Complete DSL coverage in Phases 10–11 |
+| [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md) | typed Level 2 property/lifecycle declarations, simultaneous compiled transactions, semantic RNG, five reference families | Level 2 reference and lowering implemented | CPU/Metal/ROCm compiled lifecycle and reference-workload qualification; historical rule compiler deleted | Phase 11 adds only the Level 1 spelling over these semantics |
+| [PottsToolkit Authoring and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md) | immutable `CellType`/`Medium`/binding/law/fragment/model/layout path, structured reports, public CorePotts lowering | Complete Level 2 normalized model and external-extension route | CPU/Metal/ROCm 2D/3D execution, curated exports, one CorePotts problem, schema `2.0.0` benchmark evidence | Same-commit Phase 10 completion CI, then Phase 11 DSL coverage |
 
 Legacy rows retain their Phase 3 wording until their executable slices are revised, but no
 `Foundation present` entry claims that a shipping algorithm or backend conforms. New and revised
