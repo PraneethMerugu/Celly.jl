@@ -15,8 +15,8 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 6: Scientific Inner Loop | Complete | Typed component folds, staged transactions, CPU/Metal/ROCm Phase 6 qualification, and tracker reconciliation |
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
-| Phase 9: SciML Integration | Candidate | [Phase 9 completion audit](audits/phase-9-completion-audit.md); implementation, CPU, and Metal gates pass locally; authoritative ROCm and repository CI remain required |
-| Phases 10-15 | Not started | Blocked by the Phase 9 authoritative CI gate |
+| Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
+| Phases 10-15 | Not started | Phase 10 is unblocked; later phases remain ordered by their own entry gates |
 
 ## Objective
 
