@@ -25,6 +25,7 @@ export PropertyOptionality, RequiredProperty, OptionalProperty
 export CellProperty
 export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
 export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint, Adhesion
+export PreserveConnectivity
 export PrescribedField, Chemotaxis
 export PropertyUpdate, StochasticPropertyUpdate
 export Growth, Transition, Division, ShrinkDeath, ImmediateDeath

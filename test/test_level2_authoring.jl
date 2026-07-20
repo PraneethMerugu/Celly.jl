@@ -76,6 +76,20 @@ using KernelAbstractions
         CorePotts.CheckerboardSweepCPM(temperature = 2.0f0),
         KernelAbstractions.CPU()).qualified
 
+    connectivity = L2.PreserveConnectivity()
+    connectivity_model = L2.PottsModel(medium, cell, connectivity)
+    connectivity_lowered = L2.lower(connectivity_model; dimensions = 2)
+    connectivity_components = CorePotts.realize_components(
+        connectivity_lowered.core_model,
+        CorePotts.default_parameters(connectivity_lowered.core_model))
+    @test only(connectivity_components.constraints) isa
+        CorePotts.PreserveConnectedCells
+    connectivity_problem = L2.problem(connectivity_model, (4, 4),
+        L2.CellLayout(cell, 1, boundary_mask); capacity = 2, tspan = (0, 1))
+    @test L2.backend_report(connectivity_problem,
+        CorePotts.SequentialCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
+
     differentiated = L2.CellType(:Differentiated)
     lifecycle_volume = L2.VolumeConstraint(
         cell => (target = 4.0, strength = 2.0),
