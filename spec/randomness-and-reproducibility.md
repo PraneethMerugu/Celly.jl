@@ -50,8 +50,9 @@ Any change that can alter generated values for an existing address MUST introduc
 version. Implementations SHOULD retain selectable historical versions needed to reproduce published
 work. A package version alone is not an adequate RNG version.
 
-Philox4x32-10 is the provisional default candidate. It MUST NOT be declared the accepted default
-until `SEM-RNG-006` is resolved on every first-class backend.
+`Philox4x32x10V1` is the accepted default RNG contract. Its Philox4x32-10 primitive, Potts semantic
+address packing, and version `1.0.0` have known-answer and raw-word qualification on CPU, Metal, and
+ROCm. Later changes that alter any mapped word require a new RNG contract version.
 
 ## Counter-Based Addressing
 

@@ -1,7 +1,7 @@
 """Marker for a versioned mapping from semantic random addresses to bits and distributions."""
 abstract type AbstractRNGContract end
 
-"""First production candidate: Philox4x32 with ten rounds and Potts address packing v1."""
+"""Accepted Philox4x32 ten-round contract with Potts semantic address packing v1."""
 struct Philox4x32x10V1 <: AbstractRNGContract end
 
 rng_contract_version(::Philox4x32x10V1) = v"1.0.0"
