@@ -105,6 +105,11 @@ function _scope_declaration(component::FluctuatingBoundaryConstraint{Q, T, N, M,
         component.target_division, component.division)
 end
 
+function _scope_declaration(component::PreserveConnectivity,
+        fragment::ModelFragment, mapping)
+    return PreserveConnectivity(_mapped_identity(mapping, component.name))
+end
+
 function _scope_declaration(component::Adhesion{T},
         fragment::ModelFragment, mapping) where {T}
     entries = Tuple(Binding{PairIdentity, T}(

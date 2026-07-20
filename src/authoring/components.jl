@@ -178,6 +178,17 @@ end
 
 semantic_identity(component::FluctuatingBoundaryConstraint) = component.name
 
+"""Exact global finite-cell connectedness constraint; omit it to permit fragmentation."""
+struct PreserveConnectivity
+    name::SemanticName
+end
+
+PreserveConnectivity(; name::Symbol = :connectivity,
+    namespace::Namespace = Namespace()) =
+    PreserveConnectivity(SemanticName(name; namespace))
+
+semantic_identity(component::PreserveConnectivity) = component.name
+
 """Unordered contact/adhesion Hamiltonian declaration."""
 struct Adhesion{T <: AbstractFloat}
     name::SemanticName

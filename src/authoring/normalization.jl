@@ -104,6 +104,7 @@ _validate_declaration(component::BoundaryConstraint, context::_ValidationContext
     _validate_boundary(component, context)
 _validate_declaration(component::FluctuatingBoundaryConstraint,
     context::_ValidationContext) = _validate_boundary(component, context)
+_validate_declaration(::PreserveConnectivity, context::_ValidationContext) = ()
 
 _validate_declaration(component::NamedCoreComponent, context::_ValidationContext) =
     _validate_declaration(component.component, context)
@@ -717,6 +718,7 @@ _canonical_write(io::IO, value::FluctuatingVolumeConstraint) = _canonical_fields
 _canonical_write(io::IO, value::BoundaryConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::FluctuatingBoundaryConstraint) =
     _canonical_fields(io, value)
+_canonical_write(io::IO, value::PreserveConnectivity) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::Adhesion) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::PrescribedField) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::Chemotaxis) = _canonical_fields(io, value)
@@ -985,6 +987,14 @@ function _declaration_report(component::FluctuatingBoundaryConstraint)
             noise = component.noise, initialization = component.initialization,
             metric = component.metric, target_division = component.target_division,
             division = component.division), CorePotts.ScientificCapabilities())
+end
+
+
+function _declaration_report(component::PreserveConnectivity)
+    return DeclarationReport(component.name, :constraint, (), (),
+        (:reject_fragmenting_copy,), (), (:PreserveConnectedCells,),
+        (scope = :all_finite_cells, exact = true),
+        CorePotts.ScientificCapabilities())
 end
 
 function _declaration_report(component::Adhesion)

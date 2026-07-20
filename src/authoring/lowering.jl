@@ -52,12 +52,13 @@ function Base.show(io::IO, lowered::LoweredModel)
         length(lowered.normalized.components), " components)")
 end
 
-struct _LoweringContext{T, C, M, D, R, S}
+struct _LoweringContext{T, C, M, D, R, S, K}
     cell_types::C
     media::M
     declarations::D
     contact_relation::R
     surface_relation::S
+    connectivity_relation::K
 end
 
 struct _LoweredComponents{E <: Tuple, D <: Tuple, C <: Tuple, K <: Tuple, M <: Tuple,
@@ -187,6 +188,12 @@ function _lower_component(component::FluctuatingBoundaryConstraint,
     return _LoweredComponents((), (), (), (), (core,), (),
         (CorePotts.required_properties(core),),
         _boundary_property_bindings(component, target_key, strength_key))
+end
+
+function _lower_component(::PreserveConnectivity, context::_LoweringContext)
+    core = CorePotts.PreserveConnectedCells(context.connectivity_relation)
+    return _LoweredComponents((), (), (core,), (), (), (),
+        (CorePotts.required_properties(core),), ())
 end
 
 function _biological_index(context::_LoweringContext, value::AbstractBiologicalType)
@@ -408,10 +415,13 @@ function lower(model::PottsModel; dimensions::Integer,
         CorePotts.ContactRole(), Val(dimensions); spacing = typed_spacing)
     surface_relation = CorePotts.first_shell_relation(
         CorePotts.SurfaceRole(), Val(dimensions); spacing = typed_spacing)
+    connectivity_relation = CorePotts.first_shell_relation(
+        CorePotts.ConnectivityRole(), Val(dimensions); spacing = typed_spacing)
     context = _LoweringContext{T, typeof(normalized.cell_types),
         typeof(normalized.media), typeof(normalized.components), typeof(contact_relation),
-        typeof(surface_relation)}(normalized.cell_types, normalized.media,
-        normalized.components, contact_relation, surface_relation)
+        typeof(surface_relation), typeof(connectivity_relation)}(
+        normalized.cell_types, normalized.media, normalized.components,
+        contact_relation, surface_relation, connectivity_relation)
     lowered = _lower_components(normalized.components, context)
     components = CorePotts.ScientificComponentSet(
         energies = lowered.energies, drives = lowered.drives,
