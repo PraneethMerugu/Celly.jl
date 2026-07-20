@@ -1818,7 +1818,7 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.PottsToolkit]]
-deps = ["Adapt", "CorePotts", "KernelAbstractions", "MLStyle", "Random", "Reexport", "SciMLBase"]
+deps = ["Adapt", "CorePotts", "KernelAbstractions", "MLStyle", "Random", "Reexport", "SHA", "SciMLBase"]
 path = ".."
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
