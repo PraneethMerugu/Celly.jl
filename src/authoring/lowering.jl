@@ -52,9 +52,10 @@ function Base.show(io::IO, lowered::LoweredModel)
         length(lowered.normalized.components), " components)")
 end
 
-struct _LoweringContext{T, C, M, R}
+struct _LoweringContext{T, C, M, D, R}
     cell_types::C
     media::M
+    declarations::D
     contact_relation::R
 end
 
@@ -173,6 +174,38 @@ function _lower_component(component::Adhesion{T}, context::_LoweringContext{T}) 
         (CorePotts.required_properties(core),), ())
 end
 
+_lower_component(::PrescribedField, context::_LoweringContext) = _LoweredComponents()
+
+function _prescribed_field(context::_LoweringContext, identity::SemanticName)
+    index = findfirst(value -> value isa PrescribedField &&
+        semantic_identity(value) == identity, context.declarations)
+    index === nothing && throw(ArgumentError("missing prescribed field $identity"))
+    return context.declarations[index]
+end
+
+function _lower_component(component::Chemotaxis{T},
+        context::_LoweringContext{T}) where {T}
+    field = _field_as_core(_prescribed_field(context, component.field))
+    key = Symbol(_property_prefix(component.name), "__sensitivity")
+    core_medium_values = Tuple(CorePotts.MediumID(index) => zero(T)
+        for index in eachindex(context.media))
+    coupling = CorePotts.OwnerScalarCoupling(key, core_medium_values...;
+        number_type = T)
+    drive = CorePotts.ChemotaxisDrive(
+        field, coupling, component.response, component.mode)
+    requester = CorePotts.component_identity(drive)
+    descriptor = CorePotts.PropertyDescriptor(key, T,
+        CorePotts.ConstantInitializer(zero(T));
+        mutability = CorePotts.MutableProperty,
+        division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition(),
+        retirement = CorePotts.ResetOnRetirement(),
+        kind = CorePotts.BiologicalProperty, requester)
+    values = CellPropertyBinding(key, component.sensitivity)
+    return _LoweredComponents((), (drive,), (), (), (), (),
+        (CorePotts.PropertySchema(descriptor),), (values,))
+end
+
 _lower_component(component::NamedCoreComponent, context::_LoweringContext) =
     _lower_component(component.component, context)
 
@@ -244,6 +277,30 @@ function _id_table(values::Tuple, constructor)
     return BindingTable{K, V}(entries)
 end
 
+function _component_dimension_diagnostics(normalized::NormalizedModel,
+        dimensions::Integer)
+    diagnostics = ()
+    for component in normalized.components
+        report = _declaration_report(component)
+        dimensions in report.capabilities.dimensions && continue
+        diagnostics = (diagnostics..., Diagnostic(
+            :error, :unsupported_component_dimension,
+            "a model component does not support the selected lattice dimensionality";
+            stage = :problem, identity = report.identity,
+            related = (dimensions, report.capabilities.dimensions),
+            correction = "select a supported dimension or replace the component"),)
+    end
+    return diagnostics
+end
+
+function _check_component_dimensions(normalized::NormalizedModel,
+        dimensions::Integer)
+    diagnostics = _component_dimension_diagnostics(normalized, dimensions)
+    isempty(diagnostics) || throw(ArgumentError(
+        first(diagnostics).message * ": " * string(first(diagnostics).identity)))
+    return normalized
+end
+
 """
     lower(model; dimensions, spacing)
 
@@ -255,7 +312,7 @@ function lower(model::PottsModel; dimensions::Integer,
     dimensions in (2, 3) || throw(ArgumentError("CPM models support two or three dimensions"))
     length(spacing) == dimensions || throw(ArgumentError(
         "spacing must have one value per lattice dimension"))
-    normalized = normalize(model)
+    normalized = _check_component_dimensions(normalize(model), dimensions)
     T = CorePotts.real_type(normalized.numerics)
     typed_spacing = ntuple(index -> T(spacing[index]), dimensions)
     proposal_relation = CorePotts.first_shell_relation(
@@ -265,8 +322,8 @@ function lower(model::PottsModel; dimensions::Integer,
     surface_relation = CorePotts.first_shell_relation(
         CorePotts.SurfaceRole(), Val(dimensions); spacing = typed_spacing)
     context = _LoweringContext{T, typeof(normalized.cell_types),
-        typeof(normalized.media), typeof(contact_relation)}(
-        normalized.cell_types, normalized.media, contact_relation)
+        typeof(normalized.media), typeof(normalized.components), typeof(contact_relation)}(
+        normalized.cell_types, normalized.media, normalized.components, contact_relation)
     lowered = _lower_components(normalized.components, context)
     components = CorePotts.ScientificComponentSet(
         energies = lowered.energies, drives = lowered.drives,
@@ -417,6 +474,8 @@ function validate_problem(model::PottsModel, shape::Tuple, layouts...;
 
     if isvalid(model_report)
         normalized = normalize(model)
+        dimensions in (2, 3) && (diagnostics = (diagnostics...,
+            _component_dimension_diagnostics(normalized, dimensions)...))
         for layout in layouts
             diagnostics = (diagnostics..., _layout_diagnostics(
                 layout, shape, normalized.cell_types, normalized.media)...)

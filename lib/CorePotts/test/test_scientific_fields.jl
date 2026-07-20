@@ -60,6 +60,20 @@
     @test drive_report.category == :nonconservative_drive
     @test drive_report.mode == :ExtensionChemotaxis
     @test !drive_report.contributes_to_hamiltonian
+
+    energy_data = component_semantic_data(conservative)
+    @test energy_data.field.shape == (3, 3)
+    @test energy_data.field.values == reshape(Float32.(1:9), 3, 3)
+    @test energy_data.coupling.finite_cell_property == :field_coupling
+    @test energy_data.response == (kind = :linear,)
+    @test energy_data.energy_scale == 1.5f0
+    @test capabilities(conservative).dimensions == (2,)
+
+    drive_data = component_semantic_data(extension)
+    @test drive_data.field.semantic_time == 3.0f0
+    @test drive_data.sensitivity.finite_cell_property == :chemotaxis_sensitivity
+    @test drive_data.mode === :extension
+    @test capabilities(extension).dimensions == (2,)
 end
 
 @testset "2D/3D field-component numerical conformance" begin
@@ -91,6 +105,7 @@ end
         for mode in (ExtensionChemotaxis(), RetractionChemotaxis(), ReciprocalChemotaxis())
             drive = ChemotaxisDrive(field, coupling, LinearResponse(), mode)
             @test drive_log_bias(drive, selected, fixture.state, fixture.domain) isa T
+            @test capabilities(drive).dimensions == (length(dims),)
         end
     end
 end
