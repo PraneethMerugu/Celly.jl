@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "82c71c663b73a5ef2e8513fd95b49990383f8d09"
+project_hash = "01f49ad7e24535e561e512e7683b6c7281c901c1"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "ec6be48a85c93d995563b84bff8a86bc98df45ce"
@@ -461,11 +461,6 @@ git-tree-sha1 = "f00544d95982ea270145636c181ceda21c4e2575"
 uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 version = "1.2.0"
 
-[[deps.MLStyle]]
-git-tree-sha1 = "bc38dff0548128765760c79eb7388a4b37fae2c8"
-uuid = "d8e11817-5142-5d16-987a-aa16d5891078"
-version = "0.4.17"
-
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -475,29 +470,6 @@ version = "0.5.16"
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.Mermaid]]
-deps = ["CommonSolve", "DocStringExtensions", "OrderedCollections"]
-git-tree-sha1 = "f64067a4b79da874f5204e69deac363140693801"
-repo-rev = "d4c89d0ea09af8d96bcdc42ef6bd5dd967fc7a0d"
-repo-url = "https://github.com/eebio/Mermaid.jl.git"
-uuid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
-version = "0.1.0"
-
-    [deps.Mermaid.extensions]
-    AgentsExt = "Agents"
-    DiffEqExt = "DiffEqBase"
-    MethodOfLinesExt = ["MethodOfLines", "DiffEqBase"]
-    SurrogatesExt = "Surrogates"
-    TrixiParticlesExt = ["TrixiParticles", "DiffEqBase"]
-
-    [deps.Mermaid.weakdeps]
-    Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
-    DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
-    Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-    MethodOfLines = "94925ecb-adb7-4558-8ed8-f975c56a0bf4"
-    Surrogates = "6fc51010-71bc-11e9-0e15-a3fcc6593c49"
-    TrixiParticles = "66699cd8-9c01-4e9d-a059-b96c86d16b3a"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -540,14 +512,10 @@ version = "1.12.1"
     REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.PottsToolkit]]
-deps = ["Adapt", "CorePotts", "KernelAbstractions", "MLStyle", "Random", "Reexport", "SHA", "SciMLBase"]
+deps = ["CorePotts", "SHA", "SciMLBase"]
 path = ".."
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
-weakdeps = ["Mermaid"]
-
-    [deps.PottsToolkit.extensions]
-    PottsToolkitMermaidExt = "Mermaid"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "PrecompileTools"]

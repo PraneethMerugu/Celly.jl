@@ -95,32 +95,77 @@ function differential_adhesion_model(;
     return PottsModel(medium, first_population, second_population, volume, adhesion)
 end
 
-function _mixed_seed_labels(shape::NTuple{N, <:Integer}, count::Integer,
-        first_population::CellType, second_population::CellType) where {N}
+function _maximin_seed_centers(shape::NTuple{N, <:Integer}, count::Integer) where {N}
     count > 0 || throw(ArgumentError("a sorting problem requires finite cells"))
     candidates = collect(CartesianIndices(shape))
     count <= length(candidates) || throw(ArgumentError(
         "the requested initial cell count exceeds the lattice site count"))
+    centers = CartesianIndex{N}[CartesianIndex(ntuple(axis -> cld(shape[axis], 2), Val(N)))]
+    while length(centers) < count
+        best = nothing
+        best_distance = -1
+        for candidate in candidates
+            candidate in centers && continue
+            distance = minimum(sum((candidate[axis] - center[axis])^2
+                for axis in 1:N) for center in centers)
+            if distance > best_distance
+                best = candidate
+                best_distance = distance
+            end
+        end
+        push!(centers, best::CartesianIndex{N})
+    end
+    return centers
+end
+
+function _seed_label_layout(shape::NTuple{N, <:Integer}, count::Integer,
+        target_volume::Real, cell_type_at) where {N}
+    sites_per_cell = round(Int, target_volume)
+    sites_per_cell > 0 || throw(ArgumentError(
+        "initial target volume must round to at least one lattice site"))
+    count * sites_per_cell <= prod(shape) || throw(ArgumentError(
+        "the requested cells and target volume exceed lattice capacity"))
+    centers = _maximin_seed_centers(shape, count)
+    regions = [CartesianIndex{N}[] for _ in 1:count]
+    for site in CartesianIndices(shape)
+        owner = argmin(Tuple(sum((site[axis] - center[axis])^2
+            for axis in 1:N) for center in centers))
+        push!(regions[owner], site)
+    end
     labels = zeros(UInt64, shape)
     declarations = Pair{UInt64, CellType}[]
     for index in 1:count
-        position = candidates[1 + fld((index - 1) * length(candidates), count)]
-        labels[position] = UInt64(index)
-        cell_type = isodd(index) ? first_population : second_population
-        push!(declarations, UInt64(index) => cell_type)
+        center = centers[index]
+        sort!(regions[index]; by = site -> (
+            sum((site[axis] - center[axis])^2 for axis in 1:N), Tuple(site)))
+        length(regions[index]) >= sites_per_cell || throw(ArgumentError(
+            "lattice is too small to place every connected target-volume seed"))
+        for site in @view regions[index][1:sites_per_cell]
+            labels[site] = UInt64(index)
+        end
+        push!(declarations, UInt64(index) => cell_type_at(index))
     end
     return CellLabelLayout(labels, declarations)
 end
 
+function _mixed_seed_labels(shape::NTuple{N, <:Integer}, count::Integer,
+        target_volume::Real, first_population::CellType,
+        second_population::CellType) where {N}
+    return _seed_label_layout(shape, count, target_volume,
+        index -> isodd(index) ? first_population : second_population)
+end
+
 """Construct a deterministic mixed two-population differential-adhesion problem."""
 function differential_adhesion_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 32, 2);
-        cells_per_population::Integer = 8, capacity::Integer = 64,
+        cells_per_population::Integer = 8, target_volume::Real = 20,
+        capacity::Integer = 64,
         tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
     cells_per_population > 0 || throw(ArgumentError(
         "cells_per_population must be positive"))
-    model = differential_adhesion_model(; kwargs...)
+    model = differential_adhesion_model(; target_volume, kwargs...)
     populations = Tuple(value for value in model.declarations if value isa CellType)
-    layout = _mixed_seed_labels(shape, 2cells_per_population, populations...)
+    layout = _mixed_seed_labels(
+        shape, 2cells_per_population, target_volume, populations...)
     capacity >= 2cells_per_population || throw(ArgumentError(
         "cell capacity must contain every initial sorting cell"))
     return problem(model, shape, layout; capacity, tspan, seed)
@@ -190,14 +235,16 @@ end
 """Construct a deterministic sparse endothelial seed problem in two or three dimensions."""
 function elongation_driven_angiogenesis_problem(
         shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
-        cells::Integer = 12, capacity::Integer = 64,
+        cells::Integer = 12, target_volume::Real = 16,
+        capacity::Integer = 64,
         tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
     cells > 0 || throw(ArgumentError("an angiogenesis problem requires finite cells"))
     capacity >= cells || throw(ArgumentError(
         "cell capacity must contain every initial endothelial cell"))
-    model = elongation_driven_angiogenesis_model(; kwargs...)
+    model = elongation_driven_angiogenesis_model(; target_volume, kwargs...)
     endothelial = only(value for value in model.declarations if value isa CellType)
-    layout = _mixed_seed_labels(shape, cells, endothelial, endothelial)
+    layout = _seed_label_layout(
+        shape, cells, target_volume, _ -> endothelial)
     return problem(model, shape, layout; capacity, tspan, seed)
 end
 

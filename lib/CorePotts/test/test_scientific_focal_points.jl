@@ -33,6 +33,13 @@ end
         (Float32, (5, 5, 5)), (Float64, (5, 5, 5)))
         fixture = _focal_fixture(T, dims)
         (; state, domain, boundary_tracker, moment_tracker, compiled, component) = fixture
+        adapted_tracker = CorePotts.Adapt.adapt(Array, moment_tracker)
+        @test adapted_tracker == moment_tracker
+        @test typeof(adapted_tracker) === typeof(moment_tracker)
+        all_active_tracker = UnwrappedMomentTracker(moment_tracker.relation; number_type = T)
+        adapted_all_active = CorePotts.Adapt.adapt(Array, all_active_tracker)
+        @test adapted_all_active == all_active_tracker
+        @test typeof(adapted_all_active) === typeof(all_active_tracker)
         @test scientific_storage_valid(compiled)
         @test isbitstype(typeof(component))
         center = unwrapped_center(compiled, CellOwner(1))

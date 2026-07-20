@@ -22,6 +22,13 @@ function UnwrappedMomentTracker(relation::StaticCartesianRelation{<:Connectivity
         relation, (), true)
 end
 
+function Adapt.adapt_structure(to, tracker::UnwrappedMomentTracker{T}) where {T}
+    relation = Adapt.adapt(to, tracker.relation)
+    tracked_ids = Adapt.adapt(to, tracker.tracked_ids)
+    return UnwrappedMomentTracker{T, typeof(relation), typeof(tracked_ids)}(
+        relation, tracked_ids, tracker.track_all)
+end
+
 function component_identity(::UnwrappedMomentTracker)
     ComponentIdentity(:unwrapped_coordinate_moments, v"1.0.0", :tracker)
 end
