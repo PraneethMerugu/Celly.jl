@@ -1,6 +1,6 @@
 # PottsToolkit Authoring, Composition, and API Semantics
 
-Status: Accepted authoring and composition principles; exact surface syntax remains provisional
+Status: Accepted Level 2 authoring and composition contract; exact Level 1 surface syntax remains provisional
 
 ## Purpose
 
@@ -70,6 +70,16 @@ required to mimic DSL syntax, and ordinary Julia construction logic is not parse
 syntax. Typed rule expressions intended for portable lowering still satisfy the same semantic-node
 contracts as the DSL.
 
+The principal model name is `PottsToolkit.PottsModel`. It is distinct from the lower-level
+`CorePotts.PottsModel` by ordinary module qualification. Friendly `PottsProblem` construction
+validates and lowers the Level 2 model and returns the single CorePotts/SciML runtime problem;
+PottsToolkit does not introduce a wrapper problem type.
+
+Phase 10 model and rule quantities are plain numerical values governed by the numerical policy.
+PottsToolkit performs no authoring-time unit conversion and does not carry Unitful values into
+normalization or lowering. Optional units are a Phase 11 solution post-processing concern and do
+not alter model semantics or execution.
+
 ### Level 3: CorePotts scientific API
 
 CorePotts exposes stable scientific objects and protocols for state, topology, energy components,
@@ -115,7 +125,7 @@ scientific behavior and conformance evidence, not by requiring identical compile
 
 Third-party operations and components enter through versioned registration and explicit semantic
 contracts when they seek Level 1 DSL syntax, normalized serialization, or DSL compiler support. Such
-an extension declares its syntax or constructor entry points, IR lowering, types and units, effects,
+an extension declares its syntax or constructor entry points, IR lowering, type rules, effects,
 capabilities, reference behavior, device behavior, documentation, and conformance tests.
 
 Direct Level 3 or Level 4 use follows the corresponding CorePotts public protocol and does not
@@ -242,7 +252,9 @@ requirements.
 
 Serialization guarantees are level-specific:
 
-- Registered Level 1 and Level 2 models support full semantic serialization and round-tripping.
+- Registered Level 1 and Level 2 components MAY support full semantic serialization and
+  round-tripping through an explicit versioned protocol; unsupported components remain usable but
+  make the model visibly non-portable.
 - Level 3 objects support provenance and descriptor serialization where declared by their protocol.
 - Level 4 compiled kernels, live workspaces, streams, device handles, and backend resources have no
   general serialization guarantee.
@@ -288,9 +300,8 @@ historical background `CellType` as a medium after explicit validation and repor
 
 ### Model and problem
 
-The primary immutable scientific model is conceptually `PottsModel`; the final exported name is
-confirmed with the API inventory. A model contains biological declarations, components, rules,
-scientific relations, field coupling, and capability requirements.
+The primary immutable scientific model is `PottsToolkit.PottsModel`. A model contains biological
+declarations, components, rules, scientific relations, field coupling, and capability requirements.
 
 `PottsProblem` is the SciML problem object. It binds a model to a concrete experiment, including:
 
@@ -302,6 +313,8 @@ scientific relations, field coupling, and capability requirements.
 - Problem-level observation or solve configuration
 
 Layouts and initial placement belong to the problem rather than the reusable scientific model.
+The PottsToolkit constructor returns the CorePotts/SciML `PottsProblem` directly; there is no second
+runtime problem wrapper.
 
 PottsToolkit layout values lower through CorePotts' minimal claim-emission protocol. Built-in dense
 labels or masks, coordinates, and paper-required procedural shapes share that path. Users identify
@@ -359,7 +372,7 @@ indices depend on declaration order. It declares:
 - Symmetric or directed behavior
 - Medium participation
 - Default and missing-pair behavior
-- Types and units
+- Value and numerical policy
 - Canonical pair identities
 - Conflict and override policy
 
@@ -369,9 +382,10 @@ constructor.
 ### Properties and observables
 
 Custom properties are declared independently of rules. A property schema declares owner, type,
-units, initialization, separate division/transition/retirement policy values, visibility, and
-conversion policy. Each operation must be explicitly supported or explicitly rejected; PottsToolkit
-does not fill missing lifecycle behavior from a global default.
+initialization, invariant or valid range, separate division/transition/retirement policy values,
+visibility, persistence participation, optionality, and numeric conversion policy. Undefined
+storage is forbidden. Each operation must be explicitly supported or explicitly rejected;
+PottsToolkit does not fill missing lifecycle behavior from a global default.
 
 Built-in components MAY supply common schemas without verbose user declarations. Supplied schemas
 appear in `explain`, participate in conflict detection, and cannot silently override explicit user
@@ -417,13 +431,14 @@ The historical `CellType -> Component -> PottsSystem -> Problem` API is compatib
 than the architectural constraint for the new object model. Concepts with accepted meaning MAY be
 retained, while constructors, nesting, ownership, and names are redesigned where necessary.
 
-Unambiguous historical syntax SHOULD receive a documented deprecation or adapter path. Behavior
-that conflicts with accepted media, state, time, algorithm, or composition semantics is rejected or
-requires an explicitly named compatibility mode.
+Before the paper API freeze, historical unreleased syntax receives no required deprecation or
+adapter path. Required library code and tests migrate to the replacement model, after which the old
+compiler is deleted. Behavior that conflicts with accepted media, state, time, algorithm, or
+composition semantics is rejected.
 
 ## Model, Problem, and Execution State
 
-A PottsToolkit `Model` is an immutable declarative scientific value. It contains authoring or
+A `PottsToolkit.PottsModel` is an immutable declarative scientific value. It contains authoring or
 normalized meaning, not evolving simulation state.
 
 A `Problem` binds a model to initial state, geometry, time span, and solve-level configuration. An
@@ -451,7 +466,7 @@ Every rule-visible state item has a schema declaration before normalized compila
 parameter, field, or relation declares as applicable:
 
 - Stable identity and owner
-- Semantic type and units
+- Semantic type and numerical policy
 - Default or initialization requirement
 - Mutability and effect category
 - Lifecycle behavior
@@ -461,7 +476,7 @@ A misspelled reference MUST NOT create state implicitly.
 
 ### Name resolution
 
-Scientific ambiguity is never resolved solely by Julia method dispatch. Ownership, units, relation
+Scientific ambiguity is never resolved solely by Julia method dispatch. Ownership, relation
 roles, effects, algorithm identities, and model names are represented explicitly in the semantic
 model.
 
@@ -529,8 +544,8 @@ writes, constrains, observes, and which backend or numerical capabilities it nee
 Attaching a component produces a new model and runs composition validation. Components have stable
 identities so models support identity-based operations conceptually equivalent to:
 
-- `with(model, component)`
-- `without(model, component_id)`
+- `add(model, component)`
+- `remove(model, component_id)`
 - `replace(model, component_id => replacement)`
 - `remake(model; ...)`
 
@@ -565,7 +580,7 @@ Phase and transaction structure is visible through model inspection.
 Validation occurs at the earliest layer with sufficient information:
 
 1. Constructors validate local structure, literal domains, and immediately knowable invariants.
-2. Model normalization resolves names, types, units, effects, dependencies, and composition
+2. Model normalization resolves names, types, numerical policies, effects, dependencies, and composition
    conflicts.
 3. Problem construction validates geometry, capacity, initial state, and model-state compatibility.
 4. Backend preflight validates capabilities, device lowering, resource constraints, and kernel
@@ -628,19 +643,20 @@ produce a migration diagnostic or require an explicit migration tool.
 
 ## Serialization and Exchange
 
-Source code is not the only durable representation. PottsToolkit provides a versioned data-oriented
-serialization of the normalized semantic model for provenance, exchange, validation, and
-reconstruction.
+PottsToolkit distinguishes a versioned semantic manifest, runtime checkpoints, and reconstructable
+model serialization. A semantic manifest supports provenance, exchange, and validation without
+promising that every Julia extension can be reconstructed.
 
-The guarantee is semantic round-tripping: loading a supported serialized model reconstructs an
-equivalent normalized model and fingerprint under the recorded contract versions.
+Semantic round-tripping is guaranteed only when every participating component opts into the
+versioned serialization protocol. Loading such a model reconstructs an equivalent normalized model
+and fingerprint under the recorded contract versions.
 
 The project does not promise to reproduce original source formatting, comments, macro choice, or
 declaration order. A pretty-printer MAY emit canonical authoring code.
 
 Arbitrary closures, host resources, secret-bearing objects, and backend-specific handles prevent
-portable serialization unless a registered resource representation exists. The model report labels
-such a model non-portable and explains why.
+portable serialization unless a registered resource representation exists. They are never restored
+through `eval`. The model report labels such a model non-portable and explains why.
 
 ## Diagnostic Contract
 
@@ -649,7 +665,7 @@ Composition and authoring diagnostics include as applicable:
 - Source locations and model paths
 - Namespace and fragment paths
 - Stable declaration or component identities
-- Expected and actual types, units, owners, or capabilities
+- Expected and actual types, numerical policies, owners, or capabilities
 - Competing definitions in a collision
 - Dependency paths preventing removal or replacement
 - The preset or convenience that introduced a declaration
@@ -686,20 +702,24 @@ backend capability, and migration failure.
 - Validation occurs in the accepted stages and reports multiple independent errors where safe.
 - Inspection exposes all consequential normalized choices without simulation execution.
 - Numerical revisions reuse compilation only when structure and capability requirements permit it.
-- Serialized models record independent DSL and IR versions.
-- Round-tripping preserves normalized meaning rather than incidental source spelling.
+- Semantic manifests record independent DSL and IR versions.
+- Models whose components opt into reconstructable serialization round-trip normalized meaning
+  rather than incidental source spelling; unsupported components are reported before persistence.
+- Model and rule authoring performs no unit conversion; optional units remain solution-side
+  post-processing metadata.
 - Documented CorePotts public protocols interoperate with PottsToolkit without exposing internal
   storage representations.
 
-## Exact Surface Syntax Still to Define
+## Exact Level 1 Surface Syntax Still to Define
 
 The following remain provisional until dedicated syntax and usability interviews are accepted:
 
 - Model, type, property, parameter, field, component, and relation declaration grammar
 - Rule, transaction, conditional, random draw, and query grammar
 - Namespace, fragment application, binding, and override spelling
-- Constructor names and builder return types
+- Remaining Level 1 constructor names and builder return types; the principal Level 2
+  `PottsToolkit.PottsModel` and single runtime `PottsProblem` ownership are accepted
 - Inspection result types and display conventions
 - Canonical pretty-printing
-- Deprecation syntax and migration tooling
+- Post-freeze deprecation policy; no pre-freeze migration layer is required
 - IDE, completion, formatting, and documentation integration

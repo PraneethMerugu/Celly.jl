@@ -10,9 +10,23 @@ using SciMLBase
 using StaticArrays
 using Statistics
 using TOML
+import PottsToolkit
 import CorePotts: LegacyPottsProblem, PottsState, PottsParameters, PottsCache,
                   SequentialMetropolis, ParallelMetropolis, CheckerboardMetropolis,
                   IntrinsicCheckerboardMetropolis
+
+struct Phase10QualificationEnergy{T <: AbstractFloat} <: AbstractEnergy
+    value::T
+end
+CorePotts.component_identity(::Phase10QualificationEnergy) =
+    ComponentIdentity(:phase10_qualification_energy, v"1.0.0", :energy)
+CorePotts.energy_change(component::Phase10QualificationEnergy,
+    proposal::CopyProposal, state::LogicalPottsState) = component.value
+CorePotts.proposal_energy_change(component::Phase10QualificationEnergy,
+    proposal::CopyProposal, context::ScientificProposalContext) = component.value
+CorePotts.scientific_access(::Phase10QualificationEnergy) = SnapshotScientificAccess()
+CorePotts.component_semantic_data(component::Phase10QualificationEnergy) =
+    (value = component.value,)
 
 const SCHEMA_VERSION = "1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
@@ -2086,6 +2100,211 @@ function qualify_phase9_backend(name::String)
         "serial_ensemble_semantic_seeds" => true,
         "same_device_threaded_gpu_qualified" => name == "cpu",
         "hidden_host_fallback" => false,
+    )
+end
+
+function _phase10_problem(::Val{N}; tspan = (0, 2), seed = 0x7068617365310001) where {N}
+    L2 = PottsToolkit.Authoring
+    medium = L2.Medium(:Medium)
+    cell = L2.CellType(:Cell)
+    volume = L2.VolumeConstraint(cell => (target = 8.0, strength = 2.0))
+    fluctuating = L2.FluctuatingVolumeConstraint(
+        cell => (target = 8.0, strength = 1.0);
+        eta = 0.5, noise = FixedMechanicalNoise(0.25f0))
+    adhesion = L2.Adhesion(
+        (medium, medium) => 0.0,
+        (medium, cell) => 4.0,
+        (cell, cell) => 1.0)
+    age = L2.CellProperty(:age, cell; initial = 0.0,
+        invariant = L2.ClosedPropertyInterval(0.0, 100.0),
+        division = CloneOnDivision(), transition = PreserveOnTransition())
+    growth = L2.StochasticPropertyUpdate(volume, cell; name = :growth,
+        amount = 0.5, probability = 1.0)
+    aging = L2.StochasticPropertyUpdate(age, cell; name = :aging,
+        role = :value, amount = 1.0, probability = 1.0)
+    downstream = Phase10QualificationEnergy(0.125f0)
+    model = L2.PottsModel(
+        medium, cell, volume, fluctuating, adhesion, age, growth, aging, downstream)
+    dims = ntuple(_ -> 6, Val(N))
+    mask = falses(dims)
+    region = ntuple(_ -> 2:3, Val(N))
+    fill!(view(mask, region...), true)
+    problem = L2.problem(model, dims, L2.CellLayout(cell, 1, mask);
+        capacity = 4, tspan, seed)
+    return (; model, problem, cell, initial_target = 8.0f0)
+end
+
+function _phase10_direct_problem(problem::PottsProblem)
+    return PottsProblem(problem.model, problem.u0, problem.geometry, problem.tspan;
+        p = problem.p, capacity = problem.capacity, seed = problem.seed)
+end
+
+"""Qualify Level 2 lowering plus resident scientific, mechanical, and lifecycle execution."""
+function qualify_phase10_backend(name::String)
+    adaptor = _backend_adaptor(name)
+    probe = _backend_array(name, zeros(UInt8, 1))
+    backend = KernelAbstractions.get_backend(probe)
+    profiles = Dict{String, Any}()
+    for N in (2, 3)
+        fixture = _phase10_problem(Val(N); seed = 0x7068617365310000 + N)
+        construction = @elapsed lowered = PottsToolkit.Authoring.lower(
+            fixture.model; dimensions = N)
+        normalization = @elapsed PottsToolkit.Authoring.normalize(fixture.model)
+        direct_problem = _phase10_direct_problem(fixture.problem)
+        typeof(fixture.problem) === typeof(direct_problem) || error(
+            "$name Phase 10 $N-D authoring changed the concrete CorePotts problem type")
+        parentmodule(typeof(fixture.problem)) === CorePotts || error(
+            "$name Phase 10 $N-D introduced a PottsToolkit runtime problem wrapper")
+        algorithm = LotteryCPM(temperature = 2.0f0)
+        integrator = init(fixture.problem, algorithm;
+            backend, adaptor, verbose = false, save_start = false, save_end = false)
+        direct = init(direct_problem, algorithm;
+            backend, adaptor, verbose = false, save_start = false, save_end = false)
+        metrics = integrator.inner.plan.metrics
+        direct_metrics = direct.inner.plan.metrics
+        before_syncs = metrics.host_synchronizations
+        before_transfers = metrics.device_to_host_transfers
+        before_allocations = metrics.device_allocations
+        before_launches = metrics.launches
+        direct_before_syncs = direct_metrics.host_synchronizations
+        direct_before_transfers = direct_metrics.device_to_host_transfers
+        direct_before_allocations = direct_metrics.device_allocations
+        direct_before_launches = direct_metrics.launches
+        step!(integrator)
+        step!(direct)
+        synchronization_delta = metrics.host_synchronizations - before_syncs
+        transfer_delta = metrics.device_to_host_transfers - before_transfers
+        allocation_delta = metrics.device_allocations - before_allocations
+        launch_delta = metrics.launches - before_launches
+        direct_synchronization_delta =
+            direct_metrics.host_synchronizations - direct_before_syncs
+        direct_transfer_delta =
+            direct_metrics.device_to_host_transfers - direct_before_transfers
+        direct_allocation_delta = direct_metrics.device_allocations - direct_before_allocations
+        direct_launch_delta = direct_metrics.launches - direct_before_launches
+        synchronization_delta == 0 || error(
+            "$name Phase 10 $N-D warm MCS introduced host synchronization")
+        transfer_delta == 0 || error(
+            "$name Phase 10 $N-D warm MCS introduced device-to-host transfer")
+        allocation_delta == 0 || error(
+            "$name Phase 10 $N-D warm MCS introduced device allocation")
+        direct_synchronization_delta == synchronization_delta || error(
+            "$name Phase 10 $N-D authoring changed warm-MCS synchronization")
+        direct_transfer_delta == transfer_delta || error(
+            "$name Phase 10 $N-D authoring changed warm-MCS transfer behavior")
+        direct_allocation_delta == allocation_delta || error(
+            "$name Phase 10 $N-D authoring changed warm-MCS device allocation")
+        direct_launch_delta == launch_delta || error(
+            "$name Phase 10 $N-D authoring changed the warm-MCS launch graph")
+        KernelAbstractions.synchronize(backend)
+        snapshot = logical_state(integrator)
+        direct_snapshot = logical_state(direct)
+        lattice_storage(snapshot) == lattice_storage(direct_snapshot) || error(
+            "$name Phase 10 $N-D authoring trajectory differs from direct CorePotts")
+        property_values(snapshot, :volume__target) ==
+            property_values(direct_snapshot, :volume__target) || error(
+            "$name Phase 10 $N-D authoring property transaction differs from direct CorePotts")
+        property_values(snapshot, :age) == property_values(direct_snapshot, :age) || error(
+            "$name Phase 10 $N-D custom property differs from direct CorePotts")
+        property_value(snapshot, :volume__target, CellID(1)) == 8.5f0 || error(
+            "$name Phase 10 $N-D stochastic lifecycle property update differs")
+        property_value(snapshot, :age, CellID(1)) == 1.0f0 || error(
+            "$name Phase 10 $N-D custom-property transaction differs")
+        profiles["$(N)d"] = Dict(
+            "semantic_fingerprint" => lowered.normalized.fingerprint.digest,
+            "normalization_seconds" => normalization,
+            "lowering_seconds" => construction,
+            "warm_mcs_launches" => launch_delta,
+            "warm_mcs_host_synchronizations" => synchronization_delta,
+            "warm_mcs_device_to_host_transfers" => transfer_delta,
+            "warm_mcs_device_allocations" => allocation_delta,
+            "matched_direct_launches" => direct_launch_delta,
+            "matched_direct_exact_state" => true,
+            "runtime_problem_wrapper" => false,
+            "stochastic_property_transaction" => true,
+            "mechanical_component" => true,
+            "downstream_component" => true,
+            "custom_property" => true,
+        )
+    end
+    return Dict(
+        "backend" => name,
+        "dimensions" => [2, 3],
+        "profiles" => profiles,
+        "public_corepotts_lowering" => true,
+        "hidden_host_fallback" => false,
+    )
+end
+
+"""Measure Level 2 host work separately from identical CorePotts warm execution."""
+function measure_phase10_backend(name::String; steps::Int = 5)
+    steps > 0 || throw(ArgumentError("Phase 10 steady-state sample size must be positive"))
+    adaptor = _backend_adaptor(name)
+    construction_seconds = @elapsed fixture = _phase10_problem(Val(2);
+        tspan = (0, 2 * steps + 4), seed = 0x7068617365311000)
+    normalization_seconds = @elapsed normalized = PottsToolkit.Authoring.normalize(fixture.model)
+    lowering_seconds = @elapsed lowered = PottsToolkit.Authoring.lower(
+        fixture.model; dimensions = 2)
+    direct_problem = _phase10_direct_problem(fixture.problem)
+    prototype = _backend_array(name, zeros(UInt8, 1))
+    backend = KernelAbstractions.get_backend(prototype)
+    algorithm = LotteryCPM(temperature = 2.0f0)
+    level2_initialization_seconds = @elapsed level2 = init(fixture.problem, algorithm;
+        backend, adaptor, verbose = false, save_start = false, save_end = false)
+    direct_initialization_seconds = @elapsed direct = init(direct_problem, algorithm;
+        backend, adaptor, verbose = false, save_start = false, save_end = false)
+    _timed_phase9_steps!(level2, 1)
+    _timed_phase9_steps!(direct, 1)
+    level2_metrics = level2.inner.plan.metrics
+    direct_metrics = direct.inner.plan.metrics
+    level2_launches_before = level2_metrics.launches
+    level2_syncs_before = level2_metrics.host_synchronizations
+    level2_transfers_before = level2_metrics.device_to_host_transfers
+    level2_allocations_before = level2_metrics.device_allocations
+    direct_launches_before = direct_metrics.launches
+    level2_steady_seconds = _timed_phase9_steps!(level2, steps)
+    direct_steady_seconds = _timed_phase9_steps!(direct, steps)
+    KernelAbstractions.synchronize(backend)
+    level2_metrics.launches - level2_launches_before ==
+        direct_metrics.launches - direct_launches_before || error(
+        "$name Phase 10 benchmark detected an authoring-dependent warm launch graph")
+    level2_metrics.host_synchronizations == level2_syncs_before || error(
+        "$name Phase 10 benchmark detected a warm host synchronization")
+    level2_metrics.device_to_host_transfers == level2_transfers_before || error(
+        "$name Phase 10 benchmark detected a warm device-to-host transfer")
+    level2_metrics.device_allocations == level2_allocations_before || error(
+        "$name Phase 10 benchmark detected a warm device allocation")
+    return Dict(
+        "backend" => name,
+        "dimension" => 2,
+        "algorithm" => string(nameof(typeof(algorithm))),
+        "steps_per_steady_sample" => steps,
+        "level2_problem_type" => string(parentmodule(typeof(fixture.problem)), ".",
+            nameof(typeof(fixture.problem))),
+        "direct_problem_type" => string(parentmodule(typeof(direct_problem)), ".",
+            nameof(typeof(direct_problem))),
+        "runtime_problem_wrapper" => false,
+        "construction_seconds" => construction_seconds,
+        "normalization_seconds" => normalization_seconds,
+        "lowering_seconds" => lowering_seconds,
+        "level2_initialization_seconds" => level2_initialization_seconds,
+        "direct_initialization_seconds" => direct_initialization_seconds,
+        "level2_steady_mcs_seconds" => level2_steady_seconds,
+        "direct_steady_mcs_seconds" => direct_steady_seconds,
+        "level2_to_direct_steady_ratio" => level2_steady_seconds / direct_steady_seconds,
+        "level2_warm_launches" => level2_metrics.launches - level2_launches_before,
+        "direct_warm_launches" => direct_metrics.launches - direct_launches_before,
+        "level2_warm_host_synchronizations" =>
+            level2_metrics.host_synchronizations - level2_syncs_before,
+        "level2_warm_device_to_host_transfers" =>
+            level2_metrics.device_to_host_transfers - level2_transfers_before,
+        "level2_warm_device_allocations" =>
+            level2_metrics.device_allocations - level2_allocations_before,
+        "semantic_fingerprint" => normalized.fingerprint.digest,
+        "lowered_semantic_fingerprint" => lowered.normalized.fingerprint.digest,
+        "timed_regions_backend_synchronized" => true,
+        "interpretation" =>
+            "Level 2 has no runtime wrapper; dedicated paper workloads set regression thresholds",
     )
 end
 

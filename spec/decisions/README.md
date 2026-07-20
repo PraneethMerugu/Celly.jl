@@ -30,6 +30,7 @@ corresponding specification document.
 - [0023: Lifecycle laws for fluctuating pressure and tension](0023-mechanical-lifecycle-laws.md)
 - [0024: Separately named random and periodic placement laws](0024-random-and-periodic-placement.md)
 - [0025: Phase 9 SciML and GPU interface contract](0025-phase-9-sciml-and-gpu-interface.md)
+- [0026: Phase 10 PottsToolkit typed API and compiler contract](0026-phase-10-typed-api-and-compiler.md)
 
 ## Record Template
 

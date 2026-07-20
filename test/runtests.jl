@@ -10,4 +10,5 @@ using PottsToolkit
     include("test_macros.jl")
     include("test_dynamic_celldata.jl")
     include("test_reference_compilation.jl")
+    include("test_level2_authoring.jl")
 end

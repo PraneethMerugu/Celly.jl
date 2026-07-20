@@ -51,8 +51,9 @@ sharing.
 an integer; implicit rounding is forbidden.
 
 Weighted, normalized, and physical measures use the numerical policy's declared floating
-accumulator. A physical target has length units in 2D and area units in 3D. Host-side unitful values
-are validated before device lowering.
+accumulator. A physical target is interpreted as length in 2D and area in 3D, but model inputs remain
+plain numbers and no Unitful value is lowered. Optional unit annotation is solution-side
+post-processing under Decision 0026.
 
 Conversion between metric families is explicit, versioned, and reported. A tracker field MUST NOT
 be generically named `surface_areas` when its metric cannot be recovered from its schema or compiled

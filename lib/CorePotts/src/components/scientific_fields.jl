@@ -346,6 +346,7 @@ end
 function component_identity(::PositiveYield)
     ComponentIdentity(:positive_yield, v"1.0.0", :kinetic_modifier)
 end
+component_semantic_data(component::PositiveYield) = (barrier = component.barrier,)
 kinetic_barrier(modifier::PositiveYield, proposal, state) = modifier.barrier
 
 _field_boundary_semantics(::PeriodicFieldBoundary) = (kind = :periodic,)

@@ -25,6 +25,37 @@ function ScientificComponentSet(; energies::Tuple = (), drives::Tuple = (),
     return ScientificComponentSet(energies, drives, constraints, kinetic_modifiers, mechanics)
 end
 
+function _interface_compatibility_message(validator, component)
+    try
+        validator(component)
+        validate_proposal_component(component)
+        return nothing
+    catch error
+        return sprint(showerror, error)
+    end
+end
+
+function _scientific_interface_messages(components::ScientificComponentSet)
+    checks = (
+        (validate_energy_component, components.energies),
+        (validate_drive_component, components.drives),
+        (validate_constraint_component, components.constraints),
+        (validate_kinetic_modifier_component, components.kinetic_modifiers),
+        (validate_mechanical_component, components.mechanics),
+    )
+    return Tuple(message for (validator, values) in checks for component in values
+        for message in (_interface_compatibility_message(validator, component),)
+        if message !== nothing)
+end
+
+algorithm_component_compatibility(::AbstractPottsAlgorithm,
+    components::ScientificComponentSet, moment_tracker = nothing) =
+    _scientific_interface_messages(components)
+
+_all_scientific_components(components::ScientificComponentSet) = (
+    components.energies..., components.drives..., components.constraints...,
+    components.kinetic_modifiers..., components.mechanics...)
+
 function Adapt.adapt_structure(to, components::ScientificComponentSet)
     adapt_tuple(values) = map(value -> Adapt.adapt(to, value), values)
     return ScientificComponentSet(
@@ -72,64 +103,138 @@ function Adapt.adapt_structure(to, context::ScientificProposalContext)
         Adapt.adapt(to, context.connectivity_workspace), context.workspace_epoch)
 end
 
-@inline _copy_energy_delta(component::QuadraticVolumeHamiltonian,
-    proposal, context) = energy_change(component, proposal, context.state)
-@inline _copy_energy_delta(component::UnorderedContactHamiltonian,
-    proposal, context) = energy_change(component, proposal, context.state, context.state.domain)
-@inline _copy_energy_delta(component::QuadraticBoundaryHamiltonian,
-    proposal, context) = energy_change(component, proposal, context.state)
-@inline _copy_energy_delta(component::ExternalFieldOccupancyHamiltonian,
-    proposal, context) = energy_change(component, proposal, context.state, context.state.domain)
-@inline _copy_energy_delta(component::FocalPointSpringHamiltonian,
-    proposal, context) = energy_change(component, proposal, context.state, context.transaction)
+@inline proposal_energy_change(component::QuadraticVolumeHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state)
+@inline proposal_energy_change(component::UnorderedContactHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state, context.state.domain)
+@inline proposal_energy_change(component::QuadraticBoundaryHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state)
+@inline proposal_energy_change(component::ExternalFieldOccupancyHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state, context.state.domain)
+@inline proposal_energy_change(component::FocalPointSpringHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state, context.transaction)
 
-@inline _copy_drive_bias(component::ChemotaxisDrive,
-    proposal, context) = drive_log_bias(component, proposal, context.state, context.state.domain)
+@inline proposal_drive_log_bias(component::ChemotaxisDrive,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    drive_log_bias(component, proposal, context.state, context.state.domain)
 
-@inline _copy_constraint_allowed(component::PreserveConnectedCells,
-    proposal, context::ScientificProposalContext{S, T, <:ConnectivityWorkspace}) where {
-    S, T} = is_allowed(component, proposal, context.state, context.connectivity_workspace,
+@inline proposal_constraint_allowed(component::PreserveConnectedCells,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    _proposal_constraint_allowed(component, proposal, context,
+        context.connectivity_workspace)
+@inline _proposal_constraint_allowed(component::PreserveConnectedCells,
+    proposal::CopyProposal, context::ScientificProposalContext,
+    workspace::ConnectivityWorkspace) = is_allowed(
+    component, proposal, context.state, workspace,
     context.workspace_epoch)
-@inline _copy_constraint_allowed(component::FixedFocalEndpointConstraint,
-    proposal, context) = is_allowed(component, proposal, context.state)
+function _proposal_constraint_allowed(component::PreserveConnectedCells,
+        proposal::CopyProposal, context::ScientificProposalContext, workspace)
+    throw(ArgumentError("PreserveConnectedCells requires a ConnectivityWorkspace"))
+end
+@inline proposal_constraint_allowed(component::FixedFocalEndpointConstraint,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    is_allowed(component, proposal, context.state)
 
-@inline _copy_modifier_contribution(component::PositiveYield, proposal, context) = (
+@inline proposal_modifier_contribution(component::PositiveYield,
+    proposal::CopyProposal, context::ScientificProposalContext) = (
     kinetic = zero(component.barrier),
     yield = kinetic_barrier(
         component, proposal, context.state))
 
-@inline _copy_mechanical_work(component::AbstractMechanicalComponent,
-    proposal, context) = mechanical_work(
+@inline proposal_mechanical_work(component::AbstractMechanicalComponent,
+    proposal::CopyProposal, context::ScientificProposalContext) = mechanical_work(
     component, proposal, context.state, context.transaction)
+
+proposal_energy_change(component::AbstractEnergy, proposal::CopyProposal,
+    context::ScientificProposalContext) = throw(ScientificInterfaceError(
+        :compiled_energy, typeof(component), [:proposal_energy_change]))
+proposal_drive_log_bias(component::AbstractDrive, proposal::CopyProposal,
+    context::ScientificProposalContext) = throw(ScientificInterfaceError(
+        :compiled_drive, typeof(component), [:proposal_drive_log_bias]))
+proposal_constraint_allowed(component::AbstractHardConstraint, proposal::CopyProposal,
+    context::ScientificProposalContext) = throw(ScientificInterfaceError(
+        :compiled_constraint, typeof(component), [:proposal_constraint_allowed]))
+proposal_modifier_contribution(component::AbstractKineticModifier, proposal::CopyProposal,
+    context::ScientificProposalContext) = throw(ScientificInterfaceError(
+        :compiled_modifier, typeof(component), [:proposal_modifier_contribution]))
+
+function _has_specialized_proposal_method(function_value, component, category)
+    signature = Tuple{typeof(component), CopyProposal, ScientificProposalContext}
+    fallback_signature = Tuple{category, CopyProposal, ScientificProposalContext}
+    return which(function_value, signature) !== which(function_value, fallback_signature)
+end
+
+function validate_proposal_component(component::AbstractEnergy)
+    _has_specialized_proposal_method(proposal_energy_change, component, AbstractEnergy) ||
+        throw(ScientificInterfaceError(:compiled_energy, typeof(component),
+            [:proposal_energy_change]))
+    return component
+end
+
+
+function validate_proposal_component(component::AbstractDrive)
+    _has_specialized_proposal_method(proposal_drive_log_bias, component, AbstractDrive) ||
+        throw(ScientificInterfaceError(:compiled_drive, typeof(component),
+            [:proposal_drive_log_bias]))
+    return component
+end
+
+
+function validate_proposal_component(component::AbstractHardConstraint)
+    _has_specialized_proposal_method(
+        proposal_constraint_allowed, component, AbstractHardConstraint) ||
+        throw(ScientificInterfaceError(:compiled_constraint, typeof(component),
+            [:proposal_constraint_allowed]))
+    return component
+end
+
+
+function validate_proposal_component(component::AbstractKineticModifier)
+    _has_specialized_proposal_method(
+        proposal_modifier_contribution, component, AbstractKineticModifier) ||
+        throw(ScientificInterfaceError(:compiled_modifier, typeof(component),
+            [:proposal_modifier_contribution]))
+    return component
+end
+
+
+function validate_proposal_component(component::AbstractMechanicalComponent)
+    return component
+end
 
 @inline _fold_energies(::Tuple{}, proposal, context, result) = result
 @inline function _fold_energies(components::Tuple, proposal, context, result)
-    updated = result + _copy_energy_delta(first(components), proposal, context)
+    updated = result + proposal_energy_change(first(components), proposal, context)
     return _fold_energies(Base.tail(components), proposal, context, updated)
 end
 
 @inline _fold_drives(::Tuple{}, proposal, context, result) = result
 @inline function _fold_drives(components::Tuple, proposal, context, result)
-    updated = result + _copy_drive_bias(first(components), proposal, context)
+    updated = result + proposal_drive_log_bias(first(components), proposal, context)
     return _fold_drives(Base.tail(components), proposal, context, updated)
 end
 
 @inline _fold_constraints(::Tuple{}, proposal, context, result) = result
 @inline function _fold_constraints(components::Tuple, proposal, context, result)
-    updated = result && _copy_constraint_allowed(first(components), proposal, context)
+    updated = result && proposal_constraint_allowed(first(components), proposal, context)
     return _fold_constraints(Base.tail(components), proposal, context, updated)
 end
 
 @inline _fold_modifiers(::Tuple{}, proposal, context, kinetic, yield) = (kinetic, yield)
 @inline function _fold_modifiers(components::Tuple, proposal, context, kinetic, yield)
-    contribution = _copy_modifier_contribution(first(components), proposal, context)
+    contribution = proposal_modifier_contribution(first(components), proposal, context)
     return _fold_modifiers(Base.tail(components), proposal, context,
         kinetic + contribution.kinetic, yield + contribution.yield)
 end
 
 @inline _fold_mechanics(::Tuple{}, proposal, context, result) = result
 @inline function _fold_mechanics(components::Tuple, proposal, context, result)
-    updated = result + _copy_mechanical_work(first(components), proposal, context)
+    updated = result + proposal_mechanical_work(first(components), proposal, context)
     return _fold_mechanics(Base.tail(components), proposal, context, updated)
 end
 
@@ -205,5 +310,7 @@ scientific_access(component::PreserveConnectedCells) =
         cell_wide = true, private_workspace = true)
 scientific_access(::FluctuatingVolumePressure) =
     SnapshotScientificAccess(; cell_wide = true)
+component_rng_streams(::FluctuatingVolumePressure) =
+    (AuxiliaryInitializationStream, AuxiliaryEvolutionStream)
 scientific_access(component::FluctuatingSurfaceTension) =
     SnapshotScientificAccess((component.relation,); cell_wide = true)

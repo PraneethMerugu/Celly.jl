@@ -392,15 +392,17 @@ A metaprogramming or compiler pull request answers:
 ## Migration Priorities
 
 1. Introduce source-located typed rule IR and a host reference evaluator.
-2. Make the existing `@rule` macro a thin parser front end.
-3. Reject unknown syntax instead of passing it through.
+2. Freeze the existing `@rule` path; implement Phase 10 entirely through ordinary Level 2 builders.
+3. Reject unknown typed-rule operations instead of passing them through.
 4. Assign semantic RNG identities and eliminate reused offsets.
 5. Replace ambiguous query nodes with accepted spatial descriptors.
 6. Add effect analysis and simultaneous property transactions.
 7. Lower normalized IR to concrete CorePotts callable structs.
 8. Replace unnecessary generated functions with ordinary implementations.
 9. Add backend preflight and compiler-quality budgets.
-10. Remove the closure-first prototype after conformance parity.
+10. After the replacement vertical slice reaches reference and CPU/Metal/ROCm parity, migrate
+    library callers and tests and remove the closure-first/MLStyle prototype before broad Phase 10
+    expansion. Phase 11 then implements a new thin macro front end over the accepted builders.
 
 ## Primary Guidance
 

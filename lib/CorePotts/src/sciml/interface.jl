@@ -416,8 +416,27 @@ function compatibility_report(prob::PottsProblem, alg::AbstractPottsAlgorithm,
         push!(messages, "backend is not qualified")
     dimensions in guarantee.dimensions ||
         push!(messages, "algorithm does not declare this dimension")
+    components = try
+        realize_components(prob.model, prob.p)
+    catch error
+        push!(messages, "model parameterization failed: $(sprint(showerror, error))")
+        nothing
+    end
+    if components isa ScientificComponentSet
+        for component in _all_scientific_components(components)
+            component_supports_dimension(component, dimensions) || push!(messages,
+                "component $(typeof(component)) does not declare $(dimensions)D support")
+            component_supports_backend(component, capabilities) || push!(messages,
+                "component $(typeof(component)) is not qualified for backend $(typeof(backend))")
+        end
+        append!(messages, algorithm_component_compatibility(
+            alg, components, moment_tracker(prob.model)))
+    else
+        components === nothing || push!(messages,
+            "model parameterization did not return ScientificComponentSet")
+    end
     return PottsCompatibilityReport(typeof(backend), capabilities.family, typeof(alg),
-        dimensions, isempty(messages), Tuple(messages))
+        dimensions, isempty(messages), Tuple(unique(messages)))
 end
 
 struct SavedPottsState{S}

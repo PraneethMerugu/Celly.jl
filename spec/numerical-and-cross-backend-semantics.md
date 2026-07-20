@@ -138,7 +138,6 @@ Exact safe conversions MAY be automatic. The following require explicit policy a
 - Numeric narrowing
 - Floating-to-integer conversion
 - Rounding or saturation
-- Unit conversion that changes representation
 - Missing-value conversion
 - Precision loss
 

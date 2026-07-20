@@ -22,6 +22,23 @@ struct BernoulliCellTrigger{T <: AbstractFloat} <: AbstractLifecycleTrigger
     end
 end
 
+
+lifecycle_triggered(trigger::CellTypeIn, snapshot::PreLifecycleSnapshot, id::CellID) =
+    value(cell_type(snapshot.state, id)) in trigger.type_ids
+
+function _all_lifecycle_triggered(::Tuple{}, snapshot, target, rng)
+    return true
+end
+
+function _all_lifecycle_triggered(triggers::Tuple, snapshot, target, rng)
+    lifecycle_triggered(first(triggers), snapshot, target, rng) || return false
+    return _all_lifecycle_triggered(Base.tail(triggers), snapshot, target, rng)
+end
+
+lifecycle_triggered(trigger::AllLifecycleTriggers, snapshot::PreLifecycleSnapshot,
+    target, rng::LifecycleRNGContext) =
+    _all_lifecycle_triggered(trigger.triggers, snapshot, target, rng)
+
 lifecycle_triggered(::AlwaysLifecycleTrigger, snapshot::PreLifecycleSnapshot, target) = true
 lifecycle_triggered(trigger::PropertyAtLeast, snapshot::PreLifecycleSnapshot, id::CellID) =
     property_value(snapshot.state, _trigger_property_key(trigger), id) >= trigger.threshold

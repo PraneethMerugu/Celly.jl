@@ -179,14 +179,20 @@ into [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semanti
 
 ### SEM-DSL-004: Extension and escape-hatch contract
 
-Finalize registration, versioning, capability declarations, source diagnostics, and portability
-guarantees for third-party IR nodes, registered scalar functions, host-only rules, and expert device
-rules.
+Resolved by Decisions
+[0017](decisions/0017-open-protocol-extensibility.md) and
+[0026](decisions/0026-phase-10-typed-api-and-compiler.md): Level 2 and Level 3 extensions use ordinary
+Julia dispatch and public protocols; registration is required only for Level 1 spelling, durable
+semantic serialization, or compatibility aliases. Components declare effects, requirements,
+reference behavior, and backend capabilities before portable lowering.
 
 ### SEM-DSL-005: Compilation cache identity
 
-Define the stable semantic fingerprint used for compiled-model caches, checkpoints, provenance,
-precompilation, and invalidation across Julia, package, extension, and backend versions.
+Resolved by
+[Decision 0026](decisions/0026-phase-10-typed-api-and-compiler.md): semantic fingerprints cover
+normalized scientific meaning, execution fingerprints add algorithm/backend/numerical/RNG and
+relevant code identities, and checkpoint identity additionally records state and time. Source
+paths, declaration order, object identity, and unstable object-memory hashing are excluded.
 
 ### SEM-DSL-006: Authoring and composition architecture
 
@@ -194,18 +200,21 @@ Resolved by
 [PottsToolkit Authoring, Composition, and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md):
 macros are optional sugar over a complete programmatic interface; models are immutable; declarations
 are order-independent outside explicit phases; fragments are namespaced and composable; validation
-is staged; inspection and semantic serialization are required; and DSL/IR versions are independent
-of package versions. PottsToolkit DSL and typed authoring forms share normalized semantic IR;
+is staged; inspection and semantic manifests are required; reconstructable serialization is
+opt-in; and DSL/IR versions are independent of package versions. PottsToolkit DSL and typed
+authoring forms share normalized semantic IR;
 CorePotts remains an independently usable, first-class scientific and execution API governed by the
 same scientific contracts rather than forced through PottsToolkit IR.
 
 ### SEM-DSL-007: Exact surface syntax and usability contract
 
-Define the concrete grammar, programmatic constructor names, fragment binding syntax, rule and phase
-spelling, canonical displays, IDE expectations, and deprecation/migration experience. Surface syntax
-must realize `SEM-DSL-006` and normalize to the accepted semantic model. The Level 1 rule-language
-shape and behavior are now accepted; remaining work concerns top-level model declarations, final
-constructor and phase-dependency names, fragment spelling, canonical formatting, and migration.
+Define the concrete Level 1 grammar, remaining constructor names, fragment binding syntax, rule and
+phase spelling, canonical displays, and IDE expectations. Surface syntax must realize `SEM-DSL-006`
+and normalize to the accepted semantic model. The Level 1 rule-language shape and behavior and the
+principal Level 2 `PottsToolkit.PottsModel`/single-`PottsProblem` ownership are accepted. Remaining
+work concerns top-level Level 1 declarations, phase-dependency names, fragment spelling, and
+canonical formatting. Breaking changes remain allowed until the paper freeze, so no migration
+experience or compatibility layer is required for the current prototype.
 
 ## CorePotts Public Interfaces
 

@@ -68,7 +68,7 @@ end
         energies = fixture.components.energies, constraints = (connectivity,))
     @test_throws ArgumentError init_scientific(compiled,
         fixture.proposal_relation, constrained, algorithm)
-    @test_throws ArgumentError init_scientific(compiled,
+    @test_throws ScientificInterfaceError init_scientific(compiled,
         fixture.proposal_relation,
         ScientificComponentSet(energies = (_UndeclaredCheckerboardEnergy(),)),
         algorithm)

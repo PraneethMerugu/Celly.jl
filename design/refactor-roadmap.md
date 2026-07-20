@@ -16,7 +16,8 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 7: Algorithms and Normalized MCS | Complete | [Phase 7 completion audit](audits/phase-7-completion-audit.md); production algorithms and stable volume/surface mechanics pass CPU, Metal, and ROCm |
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
-| Phases 10-15 | Not started | Phase 10 is unblocked; later phases remain ordered by their own entry gates |
+| Phase 10: PottsToolkit Typed API and Compiler | In progress | [Phase 10 chunk plan](audits/phase-10-chunk-plan.md), current-code audit, immutable Level 2 foundation, public CorePotts extension seams, and CPU/Metal replacement-slice evidence; ROCm and completion gates remain |
+| Phases 11-15 | Not started | Ordered by their own entry gates |
 
 ## Objective
 
@@ -90,8 +91,8 @@ unrelated earlier work.
 | D3 | Conservative versus nonconservative classification of required field couplings | Energy/component freeze |
 | D4 | Snapshot, exact checkpoint, backend-independent import, storage equivalence, and schema/RNG provenance — resolved by Decision 0022 | Persistence and SciML saving |
 | D5 | Coordinates, rasterization, random placement, periodic placement, and initialization finalization — resolved by Decisions 0021 and 0024 | Initialization replacement |
-| D6 | Extension registration, semantic fingerprints, cache invalidation, and expert escape-hatch contract | Compiler/API freeze |
-| D7 | Final Level 1 model declarations, fragments, phase spelling, displays, and Level 2 constructor names | PottsToolkit API candidate |
+| D6 | Extension registration, semantic fingerprints, cache invalidation, and expert escape-hatch contract — resolved by Decisions 0017 and 0026 | Compiler/API freeze |
+| D7 | Final Level 1 model declarations, fragments, phase spelling, and displays; principal Level 2 model/problem names are resolved by Decision 0026 | PottsToolkit API candidate |
 
 Every gate produces an accepted specification update or decision record plus its required evidence.
 Implementation convenience MUST NOT decide a gate implicitly.
@@ -529,7 +530,25 @@ structural and timing baselines before changing the authoritative call path.
 
 ### Required gate
 
-Complete the non-surface-syntax portions of D6 before compiler identities become stable.
+The non-surface-syntax portions of D6 are complete through Decisions 0017 and 0026. Level 1 spelling
+remains under D7 and does not block Level 2 implementation.
+
+### Execution order and legacy-containment gate
+
+1. Freeze the historical PottsToolkit compiler immediately and reject new production consumers.
+2. Inventory its capabilities, callers, tests, examples, and dependencies in a migration ledger.
+3. Build one end-to-end replacement vertical slice covering model/problem construction,
+   normalization, validation, reference evaluation, public CorePotts lowering, one interaction,
+   one HST-compatible constraint, one property transaction, one stochastic rule, one lifecycle
+   operation, inspection, and CPU/Metal/ROCm execution.
+4. Require reference agreement, GPU residency, actionable diagnostics, and no material warm-MCS
+   performance regression for that slice.
+5. Migrate remaining library code and package/integration tests, then delete the closure-first,
+   MLStyle, dictionary/`Any`, `LegacyPottsProblem`, and private-CorePotts path in one explicit gate.
+6. Expand component coverage and the five reference workloads only through the replacement path.
+
+Legacy deletion therefore occurs after the first proven replacement slice and before broad Phase 10
+expansion, not at the Phase 10 or paper-release tail.
 
 ### Deliverables
 
@@ -545,7 +564,12 @@ Complete the non-surface-syntax portions of D6 before compiler identities become
 - Prove the zero-compiler-switch rule with downstream Level 2 and direct CorePotts extensions;
   require registration only for Level 1 spelling, semantic serialization, or compatibility names.
 - Establish canonical `show`, inspection, semantic serialization, and diagnostic behavior.
-- Remove closure-first and MLStyle-dependent prototype paths once conformance parity is reached.
+- Implement the five reference-model categories as ordinary Level 2 compositions: single-cell
+  migration, prescribed-gradient chemotaxis, monolayer growth, differential-adhesion sorting, and
+  elongation-driven angiogenesis. This is reference-model coverage, not OpenVT schema or bigraph
+  compatibility.
+- Remove closure-first and MLStyle-dependent prototype paths at the legacy-containment gate above;
+  do not retain a compatibility compiler after conformance parity.
 
 ### Exit gate
 
@@ -557,6 +581,9 @@ Complete the non-surface-syntax portions of D6 before compiler identities become
 - CorePotts remains directly usable without PottsToolkit IR.
 - A conforming Level 3 component lowers through PottsToolkit Level 2 without a central concrete-type
   switch or a mandatory runtime registry.
+- Level 2 is the sole PottsToolkit semantic path; all five reference workloads are expressible, no
+  production source or test depends on the historical compiler, and CPU/Metal/ROCm residency gates
+  pass.
 
 ## Phase 11: PottsToolkit Level 1 DSL
 
@@ -572,6 +599,8 @@ Complete D6 and D7 before declaring the public API candidate.
   simultaneous commit behavior through lowering.
 - Implement final model declaration, fragment, binding, rule, phase, interpolation, and display
   spelling.
+- Add optional units only as solution post-processing and analysis metadata. Unit handling must not
+  enter model normalization, fingerprints, RNG, CorePotts lowering, or GPU stepping.
 - Generate the stable-component inventory and measure DSL coverage.
 - Provide explicit Level 2/3 escape routes for the components not representable at Level 1.
 - Exercise representative ordinary, advanced, and extension models before freezing names.
@@ -582,9 +611,9 @@ Complete D6 and D7 before declaring the public API candidate.
 - Level 1 and equivalent Level 2 models normalize to the same semantic fingerprint.
 - Macro expansion contains no engine execution and diagnostics identify user source.
 - The complete API candidate has no legacy aliases, constructors, or duplicate modeling paths.
-- The quarantined engine, compiler path, penalties, samplers, topology presets, trackers, kernels,
-  and historical HST implementation are deleted from released package source after conformance
-  parity; no production package, test, or benchmark depends on them.
+- The Phase 10 legacy-deletion gate remains intact: Level 1 adds only syntax over the replacement
+  Level 2 path and cannot restore aliases, duplicate compilers, quarantined penalties, samplers,
+  trackers, kernels, or the historical HST implementation.
 
 ## Phase 12: Performance Recovery and Backend Qualification
 
