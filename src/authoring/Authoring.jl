@@ -10,6 +10,7 @@ include("bindings.jl")
 include("properties.jl")
 include("components.jl")
 include("fields.jl")
+include("lifecycle.jl")
 include("reports.jl")
 include("models.jl")
 include("normalization.jl")
@@ -22,9 +23,11 @@ export PropertyVisibility, PublicProperty, PrivateProperty
 export PropertyPersistence, CheckpointedProperty, EphemeralProperty
 export PropertyOptionality, RequiredProperty, OptionalProperty
 export CellProperty
-export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint, Adhesion
+export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
+export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint, Adhesion
 export PrescribedField, Chemotaxis
 export PropertyUpdate, StochasticPropertyUpdate
+export Growth, Transition, Division, ShrinkDeath, ImmediateDeath
 export NamedCoreComponent
 export ModelFragment, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance

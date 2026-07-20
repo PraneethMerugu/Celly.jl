@@ -83,6 +83,28 @@ function _scope_declaration(component::FluctuatingVolumeConstraint{T, N, D},
         component.noise, component.initialization, component.division)
 end
 
+function _scope_boundary_bindings(bindings::BindingTable{
+        CellType, BoundaryParameters{Q, T}}, mapping::Tuple) where {Q, T}
+    entries = Tuple(Binding{CellType, BoundaryParameters{Q, T}}(
+        _scope_biological(entry.key, mapping), entry.value) for entry in bindings)
+    return BindingTable{CellType, BoundaryParameters{Q, T}}(entries)
+end
+
+function _scope_declaration(component::BoundaryConstraint{Q, T, M},
+        fragment::ModelFragment, mapping) where {Q, T, M}
+    return BoundaryConstraint{Q, T, M}(_mapped_identity(mapping, component.name),
+        _scope_boundary_bindings(component.bindings, mapping), component.metric)
+end
+
+function _scope_declaration(component::FluctuatingBoundaryConstraint{Q, T, N, M, TD, D},
+        fragment::ModelFragment, mapping) where {Q, T, N, M, TD, D}
+    return FluctuatingBoundaryConstraint{Q, T, N, M, TD, D}(
+        _mapped_identity(mapping, component.name),
+        _scope_boundary_bindings(component.bindings, mapping), component.eta,
+        component.noise, component.initialization, component.metric,
+        component.target_division, component.division)
+end
+
 function _scope_declaration(component::Adhesion{T},
         fragment::ModelFragment, mapping) where {T}
     entries = Tuple(Binding{PairIdentity, T}(
@@ -122,6 +144,37 @@ function _scope_declaration(rule::PropertyUpdate{T, S, G},
         _mapped_identity(mapping, rule.name), _mapped_identity(mapping, rule.source),
         rule.role, Tuple(_scope_biological(value, mapping) for value in rule.cell_types),
         rule.amount, rule.schedule, rule.trigger)
+end
+
+function _scope_declaration(rule::Transition{S, G},
+        fragment::ModelFragment, mapping) where {S, G}
+    return Transition{S, G}(_mapped_identity(mapping, rule.name),
+        Tuple(_scope_biological(value, mapping) for value in rule.cell_types),
+        _scope_biological(rule.destination, mapping), rule.schedule, rule.trigger,
+        rule.priority)
+end
+
+function _scope_declaration(rule::Division{S, G, D},
+        fragment::ModelFragment, mapping) where {S, G, D}
+    return Division{S, G, D}(_mapped_identity(mapping, rule.name),
+        Tuple(_scope_biological(value, mapping) for value in rule.cell_types),
+        rule.geometry, rule.schedule, rule.trigger, rule.priority)
+end
+
+function _scope_declaration(rule::ShrinkDeath{T, S, G},
+        fragment::ModelFragment, mapping) where {T, S, G}
+    return ShrinkDeath{T, S, G}(_mapped_identity(mapping, rule.name),
+        _mapped_identity(mapping, rule.source),
+        Tuple(_scope_biological(value, mapping) for value in rule.cell_types),
+        rule.decrement, rule.schedule, rule.trigger, rule.priority)
+end
+
+function _scope_declaration(rule::ImmediateDeath{S, G},
+        fragment::ModelFragment, mapping) where {S, G}
+    return ImmediateDeath{S, G}(_mapped_identity(mapping, rule.name),
+        Tuple(_scope_biological(value, mapping) for value in rule.cell_types),
+        _scope_biological(rule.medium, mapping), rule.schedule, rule.trigger,
+        rule.priority)
 end
 
 
