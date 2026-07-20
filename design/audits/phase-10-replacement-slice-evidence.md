@@ -1,7 +1,7 @@
 # Phase 10 Replacement-Slice Evidence
 
 Status: Replacement slice complete; legacy deleted; superseded by the
-[Phase 10 completion candidate](phase-10-completion-audit.md)
+[Phase 10 completion audit](phase-10-completion-audit.md)
 
 Date: 2026-07-20
 
@@ -26,7 +26,7 @@ fingerprints, provenance, reports, and SciML initialization.
 | Full CorePotts test suite | 2,983 pass; one intentional broken research test |
 | CPU qualification | 2D and 3D pass; direct/Core equality; 63/83 warm launches; zero warm synchronization, D2H transfer, and device allocation |
 | Metal qualification | 2D and 3D pass with scalar indexing disabled; same semantic fingerprint and the same direct/Core equality and residency counters |
-| ROCm qualification | Fresh PR CI passes on the AMDGPU runner at commit `a52bef0`; final schema `2.0.0` artifact CI is pending |
+| ROCm qualification | Real AMDGPU PR CI and independently parsed schema `2.0.0` artifact pass for implementation/evidence head `a75e376` |
 | Hosted and self-hosted CPU validation | Linux x86_64 and macOS ARM64 Julia 1.12.6 lanes pass at commit `a52bef0` |
 | Documentation | Documentation build passes at commit `a52bef0` |
 | Matched runtime structure | both paths are exactly `CorePotts.PottsProblem`; no PottsToolkit runtime wrapper |
@@ -37,11 +37,14 @@ The benchmark matrix now writes schema `2.0.0` machine-readable evidence for all
 addition to the matched direct-Core comparison. Quantitative paper-hardware regression and native
 resource budgets remain Phase 12, while Phase 15 owns emergent literature-result claims.
 
-## Remaining Gates
+## Closure Result
 
-1. Publish the schema `2.0.0` benchmark-evidence commit.
-2. Require every package, integration, CPU, Metal, ROCm, documentation, integrity, and containment
-   check to pass at that exact commit.
-3. Update the completion candidate with the authoritative commit and close Phase 10.
+1. The schema `2.0.0` benchmark-evidence commit was published.
+2. Every package, integration, CPU, Metal, ROCm, documentation, integrity, and containment check
+   passed for the implementation/evidence head.
+3. The Metal and ROCm artifacts were downloaded and their schema and enforced invariants were
+   independently verified.
+4. The completion record was published and required to pass the same exact-head workflow set.
 
-This document is a checkpoint, not a claim that Phase 10 is complete.
+This document remains historical slice evidence. The completion audit is the authoritative Phase 10
+verdict.

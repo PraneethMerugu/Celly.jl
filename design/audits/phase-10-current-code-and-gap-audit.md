@@ -1,7 +1,7 @@
 # Phase 10 PottsToolkit Current-Code and Gap Audit
 
 Status: Historical entry audit; all listed PottsToolkit gaps are resolved by the
-[Phase 10 completion candidate](phase-10-completion-audit.md)
+[Phase 10 completion audit](phase-10-completion-audit.md)
 
 Date: 2026-07-20
 

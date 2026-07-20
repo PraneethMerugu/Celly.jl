@@ -2,8 +2,7 @@
 
 Semantic status: Accepted index structure
 
-Implementation maturity: Phases 5–9 complete; Phase 10 is a same-commit CI completion candidate on
-the CPU/Metal/ROCm backend contract
+Implementation maturity: Phases 5–10 complete on the CPU/Metal/ROCm backend contract
 
 This index is the authoritative map from accepted semantics to executable evidence. A green
 package-local regression suite does not satisfy a row by itself: evidence must exercise a stable
@@ -25,7 +24,7 @@ logical contract, a scalar reference, a validator, or a defined statistical proc
 | [Sequential Reference Engine](reference-engine-semantics.md) | checked sequential CPU execution | Reference implemented for the 2D volume/contact slice | Deferred; it is not a production engine | Extend per later algorithm/component phases |
 | [SciML Interface Semantics](sciml-interface-semantics.md) | thin `ScientificPottsIntegrator`, `init_scientific`, and integer-MCS `step!` execution boundary | Final problem/solution oracle pending | CPU/Metal/ROCm sequential, checkerboard, and lottery stepping with explicit observation qualified | Final problem, solution, callbacks, and saving semantics in Phase 8 |
 | [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md) | typed Level 2 property/lifecycle declarations, simultaneous compiled transactions, semantic RNG, five reference families | Level 2 reference and lowering implemented | CPU/Metal/ROCm compiled lifecycle and reference-workload qualification; historical rule compiler deleted | Phase 11 adds only the Level 1 spelling over these semantics |
-| [PottsToolkit Authoring and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md) | immutable `CellType`/`Medium`/binding/law/fragment/model/layout path, structured reports, public CorePotts lowering | Complete Level 2 normalized model and external-extension route | CPU/Metal/ROCm 2D/3D execution, curated exports, one CorePotts problem, schema `2.0.0` benchmark evidence | Same-commit Phase 10 completion CI, then Phase 11 DSL coverage |
+| [PottsToolkit Authoring and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md) | immutable `CellType`/`Medium`/binding/law/fragment/model/layout path, structured reports, public CorePotts lowering | Complete Level 2 normalized model and external-extension route | CPU/Metal/ROCm 2D/3D execution, curated exports, one CorePotts problem, schema `2.0.0` benchmark evidence | Phase 11 DSL coverage over the completed Level 2 path |
 
 Legacy rows retain their Phase 3 wording until their executable slices are revised, but no
 `Foundation present` entry claims that a shipping algorithm or backend conforms. New and revised
