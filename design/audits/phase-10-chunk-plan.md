@@ -40,9 +40,11 @@ Passing a vertical slice is the legacy-deletion trigger, not Phase 10 completion
 - A matched direct-CorePotts run now proves identical concrete problem types, launch graphs,
   trajectories, property transactions, and residency counters on CPU and Metal. The benchmark
   matrix separately records construction, normalization, lowering, initialization, and synchronized
-  warm-MCS timings for the Level 2 and direct-CorePotts paths. ROCm qualification, dedicated paper
-  workload throughput evidence, and the final 10.2–10.3 breadth audit remain open. The
-  legacy-deletion gate is therefore closed.
+  warm-MCS timings for the Level 2 and direct-CorePotts paths. At commit `e551a9d`, fresh PR CI also
+  passes ROCm/AMDGPU, Metal, Linux x86_64, macOS ARM64, every package and integration shard, project
+  integrity, and documentation on Julia 1.12.6. The legacy-deletion gate is therefore open;
+  dedicated paper-workload throughput evidence and the remaining component/workload breadth remain
+  open.
 
 ## Chunk 10.0 — Contract Baseline, Audit, and Freeze
 

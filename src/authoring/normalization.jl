@@ -186,6 +186,54 @@ function _validate_declaration(component::Adhesion, context::_ValidationContext)
     return diagnostics
 end
 
+_validate_declaration(::PrescribedField, context::_ValidationContext) = ()
+
+function _validate_declaration(component::Chemotaxis, context::_ValidationContext)
+    diagnostics = ()
+    field_index = findfirst(value -> semantic_identity(value) == component.field,
+        context.components)
+    if field_index === nothing
+        diagnostics = (diagnostics..., Diagnostic(:error, :missing_prescribed_field,
+            "chemotaxis references an undeclared prescribed field";
+            identity = component.name, related = (component.field,),
+            correction = "add the PrescribedField declaration or correct the field name"))
+    elseif !(context.components[field_index] isa PrescribedField)
+        diagnostics = (diagnostics..., Diagnostic(:error, :invalid_chemotaxis_field,
+            "chemotaxis field reference resolves to a non-field declaration";
+            identity = component.name, related = (component.field,),
+            correction = "reference a PrescribedField declaration"))
+    else
+        field = context.components[field_index]
+        ndims(field.values) == component.dimensions ||
+            (diagnostics = (diagnostics..., Diagnostic(:error,
+                :chemotaxis_field_dimension_mismatch,
+                "chemotaxis dimensionality does not match its prescribed field";
+                identity = component.name, related = (component.field,
+                    Int(component.dimensions), ndims(field.values)),
+                correction = "reconstruct the chemotaxis declaration from this field"),))
+        for value in field.values
+            try
+                CorePotts.field_response(component.response, value)
+            catch error
+                diagnostics = (diagnostics..., Diagnostic(:error,
+                    :invalid_field_response_domain,
+                    "prescribed field values violate the selected chemotaxis response domain";
+                    identity = component.name, related = (component.field, value),
+                    correction = "change the field values or select a compatible response law"))
+                break
+            end
+        end
+    end
+    for entry in component.sensitivity
+        entry.key in context.cell_types || (diagnostics = (diagnostics..., Diagnostic(
+            :error, :unknown_cell_type,
+            "chemotaxis sensitivity references an undeclared cell type";
+            identity = component.name, related = (entry.key,),
+            correction = "declare the cell type or remove its sensitivity binding")))
+    end
+    return diagnostics
+end
+
 function _validate_declaration(component, context::_ValidationContext)
     identity = _core_semantic_identity(component)
     identity === nothing && return (Diagnostic(:error, :unsupported_declaration,
@@ -322,6 +370,30 @@ _normalize_component(component::FluctuatingVolumeConstraint, type) =
     _convert_volume(component, type)
 _normalize_component(component::Adhesion, type) = _convert_adhesion(component, type)
 
+function _normalize_component(field::PrescribedField, ::Type{T}) where {T <: AbstractFloat}
+    return PrescribedField(field.name.name, T.(field.values);
+        namespace = field.name.namespace, origin = T.(field.origin),
+        spacing = T.(field.spacing), boundaries = field.boundaries,
+        interpolation = field.interpolation, semantic_time = T(field.semantic_time),
+        synchronization_epoch = field.synchronization_epoch)
+end
+
+_normalize_field_response(response, ::Type) = response
+_normalize_field_response(response::CorePotts.MichaelisMentenResponse,
+        ::Type{T}) where {T <: AbstractFloat} = CorePotts.MichaelisMentenResponse(T(response.scale))
+_normalize_field_response(response::CorePotts.SaturationLinearResponse,
+        ::Type{T}) where {T <: AbstractFloat} = CorePotts.SaturationLinearResponse(T(response.scale))
+
+function _normalize_component(component::Chemotaxis, ::Type{T}) where {T <: AbstractFloat}
+    entries = Tuple(Binding{CellType, T}(entry.key, T(entry.value))
+        for entry in component.sensitivity)
+    response = _normalize_field_response(component.response, T)
+    return Chemotaxis{T, typeof(response), typeof(component.mode)}(
+        component.name, component.field, component.dimensions,
+        BindingTable{CellType, T}(entries),
+        response, component.mode)
+end
+
 _normalize_trigger(trigger, ::Type) = trigger
 _normalize_trigger(trigger::CorePotts.BernoulliCellTrigger,
         ::Type{T}) where {T <: AbstractFloat} =
@@ -415,6 +487,17 @@ function _canonical_write(io::IO, value::NamedTuple)
     return _canonical_close(io)
 end
 
+function _canonical_write(io::IO, value::AbstractArray)
+    _canonical_open(io, value)
+    _canonical_write(io, eltype(value))
+    _canonical_write(io, size(value))
+    for item in value
+        _canonical_write(io, item)
+        print(io, ';')
+    end
+    return _canonical_close(io)
+end
+
 _canonical_write(io::IO, value::Namespace) =
     (_canonical_open(io, value); _canonical_write(io, value.parts); _canonical_close(io))
 
@@ -473,11 +556,14 @@ end
 _canonical_write(io::IO, value::VolumeConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::FluctuatingVolumeConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::Adhesion) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::PrescribedField) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::Chemotaxis) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::PropertyUpdate) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::NamedCoreComponent) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::CellProperty) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::ClosedPropertyInterval) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::CorePotts.FixedMechanicalNoise) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::CorePotts.AxisFieldBoundary) = _canonical_fields(io, value)
 
 function _canonical_write(io::IO, value::CorePotts.NumericalPolicy)
     _canonical_open(io, value)
@@ -541,7 +627,9 @@ end
 
 function _canonical_write(io::IO, value::Union{AbstractPropertyInvariant,
         CorePotts.AbstractDivisionPolicy, CorePotts.AbstractTransitionPolicy,
-        CorePotts.AbstractRetirementPolicy})
+        CorePotts.AbstractRetirementPolicy, CorePotts.AbstractFieldBoundary,
+        CorePotts.AbstractFieldInterpolation, CorePotts.AbstractFieldResponse,
+        CorePotts.AbstractChemotaxisMode})
     fieldcount(typeof(value)) == 0 && return (
         _canonical_open(io, value); _canonical_close(io))
     return _canonical_fields(io, value)
@@ -714,6 +802,30 @@ function _declaration_report(component::Adhesion)
             default = component.law.default), CorePotts.ScientificCapabilities())
 end
 
+function _declaration_report(field::PrescribedField{N}) where {N}
+    return DeclarationReport(field.name, :prescribed_field, (), (field.name,),
+        (:field_sampling,), (), (:CellCenteredField,),
+        (shape = size(field.values), values = field.values,
+            origin = field.origin, spacing = field.spacing,
+            boundaries = field.boundaries, interpolation = field.interpolation,
+            semantic_time = field.semantic_time,
+            synchronization_epoch = field.synchronization_epoch),
+        CorePotts.ScientificCapabilities(dimensions = (N,)))
+end
+
+function _declaration_report(component::Chemotaxis)
+    field = component.field
+    return DeclarationReport(component.name, :drive,
+        (field, Tuple(entry.key for entry in component.sensitivity)...),
+        (Symbol(_property_prefix(component.name), "__sensitivity"),),
+        (:proposal_drive,), (), (:CellCenteredField, :ChemotaxisDrive),
+        (field = field,
+            sensitivity = Tuple((cell_type = semantic_identity(entry.key),
+                value = entry.value) for entry in component.sensitivity),
+            response = component.response, mode = component.mode),
+        CorePotts.ScientificCapabilities(dimensions = (Int(component.dimensions),)))
+end
+
 _invariant_semantics(::UnboundedProperty) = (kind = :unbounded,)
 _invariant_semantics(invariant::ClosedPropertyInterval) =
     (kind = :closed_interval, lower = invariant.lower, upper = invariant.upper)
@@ -775,6 +887,10 @@ _dependency_edges(property::CellProperty) = Tuple(DependencyEdge(
     property.name, semantic_identity(value), :cell_scope) for value in property.cell_types)
 _dependency_edges(rule::PropertyUpdate) = (DependencyEdge(
     rule.name, rule.source, :property_source),)
+_dependency_edges(component::Chemotaxis) = (
+    DependencyEdge(component.name, component.field, :prescribed_field),
+    (DependencyEdge(component.name, semantic_identity(entry.key), :cell_scope)
+        for entry in component.sensitivity)...)
 
 function dependencies(model::NormalizedModel)
     edges = Tuple(edge for component in model.components for edge in _dependency_edges(component))

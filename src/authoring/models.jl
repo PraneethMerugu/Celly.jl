@@ -96,6 +96,26 @@ function _scope_declaration(component::Adhesion{T},
     return Adhesion{T}(name, law)
 end
 
+function _scope_declaration(field::PrescribedField{N, T, V, O, S, B, I},
+        fragment::ModelFragment, mapping) where {N, T, V, O, S, B, I}
+    return PrescribedField{N, T, V, O, S, B, I}(
+        _mapped_identity(mapping, field.name), field.values, field.origin, field.spacing,
+        field.boundaries, field.interpolation, field.semantic_time,
+        field.synchronization_epoch)
+end
+
+function _scope_declaration(component::Chemotaxis{T, R, M},
+        fragment::ModelFragment, mapping) where {T, R, M}
+    entries = Tuple(Binding{CellType, T}(
+        _scope_biological(entry.key, mapping), entry.value)
+        for entry in component.sensitivity)
+    return Chemotaxis{T, R, M}(
+        _mapped_identity(mapping, component.name),
+        _mapped_identity(mapping, component.field),
+        component.dimensions,
+        BindingTable{CellType, T}(entries), component.response, component.mode)
+end
+
 function _scope_declaration(rule::PropertyUpdate{T, S, G},
         fragment::ModelFragment, mapping) where {T, S, G}
     return PropertyUpdate{T, S, G}(

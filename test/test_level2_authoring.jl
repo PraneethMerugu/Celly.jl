@@ -167,6 +167,69 @@ using KernelAbstractions
             L2.PottsModel(medium, cell, component)))
         @test !isempty(fingerprint.digest)
     end
+    field = CorePotts.CellCenteredField(reshape(Float32.(1:16), 4, 4);
+        interpolation = CorePotts.NearestFieldInterpolation())
+    coupling = CorePotts.OwnerScalarCoupling(
+        :sensitivity, CorePotts.MediumID(1) => 0.0f0; number_type = Float32)
+    chemotaxis = CorePotts.ChemotaxisDrive(field, coupling,
+        CorePotts.LinearResponse(), CorePotts.ExtensionChemotaxis())
+    field_model = L2.PottsModel(medium, cell,
+        L2.CellProperty(:sensitivity, cell; initial = 1.0f0), chemotaxis)
+    field_normalized = L2.normalize(field_model)
+    field_lowered = L2.lower(field_model; dimensions = 2)
+    field_components = CorePotts.realize_components(field_lowered.core_model,
+        CorePotts.default_parameters(field_lowered.core_model))
+    @test only(field_components.drives) === chemotaxis
+    wrong_dimension = L2.validate_problem(field_model, (4, 4, 4); capacity = 1)
+    @test any(item -> item.code === :unsupported_component_dimension,
+        wrong_dimension)
+    @test_throws ArgumentError L2.lower(field_model; dimensions = 3)
+    @test L2.semantic_fingerprint(field_normalized) !=
+        L2.semantic_fingerprint(L2.normalize(L2.replace(field_model,
+            L2.semantic_identity(chemotaxis), CorePotts.ChemotaxisDrive(
+                CorePotts.CellCenteredField(fill(2.0f0, 4, 4);
+                    interpolation = CorePotts.NearestFieldInterpolation()),
+                coupling, CorePotts.LinearResponse(),
+                CorePotts.ExtensionChemotaxis()))))
+    @test only(report.capabilities.dimensions for report in
+        L2.explain(field_normalized).declarations
+        if report.identity == L2.semantic_identity(chemotaxis)) == (2,)
+
+    prescribed = L2.PrescribedField(:linear_gradient,
+        reshape(Float32.(0:15), 4, 4);
+        interpolation = CorePotts.NearestFieldInterpolation())
+    friendly_chemotaxis = L2.Chemotaxis(prescribed, cell => 2.0;
+        mode = CorePotts.ReciprocalChemotaxis())
+    chemotaxis_model = L2.PottsModel(
+        medium, cell, prescribed, friendly_chemotaxis)
+    normalized_chemotaxis = L2.normalize(chemotaxis_model)
+    @test CorePotts.real_type(normalized_chemotaxis.numerics) === Float32
+    @test isempty(L2.dependencies(normalized_chemotaxis).unresolved)
+    @test any(edge -> edge.consumer == L2.semantic_identity(friendly_chemotaxis) &&
+        edge.provider == L2.semantic_identity(prescribed) &&
+        edge.relation === :prescribed_field,
+        L2.dependencies(normalized_chemotaxis).edges)
+    lowered_chemotaxis = L2.lower(chemotaxis_model; dimensions = 2)
+    friendly_components = CorePotts.realize_components(
+        lowered_chemotaxis.core_model,
+        CorePotts.default_parameters(lowered_chemotaxis.core_model))
+    @test only(friendly_components.drives) isa CorePotts.ChemotaxisDrive
+    @test :chemotaxis__sensitivity in
+        CorePotts.property_keys(lowered_chemotaxis.property_schema)
+    chemotaxis_mask = falses(4, 4)
+    chemotaxis_mask[2:3, 2:3] .= true
+    chemotaxis_problem = L2.problem(chemotaxis_model, (4, 4),
+        L2.CellLayout(cell, 1, chemotaxis_mask); capacity = 2, tspan = (0, 1))
+    @test CorePotts.property_value(chemotaxis_problem.u0,
+        :chemotaxis__sensitivity, CorePotts.CellID(1)) == 2.0f0
+    @test L2.backend_report(chemotaxis_problem,
+        CorePotts.CheckerboardSweepCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
+    chemotaxis_solution = CorePotts.solve(chemotaxis_problem,
+        CorePotts.CheckerboardSweepCPM(temperature = 2.0f0))
+    @test chemotaxis_solution.retcode == SciMLBase.ReturnCode.Success
+    @test chemotaxis_solution.t[end] == 1
+
     @test L2.semantic_fingerprint(L2.normalize(direct_model)) !=
         L2.semantic_fingerprint(L2.normalize(
             L2.PottsModel(medium, cell, volume, adhesion,

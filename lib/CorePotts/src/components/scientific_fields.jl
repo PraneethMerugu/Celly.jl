@@ -366,6 +366,61 @@ function _coupling_semantics(coupling::OwnerScalarCoupling)
     )
 end
 
+_field_response_semantics(::LinearResponse) = (kind = :linear,)
+_field_response_semantics(response::MichaelisMentenResponse) =
+    (kind = :michaelis_menten, scale = response.scale)
+_field_response_semantics(response::SaturationLinearResponse) =
+    (kind = :saturation_linear, scale = response.scale)
+
+_chemotaxis_mode_semantics(::ExtensionChemotaxis) = :extension
+_chemotaxis_mode_semantics(::RetractionChemotaxis) = :retraction
+_chemotaxis_mode_semantics(::ReciprocalChemotaxis) = :reciprocal
+
+function _field_semantic_data(field::CellCenteredField)
+    return (
+        placement = :cell_centered,
+        dimensions = ndims(field.values),
+        shape = size(field.values),
+        values = field.values,
+        origin = Tuple(field.origin),
+        spacing = Tuple(field.spacing),
+        boundaries = map(
+            axis -> (negative = _field_boundary_semantics(axis.negative),
+                positive = _field_boundary_semantics(axis.positive)),
+            field.boundaries),
+        interpolation = nameof(typeof(field.interpolation)),
+        semantic_time = field.semantic_time,
+        synchronization_epoch = field.synchronization_epoch,
+    )
+end
+
+function capabilities(::ExternalFieldOccupancyHamiltonian{F}) where {
+        N, F <: CellCenteredField{N}}
+    return ScientificCapabilities(dimensions = (N,))
+end
+
+function capabilities(::ChemotaxisDrive{F}) where {N, F <: CellCenteredField{N}}
+    return ScientificCapabilities(dimensions = (N,))
+end
+
+function component_semantic_data(component::ExternalFieldOccupancyHamiltonian)
+    return (
+        field = _field_semantic_data(component.field),
+        coupling = _coupling_semantics(component.coupling),
+        response = _field_response_semantics(component.response),
+        energy_scale = component.energy_scale,
+    )
+end
+
+function component_semantic_data(component::ChemotaxisDrive)
+    return (
+        field = _field_semantic_data(component.field),
+        sensitivity = _coupling_semantics(component.sensitivity),
+        response = _field_response_semantics(component.response),
+        mode = _chemotaxis_mode_semantics(component.mode),
+    )
+end
+
 function _potts_domain_field_semantics(domain)
     descriptor = domain isa CartesianDomain ? domain : domain.descriptor
     return (
