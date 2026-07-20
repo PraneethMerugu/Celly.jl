@@ -1,0 +1,236 @@
+module ReferenceModels
+
+using ..Authoring
+import CorePotts
+
+export chemotaxis_model, chemotaxis_problem, single_cell_biased_migration_problem
+export differential_adhesion_model, differential_adhesion_problem
+export monolayer_growth_model, monolayer_growth_problem
+export elongation_driven_angiogenesis_model, elongation_driven_angiogenesis_problem
+export single_cell_fluctuation_problem, droplet_problem
+
+function _ball_mask(shape::NTuple{N, <:Integer}, target_volume::Real) where {N}
+    center = ntuple(axis -> (Int(shape[axis]) + 1) / 2, Val(N))
+    radius = N == 2 ? sqrt(float(target_volume) / pi) :
+             cbrt(float(target_volume) / (4pi / 3))
+    return map(CartesianIndices(shape)) do site
+        sum((Float64(site[axis]) - center[axis])^2 for axis in 1:N) <= radius^2
+    end
+end
+
+function _gradient_values(shape::NTuple{N, <:Integer}, profile::Symbol;
+        axis::Integer = 1, steepness::Real = 4) where {N}
+    1 <= axis <= N || throw(ArgumentError("gradient axis lies outside the lattice"))
+    profile in (:linear, :half_normal, :exponential) || throw(ArgumentError(
+        "gradient profile must be :linear, :half_normal, or :exponential"))
+    T = Float32
+    extent = max(Int(shape[axis]) - 1, 1)
+    values = Array{T, N}(undef, shape)
+    rate = T(steepness)
+    isfinite(rate) && rate > 0 || throw(ArgumentError(
+        "gradient steepness must be finite and positive"))
+    denominator = exp(rate) - one(T)
+    for site in CartesianIndices(values)
+        coordinate = T(site[axis] - 1) / T(extent)
+        values[site] = profile === :linear ? coordinate :
+                       profile === :half_normal ? exp(-T(0.5) * (rate * (one(T) - coordinate))^2) :
+                       (exp(rate * coordinate) - one(T)) / denominator
+    end
+    return values
+end
+
+"""Reusable Level 2 single-cell chemotaxis model for one fixed gradient profile."""
+function chemotaxis_model(shape::NTuple{N, <:Integer};
+        profile::Symbol = :linear, sensitivity::Real = 4,
+        target_volume::Real = 32, volume_strength::Real = 2,
+        adhesion_to_medium::Real = 8,
+        response::CorePotts.AbstractFieldResponse = CorePotts.LinearResponse(),
+        mode::CorePotts.AbstractChemotaxisMode = CorePotts.ExtensionChemotaxis()) where {N}
+    medium = Medium(:Medium)
+    cell = CellType(:MigratingCell)
+    field = PrescribedField(Symbol(profile, :_gradient),
+        _gradient_values(shape, profile))
+    volume = VolumeConstraint(
+        cell => (target = target_volume, strength = volume_strength))
+    adhesion = Adhesion(
+        (medium, medium) => 0,
+        (medium, cell) => adhesion_to_medium,
+        (cell, cell) => 0)
+    drive = Chemotaxis(field, cell => sensitivity; response, mode)
+    return PottsModel(medium, cell, volume, adhesion, field, drive)
+end
+
+"""Construct an executable fixed-gradient chemotaxis reference problem."""
+function chemotaxis_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
+        profile::Symbol = :linear, target_volume::Real = 32,
+        capacity::Integer = 4, tspan = (0, 20), seed::Integer = 0,
+        kwargs...) where {N}
+    model = chemotaxis_model(shape; profile, target_volume, kwargs...)
+    cell = only(value for value in model.declarations if value isa CellType)
+    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+single_cell_biased_migration_problem(args...; kwargs...) =
+    chemotaxis_problem(args...; profile = :linear, kwargs...)
+
+"""Reusable two-population differential-adhesion Level 2 model."""
+function differential_adhesion_model(;
+        target_volume::Real = 20, volume_strength::Real = 2,
+        within_a::Real = 2, within_b::Real = 2, between::Real = 15,
+        medium_contact::Real = 8)
+    medium = Medium(:Medium)
+    first_population = CellType(:PopulationA)
+    second_population = CellType(:PopulationB)
+    volume = VolumeConstraint(
+        first_population => (target = target_volume, strength = volume_strength),
+        second_population => (target = target_volume, strength = volume_strength))
+    adhesion = Adhesion(
+        (medium, medium) => 0,
+        (medium, first_population) => medium_contact,
+        (medium, second_population) => medium_contact,
+        (first_population, first_population) => within_a,
+        (second_population, second_population) => within_b,
+        (first_population, second_population) => between)
+    return PottsModel(medium, first_population, second_population, volume, adhesion)
+end
+
+function _mixed_seed_labels(shape::NTuple{N, <:Integer}, count::Integer,
+        first_population::CellType, second_population::CellType) where {N}
+    count > 0 || throw(ArgumentError("a sorting problem requires finite cells"))
+    candidates = collect(CartesianIndices(shape))
+    count <= length(candidates) || throw(ArgumentError(
+        "the requested initial cell count exceeds the lattice site count"))
+    labels = zeros(UInt64, shape)
+    declarations = Pair{UInt64, CellType}[]
+    for index in 1:count
+        position = candidates[1 + fld((index - 1) * length(candidates), count)]
+        labels[position] = UInt64(index)
+        cell_type = isodd(index) ? first_population : second_population
+        push!(declarations, UInt64(index) => cell_type)
+    end
+    return CellLabelLayout(labels, declarations)
+end
+
+"""Construct a deterministic mixed two-population differential-adhesion problem."""
+function differential_adhesion_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 32, 2);
+        cells_per_population::Integer = 8, capacity::Integer = 64,
+        tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
+    cells_per_population > 0 || throw(ArgumentError(
+        "cells_per_population must be positive"))
+    model = differential_adhesion_model(; kwargs...)
+    populations = Tuple(value for value in model.declarations if value isa CellType)
+    layout = _mixed_seed_labels(shape, 2cells_per_population, populations...)
+    capacity >= 2cells_per_population || throw(ArgumentError(
+        "cell capacity must contain every initial sorting cell"))
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+"""Reusable growth/division/repulsion model for a one-cell monolayer seed."""
+function monolayer_growth_model(;
+        target_volume::Real = 8, division_target::Real = 16,
+        volume_strength::Real = 2, growth_rate::Real = 1,
+        cell_repulsion::Real = 10, medium_contact::Real = 4)
+    division_target > target_volume || throw(ArgumentError(
+        "division_target must exceed the initial target volume"))
+    medium = Medium(:Medium)
+    cell = CellType(:MonolayerCell)
+    volume = VolumeConstraint(
+        cell => (target = target_volume, strength = volume_strength))
+    adhesion = Adhesion(
+        (medium, medium) => 0,
+        (medium, cell) => medium_contact,
+        (cell, cell) => cell_repulsion)
+    growth = Growth(volume, cell; rate = growth_rate)
+    division = Division(cell;
+        geometry = CorePotts.RandomOrientationDivision(0),
+        trigger = CorePotts.PropertyAtLeast(:volume__target, Float32(division_target)))
+    return PottsModel(medium, cell, volume, adhesion, growth, division)
+end
+
+"""Construct an executable growth/division/repulsion monolayer problem."""
+function monolayer_growth_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
+        target_volume::Real = 8, capacity::Integer = 128,
+        tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
+    model = monolayer_growth_model(; target_volume, kwargs...)
+    cell = only(value for value in model.declarations if value isa CellType)
+    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+"""
+Reusable elongation-driven endothelial-network model.
+
+The elongation term is the exact conservative major-axis RMS Hamiltonian. Connectivity is an
+independent optional constraint: disabling it makes fragmentation valid model behavior.
+"""
+function elongation_driven_angiogenesis_model(;
+        target_volume::Real = 16, volume_strength::Real = 2,
+        target_elongation::Real = 3, elongation_strength::Real = 8,
+        endothelial_contact::Real = 4, medium_contact::Real = 10,
+        preserve_connectivity::Bool = true,
+        target_division::CorePotts.AbstractDivisionPolicy = CorePotts.CloneOnDivision())
+    medium = Medium(:Medium)
+    endothelial = CellType(:EndothelialCell)
+    volume = VolumeConstraint(endothelial =>
+        (target = target_volume, strength = volume_strength))
+    elongation = Elongation(endothelial =>
+        (target = target_elongation, strength = elongation_strength);
+        target_division)
+    adhesion = Adhesion(
+        (medium, medium) => 0,
+        (medium, endothelial) => medium_contact,
+        (endothelial, endothelial) => endothelial_contact)
+    declarations = preserve_connectivity ?
+        (medium, endothelial, volume, elongation, adhesion, PreserveConnectivity()) :
+        (medium, endothelial, volume, elongation, adhesion)
+    return PottsModel(declarations...)
+end
+
+"""Construct a deterministic sparse endothelial seed problem in two or three dimensions."""
+function elongation_driven_angiogenesis_problem(
+        shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
+        cells::Integer = 12, capacity::Integer = 64,
+        tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
+    cells > 0 || throw(ArgumentError("an angiogenesis problem requires finite cells"))
+    capacity >= cells || throw(ArgumentError(
+        "cell capacity must contain every initial endothelial cell"))
+    model = elongation_driven_angiogenesis_model(; kwargs...)
+    endothelial = only(value for value in model.declarations if value isa CellType)
+    layout = _mixed_seed_labels(shape, cells, endothelial, endothelial)
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+"""Modern fluctuating-volume reference used by thermodynamic verification."""
+function single_cell_fluctuation_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
+        target_volume::Real = 64, volume_strength::Real = 2, eta::Real = 1,
+        capacity::Integer = 2, tspan = (0, 100), seed::Integer = 0) where {N}
+    medium = Medium(:Medium)
+    cell = CellType(:Cell)
+    volume = FluctuatingVolumeConstraint(
+        cell => (target = target_volume, strength = volume_strength); eta)
+    model = PottsModel(medium, cell, volume)
+    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+"""Modern 2D/3D fluctuating droplet with explicit contact energy."""
+function droplet_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 64, 2);
+        target_volume::Real = N == 2 ? 256 : 512,
+        volume_strength::Real = 1, eta::Real = 0.1,
+        contact_energy::Real = 10, capacity::Integer = 2,
+        tspan = (0, 50), seed::Integer = 0) where {N}
+    medium = Medium(:Medium)
+    cell = CellType(:Droplet)
+    volume = FluctuatingVolumeConstraint(
+        cell => (target = target_volume, strength = volume_strength); eta)
+    adhesion = Adhesion(
+        (medium, medium) => 0,
+        (medium, cell) => contact_energy,
+        (cell, cell) => 0)
+    model = PottsModel(medium, cell, volume, adhesion)
+    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
+    return problem(model, shape, layout; capacity, tspan, seed)
+end
+
+end

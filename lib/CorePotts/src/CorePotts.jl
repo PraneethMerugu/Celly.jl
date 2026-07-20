@@ -41,6 +41,7 @@ include("components/scientific_trackers.jl")
 include("components/scientific_fields.jl")
 include("components/scientific_queries.jl")
 include("components/scientific_focal_points.jl")
+include("components/scientific_elongation.jl")
 include("components/scientific_inner_loop.jl")
 include("components/scientific_mechanics.jl")
 include("lifecycle/compiled.jl")
@@ -238,8 +239,10 @@ export AbstractOwnerFilter, AnyFiniteCell, CellIdentityFilter, CellTypeFilter,
        neighbor_property_sum, neighbor_property_mean, PreserveConnectedCells,
        ConnectivityWorkspace, validate_workspace
 export UnwrappedMomentTracker, UnwrappedMomentStorage, UnwrappedMomentDelta,
-       moment_is_tracked, unwrapped_center, FocalPointLink, FocalPointSpringHamiltonian,
+       moment_is_tracked, unwrapped_center, unwrapped_covariance,
+       FocalPointLink, FocalPointSpringHamiltonian,
        FixedFocalEndpointConstraint
+export major_axis_rms_length, QuadraticElongationHamiltonian
 export ScientificComponentSet, NoConnectivityWorkspace, ScientificProposalContext,
        ScientificCopyEvaluation, evaluate_copy, acceptance_inputs,
        scientific_components_report

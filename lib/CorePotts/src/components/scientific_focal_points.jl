@@ -3,6 +3,7 @@ struct UnwrappedMomentTracker{T <: AbstractFloat,
     R <: StaticCartesianRelation{<:ConnectivityRole}, I <: Tuple} <: AbstractTracker
     relation::R
     tracked_ids::I
+    track_all::Bool
 end
 
 function UnwrappedMomentTracker(relation::StaticCartesianRelation{<:ConnectivityRole}, ids;
@@ -10,7 +11,15 @@ function UnwrappedMomentTracker(relation::StaticCartesianRelation{<:Connectivity
     tracked = Tuple(sort!(unique!(UInt32[value(CellID(id)) for id in ids])))
     isempty(tracked) &&
         throw(ArgumentError("an unwrapped-moment tracker requires finite cells"))
-    return UnwrappedMomentTracker{T, typeof(relation), typeof(tracked)}(relation, tracked)
+    return UnwrappedMomentTracker{T, typeof(relation), typeof(tracked)}(
+        relation, tracked, false)
+end
+
+
+function UnwrappedMomentTracker(relation::StaticCartesianRelation{<:ConnectivityRole};
+        number_type::Type{T} = Float64) where {T <: AbstractFloat}
+    return UnwrappedMomentTracker{T, typeof(relation), Tuple{}}(
+        relation, (), true)
 end
 
 function component_identity(::UnwrappedMomentTracker)
@@ -18,27 +27,43 @@ function component_identity(::UnwrappedMomentTracker)
 end
 required_relations(::UnwrappedMomentTracker) = (:connectivity,)
 
-struct UnwrappedMomentStorage{N, T <: AbstractFloat, M, S}
+struct UnwrappedMomentStorage{N, T <: AbstractFloat, M, S, Q}
     tracked::M
     coordinate_sums::S
+    quadratic_sums::Q
+    track_all::Bool
 end
 
 function UnwrappedMomentStorage(tracked,
-        coordinate_sums::NTuple{N, A}) where
-        {N, T <: AbstractFloat, A <: AbstractVector{T}}
-    return UnwrappedMomentStorage{N, T, typeof(tracked), typeof(coordinate_sums)}(
-        tracked, coordinate_sums)
+        coordinate_sums::NTuple{N, A}, quadratic_sums::NTuple{P, A},
+        track_all::Bool) where
+        {N, P, T <: AbstractFloat, A <: AbstractVector{T}}
+    P == N * (N + 1) ÷ 2 || throw(ArgumentError(
+        "unwrapped quadratic-moment storage has the wrong packed size"))
+    return UnwrappedMomentStorage{N, T, typeof(tracked), typeof(coordinate_sums),
+        typeof(quadratic_sums)}(tracked, coordinate_sums, quadratic_sums, track_all)
 end
 
 function Adapt.adapt_structure(to, storage::UnwrappedMomentStorage)
     return UnwrappedMomentStorage(
         Adapt.adapt(to, storage.tracked),
-        map(array -> Adapt.adapt(to, array), storage.coordinate_sums)
+        map(array -> Adapt.adapt(to, array), storage.coordinate_sums),
+        map(array -> Adapt.adapt(to, array), storage.quadratic_sums),
+        storage.track_all
     )
 end
 
 function derived_observable_arrays(storage::UnwrappedMomentStorage)
-    (storage.tracked, storage.coordinate_sums...)
+    (storage.tracked, storage.coordinate_sums..., storage.quadratic_sums...)
+end
+
+
+@inline _packed_symmetric_count(::Val{N}) where {N} = N * (N + 1) ÷ 2
+@inline function _packed_symmetric_index(row::Integer, column::Integer, ::Val{N}) where {N}
+    first_axis = min(row, column)
+    second_axis = max(row, column)
+    return (first_axis - 1) * (2N - first_axis + 2) ÷ 2 +
+           (second_axis - first_axis + 1)
 end
 
 function _canonical_unwrapped_sums(tracker::UnwrappedMomentTracker{T},
@@ -46,9 +71,13 @@ function _canonical_unwrapped_sums(tracker::UnwrappedMomentTracker{T},
     capacity_value = nslots(capacity(state))
     tracked = zeros(UInt8, capacity_value)
     sums = ntuple(_ -> zeros(T, capacity_value), Val(N))
+    quadratic = ntuple(_ -> zeros(T, capacity_value),
+        Val(_packed_symmetric_count(Val(N))))
     spacing = SVector{N, T}(domain.spacing)
     site_count = prod(domain.dims)
-    for raw_id in tracker.tracked_ids
+    tracked_ids = tracker.track_all ? Tuple(value(id) for id in active_cell_ids(state)) :
+                  tracker.tracked_ids
+    for raw_id in tracked_ids
         id = CellID(raw_id)
         is_active(state, id) || throw(ArgumentError(
             "unwrapped moments cannot track an inactive cell"))
@@ -92,12 +121,18 @@ function _canonical_unwrapped_sums(tracker::UnwrappedMomentTracker{T},
         tail == length(owned) || throw(ArgumentError(
             "tracked cell is fragmented under the declared unwrapping relation"))
         tracked[Int(raw_id)] = UInt8(1)
-        for site in owned, axis in 1:N
-
-            sums[axis][Int(raw_id)] += assigned[site][axis]
+        for site in owned
+            position = assigned[site]
+            for axis in 1:N
+                sums[axis][Int(raw_id)] += position[axis]
+            end
+            for row in 1:N, column in row:N
+                packed = _packed_symmetric_index(row, column, Val(N))
+                quadratic[packed][Int(raw_id)] += position[row] * position[column]
+            end
         end
     end
-    return UnwrappedMomentStorage(tracked, sums)
+    return UnwrappedMomentStorage(tracked, sums, quadratic, tracker.track_all)
 end
 
 function rebuild_tracker(tracker::UnwrappedMomentTracker, state::LogicalPottsState,
@@ -130,6 +165,32 @@ end
     return SVector{N, T}(ntuple(
         axis -> @inbounds(storage.coordinate_sums[axis][Int(owner.value)] / T(volume)),
         Val(N)))
+end
+
+
+@inline function unwrapped_covariance(
+        state::Union{CompiledScientificState, ScientificExecutionState},
+        owner::OwnerRef)
+    storage = state.trackers.moments
+    storage isa UnwrappedMomentStorage || throw(ArgumentError(
+        "compiled scientific state has no unwrapped moments"))
+    moment_is_tracked(storage, owner) || throw(ArgumentError(
+        "owner has no unwrapped-moment tracker"))
+    volume = @inbounds state.trackers.finite_volumes[Int(owner.value)]
+    volume > 0 || throw(ArgumentError("an extinct owner has no covariance"))
+    N = length(storage.coordinate_sums)
+    T = eltype(first(storage.coordinate_sums))
+    inverse_volume = inv(T(volume))
+    return SMatrix{N, N, T}(ntuple(N * N) do linear_index
+        row = (linear_index - 1) % N + 1
+        column = (linear_index - 1) ÷ N + 1
+        packed = _packed_symmetric_index(row, column, Val(N))
+        first_row = @inbounds storage.coordinate_sums[row][Int(owner.value)]
+        first_column = @inbounds storage.coordinate_sums[column][Int(owner.value)]
+        second = @inbounds storage.quadratic_sums[packed][Int(owner.value)]
+        second * inverse_volume -
+        (first_row * inverse_volume) * (first_column * inverse_volume)
+    end)
 end
 
 @inline _axis_is_periodic(axis) = axis.negative isa PeriodicBoundary
@@ -189,11 +250,21 @@ end
         @inbounds for axis in 1:N
             storage.coordinate_sums[axis][index] -= moments.losing_position[axis]
         end
+        @inbounds for row in 1:N, column in row:N
+            packed = _packed_symmetric_index(row, column, Val(N))
+            storage.quadratic_sums[packed][index] -=
+                moments.losing_position[row] * moments.losing_position[column]
+        end
     end
     if moments.gaining_tracked
         index = Int(delta.gaining_cell)
         @inbounds for axis in 1:N
             storage.coordinate_sums[axis][index] += moments.gaining_position[axis]
+        end
+        @inbounds for row in 1:N, column in row:N
+            packed = _packed_symmetric_index(row, column, Val(N))
+            storage.quadratic_sums[packed][index] +=
+                moments.gaining_position[row] * moments.gaining_position[column]
         end
     end
     return nothing

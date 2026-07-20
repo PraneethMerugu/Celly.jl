@@ -4,6 +4,19 @@ using TOML
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 const FREEZE_FILE = joinpath(ROOT, "design", "audits", "phase-7-legacy-freeze.toml")
 
+const DELETED_TOOLKIT_PATHS = (
+    "src/models.jl",
+    "src/domains.jl",
+    "src/problems.jl",
+    "src/models/test_problems.jl",
+    "src/rules/events.jl",
+    "src/rules/macros.jl",
+    "ext/PottsToolkitMermaidExt.jl",
+)
+
+const REMOVED_TOOLKIT_DEPENDENCIES =
+    ("Adapt", "MLStyle", "Random", "Reexport")
+
 const FORBIDDEN_PATTERNS = [
     r"HST[A-Za-z_]*Penalty",
     r"\bVolumePenalty\b",
@@ -88,6 +101,19 @@ function quarantined_signature(path)
 end
 
 require(isfile(FREEZE_FILE), "missing Phase 7 legacy freeze manifest")
+
+for path in DELETED_TOOLKIT_PATHS
+    require(!isfile(joinpath(ROOT, path)),
+        "deleted PottsToolkit legacy path `$path` was reintroduced")
+end
+
+root_project = TOML.parsefile(joinpath(ROOT, "Project.toml"))
+root_dependencies = get(root_project, "deps", Dict{String, Any}())
+for dependency in REMOVED_TOOLKIT_DEPENDENCIES
+    require(!haskey(root_dependencies, dependency),
+        "removed PottsToolkit legacy dependency `$dependency` was reintroduced")
+end
+
 freeze = TOML.parsefile(FREEZE_FILE)
 require(get(freeze, "version", nothing) == 1, "unsupported legacy freeze manifest version")
 frozen_files = get(freeze, "files", Dict{String, Any}())
@@ -142,6 +168,7 @@ for path in all_sources
         "scientific source `$path` references quarantined vocabulary: $(join(matches, ", "))")
 end
 
-println("Phase 7 legacy containment passes: $(length(frozen_files)) frozen files, " *
+println("Phase 10 legacy containment passes: the Toolkit compiler is absent, " *
+        "$(length(frozen_files)) historical Core/satellite files remain frozen, " *
         "$(length(frozen_signatures)) mixed production signatures, " *
         "$(length(consumer_signatures)) frozen consumer signatures, and a clean scientific path")

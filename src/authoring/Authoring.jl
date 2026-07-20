@@ -24,6 +24,7 @@ export PropertyPersistence, CheckpointedProperty, EphemeralProperty
 export PropertyOptionality, RequiredProperty, OptionalProperty
 export CellProperty
 export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
+export ElongationParameters, Elongation
 export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint, Adhesion
 export PreserveConnectivity
 export PrescribedField, Chemotaxis
@@ -33,7 +34,7 @@ export NamedCoreComponent
 export ModelFragment, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance
 export dependencies
-export CellLayout, MediumLayout, LoweredModel, lower, problem, validate_problem
+export CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem, validate_problem
 export backend_report
 export semantic_identity, semantic_fingerprint, isvalid
 export execution_fingerprint, semantic_manifest

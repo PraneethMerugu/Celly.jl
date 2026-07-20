@@ -16,8 +16,8 @@ wound healing, and developmental patterning.
 
 | Package | Role |
 |---------|------|
-| **CorePotts** | The physics engine — lattice representation, Monte Carlo algorithms, penalty evaluation, trackers, and I/O backends. Intended as an internal library; end users rarely import it directly. |
-| **PottsToolkit** | A declarative, user-facing modeling API that lets you define cell types, attach biological components, build a [`PottsProblem`](@ref), and `solve` it in a few lines of Julia. Re-exports everything from CorePotts. |
+| **CorePotts** | The hardware-agnostic scientific engine: state, algorithms, components, trackers, lifecycle, persistence, and SciML execution. |
+| **PottsToolkit** | The curated Level 2 authoring API: biological identities, components, composition, validation, reports, reference models, and public lowering to CorePotts. |
 | **MakiePotts** | Visualization layer built on Makie.jl — static plots, interactive dashboards (`explore_potts`), and video recording (`record_potts`). |
 | **NeuralPotts** | Energy-based model training: replace hand-crafted penalties with a Lux.jl neural network trained via Persistent Contrastive Divergence. |
 
@@ -26,36 +26,21 @@ wound healing, and developmental patterning.
 ## Quick Start
 
 ```julia
-using PottsToolkit    # re-exports CorePotts automatically
-using MakiePotts
+using PottsToolkit
+import CorePotts
 
-# 1. Define cell types
-A      = CellType(:A)
-B      = CellType(:B)
-Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
+# 1. Construct and inspect a reusable Level 2 model
+model = ReferenceModels.differential_adhesion_model(
+    target_volume=20, between=15, medium_contact=8)
+report = explain(model)
 
-# 2. Assemble the model
-sys = PottsSystem(
-    cell_types = [Medium, A, B],                  # background type listed first by convention
-    penalties  = [
-        VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
-        AdhesionComponent(
-            (A, Medium) => 15.0f0,
-            (B, Medium) => 15.0f0,
-            (A, A)      => 2.0f0,
-            (B, B)      => 2.0f0,
-            (A, B)      => 10.0f0,
-        ),
-    ]
-)
-
-# 3. Build and solve the problem
-prob = PottsProblem(sys, Dict(A => 20, B => 20), (200, 200); tspan=(0, 500))
-alg  = CheckerboardMetropolis(T=2.0f0, sweeps_per_step=10)
-sol  = solve(prob, alg; saveat=10)
-
-# 4. Record a video
-record_potts("cell_sorting.mp4", sol; framerate=30)
+# 2. Build and solve a deterministic instance
+prob = ReferenceModels.differential_adhesion_problem(
+    (64, 64); cells_per_population=12, capacity=32,
+    target_volume=20, between=15, medium_contact=8,
+    tspan=(0, 500), seed=2026)
+alg = CorePotts.CheckerboardSweepCPM(temperature=2.0f0)
+sol = CorePotts.solve(prob, alg; saveat=10)
 ```
 
 ---

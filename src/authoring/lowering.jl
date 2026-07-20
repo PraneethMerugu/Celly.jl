@@ -16,6 +16,43 @@ function CellLayout(cell_type::CellType, provisional_id::Integer,
     return CellLayout(cell_type, UInt64(provisional_id), mask, Int32(priority), properties)
 end
 
+"""Dense multi-cell raster whose runtime type is independent of the number of cells."""
+struct CellLabelLayout{N, A <: Array{UInt64, N}}
+    labels::A
+    cell_types::Vector{Pair{UInt64, CellType}}
+    priority::Int32
+end
+
+function CellLabelLayout(labels::AbstractArray{<:Integer, N}, declarations;
+        priority::Integer = 0) where {N}
+    N in (2, 3) || throw(ArgumentError(
+        "dense cell-label layouts support exactly two or three dimensions"))
+    all(>=(0), labels) || throw(ArgumentError(
+        "dense provisional cell labels must be non-negative"))
+    converted = Array{UInt64, N}(labels)
+    typed = Pair{UInt64, CellType}[]
+    for declaration in declarations
+        first(declaration) isa Integer && last(declaration) isa CellType ||
+            throw(ArgumentError(
+                "cell-label declarations must be `Integer => CellType` pairs"))
+        id = first(declaration)
+        0 < id <= typemax(UInt64) || throw(ArgumentError(
+            "provisional cell identity must be positive and fit UInt64"))
+        push!(typed, UInt64(id) => last(declaration))
+    end
+    ids = first.(typed)
+    length(unique(ids)) == length(ids) || throw(ArgumentError(
+        "cell-label declarations must use distinct provisional identities"))
+    occupied = Set(filter(!iszero, converted))
+    occupied == Set(ids) || throw(ArgumentError(
+        "dense labels and provisional cell declarations must name the same identities"))
+    typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
+        "initial claim priority must fit Int32"))
+    sort!(typed; by = first)
+    return CellLabelLayout{N, typeof(converted)}(
+        converted, typed, Int32(priority))
+end
+
 """A semantic medium raster used only to construct a problem's initial state."""
 struct MediumLayout{M <: AbstractArray{Bool}}
     medium::Medium
@@ -155,6 +192,19 @@ function _lower_component(component::FluctuatingVolumeConstraint,
         initialization = component.initialization, division = component.division,
         number_type = T)
     return _LoweredComponents((), (), (), (), (core,), (),
+        (CorePotts.required_properties(core),),
+        _property_bindings(component, target_key, strength_key))
+end
+
+function _lower_component(component::Elongation,
+        context::_LoweringContext{T}) where {T}
+    prefix = _property_prefix(component.name)
+    target_key = Symbol(prefix, "__target")
+    strength_key = Symbol(prefix, "__strength")
+    core = CorePotts.QuadraticElongationHamiltonian(
+        target = target_key, strength = strength_key,
+        target_division = component.target_division, number_type = T)
+    return _LoweredComponents((core,), (), (), (), (), (),
         (CorePotts.required_properties(core),),
         _property_bindings(component, target_key, strength_key))
 end
@@ -395,6 +445,17 @@ function _check_component_dimensions(normalized::NormalizedModel,
     return normalized
 end
 
+function _requires_unwrapped_moments(lowered::_LoweredComponents)
+    required = (:center_unwrapping, :unwrapped_first_and_second_moments)
+    components = (lowered.energies..., lowered.drives..., lowered.constraints...,
+        lowered.modifiers..., lowered.mechanics...)
+    return any(components) do component
+        dependencies = (CorePotts.required_observables(component)...,
+            CorePotts.required_relations(component)...)
+        any(dependency -> dependency in required, dependencies)
+    end
+end
+
 """
     lower(model; dimensions, spacing)
 
@@ -429,8 +490,10 @@ function lower(model::PottsModel; dimensions::Integer,
         mechanics = lowered.mechanics)
     tracker = CorePotts.BoundaryMeasureTracker(
         CorePotts.BoundaryEdgeCount(), surface_relation)
+    moment_tracker = _requires_unwrapped_moments(lowered) ?
+        CorePotts.UnwrappedMomentTracker(connectivity_relation; number_type = T) : nothing
     core_model = CorePotts.PottsModel(proposal_relation, tracker; components,
-        lifecycle_events = lowered.lifecycle)
+        moment_tracker, lifecycle_events = lowered.lifecycle)
     schema = CorePotts.merge_property_schemas(lowered.schemas...)
     cell_type_ids = _id_table(normalized.cell_types, CorePotts.CellTypeID)
     medium_ids = _id_table(normalized.media, CorePotts.MediumID)
@@ -468,6 +531,20 @@ function _lower_layout(lowered::LoweredModel, layout::CellLayout, dimensions::In
         _property_overrides(lowered, layout.cell_type, layout.properties);
         dimensions)
     return (geometry, properties)
+end
+
+function _lower_layout(lowered::LoweredModel, layout::CellLabelLayout,
+        dimensions::Integer)
+    ndims(layout.labels) == dimensions || throw(ArgumentError(
+        "dense cell-label dimensionality does not match the problem"))
+    declarations = Pair{UInt64, CorePotts.CellTypeID}[]
+    for (id, cell_type) in layout.cell_types
+        haskey(lowered.cell_type_ids, cell_type) || throw(ArgumentError(
+            "dense cell-label layout references undeclared cell type $cell_type"))
+        push!(declarations, id => lowered.cell_type_ids[cell_type])
+    end
+    return (CorePotts.DenseCellLabels(
+        layout.labels, declarations; priority = layout.priority),)
 end
 
 function _lower_layout(lowered::LoweredModel, layout::MediumLayout, dimensions::Integer)
@@ -519,14 +596,34 @@ function _layout_diagnostics(layout::MediumLayout, shape::Tuple,
     return diagnostics
 end
 
+
+function _layout_diagnostics(layout::CellLabelLayout, shape::Tuple,
+        cells::Tuple, media::Tuple)
+    diagnostics = ()
+    size(layout.labels) == shape || (diagnostics = (diagnostics..., Diagnostic(
+        :error, :layout_shape_mismatch,
+        "dense cell-label raster shape does not match the problem lattice";
+        stage = :problem, related = (size(layout.labels), shape),
+        correction = "provide a label raster with exactly the problem shape"),))
+    for (_, cell_type) in layout.cell_types
+        cell_type in cells || (diagnostics = (diagnostics..., Diagnostic(
+            :error, :undeclared_layout_cell_type,
+            "dense cell-label layout references an undeclared cell type";
+            stage = :problem, identity = semantic_identity(cell_type),
+            correction = "declare the cell type or correct the label declaration")))
+    end
+    return diagnostics
+end
+
 _layout_diagnostics(layout, shape::Tuple, cells::Tuple, media::Tuple) = (Diagnostic(
     :error, :unsupported_initial_layout,
     "initial layouts must implement the PottsToolkit CellLayout or MediumLayout protocol";
     stage = :problem,
     correction = "use CellLayout/MediumLayout or add a public lowering method"),)
 
-_cell_layout_id(layout) = nothing
-_cell_layout_id(layout::CellLayout) = layout.provisional_id
+_cell_layout_ids(layout) = ()
+_cell_layout_ids(layout::CellLayout) = (layout.provisional_id,)
+_cell_layout_ids(layout::CellLabelLayout) = Tuple(first.(layout.cell_types))
 
 """Validate model-instance facts without compiling a backend or allocating device storage."""
 function validate_problem(model::PottsModel, shape::Tuple, layouts...;
@@ -579,8 +676,7 @@ function validate_problem(model::PottsModel, shape::Tuple, layouts...;
                 layout, shape, normalized.cell_types, normalized.media)...)
         end
     end
-    provisional_ids = Tuple(filter(value -> !isnothing(value),
-        map(_cell_layout_id, layouts)))
+    provisional_ids = Tuple(id for layout in layouts for id in _cell_layout_ids(layout))
     length(unique(provisional_ids)) == length(provisional_ids) ||
         (diagnostics = (diagnostics..., Diagnostic(
             :error, :duplicate_provisional_cell_id,

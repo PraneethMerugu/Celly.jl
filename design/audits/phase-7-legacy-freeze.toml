@@ -24,9 +24,6 @@ version = 1
 "lib/CorePotts/src/sciml/simulator.jl" = "7edb3e30570464caf4bafd310ce89f6a6ce930b4348023197137ea1d116cfb0e"
 "lib/CorePotts/src/state/types.jl" = "b09be301c3923e2110973281e70531dc9edaa5f71aa81c55bc29541fc8097873"
 "lib/NeuralPotts/src/NeuralPotts.jl" = "8d6694aa8beab72cf4dfe51139bdad5a9a9621efceffd5450a1a502e472c9b92"
-"src/models.jl" = "8c9d4bab9748b66198a2fdc539f622ccf8ac2da48a5b2757b72d5c4a18c98e02"
-"src/models/test_problems.jl" = "380353455111e61bf01660c581e8775a0e34473111587d99a388e0a76f70b36a"
-"src/problems.jl" = "7824bd32cdbafbe03588e0dd33add97c8d7ba2d6c29d2396b27ea155d4436d3e"
 
 # Mixed replacement/legacy files remain open to clean Phase 7 work. Only the ordered lines that
 # contain quarantined vocabulary are frozen, so new scientific qualifiers and exports are not
@@ -36,7 +33,6 @@ version = 1
 "lib/CorePotts/ext/CorePottsMermaidExt.jl" = "56ae6e9c7b09c124b70289edd5f46e583b7f2d2a927dac0d2241c63485d14075"
 "lib/CorePotts/src/CorePotts.jl" = "10a61351b5d7305e33f1e2c1fdde7906110a7abd01cc35b44c848cd117bafaaf"
 "lib/CorePotts/src/topology/topology.jl" = "c543e6c3aea25a5ff0124287a0f90a7242f76d665116f9690308dcc5d633deaa"
-"src/PottsToolkit.jl" = "11836378b68d269a4d3627dd7ac4f1a4c6aaad5883fb08478ca3f74f88958efc"
 
 # Existing test, integration, tutorial, and example consumers are frozen only at their ordered
 # quarantined lines. This makes the gate independent of PR history while leaving unrelated edits
@@ -67,15 +63,6 @@ version = 1
 "examples/dashboards/tumor_invasion_dashboard.jl" = "0f0671711ff77111773ba54932aa53e1b245a0774acc729409b94375c3b9ccb0"
 "examples/notebooks/monolayer_benchmark_v3_script.jl" = "6debb65077475956f30bb744eac045753ba0a41b26375b4f6f5d5d668d683786"
 "examples/notebooks/monolayer_benchmark_v4_script.jl" = "6debb65077475956f30bb744eac045753ba0a41b26375b4f6f5d5d668d683786"
-"integration/integration_connectivity.jl" = "91c1dd0ce15b087577dcab59b244455a319ec03852f0b820fc8da1e9f8585f51"
-"integration/known_defects/chemotaxis_fragmentation.jl" = "3709048dd74d434f25d4cf68c180762b83397da77b5876eeaa8b148acffb0282"
-"integration/runtests.jl" = "b5ea7f2022e4178b3a568e1d4e9645561081cfc63da05f502bdad99c19b05577"
-"integration/test_biophysics.jl" = "19683911908c18b5ff9c218e1aff83e0ef9a90e98cfa7ab9ed973dfd464bb43d"
-"integration/test_ecosystem_fixes.jl" = "1927f1e83a11858069b1237efc0a4e9a57e1cd71586daf2360cf7c2950ed3880"
-"integration/test_events.jl" = "52e98fc401f8ba9ee4f3e4d47a6c1e21e63babfca378137b680c3e6a762b93e9"
-"integration/test_focal_point_3d_fix.jl" = "a4c05f10569a5b037e0b38ec77f5a16d7d29bb7f1da448b5ba02f1342476020f"
-"integration/test_isbits_blocker.jl" = "b997109c3ab29c91b9d60e2cc5da2b35b90caa0ce084e5a375426994df9415c7"
-"integration/test_thermodynamics.jl" = "d51fe7b6fdcbfe63bb02859f1ebba830a567279879bc646323c877804b019d22"
 "lib/CorePotts/examples/benchmark_engines.jl" = "fb123bab03f523fe672fa7d8e2e3c1e481fce3bf5db2c4aa0bf2039d1ed4a708"
 "lib/CorePotts/examples/run_simulation.jl" = "ccc1a05f4c5932ce7812231bb755d972cfb9897188ffc65fa569c09f4925776a"
 "lib/CorePotts/test/runtests.jl" = "2c56304a6d6c081a1a1328cbe1ca4125b6bfb95836cbd1c6e88167bd8a279cbc"
@@ -98,4 +85,3 @@ version = 1
 "lib/CorePotts/test/test_sciml_saving.jl" = "5a6426bf17cea5588bb7743e2d794c14d15fd837b0a395cf1cb10408495262fc"
 "lib/CorePotts/test/test_topology_abstractions.jl" = "82bb40eb6dcec9f4317d17ec3cd51c3dcfa6afd359441f35e0a589f070643ff9"
 "lib/NeuralPotts/test/test_lux.jl" = "f8a30ec0efac8119bc65a49a09bc89a9e5aa36e022def74b68e8e7dc6a97313b"
-"test/test_flex_traits.jl" = "3f0a49d9f7ef6778e3fd5d7a9c33a5acffe8291762a63b2072b7601660e76c54"

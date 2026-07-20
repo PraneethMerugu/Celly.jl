@@ -83,6 +83,21 @@ function _scope_declaration(component::FluctuatingVolumeConstraint{T, N, D},
         component.noise, component.initialization, component.division)
 end
 
+function _scope_elongation_bindings(
+        bindings::BindingTable{CellType, ElongationParameters{T}},
+        mapping::Tuple) where {T}
+    entries = Tuple(Binding{CellType, ElongationParameters{T}}(
+        _scope_biological(entry.key, mapping), entry.value) for entry in bindings)
+    return BindingTable{CellType, ElongationParameters{T}}(entries)
+end
+
+function _scope_declaration(component::Elongation{T, D},
+        fragment::ModelFragment, mapping) where {T, D}
+    return Elongation{T, D}(_mapped_identity(mapping, component.name),
+        _scope_elongation_bindings(component.bindings, mapping),
+        component.target_division)
+end
+
 function _scope_boundary_bindings(bindings::BindingTable{
         CellType, BoundaryParameters{Q, T}}, mapping::Tuple) where {Q, T}
     entries = Tuple(Binding{CellType, BoundaryParameters{Q, T}}(

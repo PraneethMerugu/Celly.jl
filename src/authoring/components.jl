@@ -80,6 +80,61 @@ end
 
 semantic_identity(component::FluctuatingVolumeConstraint) = component.name
 
+"""Target major-axis RMS extent and quadratic strength for one finite cell type."""
+struct ElongationParameters{T <: AbstractFloat}
+    target::T
+    strength::T
+
+    function ElongationParameters(target::T, strength::T) where {T <: AbstractFloat}
+        isfinite(target) && target >= zero(T) || throw(ArgumentError(
+            "elongation target must be finite and non-negative"))
+        isfinite(strength) && strength >= zero(T) || throw(ArgumentError(
+            "elongation strength must be finite and non-negative"))
+        return new{T}(target, strength)
+    end
+end
+
+function _elongation_bindings(pairs::Tuple)
+    isempty(pairs) && throw(ArgumentError(
+        "an elongation constraint must bind at least one cell type"))
+    all(pair -> first(pair) isa CellType && last(pair) isa NamedTuple &&
+        haskey(last(pair), :target) && (haskey(last(pair), :strength) ||
+        haskey(last(pair), :λ)), pairs) || throw(ArgumentError(
+        "elongation entries must be `CellType => (target=..., strength=...)`"))
+    numeric_types = map(pairs) do pair
+        values = last(pair)
+        strength = haskey(values, :strength) ? values.strength : values.λ
+        promote_type(typeof(values.target), typeof(strength))
+    end
+    T = float(promote_type(numeric_types...))
+    entries = map(pairs) do pair
+        values = last(pair)
+        strength = haskey(values, :strength) ? values.strength : values.λ
+        Binding{CellType, ElongationParameters{T}}(first(pair),
+            ElongationParameters(T(values.target), T(strength)))
+    end
+    return BindingTable{CellType, ElongationParameters{T}}(Tuple(entries))
+end
+
+"""Exact conservative penalty on each finite cell's major-axis RMS extent."""
+struct Elongation{T <: AbstractFloat, D <: CorePotts.AbstractDivisionPolicy}
+    name::SemanticName
+    bindings::BindingTable{CellType, ElongationParameters{T}}
+    target_division::D
+end
+
+function Elongation(pairs::Pair...; name::Symbol = :elongation,
+        namespace::Namespace = Namespace(),
+        target_division::CorePotts.AbstractDivisionPolicy =
+            CorePotts.UnsupportedDivision(:elongation_target_policy_required))
+    bindings = _elongation_bindings(pairs)
+    T = typeof(first(bindings).value.target)
+    return Elongation{T, typeof(target_division)}(
+        SemanticName(name; namespace), bindings, target_division)
+end
+
+semantic_identity(component::Elongation) = component.name
+
 """Target boundary measure and quadratic strength for one finite cell type."""
 struct BoundaryParameters{Q <: Real, T <: AbstractFloat}
     target::Q

@@ -280,8 +280,7 @@ end
     surface = first_shell_relation(SurfaceRole(), Val(2))
     connectivity = first_shell_relation(ConnectivityRole(), Val(2))
     boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
-    moment_tracker = UnwrappedMomentTracker(connectivity, (CellID(1),);
-        number_type = Float32)
+    moment_tracker = UnwrappedMomentTracker(connectivity; number_type = Float32)
     state = compile_scientific_state(logical, domain, boundary_tracker; moment_tracker)
     plan = ExecutionPlan(KernelAbstractions.CPU())
     division = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
@@ -295,6 +294,7 @@ end
     rebuilt = rebuild_tracker(moment_tracker, snapshot, domain)
     @test integrator.state.trackers.moments.tracked == rebuilt.tracked
     @test integrator.state.trackers.moments.coordinate_sums == rebuilt.coordinate_sums
+    @test integrator.state.trackers.moments.quadratic_sums == rebuilt.quadratic_sums
     @test moment_is_tracked(integrator.state.trackers.moments, CellOwner(1))
-    @test !moment_is_tracked(integrator.state.trackers.moments, CellOwner(2))
+    @test moment_is_tracked(integrator.state.trackers.moments, CellOwner(2))
 end

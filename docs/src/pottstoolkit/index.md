@@ -1,204 +1,107 @@
 # [PottsToolkit](@id pottstoolkit-overview)
 
-**PottsToolkit** is the recommended entry point for all Potts simulations.
-It provides a declarative, high-level modeling API that compiles to CorePotts's internal
-representation — you describe *what* biological rules apply to your cells;
-PottsToolkit figures out *how* to implement them efficiently on the lattice.
+PottsToolkit is the high-level, typed modeling interface for Potts.jl. A model is an immutable
+scientific value: declare biological identities and components, inspect or validate the normalized
+meaning, then lower it to a concrete [`CorePotts.PottsProblem`](@ref).
+
+PottsToolkit deliberately does not re-export CorePotts. This keeps the API levels visible:
+
+- Level 1 will provide the concise DSL syntax.
+- Level 2 is the public PottsToolkit authoring API documented here.
+- Level 3 is direct composition with public CorePotts scientific components.
+- Level 4 is CorePotts protocol extension and engine development.
+
+## A complete model
 
 ```julia
-using PottsToolkit   # this single import is all you need for most simulations
-```
+using PottsToolkit
+import CorePotts
 
-> [!IMPORTANT]
-> `using PottsToolkit` re-exports **all public symbols from CorePotts**, including topology
-> types, algorithm constructors, callback types, and backend types.
-> You never need to separately `using CorePotts` in user code.
+medium = Medium(:Medium)
+cell = CellType(:Cell)
 
----
-
-## The CellType / PottsSystem / Component Pattern
-
-PottsToolkit uses a three-level declarative structure:
-
-### 1. CellType
-
-A `CellType` is a named token that labels a population of cells.
-Cell types determine which penalty parameters apply to which cells.
-
-```julia
-A      = CellType(:A)
-B      = CellType(:B)
-Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
-```
-
-There is always at least one `Medium` type representing the background lattice.
-`CellType` objects are purely symbolic — they carry no state.
-
-### 2. Components
-
-Components attach biophysical rules to cell types.
-Each component corresponds to one or more CorePotts penalty terms.
-
-```julia
-VolumeComponent(A => (λ = 5.0f0, target = 500), B => (λ = 5.0f0, target = 500))
-HSTVolumeComponent(A => (λ = 5.0f0, target = 500); eta = 1.0)
-SurfaceAreaComponent(A => (λ = 1.0f0, target = 200))
-AdhesionComponent((A, Medium) => 15.0f0, (A, A) => 2.0f0, (A, B) => 10.0f0)
-LengthComponent(A => (λ = 3.0f0, target = 20.0f0); eta = 1.0)
-ChemotaxisComponent(A => 0.5f0, chemical_field = my_field)
-```
-
-See [Penalties](@ref corepotts-penalties) for the mathematical details behind each component.
-
-### 3. PottsSystem
-
-A `PottsSystem` bundles cell types and components into a complete model description:
-
-```julia
-sys = PottsSystem(
-    cell_types = [Medium, A, B],     # background type listed first by convention
-    penalties  = [
-        VolumeComponent(A => (λ=5.0f0, target=500), B => (λ=5.0f0, target=500)),
-        AdhesionComponent((A, Medium) => 15.0f0, (A, B) => 10.0f0, (A, A) => 2.0f0,
-                          (B, Medium) => 15.0f0, (B, B) => 2.0f0),
-    ],
-    events = [
-        # See the Biological Events API guide for details on how to configure
-        # Apoptosis, Mitosis, and Transitions!
-    ],
-    check_interval = 10
+volume = VolumeConstraint(cell => (target = 16.0, strength = 2.0))
+adhesion = Adhesion(
+    (medium, medium) => 0.0,
+    (medium, cell) => 8.0,
+    (cell, cell) => 3.0,
 )
+model = PottsModel(medium, cell, volume, adhesion)
+
+mask = falses(24, 24)
+mask[10:13, 10:13] .= true
+prob = problem(model, (24, 24), CellLayout(cell, 1, mask);
+    capacity = 8, tspan = (0, 20), seed = 2026)
+sol = CorePotts.solve(prob, CorePotts.SequentialCPM(temperature = 2.0f0))
 ```
 
-`PottsSystem` performs compile-time validation: it checks that all cell-type pairs
-referenced in `AdhesionComponent` are declared, that parameter types are consistent,
-and that conflicting components are not combined.
+`problem` returns CorePotts's problem directly. PottsToolkit introduces no runtime problem wrapper,
+backend branch, or second execution engine.
 
-For more information on the new declarative event system for modeling discrete topological changes like death and division, see the [Biological Events API](events.md) guide.
+## Scientific components
 
----
+The preferred Level 2 spellings are ordinary immutable Julia values:
 
-## PottsProblem: Compiling the System
+| Family | Declaration | Meaning |
+|:--|:--|:--|
+| Finite-cell volume | `VolumeConstraint` | Exact quadratic volume Hamiltonian |
+| Fluctuating volume | `FluctuatingVolumeConstraint` | Named mechanical pressure process |
+| Cell boundary | `BoundaryConstraint` | Exact quadratic edge-count or physical boundary measure |
+| Fluctuating boundary | `FluctuatingBoundaryConstraint` | Named mechanical surface-tension process |
+| Elongation | `Elongation` | Exact major-axis RMS Hamiltonian using unwrapped first and second moments |
+| Contact | `Adhesion` | Symmetric unordered contact-energy law |
+| Connectivity | `PreserveConnectivity` | Optional exact rejection of fragmenting copies |
+| Prescribed field | `PrescribedField` | Immutable field snapshot with explicit interpolation and boundary semantics |
+| Chemotaxis | `Chemotaxis` | Nonconservative drive with explicit response and responding-owner mode |
 
-`PottsProblem` takes a system description and concrete numerical parameters, then
-compiles the system into CorePotts's internal representation (penalty objects, trackers,
-and initial lattice configuration):
+Fragmentation is valid unless `PreserveConnectivity()` is present. Elongation automatically requests
+the required all-active moment tracker; it does not imply connectivity, so network models normally
+declare both independently.
+
+## Lifecycle declarations
+
+`Growth`, `PropertyUpdate`, `StochasticPropertyUpdate`, `Transition`, `Division`, `ShrinkDeath`, and
+`ImmediateDeath` lower to the compiled CorePotts lifecycle. Schedules use integer MCS boundaries and
+all rules due at one boundary read the same pre-event snapshot.
+
+Division inheritance is explicit. For example, an elongation target can declare
+`target_division = CorePotts.CloneOnDivision()`. The default unsupported policy prevents a model
+from silently inventing a daughter-cell law.
+
+## Inspection before execution
 
 ```julia
-prob = PottsProblem(
-    sys,                    # PottsSystem
-    Dict(A => 20, B => 20), # initial cell counts per type
-    (200, 200);             # lattice dimensions (width × height)
-    tspan    = (0, 500),    # simulation time span in MCS
-    topology = VonNeumannTopology{2}(),  # default
-    trackers = ()           # optional extra trackers
-)
+validation = validate(model)
+normalized = normalize(model)
+report = explain(normalized)
+deps = dependencies(normalized)
+identity = semantic_fingerprint(normalized)
+lowered = lower(model; dimensions = 2)
 ```
 
-**Under the hood**, `PottsProblem` does the following:
+These operations are host-only. Reports, dependency edges, provenance, and semantic fingerprints
+are derived from the same normalized model that is lowered, avoiding a separate documentation or
+compiler interpretation.
 
-1. Converts `Dict(CellType => count)` into a `RandomLayout` — which uniformly scatters
-   the requested number of cells across the grid randomly.
-2. Evaluates the `required_variables` from all compiled penalties, trackers, and events to construct a perfectly-sized `cell_data` GPU buffer. Only requested properties (like `volumes` or `target_surface_areas`) will be allocated in VRAM!
-3. Calls `build_initial_state` to populate the lattice from the layout, assigning
-   cell IDs sequentially from `1`.
-4. Calls `initialize_metrics!` to perform a single O(|Λ|) scan that syncs all
-   tracker arrays (volume, surface area, etc.) from the actual lattice contents.
-5. Instantiates each component's CorePotts penalty object with the compiled parameter
-   arrays, keyed by type ID.
-6. Wraps everything in a `SciMLBase.AbstractDEProblem`-compatible struct so that
-   `solve`, `init`, and `step!` work as expected.
-
-### Custom Layouts
-
-By default `PottsProblem` places cells via `RandomLayout`, which distributes
-them randomly. For structured initialization (like spheroids or confluent sheets), pass an explicit layout:
+Before allocating a backend integrator, inspect the complete execution combination:
 
 ```julia
-using PottsToolkit: HypersphereLayout
+using KernelAbstractions
 
-# Explicit layout — override the default radius computation
-layout = HypersphereLayout(
-    Dict(A => 20, B => 20),
-    (200, 200);
-    radius = 8.0f0    # each cell is a disc of radius 8 lattice sites
-)
-
-prob = PottsProblem(sys, layout, (200, 200); tspan = (0, 500))
+algorithm = CorePotts.SequentialCPM(temperature = 2.0f0)
+backend_report(prob, algorithm, KernelAbstractions.CPU())
 ```
 
-Any `AbstractLayout` subtype can be passed here, making it straightforward to implement
-e.g. stripe initializations, confined geometries, or data-driven initial conditions.
+Backend preflight checks the algorithm, component capabilities, lifecycle, dimensionality, and
+tracker requirements as one contract.
 
----
+## Open Level 3 composition
 
-## Solving and the SciML Interface
+Any conforming `CorePotts.AbstractEnergy`, `AbstractDrive`, `AbstractHardConstraint`,
+`AbstractKineticModifier`, or `AbstractMechanicalComponent` may be placed directly in `PottsModel`.
+Its public CorePotts metadata participates in validation, reports, fingerprints, property-schema
+merging, and lowering without a PottsToolkit compiler edit. Use `NamedCoreComponent` only when
+multiple semantic instances need distinct Level 2 identities.
 
-PottsToolkit integrates with the SciML interface:
-
-```julia
-# One-shot solve
-sol = solve(prob, alg; saveat = 10)
-
-# Manual stepping (advanced)
-integrator = init(prob, alg; saveat = 10)
-for i in 1:100
-    step!(integrator)
-    # inspect integrator.u here
-end
-```
-
-The solution object `sol` supports:
-- `sol[t]` — access the saved state at time `t`.
-- `sol.t` — vector of saved time points.
-- Iteration over all saved frames.
-
----
-
-## Continuous vs Discrete Biological Events
-
-Biological events generally fall into two categories in PottsToolkit:
-
-### 1. Continuous Stochastic Events (SciML Callbacks)
-Stochastic continuous changes — like gradual volume growth — are modeled using SciML `DiscreteCallback`s and passed to `solve`:
-
-```julia
-using SciMLBase
-
-# Linearly increase target_volume by 0.5 per MCS
-growth_cb = LinearGrowthCallback(0.5f0)
-cb = SciMLBase.DiscreteCallback((u, t, i) -> true, i -> growth_cb(i))
-
-sol = solve(prob, alg; saveat = 10, callback = cb)
-```
-
-### 2. Discrete Topological Events (Native Mask-Driven Events)
-Discrete structural changes — like cell division (mitosis), death (apoptosis), and phenotype transitions — are built natively into the engine using mask-driven evaluation. Instead of manually assembling callbacks, you declare them directly in the `PottsSystem` using the `events` kwarg:
-
-```julia
-sys = PottsSystem(
-    cell_types = [Medium, A, B],
-    penalties  = [...],
-    events = [
-        # Automatically divides cells when volume >= 2.0 * target_volume
-        MitosisEvent(A, trigger=VolumeRatioTrigger(2.0f0), inheritance=(;)),
-        
-        # Kill cells of type B based on some condition
-        ApoptosisEvent(B, trigger=...)
-    ]
-)
-```
-
-The native events are extremely fast because they use GPU-accelerated boolean masks to evaluate triggers and are statically unrolled directly into the simulation loop with zero heap allocations.
-
----
-
-## Full Component Reference
-
-| Component | Key parameters | HST variant? |
-|-----------|---------------|-------------|
-| `VolumeComponent` | `λ`, `target` | `HSTVolumeComponent` (+ `eta`) |
-| `SurfaceAreaComponent` | `λ`, `target` | HST internally |
-| `AdhesionComponent` | cell-type pair ⇒ energy | — |
-| `LengthComponent` | `λ`, `target`, `eta` | Always HST |
-| `ChemotaxisComponent` | sensitivity, `chemical_field` | — |
+See [Reference Models](@ref pottstoolkit-reference-models) for reusable workloads and the
+[API Reference](@ref pottstoolkit-api) for the complete surface.

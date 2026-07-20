@@ -4,42 +4,25 @@ version = "0.1.0"
 authors = ["Praneeth Merugu <merugufam@gmail.com>"]
 
 [deps]
-Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
-KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [sources]
 CorePotts = {path = "lib/CorePotts"}
-KernelIntrinsics = {url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git", rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"}
-
-[weakdeps]
-Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
-
-[extensions]
-PottsToolkitMermaidExt = "Mermaid"
 
 [compat]
-Adapt = "4.7"
 CorePotts = "0.1"
 KernelAbstractions = "0.9.42"
-MLStyle = "0.4.17"
-Mermaid = "0.1"
-Reexport = "1.2"
 SciMLBase = "3"
 julia = "1.12.6"
 
 [extras]
-KernelIntrinsics = "f9588fbb-d238-4998-b15a-468e8766d49a"
-StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["KernelIntrinsics", "StructArrays", "Test"]
+test = ["KernelAbstractions", "Test"]
 
 [workspace]
 projects = ["integration", "lib/CorePotts", "lib/MakiePotts", "lib/NeuralPotts"]
