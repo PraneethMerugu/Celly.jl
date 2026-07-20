@@ -118,6 +118,9 @@ end
 @inline proposal_energy_change(component::FocalPointSpringHamiltonian,
     proposal::CopyProposal, context::ScientificProposalContext) =
     energy_change(component, proposal, context.state, context.transaction)
+@inline proposal_energy_change(component::QuadraticElongationHamiltonian,
+    proposal::CopyProposal, context::ScientificProposalContext) =
+    energy_change(component, proposal, context.state, context.transaction)
 
 @inline proposal_drive_log_bias(component::ChemotaxisDrive,
     proposal::CopyProposal, context::ScientificProposalContext) =

@@ -401,6 +401,7 @@ end
 struct NoCompiledDerivedDivision end
 struct CompiledMomentDivisionContext{N, T <: AbstractFloat}
     tracked::Bool
+    track_child::Bool
     center::SVector{N, T}
 end
 
@@ -413,14 +414,21 @@ end
     center = tracked ? SVector{N, T}(ntuple(axis ->
         @inbounds(storage.coordinate_sums[axis][parent] / T(volume)), Val(N))) :
         zero(SVector{N, T})
-    @inbounds storage.tracked[child] = UInt8(0)
+    track_child = tracked && storage.track_all
+    @inbounds storage.tracked[child] = UInt8(track_child)
     for axis in 1:N
         @inbounds begin
             storage.coordinate_sums[axis][parent] = zero(T)
             storage.coordinate_sums[axis][child] = zero(T)
         end
     end
-    return CompiledMomentDivisionContext(tracked, center)
+    for packed in eachindex(storage.quadratic_sums)
+        @inbounds begin
+            storage.quadratic_sums[packed][parent] = zero(T)
+            storage.quadratic_sums[packed][child] = zero(T)
+        end
+    end
+    return CompiledMomentDivisionContext(tracked, track_child, center)
 end
 
 @inline compiled_accumulate_derived_division!(::NoMomentStorage,
@@ -429,7 +437,10 @@ end
         storage::UnwrappedMomentStorage{N, T},
         context::CompiledMomentDivisionContext{N, T}, state, site, label,
         parent, child) where {N, T}
-    context.tracked && label == UInt8(1) || return nothing
+    context.tracked || return nothing
+    target = label == UInt8(1) ? parent :
+             (label == UInt8(2) && context.track_child ? child : 0)
+    target != 0 || return nothing
     wrapped = _physical_site_center(state.domain, site, T)
     position = SVector{N, T}(ntuple(axis_index -> begin
         axis = state.domain.descriptor.boundaries[axis_index]
@@ -444,7 +455,12 @@ end
         end
     end, Val(N)))
     for axis in 1:N
-        @inbounds storage.coordinate_sums[axis][parent] += position[axis]
+        @inbounds storage.coordinate_sums[axis][target] += position[axis]
+    end
+    for row in 1:N, column in row:N
+        packed = _packed_symmetric_index(row, column, Val(N))
+        @inbounds storage.quadratic_sums[packed][target] +=
+            position[row] * position[column]
     end
     return nothing
 end
@@ -455,6 +471,9 @@ end
     @inbounds storage.tracked[cell] = UInt8(0)
     for axis in 1:N
         @inbounds storage.coordinate_sums[axis][cell] = zero(T)
+    end
+    for packed in eachindex(storage.quadratic_sums)
+        @inbounds storage.quadratic_sums[packed][cell] = zero(T)
     end
     return nothing
 end

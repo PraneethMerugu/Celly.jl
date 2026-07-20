@@ -13,16 +13,6 @@ TEST_SHARD in TEST_SHARDS || error(
 run_shard(name) = TEST_SHARD == "all" || TEST_SHARD == name
 @info "Selected test shard" shard=TEST_SHARD
 
-if get(ENV, "POTTS_TEST_INTRINSIC", "false") == "true" &&
-        BACKEND_GROUP in ("CUDA", "Metal")
-    const INTRINSIC_ALGORITHMS = (IntrinsicCheckerboardMetropolis,)
-else
-    const INTRINSIC_ALGORITHMS = ()
-    @info "Skipping unqualified IntrinsicCheckerboardMetropolis baseline" backend = BACKEND_GROUP
-end
-
-const TEST_ALGORITHMS = (ParallelMetropolis, CheckerboardMetropolis, SequentialMetropolis, INTRINSIC_ALGORITHMS...)
-
 include("reference/ReferenceSemantics.jl")
 include("conformance/ConformanceHarness.jl")
 
@@ -30,11 +20,7 @@ include("conformance/ConformanceHarness.jl")
     run_shard("thermodynamics") && include("test_thermodynamics.jl")
     run_shard("biophysics") && include("test_biophysics.jl")
     if run_shard("integration")
-        include("test_events.jl")
-        include("integration_connectivity.jl")
-        include("test_ecosystem_fixes.jl")
-        include("test_focal_point_3d_fix.jl")
-        include("test_isbits_blocker.jl")
+        include("test_level2_integration.jl")
     end
     if run_shard("conformance")
         include("conformance/test_reference_semantics.jl")

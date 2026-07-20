@@ -1,45 +1,52 @@
 module PottsToolkit
 
-using Reexport
+import CorePotts
 
-@reexport using CorePotts
-using CorePotts: AbstractSampler, MetropolisSampler, PottsState, PottsParameters,
-                 PottsCache, ParallelMetropolis, CheckerboardMetropolis,
-                 SequentialMetropolis, IntrinsicCheckerboardMetropolis
-
-include("models.jl")
-include("domains.jl")
-include("rules/events.jl")
-include("problems.jl")
-include("models/test_problems.jl")
-include("rules/macros.jl")
-
-# Phase 10 replacement authoring foundation. It remains namespaced until the qualified vertical
-# slice passes and the frozen historical surface is deleted in one migration gate.
 include("authoring/Authoring.jl")
+include("reference_models.jl")
 
-using .System
-using .Layouts
-using .Events
-using .Problem
-using .TestProblems
-using .RuleMacros
+using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Medium,
+                  Binding, BindingTable, PairIdentity, PairwiseLaw,
+                  AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval,
+                  PropertyVisibility, PublicProperty, PrivateProperty,
+                  PropertyPersistence, CheckpointedProperty, EphemeralProperty,
+                  PropertyOptionality, RequiredProperty, OptionalProperty, CellProperty,
+                  VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint,
+                  ElongationParameters, Elongation,
+                  BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint,
+                  Adhesion, PreserveConnectivity, PrescribedField, Chemotaxis,
+                  PropertyUpdate, StochasticPropertyUpdate, Growth, Transition,
+                  Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent,
+                  ModelFragment, PottsModel, NormalizedModel, add, remove, replace,
+                  compose, normalize, validate, explain, provenance, dependencies,
+                  CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem,
+                  validate_problem, backend_report, semantic_identity,
+                  semantic_fingerprint, execution_fingerprint, semantic_manifest,
+                  SourceLocation, Diagnostic, ValidationReport, ModelValidationError,
+                  ProblemValidationError, ModelReport, DeclarationReport, DependencyEdge,
+                  DependencyReport, ProvenanceEntry, SemanticFingerprint,
+                  ExecutionFingerprint, SemanticManifest
 
-export CellType, PottsSystem, AbstractComponent
-export VolumeComponent, AdhesionComponent, HSTVolumeComponent, SurfaceAreaComponent,
-       LengthComponent, ChemotaxisComponent
-export AbstractLayout, RandomLayout, HypersphereLayout, ScatterSpheresLayout, RectangleLayout, CompositeLayout
-export PottsProblem, compile_component, reference_integrator
-export PottsToolkitEvent, AbstractTrigger, AbstractAction, VolumeRatioTrigger, AgeTrigger,
-       ProbabilityTrigger, CustomTrigger
-export MitosisEvent, ApoptosisEvent, TransitionEvent
-export TestProblems
-export @rule
-
-# Temporary Phase 7 compatibility surface. CorePotts no longer exports these historical engine
-# names; Phase 10 removes this explicit Toolkit bridge when the typed compiler and DSL migrate.
-export AbstractSampler, MetropolisSampler, PottsState, PottsParameters, PottsCache,
-       ParallelMetropolis, CheckerboardMetropolis, SequentialMetropolis,
-       IntrinsicCheckerboardMetropolis
+export Authoring, ReferenceModels
+export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
+export Binding, BindingTable, PairIdentity, PairwiseLaw
+export AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval
+export PropertyVisibility, PublicProperty, PrivateProperty
+export PropertyPersistence, CheckpointedProperty, EphemeralProperty
+export PropertyOptionality, RequiredProperty, OptionalProperty, CellProperty
+export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
+export ElongationParameters, Elongation
+export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint
+export Adhesion, PreserveConnectivity, PrescribedField, Chemotaxis
+export PropertyUpdate, StochasticPropertyUpdate, Growth, Transition
+export Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent
+export ModelFragment, PottsModel, NormalizedModel
+export add, remove, replace, compose, normalize, validate, explain, provenance, dependencies
+export CellLayout, CellLabelLayout, MediumLayout, LoweredModel
+export lower, problem, validate_problem, backend_report
+export semantic_identity, semantic_fingerprint, execution_fingerprint, semantic_manifest
+export SourceLocation, Diagnostic, ValidationReport, ModelValidationError, ProblemValidationError
+export ModelReport, DeclarationReport, DependencyEdge, DependencyReport, ProvenanceEntry
+export SemanticFingerprint, ExecutionFingerprint, SemanticManifest
 
 end

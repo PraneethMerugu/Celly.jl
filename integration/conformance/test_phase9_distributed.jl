@@ -14,9 +14,9 @@ function phase9_distributed_problem()
     proposal = first_shell_relation(ProposalRole(), Val(2))
     surface = first_shell_relation(SurfaceRole(), Val(2))
     tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)
-    model = PottsModel(proposal, tracker;
+    model = CorePotts.PottsModel(proposal, tracker;
         components = ScientificComponentSet(energies = (volume,)))
-    return PottsProblem(model, logical, domain, (0, 2); seed = 0x539)
+    return CorePotts.PottsProblem(model, logical, domain, (0, 2); seed = 0x539)
 end
 
 @testset "Phase 9 distributed CPU ensemble" begin

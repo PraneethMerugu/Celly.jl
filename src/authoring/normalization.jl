@@ -9,6 +9,7 @@ struct NormalizedModel{N <: CorePotts.NumericalPolicy}
 end
 
 semantic_fingerprint(model::NormalizedModel) = model.fingerprint
+semantic_fingerprint(model::PottsModel) = semantic_fingerprint(normalize(model))
 provenance(model::NormalizedModel) = model.provenance_entries
 
 _flatten_declarations(::Tuple{}) = ()
@@ -87,6 +88,18 @@ _validate_declaration(component::VolumeConstraint, context::_ValidationContext) 
 _validate_declaration(component::FluctuatingVolumeConstraint,
     context::_ValidationContext) = _validate_volume(component, context)
 
+function _validate_declaration(component::Elongation, context::_ValidationContext)
+    diagnostics = ()
+    for binding in component.bindings
+        binding.key in context.cell_types || (diagnostics = (diagnostics...,
+            Diagnostic(:error, :unknown_cell_type,
+                "elongation binding references an undeclared cell type";
+                identity = semantic_identity(component), related = (binding.key,),
+                correction = "declare the cell type or remove the binding")))
+    end
+    return diagnostics
+end
+
 function _validate_boundary(component::Union{
         BoundaryConstraint, FluctuatingBoundaryConstraint}, context::_ValidationContext)
     diagnostics = ()
@@ -113,6 +126,8 @@ _bound_property_cells(component, role::Symbol) = nothing
 _bound_property_cells(component::VolumeConstraint, role::Symbol) =
     role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
 _bound_property_cells(component::FluctuatingVolumeConstraint, role::Symbol) =
+    role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
+_bound_property_cells(component::Elongation, role::Symbol) =
     role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
 _bound_property_cells(component::BoundaryConstraint, role::Symbol) =
     role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
@@ -456,6 +471,16 @@ function _convert_adhesion(component::Adhesion, ::Type{T}) where {T <: AbstractF
     return Adhesion{T}(component.name, law)
 end
 
+function _normalize_component(component::Elongation,
+        ::Type{T}) where {T <: AbstractFloat}
+    entries = Tuple(Binding{CellType, ElongationParameters{T}}(entry.key,
+        ElongationParameters(T(entry.value.target), T(entry.value.strength)))
+        for entry in component.bindings)
+    return Elongation{T, typeof(component.target_division)}(
+        component.name, BindingTable{CellType, ElongationParameters{T}}(entries),
+        component.target_division)
+end
+
 function _convert_boundary_bindings(component, ::Type{T}) where {T <: AbstractFloat}
     parameter = first(component.bindings).value
     Q = typeof(parameter.target) <: Integer ? Int64 : T
@@ -517,6 +542,10 @@ _normalize_trigger(trigger, ::Type) = trigger
 _normalize_trigger(trigger::CorePotts.BernoulliCellTrigger,
         ::Type{T}) where {T <: AbstractFloat} =
     CorePotts.BernoulliCellTrigger(T(trigger.probability), trigger.operation)
+function _normalize_trigger(trigger::CorePotts.PropertyAtLeast{Key},
+        ::Type{T}) where {Key, T <: AbstractFloat}
+    return CorePotts.PropertyAtLeast(Key, T(trigger.threshold))
+end
 
 function _normalize_component(rule::PropertyUpdate, ::Type{T}) where {T <: AbstractFloat}
     trigger = _normalize_trigger(rule.trigger, T)
@@ -705,6 +734,8 @@ function _canonical_write(io::IO, value::BoundaryParameters)
     return _canonical_close(io)
 end
 
+_canonical_write(io::IO, value::ElongationParameters) = _canonical_fields(io, value)
+
 function _canonical_fields(io::IO, value)
     _canonical_open(io, value)
     for field in fieldnames(typeof(value))
@@ -715,6 +746,7 @@ end
 
 _canonical_write(io::IO, value::VolumeConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::FluctuatingVolumeConstraint) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::Elongation) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::BoundaryConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::FluctuatingBoundaryConstraint) =
     _canonical_fields(io, value)
@@ -789,7 +821,8 @@ end
 
 function _canonical_write(io::IO, value::Union{CorePotts.OnceAtMCS, CorePotts.AtMCS,
         CorePotts.PeriodicMCS, CorePotts.BernoulliCellTrigger,
-        CorePotts.CellTypeIn, CorePotts.AllLifecycleTriggers})
+        CorePotts.PropertyAtLeast, CorePotts.CellTypeIn,
+        CorePotts.AllLifecycleTriggers})
     return _canonical_fields(io, value)
 end
 
@@ -956,6 +989,21 @@ function _declaration_report(component::FluctuatingVolumeConstraint)
             for entry in component.bindings), eta = component.eta,
             noise = component.noise, initialization = component.initialization,
             division = component.division), CorePotts.ScientificCapabilities())
+end
+
+function _declaration_report(component::Elongation)
+    prefix = _property_prefix(component.name)
+    return DeclarationReport(component.name, :energy,
+        Tuple(entry.key for entry in component.bindings),
+        (Symbol(prefix, "__target"), Symbol(prefix, "__strength")),
+        (:proposal_energy, :unwrapped_first_and_second_moments), (),
+        (:UnwrappedMomentTracker, :QuadraticElongationHamiltonian),
+        (measure = :major_axis_rms_extent,
+            bindings = Tuple((cell_type = semantic_identity(entry.key),
+                target = entry.value.target, strength = entry.value.strength)
+                for entry in component.bindings),
+            target_division = component.target_division),
+        CorePotts.ScientificCapabilities())
 end
 
 
@@ -1139,6 +1187,8 @@ _dependency_edges(component) = ()
 _dependency_edges(component::VolumeConstraint) = Tuple(DependencyEdge(
     component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
 _dependency_edges(component::FluctuatingVolumeConstraint) = Tuple(DependencyEdge(
+    component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
+_dependency_edges(component::Elongation) = Tuple(DependencyEdge(
     component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
 _dependency_edges(component::BoundaryConstraint) = Tuple(DependencyEdge(
     component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)

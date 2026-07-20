@@ -52,6 +52,7 @@ const TEST_ALGORITHMS = (
     include("test_scientific_fields.jl")
     include("test_scientific_queries_connectivity.jl")
     include("test_scientific_focal_points.jl")
+    include("test_scientific_elongation.jl")
     include("test_scientific_inner_loop.jl")
     include("test_phase10_extension_protocol.jl")
     include("test_scientific_mechanics.jl")

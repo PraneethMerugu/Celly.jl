@@ -8,6 +8,8 @@ property_key(::CellPropertyRef{K}) where {K} = K
     state.properties.columns, K)
 @inline _property_column(state::CompiledPottsState, ::CellPropertyRef{K}) where {K} = getproperty(
     state.storage.properties, K)
+@inline _property_column(storage::CompiledStateStorage, ::CellPropertyRef{K}) where {K} =
+    getproperty(storage.properties, K)
 
 """Finite static mapping from conceptual medium owner IDs to cell-type IDs."""
 struct MediumTypeTable{N}

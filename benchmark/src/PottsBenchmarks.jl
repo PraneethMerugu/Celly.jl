@@ -2139,6 +2139,85 @@ function _phase10_direct_problem(problem::PottsProblem)
         p = problem.p, capacity = problem.capacity, seed = problem.seed)
 end
 
+function _phase10_reference_workloads()
+    references = PottsToolkit.ReferenceModels
+    return (
+        ("biased_migration", references.single_cell_biased_migration_problem(
+            (12, 12); target_volume = 4, capacity = 4,
+            tspan = (0, 1), seed = 0x7068617365312101), false),
+        ("chemotaxis_linear", references.chemotaxis_problem(
+            (12, 12); profile = :linear, target_volume = 4, capacity = 4,
+            tspan = (0, 1), seed = 0x7068617365312102), false),
+        ("chemotaxis_half_normal", references.chemotaxis_problem(
+            (12, 12); profile = :half_normal, target_volume = 4, capacity = 4,
+            tspan = (0, 1), seed = 0x7068617365312103), false),
+        ("chemotaxis_exponential", references.chemotaxis_problem(
+            (12, 12); profile = :exponential, target_volume = 4, capacity = 4,
+            tspan = (0, 1), seed = 0x7068617365312104), false),
+        ("monolayer_growth", references.monolayer_growth_problem(
+            (12, 12); target_volume = 4, division_target = 6,
+            capacity = 8, tspan = (0, 1), seed = 0x7068617365312105), true),
+        ("differential_adhesion", references.differential_adhesion_problem(
+            (12, 12); cells_per_population = 2, capacity = 8,
+            tspan = (0, 1), seed = 0x7068617365312106), false),
+        ("angiogenesis_2d", references.elongation_driven_angiogenesis_problem(
+            (12, 12); cells = 3, capacity = 8, target_volume = 4,
+            target_elongation = 1.5, tspan = (0, 1),
+            seed = 0x7068617365312107), false),
+        ("angiogenesis_3d", references.elongation_driven_angiogenesis_problem(
+            (6, 6, 6); cells = 2, capacity = 4, target_volume = 4,
+            target_elongation = 1.2, tspan = (0, 1),
+            seed = 0x7068617365312108), false),
+    )
+end
+
+function _qualify_phase10_reference_workloads(name, backend, adaptor)
+    results = Dict{String, Any}()
+    for (label, problem, requires_failure_observation) in _phase10_reference_workloads()
+        parentmodule(typeof(problem)) === CorePotts || error(
+            "$name $label introduced a PottsToolkit runtime problem wrapper")
+        algorithm = SequentialCPM(temperature = 2.0f0)
+        report = PottsToolkit.backend_report(problem, algorithm, backend)
+        report.qualified || error(
+            "$name $label failed backend preflight: $(report.diagnostics)")
+        integrator = init(problem, algorithm;
+            backend, adaptor, verbose = false, save_start = false, save_end = false)
+        metrics = integrator.inner.plan.metrics
+        before_syncs = metrics.host_synchronizations
+        before_transfers = metrics.device_to_host_transfers
+        before_allocations = metrics.device_allocations
+        before_launches = metrics.launches
+        step!(integrator)
+        synchronization_delta = metrics.host_synchronizations - before_syncs
+        transfer_delta = metrics.device_to_host_transfers - before_transfers
+        allocation_delta = metrics.device_allocations - before_allocations
+        expected_syncs = requires_failure_observation ? 1 : 0
+        expected_transfers = requires_failure_observation &&
+            !(backend isa KernelAbstractions.CPU) ? 1 : 0
+        synchronization_delta == expected_syncs || error(
+            "$name $label warm MCS host synchronization differs from its declared observation boundary")
+        transfer_delta == expected_transfers || error(
+            "$name $label warm MCS transfer differs from its declared observation boundary")
+        allocation_delta == 0 || error(
+            "$name $label warm MCS introduced device allocation")
+        KernelAbstractions.synchronize(backend)
+        integrator.t == 1 || error("$name $label did not advance exactly one MCS")
+        snapshot = logical_state(integrator)
+        n_cells(snapshot) > 0 || error("$name $label lost every finite cell")
+        results[label] = Dict(
+            "dimensions" => ndims(lattice_storage(snapshot)),
+            "algorithm" => string(nameof(typeof(algorithm))),
+            "warm_mcs_launches" => metrics.launches - before_launches,
+            "warm_mcs_host_synchronizations" => synchronization_delta,
+            "warm_mcs_device_to_host_transfers" => transfer_delta,
+            "warm_mcs_device_allocations" => allocation_delta,
+            "required_failure_observation" => requires_failure_observation,
+            "active_cells_after_smoke" => n_cells(snapshot),
+        )
+    end
+    return results
+end
+
 """Qualify Level 2 lowering plus resident scientific, mechanical, and lifecycle execution."""
 function qualify_phase10_backend(name::String)
     adaptor = _backend_adaptor(name)
@@ -2227,10 +2306,15 @@ function qualify_phase10_backend(name::String)
             "custom_property" => true,
         )
     end
+    reference_workloads = _qualify_phase10_reference_workloads(name, backend, adaptor)
     return Dict(
         "backend" => name,
         "dimensions" => [2, 3],
         "profiles" => profiles,
+        "reference_workloads" => reference_workloads,
+        "required_reference_families" => [
+            "biased_migration", "chemotaxis", "monolayer_growth",
+            "differential_adhesion", "elongation_driven_angiogenesis"],
         "public_corepotts_lowering" => true,
         "hidden_host_fallback" => false,
     )

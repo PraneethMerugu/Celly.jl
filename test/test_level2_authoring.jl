@@ -90,6 +90,23 @@ using KernelAbstractions
         CorePotts.SequentialCPM(temperature = 2.0f0),
         KernelAbstractions.CPU()).qualified
 
+    dense_labels = UInt64[
+        1 1 0 0
+        1 1 0 0
+        0 0 2 2
+        0 0 2 2
+    ]
+    dense_layout = L2.CellLabelLayout(
+        dense_labels, [1 => cell, 2 => cell])
+    @test eltype(dense_layout.cell_types) == Pair{UInt64, L2.CellType}
+    dense_model = L2.PottsModel(medium, cell,
+        L2.VolumeConstraint(cell => (target = 4.0, strength = 1.0)))
+    dense_problem = L2.problem(dense_model, (4, 4), dense_layout;
+        capacity = 2, tspan = (0, 1))
+    @test length(CorePotts.active_cell_ids(dense_problem.u0)) == 2
+    @test_throws L2.ProblemValidationError L2.problem(
+        dense_model, (4, 4), dense_layout; capacity = 1, tspan = (0, 1))
+
     differentiated = L2.CellType(:Differentiated)
     lifecycle_volume = L2.VolumeConstraint(
         cell => (target = 4.0, strength = 2.0),
@@ -274,6 +291,21 @@ using KernelAbstractions
             L2.PottsModel(medium, cell, component)))
         @test !isempty(fingerprint.digest)
     end
+    focal_model = L2.PottsModel(
+        medium, cell, CorePotts.FocalPointSpringHamiltonian())
+    focal_lowered = L2.lower(focal_model; dimensions = 2)
+    @test CorePotts.moment_tracker(focal_lowered.core_model) isa
+        CorePotts.UnwrappedMomentTracker
+    focal_mask = falses(4, 4)
+    focal_mask[2:3, 2:3] .= true
+    focal_problem = L2.problem(focal_model, (4, 4),
+        L2.CellLayout(cell, 1, focal_mask); capacity = 2, tspan = (0, 1))
+    @test L2.backend_report(focal_problem,
+        CorePotts.SequentialCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
+    @test !L2.backend_report(focal_problem,
+        CorePotts.CheckerboardSweepCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
     field = CorePotts.CellCenteredField(reshape(Float32.(1:16), 4, 4);
         interpolation = CorePotts.NearestFieldInterpolation())
     coupling = CorePotts.OwnerScalarCoupling(
@@ -341,6 +373,48 @@ using KernelAbstractions
         L2.semantic_fingerprint(L2.normalize(
             L2.PottsModel(medium, cell, volume, adhesion,
                 CorePotts.PositiveYield(0.5f0))))
+end
+
+@testset "Level 2 exact elongation authoring" begin
+    L2 = PottsToolkit.Authoring
+    medium = L2.Medium(:Medium)
+    cell = L2.CellType(:EndothelialCell)
+    elongation = L2.Elongation(
+        cell => (target = 2.5, strength = 4.0);
+        target_division = CorePotts.CloneOnDivision())
+    model = L2.PottsModel(medium, cell, elongation)
+    normalized = L2.normalize(model)
+    @test only(normalized.components) isa L2.Elongation
+    @test isempty(L2.dependencies(normalized).unresolved)
+    declaration = only(L2.explain(normalized).declarations)
+    @test declaration.semantic_data.measure === :major_axis_rms_extent
+    @test declaration.lowering ==
+        (:UnwrappedMomentTracker, :QuadraticElongationHamiltonian)
+
+    lowered = L2.lower(model; dimensions = 2)
+    @test CorePotts.moment_tracker(lowered.core_model) isa
+        CorePotts.UnwrappedMomentTracker
+    components = CorePotts.realize_components(
+        lowered.core_model, CorePotts.default_parameters(lowered.core_model))
+    @test only(components.energies) isa CorePotts.QuadraticElongationHamiltonian
+    @test (:elongation__target, :elongation__strength) ==
+        CorePotts.property_keys(lowered.property_schema)
+
+    mask = falses(8, 8)
+    mask[4:5, 3:5] .= true
+    executable = L2.problem(model, (8, 8), L2.CellLayout(cell, 1, mask);
+        capacity = 2, tspan = (0, 1), seed = 0x410)
+    @test L2.backend_report(executable,
+        CorePotts.SequentialCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
+    @test CorePotts.solve(executable,
+        CorePotts.SequentialCPM(temperature = 2.0f0)).retcode ==
+        SciMLBase.ReturnCode.Success
+
+    bad = L2.Elongation(L2.CellType(:Other) =>
+        (target = 2.0, strength = 1.0))
+    @test any(item -> item.code === :unknown_cell_type,
+        L2.validate(L2.PottsModel(medium, cell, bad)))
 end
 
 @testset "Phase 10 Level 2 public lowering vertical slice" begin
