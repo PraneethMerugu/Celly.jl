@@ -80,6 +80,104 @@ end
 
 semantic_identity(component::FluctuatingVolumeConstraint) = component.name
 
+"""Target boundary measure and quadratic strength for one finite cell type."""
+struct BoundaryParameters{Q <: Real, T <: AbstractFloat}
+    target::Q
+    strength::T
+
+    function BoundaryParameters(target::Q, strength::T) where {
+            Q <: Real, T <: AbstractFloat}
+        isfinite(target) && target >= zero(Q) || throw(ArgumentError(
+            "boundary target must be finite and non-negative"))
+        isfinite(strength) && strength >= zero(T) || throw(ArgumentError(
+            "boundary strength must be finite and non-negative"))
+        return new{Q, T}(target, strength)
+    end
+end
+
+function _boundary_bindings(metric::CorePotts.AbstractBoundaryMetric, pairs::Tuple)
+    isempty(pairs) && throw(ArgumentError(
+        "a boundary constraint must bind at least one cell type"))
+    all(pair -> first(pair) isa CellType && last(pair) isa NamedTuple &&
+        haskey(last(pair), :target) && (haskey(last(pair), :strength) ||
+        haskey(last(pair), :λ)), pairs) || throw(ArgumentError(
+        "boundary entries must be `CellType => (target=..., strength=...)`"))
+    strengths = map(pair -> haskey(last(pair), :strength) ?
+        last(pair).strength : last(pair).λ, pairs)
+    T = float(promote_type(map(typeof, strengths)...))
+    if metric isa CorePotts.BoundaryEdgeCount
+        all(pair -> last(pair).target isa Integer, pairs) || throw(ArgumentError(
+            "boundary-edge-count targets must be integers"))
+        entries = map(zip(pairs, strengths)) do (pair, strength)
+            Binding{CellType, BoundaryParameters{Int64, T}}(first(pair),
+                BoundaryParameters(Int64(last(pair).target), T(strength)))
+        end
+        return BindingTable{CellType, BoundaryParameters{Int64, T}}(Tuple(entries))
+    end
+    Q = float(promote_type(map(pair -> typeof(last(pair).target), pairs)..., T))
+    entries = map(zip(pairs, strengths)) do (pair, strength)
+        Binding{CellType, BoundaryParameters{Q, T}}(first(pair),
+            BoundaryParameters(Q(last(pair).target), T(strength)))
+    end
+    return BindingTable{CellType, BoundaryParameters{Q, T}}(Tuple(entries))
+end
+
+"""Conservative quadratic finite-cell boundary Hamiltonian declaration."""
+struct BoundaryConstraint{Q <: Real, T <: AbstractFloat,
+        M <: CorePotts.AbstractBoundaryMetric}
+    name::SemanticName
+    bindings::BindingTable{CellType, BoundaryParameters{Q, T}}
+    metric::M
+end
+
+function BoundaryConstraint(pairs::Pair...; name::Symbol = :boundary,
+        namespace::Namespace = Namespace(),
+        metric::CorePotts.AbstractBoundaryMetric = CorePotts.BoundaryEdgeCount())
+    bindings = _boundary_bindings(metric, pairs)
+    parameter = first(bindings).value
+    return BoundaryConstraint{typeof(parameter.target), typeof(parameter.strength),
+        typeof(metric)}(SemanticName(name; namespace), bindings, metric)
+end
+
+semantic_identity(component::BoundaryConstraint) = component.name
+
+"""First-class fluctuating/HST finite-cell boundary-tension declaration."""
+struct FluctuatingBoundaryConstraint{Q <: Real, T <: AbstractFloat, N,
+        M <: CorePotts.AbstractBoundaryMetric, TD, D}
+    name::SemanticName
+    bindings::BindingTable{CellType, BoundaryParameters{Q, T}}
+    eta::T
+    noise::N
+    initialization::CorePotts.MechanicalInitialization
+    metric::M
+    target_division::TD
+    division::D
+end
+
+function FluctuatingBoundaryConstraint(pairs::Pair...;
+        name::Symbol = :fluctuating_boundary, namespace::Namespace = Namespace(),
+        eta::Real = 1.0,
+        noise = CorePotts.AlgorithmTemperatureNoise(),
+        initialization::CorePotts.MechanicalInitialization =
+            CorePotts.ConstitutiveMeanInitialization,
+        metric::CorePotts.AbstractBoundaryMetric = CorePotts.BoundaryEdgeCount(),
+        target_division = CorePotts.UnsupportedDivision(
+            :surface_target_policy_required),
+        division = CorePotts.ConstitutiveResetAfterDivision())
+    bindings = _boundary_bindings(metric, pairs)
+    parameter = first(bindings).value
+    T = typeof(parameter.strength)
+    rate = T(eta)
+    isfinite(rate) && rate > zero(T) || throw(ArgumentError(
+        "fluctuating-boundary eta must be finite and positive"))
+    return FluctuatingBoundaryConstraint{typeof(parameter.target), T, typeof(noise),
+        typeof(metric), typeof(target_division), typeof(division)}(
+        SemanticName(name; namespace), bindings, rate, noise, initialization,
+        metric, target_division, division)
+end
+
+semantic_identity(component::FluctuatingBoundaryConstraint) = component.name
+
 """Unordered contact/adhesion Hamiltonian declaration."""
 struct Adhesion{T <: AbstractFloat}
     name::SemanticName

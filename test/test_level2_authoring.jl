@@ -42,6 +42,99 @@ using KernelAbstractions
     @test L2.semantic_fingerprint(L2.normalize(reordered)) ==
           L2.semantic_fingerprint(normalized)
 
+    boundary = L2.BoundaryConstraint(
+        cell => (target = 8, strength = 1.5))
+    fluctuating_boundary = L2.FluctuatingBoundaryConstraint(
+        cell => (target = 8, strength = 0.75);
+        eta = 0.5, noise = CorePotts.FixedMechanicalNoise(0.2f0),
+        target_division = CorePotts.CloneOnDivision())
+    boundary_model = L2.PottsModel(
+        medium, cell, boundary, fluctuating_boundary)
+    normalized_boundary = L2.normalize(boundary_model)
+    @test isempty(L2.dependencies(normalized_boundary).unresolved)
+    @test only(report.kind for report in L2.explain(normalized_boundary).declarations
+        if report.identity == L2.semantic_identity(boundary)) === :energy
+    boundary_lowered = L2.lower(boundary_model; dimensions = 2)
+    boundary_components = CorePotts.realize_components(
+        boundary_lowered.core_model,
+        CorePotts.default_parameters(boundary_lowered.core_model))
+    @test only(boundary_components.energies) isa
+        CorePotts.QuadraticBoundaryHamiltonian
+    @test only(boundary_components.mechanics) isa
+        CorePotts.FluctuatingSurfaceTension
+    @test :boundary__target in CorePotts.property_keys(
+        boundary_lowered.property_schema)
+    @test :fluctuating_boundary__tension in CorePotts.property_keys(
+        boundary_lowered.property_schema)
+    boundary_mask = falses(4, 4)
+    boundary_mask[2:3, 2:3] .= true
+    boundary_problem = L2.problem(boundary_model, (4, 4),
+        L2.CellLayout(cell, 1, boundary_mask); capacity = 2, tspan = (0, 1))
+    @test CorePotts.property_value(boundary_problem.u0,
+        :boundary__target, CorePotts.CellID(1)) == 8
+    @test L2.backend_report(boundary_problem,
+        CorePotts.CheckerboardSweepCPM(temperature = 2.0f0),
+        KernelAbstractions.CPU()).qualified
+
+    differentiated = L2.CellType(:Differentiated)
+    lifecycle_volume = L2.VolumeConstraint(
+        cell => (target = 4.0, strength = 2.0),
+        differentiated => (target = 4.0, strength = 2.0))
+    growth_rule = L2.Growth(lifecycle_volume, cell; rate = 0.25)
+    transition_rule = L2.Transition(cell; destination = differentiated,
+        schedule = CorePotts.OnceAtMCS(1))
+    division_rule = L2.Division(cell;
+        geometry = CorePotts.VectorDivision((1.0, 0.0)),
+        schedule = CorePotts.OnceAtMCS(1))
+    shrink_rule = L2.ShrinkDeath(lifecycle_volume, cell; decrement = 0.5,
+        schedule = CorePotts.OnceAtMCS(1))
+    death_rule = L2.ImmediateDeath(cell; medium,
+        schedule = CorePotts.OnceAtMCS(1))
+    @test growth_rule isa L2.PropertyUpdate
+    for rule in (transition_rule, division_rule, shrink_rule, death_rule)
+        rule_model = L2.PottsModel(
+            medium, cell, differentiated, lifecycle_volume, rule)
+        @test Base.isvalid(rule_model)
+        @test isempty(L2.dependencies(rule_model).unresolved)
+        @test length(CorePotts.lifecycle_events(
+            L2.lower(rule_model; dimensions = 2).core_model)) == 1
+    end
+    @test_throws ArgumentError L2.lower(L2.PottsModel(
+        medium, cell, differentiated, lifecycle_volume,
+        L2.Division(cell; geometry = CorePotts.VectorDivision((1.0, 0.0, 0.0)))),
+        dimensions = 2)
+
+    lifecycle_mask = falses(4, 4)
+    lifecycle_mask[2:3, 2:3] .= true
+    transition_model = L2.PottsModel(
+        medium, cell, differentiated, lifecycle_volume, transition_rule)
+    transition_problem = L2.problem(transition_model, (4, 4),
+        L2.CellLayout(cell, 1, lifecycle_mask); capacity = 2, tspan = (0, 1))
+    transition_solution = CorePotts.solve(transition_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    @test CorePotts.cell_type(
+        transition_solution.u[end].state, CorePotts.CellID(1)) ==
+        CorePotts.CellTypeID(2)
+
+    division_model = L2.PottsModel(
+        medium, cell, differentiated, lifecycle_volume, division_rule)
+    division_problem = L2.problem(division_model, (4, 4),
+        L2.CellLayout(cell, 1, lifecycle_mask); capacity = 2, tspan = (0, 1))
+    division_solution = CorePotts.solve(division_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    @test length(CorePotts.active_cell_ids(division_solution.u[end].state)) == 2
+
+    death_model = L2.PottsModel(
+        medium, cell, differentiated, lifecycle_volume, death_rule)
+    death_problem = L2.problem(death_model, (4, 4),
+        L2.CellLayout(cell, 1, lifecycle_mask); capacity = 2, tspan = (0, 1))
+    death_solution = CorePotts.solve(death_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    @test isempty(CorePotts.active_cell_ids(death_solution.u[end].state))
+
     renamed_source_order = L2.Adhesion(
         (cell, cell) => 3.0,
         (cell, medium) => 8.0,

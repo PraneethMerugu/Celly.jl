@@ -87,6 +87,24 @@ _validate_declaration(component::VolumeConstraint, context::_ValidationContext) 
 _validate_declaration(component::FluctuatingVolumeConstraint,
     context::_ValidationContext) = _validate_volume(component, context)
 
+function _validate_boundary(component::Union{
+        BoundaryConstraint, FluctuatingBoundaryConstraint}, context::_ValidationContext)
+    diagnostics = ()
+    for binding in component.bindings
+        binding.key in context.cell_types || (diagnostics = (diagnostics...,
+            Diagnostic(:error, :unknown_cell_type,
+                "boundary binding references an undeclared cell type";
+                identity = semantic_identity(component), related = (binding.key,),
+                correction = "declare the cell type or remove the binding")))
+    end
+    return diagnostics
+end
+
+_validate_declaration(component::BoundaryConstraint, context::_ValidationContext) =
+    _validate_boundary(component, context)
+_validate_declaration(component::FluctuatingBoundaryConstraint,
+    context::_ValidationContext) = _validate_boundary(component, context)
+
 _validate_declaration(component::NamedCoreComponent, context::_ValidationContext) =
     _validate_declaration(component.component, context)
 
@@ -94,6 +112,10 @@ _bound_property_cells(component, role::Symbol) = nothing
 _bound_property_cells(component::VolumeConstraint, role::Symbol) =
     role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
 _bound_property_cells(component::FluctuatingVolumeConstraint, role::Symbol) =
+    role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
+_bound_property_cells(component::BoundaryConstraint, role::Symbol) =
+    role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
+_bound_property_cells(component::FluctuatingBoundaryConstraint, role::Symbol) =
     role in (:target, :strength) ? Tuple(keys(component.bindings)) : nothing
 _bound_property_cells(property::CellProperty, role::Symbol) =
     role === :value ? property.cell_types : nothing
@@ -234,6 +256,71 @@ function _validate_declaration(component::Chemotaxis, context::_ValidationContex
     return diagnostics
 end
 
+function _validate_lifecycle_cells(rule, context::_ValidationContext)
+    diagnostics = ()
+    for cell_type in rule.cell_types
+        cell_type in context.cell_types || (diagnostics = (diagnostics..., Diagnostic(
+            :error, :unknown_cell_type,
+            "lifecycle rule references an undeclared cell type";
+            identity = rule.name, related = (cell_type,),
+            correction = "declare the cell type or correct the lifecycle scope")))
+    end
+    return diagnostics
+end
+
+function _validate_declaration(rule::Transition, context::_ValidationContext)
+    diagnostics = _validate_lifecycle_cells(rule, context)
+    rule.destination in context.cell_types || (diagnostics = (diagnostics..., Diagnostic(
+        :error, :unknown_transition_destination,
+        "transition destination is not a declared finite cell type";
+        identity = rule.name, related = (rule.destination,),
+        correction = "declare the destination cell type or correct the transition")))
+    return diagnostics
+end
+
+_validate_declaration(rule::Division, context::_ValidationContext) =
+    _validate_lifecycle_cells(rule, context)
+
+function _validate_declaration(rule::ShrinkDeath, context::_ValidationContext)
+    diagnostics = _validate_lifecycle_cells(rule, context)
+    source = findfirst(component -> semantic_identity(component) == rule.source,
+        context.components)
+    if source === nothing
+        diagnostics = (diagnostics..., Diagnostic(:error, :missing_property_source,
+            "shrink death references an undeclared target-property source";
+            identity = rule.name, related = (rule.source,),
+            correction = "add the volume/boundary declaration or correct the source"))
+    else
+        bound_cells = _bound_property_cells(context.components[source], :target)
+        if bound_cells === nothing
+            diagnostics = (diagnostics..., Diagnostic(:error,
+                :unsupported_shrink_target,
+                "shrink death source does not expose a Level 2 target property";
+                identity = rule.name, related = (rule.source,),
+                correction = "target a volume or boundary declaration"))
+        else
+            for cell_type in rule.cell_types
+                cell_type in bound_cells || (diagnostics = (diagnostics..., Diagnostic(
+                    :error, :unbound_property_target,
+                    "shrink death targets a cell type not bound by its source";
+                    identity = rule.name, related = (cell_type, rule.source),
+                    correction = "bind the source for this cell type or narrow the death scope")))
+            end
+        end
+    end
+    return diagnostics
+end
+
+function _validate_declaration(rule::ImmediateDeath, context::_ValidationContext)
+    diagnostics = _validate_lifecycle_cells(rule, context)
+    rule.medium in context.biological_types && rule.medium isa Medium ||
+        (diagnostics = (diagnostics..., Diagnostic(:error, :unknown_death_medium,
+            "immediate death references an undeclared medium";
+            identity = rule.name, related = (rule.medium,),
+            correction = "declare the medium or correct the death destination")))
+    return diagnostics
+end
+
 function _validate_declaration(component, context::_ValidationContext)
     identity = _core_semantic_identity(component)
     identity === nothing && return (Diagnostic(:error, :unsupported_declaration,
@@ -247,9 +334,12 @@ end
 _lifecycle_event_id(declaration) = nothing
 _lifecycle_event_id(rule::PropertyUpdate) =
     UInt16(1 + _semantic_rng_code(rule.name, :event, UInt16(0x0ffe)))
+_lifecycle_event_id(rule::Union{Transition, Division, ShrinkDeath, ImmediateDeath}) =
+    UInt16(1 + _semantic_rng_code(rule.name, :event, UInt16(0x0ffe)))
 
 _property_write_target(component) = nothing
 _property_write_target(rule::PropertyUpdate) = (rule.source, rule.role)
+_property_write_target(rule::ShrinkDeath) = (rule.source, :target)
 
 function _fragment_diagnostics(fragment::ModelFragment, declared::Tuple)
     diagnostics = ()
@@ -365,6 +455,34 @@ function _convert_adhesion(component::Adhesion, ::Type{T}) where {T <: AbstractF
     return Adhesion{T}(component.name, law)
 end
 
+function _convert_boundary_bindings(component, ::Type{T}) where {T <: AbstractFloat}
+    parameter = first(component.bindings).value
+    Q = typeof(parameter.target) <: Integer ? Int64 : T
+    entries = Tuple(Binding{CellType, BoundaryParameters{Q, T}}(entry.key,
+        BoundaryParameters(Q(entry.value.target), T(entry.value.strength)))
+        for entry in component.bindings)
+    return BindingTable{CellType, BoundaryParameters{Q, T}}(entries)
+end
+
+function _normalize_component(component::BoundaryConstraint,
+        ::Type{T}) where {T <: AbstractFloat}
+    bindings = _convert_boundary_bindings(component, T)
+    Q = typeof(first(bindings).value.target)
+    return BoundaryConstraint{Q, T, typeof(component.metric)}(
+        component.name, bindings, component.metric)
+end
+
+function _normalize_component(component::FluctuatingBoundaryConstraint,
+        ::Type{T}) where {T <: AbstractFloat}
+    bindings = _convert_boundary_bindings(component, T)
+    Q = typeof(first(bindings).value.target)
+    return FluctuatingBoundaryConstraint{Q, T, typeof(component.noise),
+        typeof(component.metric), typeof(component.target_division),
+        typeof(component.division)}(component.name, bindings, T(component.eta),
+        component.noise, component.initialization, component.metric,
+        component.target_division, component.division)
+end
+
 _normalize_component(component::VolumeConstraint, type) = _convert_volume(component, type)
 _normalize_component(component::FluctuatingVolumeConstraint, type) =
     _convert_volume(component, type)
@@ -403,6 +521,39 @@ function _normalize_component(rule::PropertyUpdate, ::Type{T}) where {T <: Abstr
     trigger = _normalize_trigger(rule.trigger, T)
     return PropertyUpdate(rule.name, rule.source, rule.role, rule.cell_types,
         T(rule.amount), rule.schedule, trigger)
+end
+
+
+function _normalize_component(rule::Transition, ::Type{T}) where {T <: AbstractFloat}
+    trigger = _normalize_trigger(rule.trigger, T)
+    return Transition(rule.name, rule.cell_types, rule.destination,
+        rule.schedule, trigger, rule.priority)
+end
+
+
+_normalize_division_geometry(geometry, ::Type) = geometry
+function _normalize_division_geometry(geometry::CorePotts.VectorDivision{N},
+        ::Type{T}) where {N, T <: AbstractFloat}
+    return CorePotts.VectorDivision(Tuple(geometry.direction); number_type = T)
+end
+
+function _normalize_component(rule::Division, ::Type{T}) where {T <: AbstractFloat}
+    trigger = _normalize_trigger(rule.trigger, T)
+    geometry = _normalize_division_geometry(rule.geometry, T)
+    return Division(rule.name, rule.cell_types, geometry,
+        rule.schedule, trigger, rule.priority)
+end
+
+function _normalize_component(rule::ShrinkDeath, ::Type{T}) where {T <: AbstractFloat}
+    trigger = _normalize_trigger(rule.trigger, T)
+    return ShrinkDeath(rule.name, rule.source, rule.cell_types, T(rule.decrement),
+        rule.schedule, trigger, rule.priority)
+end
+
+function _normalize_component(rule::ImmediateDeath, ::Type{T}) where {T <: AbstractFloat}
+    trigger = _normalize_trigger(rule.trigger, T)
+    return ImmediateDeath(rule.name, rule.cell_types, rule.medium,
+        rule.schedule, trigger, rule.priority)
 end
 _normalize_invariant(invariant, type) = invariant
 _normalize_invariant(invariant::ClosedPropertyInterval, ::Type{T}) where {T} =
@@ -545,6 +696,14 @@ function _canonical_write(io::IO, value::VolumeParameters)
     return _canonical_close(io)
 end
 
+
+function _canonical_write(io::IO, value::BoundaryParameters)
+    _canonical_open(io, value)
+    _canonical_write(io, value.target)
+    _canonical_write(io, value.strength)
+    return _canonical_close(io)
+end
+
 function _canonical_fields(io::IO, value)
     _canonical_open(io, value)
     for field in fieldnames(typeof(value))
@@ -555,10 +714,17 @@ end
 
 _canonical_write(io::IO, value::VolumeConstraint) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::FluctuatingVolumeConstraint) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::BoundaryConstraint) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::FluctuatingBoundaryConstraint) =
+    _canonical_fields(io, value)
 _canonical_write(io::IO, value::Adhesion) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::PrescribedField) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::Chemotaxis) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::PropertyUpdate) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::Transition) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::Division) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::ShrinkDeath) = _canonical_fields(io, value)
+_canonical_write(io::IO, value::ImmediateDeath) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::NamedCoreComponent) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::CellProperty) = _canonical_fields(io, value)
 _canonical_write(io::IO, value::ClosedPropertyInterval) = _canonical_fields(io, value)
@@ -629,7 +795,8 @@ function _canonical_write(io::IO, value::Union{AbstractPropertyInvariant,
         CorePotts.AbstractDivisionPolicy, CorePotts.AbstractTransitionPolicy,
         CorePotts.AbstractRetirementPolicy, CorePotts.AbstractFieldBoundary,
         CorePotts.AbstractFieldInterpolation, CorePotts.AbstractFieldResponse,
-        CorePotts.AbstractChemotaxisMode})
+        CorePotts.AbstractChemotaxisMode, CorePotts.AbstractBoundaryMetric,
+        CorePotts.AbstractDivisionGeometry})
     fieldcount(typeof(value)) == 0 && return (
         _canonical_open(io, value); _canonical_close(io))
     return _canonical_fields(io, value)
@@ -789,6 +956,37 @@ function _declaration_report(component::FluctuatingVolumeConstraint)
             division = component.division), CorePotts.ScientificCapabilities())
 end
 
+
+function _declaration_report(component::BoundaryConstraint)
+    prefix = _property_prefix(component.name)
+    return DeclarationReport(component.name, :energy,
+        Tuple(entry.key for entry in component.bindings),
+        (Symbol(prefix, "__target"), Symbol(prefix, "__strength")),
+        (:proposal_energy, :boundary_measure), (),
+        (:BoundaryMeasureTracker, :QuadraticBoundaryHamiltonian),
+        (bindings = Tuple((cell_type = semantic_identity(entry.key),
+            target = entry.value.target, strength = entry.value.strength)
+            for entry in component.bindings), metric = component.metric),
+        CorePotts.ScientificCapabilities())
+end
+
+function _declaration_report(component::FluctuatingBoundaryConstraint)
+    prefix = _property_prefix(component.name)
+    return DeclarationReport(component.name, :mechanical,
+        Tuple(entry.key for entry in component.bindings),
+        (Symbol(prefix, "__target"), Symbol(prefix, "__strength"),
+            Symbol(prefix, "__tension")),
+        (:mechanical_work, :boundary_measure, :auxiliary_evolution),
+        (CorePotts.AuxiliaryEvolutionStream, CorePotts.AuxiliaryInitializationStream),
+        (:BoundaryMeasureTracker, :FluctuatingSurfaceTension),
+        (bindings = Tuple((cell_type = semantic_identity(entry.key),
+            target = entry.value.target, strength = entry.value.strength)
+            for entry in component.bindings), eta = component.eta,
+            noise = component.noise, initialization = component.initialization,
+            metric = component.metric, target_division = component.target_division,
+            division = component.division), CorePotts.ScientificCapabilities())
+end
+
 function _declaration_report(component::Adhesion)
     members = Tuple(item for entry in component.law.values
         for item in (entry.key.left, entry.key.right))
@@ -856,6 +1054,58 @@ function _declaration_report(rule::PropertyUpdate)
         CorePotts.ScientificCapabilities())
 end
 
+
+_lifecycle_rng_streams(trigger, effect = nothing) = _trigger_rng_streams(trigger)
+_lifecycle_rng_streams(trigger, ::CorePotts.RandomOrientationDivision) =
+    (_trigger_rng_streams(trigger)..., CorePotts.DivisionOrientationStream)
+
+function _division_capabilities(::CorePotts.VectorDivision{N}) where {N}
+    return CorePotts.ScientificCapabilities(dimensions = (N,))
+end
+_division_capabilities(::CorePotts.AbstractDivisionGeometry) =
+    CorePotts.ScientificCapabilities()
+
+function _declaration_report(rule::Transition)
+    return DeclarationReport(rule.name, :lifecycle_rule,
+        (rule.cell_types..., rule.destination), (), (:cell_type_transition,),
+        _trigger_rng_streams(rule.trigger), (:LifecycleEvent, :TransitionCell),
+        (cell_types = Tuple(semantic_identity(value) for value in rule.cell_types),
+            destination = semantic_identity(rule.destination), schedule = rule.schedule,
+            trigger = rule.trigger, priority = rule.priority),
+        CorePotts.ScientificCapabilities())
+end
+
+function _declaration_report(rule::Division)
+    return DeclarationReport(rule.name, :lifecycle_rule, rule.cell_types, (),
+        (:binary_cell_division,), _lifecycle_rng_streams(rule.trigger, rule.geometry),
+        (:LifecycleEvent, :DivideCell),
+        (cell_types = Tuple(semantic_identity(value) for value in rule.cell_types),
+            geometry = rule.geometry, schedule = rule.schedule,
+            trigger = rule.trigger, priority = rule.priority),
+        _division_capabilities(rule.geometry))
+end
+
+function _declaration_report(rule::ShrinkDeath)
+    return DeclarationReport(rule.name, :lifecycle_rule,
+        (rule.source, rule.cell_types...), (), (:target_shrinkage, :cell_retirement),
+        _trigger_rng_streams(rule.trigger), (:LifecycleEvent, :InitiateShrinkDeath),
+        (source = rule.source,
+            cell_types = Tuple(semantic_identity(value) for value in rule.cell_types),
+            decrement = rule.decrement, schedule = rule.schedule,
+            trigger = rule.trigger, priority = rule.priority),
+        CorePotts.ScientificCapabilities())
+end
+
+function _declaration_report(rule::ImmediateDeath)
+    return DeclarationReport(rule.name, :lifecycle_rule,
+        (rule.cell_types..., rule.medium), (), (:immediate_cell_removal,),
+        _trigger_rng_streams(rule.trigger), (:LifecycleEvent, :RemoveCellImmediately),
+        (cell_types = Tuple(semantic_identity(value) for value in rule.cell_types),
+            medium = semantic_identity(rule.medium), schedule = rule.schedule,
+            trigger = rule.trigger, priority = rule.priority),
+        CorePotts.ScientificCapabilities())
+end
+
 function _declaration_report(component::NamedCoreComponent)
     report = _declaration_report(component.component)
     return DeclarationReport(component.name, report.kind, report.requires,
@@ -880,6 +1130,10 @@ _dependency_edges(component::VolumeConstraint) = Tuple(DependencyEdge(
     component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
 _dependency_edges(component::FluctuatingVolumeConstraint) = Tuple(DependencyEdge(
     component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
+_dependency_edges(component::BoundaryConstraint) = Tuple(DependencyEdge(
+    component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
+_dependency_edges(component::FluctuatingBoundaryConstraint) = Tuple(DependencyEdge(
+    component.name, semantic_identity(entry.key), :cell_scope) for entry in component.bindings)
 _dependency_edges(component::Adhesion) = Tuple(DependencyEdge(component.name,
     semantic_identity(value), :pairwise_member) for value in unique(Tuple(
         item for entry in component.law.values for item in (entry.key.left, entry.key.right))))
@@ -887,6 +1141,21 @@ _dependency_edges(property::CellProperty) = Tuple(DependencyEdge(
     property.name, semantic_identity(value), :cell_scope) for value in property.cell_types)
 _dependency_edges(rule::PropertyUpdate) = (DependencyEdge(
     rule.name, rule.source, :property_source),)
+_dependency_edges(rule::Transition) = (
+    (DependencyEdge(rule.name, semantic_identity(value), :cell_scope)
+        for value in rule.cell_types)...,
+    DependencyEdge(rule.name, semantic_identity(rule.destination),
+        :transition_destination))
+_dependency_edges(rule::Division) = Tuple(DependencyEdge(
+    rule.name, semantic_identity(value), :cell_scope) for value in rule.cell_types)
+_dependency_edges(rule::ShrinkDeath) = (
+    DependencyEdge(rule.name, rule.source, :target_property_source),
+    (DependencyEdge(rule.name, semantic_identity(value), :cell_scope)
+        for value in rule.cell_types)...)
+_dependency_edges(rule::ImmediateDeath) = (
+    (DependencyEdge(rule.name, semantic_identity(value), :cell_scope)
+        for value in rule.cell_types)...,
+    DependencyEdge(rule.name, semantic_identity(rule.medium), :death_medium))
 _dependency_edges(component::Chemotaxis) = (
     DependencyEdge(component.name, component.field, :prescribed_field),
     (DependencyEdge(component.name, semantic_identity(entry.key), :cell_scope)

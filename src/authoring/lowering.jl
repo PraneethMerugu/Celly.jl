@@ -52,11 +52,12 @@ function Base.show(io::IO, lowered::LoweredModel)
         length(lowered.normalized.components), " components)")
 end
 
-struct _LoweringContext{T, C, M, D, R}
+struct _LoweringContext{T, C, M, D, R, S}
     cell_types::C
     media::M
     declarations::D
     contact_relation::R
+    surface_relation::S
 end
 
 struct _LoweredComponents{E <: Tuple, D <: Tuple, C <: Tuple, K <: Tuple, M <: Tuple,
@@ -101,6 +102,19 @@ function _property_bindings(component, target_key::Symbol, strength_key::Symbol)
         CellPropertyBinding(strength_key, BindingTable{CellType, T}(strengths)))
 end
 
+function _boundary_property_bindings(component, target_key::Symbol, strength_key::Symbol)
+    parameter = first(component.bindings).value
+    Q = typeof(parameter.target)
+    T = typeof(parameter.strength)
+    targets = Tuple(Binding{CellType, Q}(entry.key, entry.value.target)
+        for entry in component.bindings)
+    strengths = Tuple(Binding{CellType, T}(entry.key, entry.value.strength)
+        for entry in component.bindings)
+    return (
+        CellPropertyBinding(target_key, BindingTable{CellType, Q}(targets)),
+        CellPropertyBinding(strength_key, BindingTable{CellType, T}(strengths)))
+end
+
 function _lower_component(property::CellProperty, context::_LoweringContext)
     key = Symbol(_property_prefix(property.name))
     requester = CorePotts.ComponentIdentity(key, v"1.0.0", :property)
@@ -142,6 +156,37 @@ function _lower_component(component::FluctuatingVolumeConstraint,
     return _LoweredComponents((), (), (), (), (core,), (),
         (CorePotts.required_properties(core),),
         _property_bindings(component, target_key, strength_key))
+end
+
+function _lower_component(component::BoundaryConstraint,
+        context::_LoweringContext{T}) where {T}
+    prefix = _property_prefix(component.name)
+    target_key = Symbol(prefix, "__target")
+    strength_key = Symbol(prefix, "__strength")
+    core = CorePotts.QuadraticBoundaryHamiltonian(
+        component.metric, context.surface_relation;
+        target = target_key, strength = strength_key, number_type = T)
+    return _LoweredComponents((core,), (), (), (), (), (),
+        (CorePotts.required_properties(core),),
+        _boundary_property_bindings(component, target_key, strength_key))
+end
+
+function _lower_component(component::FluctuatingBoundaryConstraint,
+        context::_LoweringContext{T}) where {T}
+    prefix = _property_prefix(component.name)
+    target_key = Symbol(prefix, "__target")
+    strength_key = Symbol(prefix, "__strength")
+    state_key = Symbol(prefix, "__tension")
+    core = CorePotts.FluctuatingSurfaceTension(
+        component.metric, context.surface_relation;
+        target = target_key, strength = strength_key, state = state_key,
+        eta = component.eta, noise = component.noise,
+        initialization = component.initialization,
+        target_division = component.target_division, division = component.division,
+        number_type = T)
+    return _LoweredComponents((), (), (), (), (core,), (),
+        (CorePotts.required_properties(core),),
+        _boundary_property_bindings(component, target_key, strength_key))
 end
 
 function _biological_index(context::_LoweringContext, value::AbstractBiologicalType)
@@ -251,16 +296,58 @@ function _lower_component(component::CorePotts.AbstractMechanicalComponent,
 end
 
 function _lower_component(rule::PropertyUpdate, context::_LoweringContext{T}) where {T}
-    type_ids = Tuple(CorePotts.CellTypeID(
-        _biological_index(context, cell_type)) for cell_type in rule.cell_types)
-    trigger = CorePotts.AllLifecycleTriggers(
-        CorePotts.CellTypeIn(type_ids...), rule.trigger)
-    event_id = 1 + _semantic_rng_code(rule.name, :event, UInt16(0x0ffe))
+    trigger = _lower_lifecycle_trigger(rule.cell_types, rule.trigger, context)
+    event_id = _lifecycle_event_id(rule.name)
     key = rule.role === :value ? Symbol(_property_prefix(rule.source)) :
         Symbol(_property_prefix(rule.source), "__", rule.role)
     event = CorePotts.LifecycleEvent(
         CorePotts.ActiveCellsTarget(), rule.schedule, trigger,
         CorePotts.AddCellProperty(key, T(rule.amount)); semantic_id = event_id)
+    return _LoweredComponents((), (), (), (), (), (event,), (), ())
+end
+
+_lifecycle_event_id(identity::SemanticName) =
+    1 + _semantic_rng_code(identity, :event, UInt16(0x0ffe))
+
+function _lower_lifecycle_trigger(cell_types::Tuple, trigger,
+        context::_LoweringContext)
+    type_ids = Tuple(CorePotts.CellTypeID(
+        _biological_index(context, cell_type)) for cell_type in cell_types)
+    return CorePotts.AllLifecycleTriggers(CorePotts.CellTypeIn(type_ids...), trigger)
+end
+
+function _lower_lifecycle_event(rule, effect, context::_LoweringContext)
+    trigger = _lower_lifecycle_trigger(rule.cell_types, rule.trigger, context)
+    return CorePotts.LifecycleEvent(CorePotts.ActiveCellsTarget(), rule.schedule,
+        trigger, effect; semantic_id = _lifecycle_event_id(rule.name),
+        priority = rule.priority)
+end
+
+function _lower_component(rule::Transition, context::_LoweringContext)
+    destination = CorePotts.CellTypeID(_biological_index(context, rule.destination))
+    event = _lower_lifecycle_event(
+        rule, CorePotts.TransitionCell(destination), context)
+    return _LoweredComponents((), (), (), (), (), (event,), (), ())
+end
+
+function _lower_component(rule::Division, context::_LoweringContext)
+    event = _lower_lifecycle_event(rule, CorePotts.DivideCell(rule.geometry), context)
+    return _LoweredComponents((), (), (), (), (), (event,), (), ())
+end
+
+function _lower_component(rule::ShrinkDeath{T},
+        context::_LoweringContext{T}) where {T}
+    key = Symbol(_property_prefix(rule.source), "__target")
+    event = _lower_lifecycle_event(
+        rule, CorePotts.InitiateShrinkDeath(key, rule.decrement), context)
+    return _LoweredComponents((), (), (), (), (), (event,), (), ())
+end
+
+function _lower_component(rule::ImmediateDeath, context::_LoweringContext)
+    index = findfirst(==(rule.medium), context.media)
+    index === nothing && throw(ArgumentError("undeclared death medium $(rule.medium)"))
+    event = _lower_lifecycle_event(
+        rule, CorePotts.RemoveCellImmediately(CorePotts.MediumID(index)), context)
     return _LoweredComponents((), (), (), (), (), (event,), (), ())
 end
 
@@ -322,8 +409,9 @@ function lower(model::PottsModel; dimensions::Integer,
     surface_relation = CorePotts.first_shell_relation(
         CorePotts.SurfaceRole(), Val(dimensions); spacing = typed_spacing)
     context = _LoweringContext{T, typeof(normalized.cell_types),
-        typeof(normalized.media), typeof(normalized.components), typeof(contact_relation)}(
-        normalized.cell_types, normalized.media, normalized.components, contact_relation)
+        typeof(normalized.media), typeof(normalized.components), typeof(contact_relation),
+        typeof(surface_relation)}(normalized.cell_types, normalized.media,
+        normalized.components, contact_relation, surface_relation)
     lowered = _lower_components(normalized.components, context)
     components = CorePotts.ScientificComponentSet(
         energies = lowered.energies, drives = lowered.drives,
