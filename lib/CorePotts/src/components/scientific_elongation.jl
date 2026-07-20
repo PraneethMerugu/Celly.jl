@@ -122,15 +122,20 @@ end
         "elongation requires unwrapped first and second moments"))
     moment_is_tracked(storage, owner) || throw(ArgumentError(
         "elongation owner is absent from the unwrapped-moment tracker"))
+    return _proposed_unwrapped_covariance(
+        storage, state.trackers.finite_volumes, owner, position, direction)
+end
+
+@inline function _proposed_unwrapped_covariance(
+        storage::UnwrappedMomentStorage{N, T}, finite_volumes,
+        owner::OwnerRef, position::SVector{N}, direction::Int) where {N, T}
     index = Int(owner.value)
-    old_volume = @inbounds state.trackers.finite_volumes[index]
+    old_volume = @inbounds finite_volumes[index]
     new_volume = old_volume + direction
     new_volume > 0 || throw(ArgumentError(
         "an extinct owner has no proposed elongation covariance"))
-    N = length(storage.coordinate_sums)
-    T = eltype(first(storage.coordinate_sums))
     inverse_volume = inv(T(new_volume))
-    return SMatrix{N, N, T}(ntuple(N * N) do linear_index
+    return SMatrix{N, N, T}(ntuple(Val(N * N)) do linear_index
         row = (linear_index - 1) % N + 1
         column = (linear_index - 1) ÷ N + 1
         packed = _packed_symmetric_index(row, column, Val(N))

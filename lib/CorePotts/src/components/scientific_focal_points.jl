@@ -183,18 +183,22 @@ end
         "compiled scientific state has no unwrapped moments"))
     moment_is_tracked(storage, owner) || throw(ArgumentError(
         "owner has no unwrapped-moment tracker"))
-    volume = @inbounds state.trackers.finite_volumes[Int(owner.value)]
+    return _unwrapped_covariance(storage, state.trackers.finite_volumes, owner)
+end
+
+@inline function _unwrapped_covariance(storage::UnwrappedMomentStorage{N, T},
+        finite_volumes, owner::OwnerRef) where {N, T}
+    index = Int(owner.value)
+    volume = @inbounds finite_volumes[index]
     volume > 0 || throw(ArgumentError("an extinct owner has no covariance"))
-    N = length(storage.coordinate_sums)
-    T = eltype(first(storage.coordinate_sums))
     inverse_volume = inv(T(volume))
-    return SMatrix{N, N, T}(ntuple(N * N) do linear_index
+    return SMatrix{N, N, T}(ntuple(Val(N * N)) do linear_index
         row = (linear_index - 1) % N + 1
         column = (linear_index - 1) ÷ N + 1
         packed = _packed_symmetric_index(row, column, Val(N))
-        first_row = @inbounds storage.coordinate_sums[row][Int(owner.value)]
-        first_column = @inbounds storage.coordinate_sums[column][Int(owner.value)]
-        second = @inbounds storage.quadratic_sums[packed][Int(owner.value)]
+        first_row = @inbounds storage.coordinate_sums[row][index]
+        first_column = @inbounds storage.coordinate_sums[column][index]
+        second = @inbounds storage.quadratic_sums[packed][index]
         second * inverse_volume -
         (first_row * inverse_volume) * (first_column * inverse_volume)
     end)
