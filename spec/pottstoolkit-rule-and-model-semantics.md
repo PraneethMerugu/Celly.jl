@@ -46,8 +46,10 @@ The authoring model contains symbolic user declarations such as:
 - Observation and saving requests
 - Compatibility presets
 
-Authoring objects MAY contain dictionaries, unitful quantities, symbols, ordinary host arrays, and
-other ergonomic host values. They are not device objects.
+Authoring objects MAY accept dictionaries, pairs, symbols, ordinary host arrays, and other ergonomic
+host values that normalize immediately to typed declarations. They are not device objects. Unitful
+quantities are outside model and rule authoring; optional units belong to Phase 11 solution
+post-processing.
 
 ### Validated Semantic Model
 
@@ -62,7 +64,7 @@ Validation resolves the authoring model into one normalized semantic model. It c
 - RNG streams and semantic draw identities
 - Lifecycle transactions
 - Algorithm capability requirements
-- Units and parameter conversions
+- Numerical types and explicit numeric conversion policies
 - Compatibility and approximation claims
 
 No backend is selected by this layer. Two authoring models that normalize to equal semantic models
@@ -72,7 +74,7 @@ have the same scientific meaning within the declared numerical policy.
 
 Compilation lowers the semantic model to concrete schemas, indices, descriptors, schedules, and
 callable operations suitable for CorePotts. A compiled model is backend-adaptable but has no
-unresolved symbol lookup, unit conversion, abstract container, or ambiguous effect.
+unresolved symbol lookup, numeric conversion, abstract container, or ambiguous effect.
 
 Compilation MUST NOT invent missing scientific choices. It either applies a documented named preset
 or reports a source-located validation error.
@@ -215,11 +217,11 @@ includes, for suitable types and numerical policies:
 - Operations on small fixed vectors
 
 PottsToolkit does not create parallel names such as `PottsExp`. Acceptance is method-specific: the
-function, argument types, units, domain, numerical behavior, and device support must all conform.
+function, argument types, domain, numerical behavior, and device support must all conform.
 
 Users define helpers as ordinary Julia functions or immutable callable structs. Level 2 can accept
 suitable typed callables through its ordinary Julia interface. A custom function used by serializable
-Level 1 syntax is registered explicitly with stable identity, version, type and unit rules, domain,
+Level 1 syntax is registered explicitly with stable identity, version, type rules, domain,
 reference behavior, and device behavior.
 
 Registration is fundamentally an ordinary Julia function. A thin optional macro MAY capture a name
@@ -323,21 +325,21 @@ is callable.
 
 ### Runtime failures and assertions
 
-Host-detectable invalid constants, units, types, and domains fail during validation. Exceptions are
+Host-detectable invalid constants, types, and domains fail during validation. Exceptions are
 not Level 1 simulation control flow.
 
 A device-time domain or bounds failure uses the accepted device error mechanism and aborts the
 affected transaction without partial writes. A future debugging assertion must define GPU,
 transaction, and reporting behavior; assertions are not required for ordinary model validity.
 
-### Types, units, and output conversion
+### Types and output conversion
 
 Julia inference and promotion are used where their scientific meaning is unambiguous. Consequential
 ambiguity is an error.
 
-Exact safe conversion MAY be automatic. Numeric narrowing, integer rounding, saturation, unit
-conversion, missing-value conversion, and precision loss require an explicit accepted policy. Rule
-output does not blindly call `convert` and accept any available user method as scientific meaning.
+Exact safe conversion MAY be automatic. Numeric narrowing, integer rounding, saturation,
+missing-value conversion, and precision loss require an explicit accepted policy. Rule output does
+not blindly call `convert` and accept any available user method as scientific meaning.
 
 ### Reference evaluation and display
 
@@ -345,7 +347,7 @@ Every rule has an ordinary host reference evaluator for small tests and examples
 evaluate rule meaning without starting a simulation or compiling a GPU kernel.
 
 `show(rule)` displays a concise readable target, owner scope, phase, and expression. Detailed
-inspection separately reports reads, writes, units, random draws, spatial queries, dependencies,
+inspection separately reports reads, writes, random draws, spatial queries, dependencies,
 capabilities, and lowering information. Ordinary display does not print compiler internals.
 
 ## Rule Targets and Results
@@ -386,14 +388,14 @@ partially commit for that owner.
 
 The model report lists phase order, synchronization points, and visible state.
 
-## Types, Units, and Conversion
+## Types and Conversion
 
 Every property and parameter has a declared semantic type. Device storage types are compiled
 representations rather than the public scientific type.
 
-Host-side unitful quantities are checked before lowering. Unit conversion, numeric narrowing,
-rounding, saturation, overflow handling, and missing-value behavior are explicit policies. In
-particular:
+Model and rule values are plain simulation numbers under the declared numerical policy. Phase 10
+performs no unit conversion. Numeric narrowing, rounding, saturation, overflow handling, and
+missing-value behavior are explicit policies. In particular:
 
 - Integer targets are not silently rounded.
 - Floating-to-integer conversion requires a named rule.
@@ -472,7 +474,6 @@ A portable scalar function must be registered with:
 
 - Symbolic name and version
 - Argument and result type rules
-- Unit rules
 - Purity and effect classification
 - Domain restrictions
 - Host reference implementation
@@ -569,7 +570,7 @@ Every validation and lowering error includes, where applicable:
 - Source file and line
 - Rule, component, and model path
 - Offending syntax or semantic node
-- Expected and actual types or units
+- Expected and actual types or numerical policies
 - Backend or capability involved
 - A concise correction
 
@@ -588,14 +589,15 @@ The normalized model report includes:
 - Spatial and field dependencies
 - Random streams and draw labels
 - Function and IR-node versions
-- Unit and storage lowering
+- Numerical and storage lowering
 - Compatibility choices
 - Backend capability profile
 - Host-only or expert escape hatches
 - Approximations and evidence status
 
-A semantic fingerprint is derived from normalized meaning rather than raw authoring syntax. Its exact
-cache and checkpoint stability contract remains under `SEM-DSL-005`.
+A semantic fingerprint is derived from normalized meaning rather than raw authoring syntax. Decision
+0026 defines its separation from execution and checkpoint fingerprints and excludes source paths,
+declaration order, object identity, and unstable memory hashing.
 
 ## Conformance Requirements
 
@@ -623,8 +625,10 @@ The current `@rule` implementation is a prototype and is not authoritative. Migr
 - Late `isbits` validation with staged semantic and backend validation
 - Direct mutation actions with typed effects and transactions
 
-Existing syntax MAY be retained where it lowers unambiguously to the new model. Historical behavior
-that violates an accepted semantic contract is removed rather than preserved silently.
+Historical syntax may inform usability testing, but Phase 10 deletes the prototype compiler after
+the accepted replacement slice and library/test migration gate. No compatibility compiler or
+alias path is required before the paper API freeze. Historical behavior that violates an accepted
+semantic contract is removed rather than preserved silently.
 
 ## Literature and Language Basis
 

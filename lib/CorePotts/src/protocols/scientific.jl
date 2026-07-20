@@ -412,6 +412,53 @@ required_properties(::Any) = PropertySchema()
 required_observables(::Any) = ()
 required_relations(::Any) = ()
 capabilities(::Any) = ScientificCapabilities()
+provided_properties(::Any) = ()
+component_effects(::Any) = ()
+component_effects(::AbstractEnergy) = (:proposal_energy,)
+component_effects(::AbstractDrive) = (:proposal_drive,)
+component_effects(::AbstractHardConstraint) = (:proposal_constraint,)
+component_effects(::AbstractKineticModifier) = (:proposal_rate_modifier,)
+component_effects(::AbstractMechanicalComponent) =
+    (:proposal_mechanical_work, :auxiliary_evolution)
+component_rng_streams(::Any) = ()
+
+"""Whether a component declares support for a model dimensionality."""
+component_supports_dimension(component, dimensions::Integer) =
+    dimensions in capabilities(component).dimensions
+
+"""Whether a component is qualified on the selected backend capability contract."""
+component_supports_backend(component, backend::BackendCapabilities) =
+    capabilities(component).portable && supports(backend, QualifiedBackendCapability())
+
+"""Host-only algorithm/component preflight; downstream algorithms extend this by dispatch."""
+algorithm_component_compatibility(::AbstractPottsAlgorithm,
+    components, moment_tracker = nothing) = ()
+
+"""Stable semantic payload contributed to model manifests and fingerprints."""
+component_semantic_data(component) = component
+
+"""Complete host-side scientific metadata shared by direct CorePotts and authoring reports."""
+function component_metadata(component)
+    return (
+        identity = component_identity(component),
+        required_properties = required_properties(component),
+        provided_properties = provided_properties(component),
+        required_observables = required_observables(component),
+        required_relations = required_relations(component),
+        effects = component_effects(component),
+        rng_streams = component_rng_streams(component),
+        capabilities = capabilities(component),
+        semantic_data = component_semantic_data(component),
+    )
+end
+
+"""Public compiled proposal-evaluation protocols implemented by category dispatch."""
+function proposal_energy_change end
+function proposal_drive_log_bias end
+function proposal_constraint_allowed end
+function proposal_modifier_contribution end
+function proposal_mechanical_work end
+function validate_proposal_component end
 
 """Host-side trait for a component not yet qualified for deterministic parallel snapshots."""
 struct UnsupportedScientificAccess end
@@ -469,6 +516,9 @@ function validate_drive_component(component::AbstractDrive)
 end
 function validate_constraint_component(component::AbstractHardConstraint)
     _interface_report(:constraint, component, (:is_allowed,))
+end
+function validate_kinetic_modifier_component(component::AbstractKineticModifier)
+    _interface_report(:kinetic_modifier, component, (:kinetic_barrier,))
 end
 function validate_mechanical_component(component::AbstractMechanicalComponent)
     _interface_report(:mechanical, component, (:mechanical_work,))

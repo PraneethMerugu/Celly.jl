@@ -14,6 +14,10 @@ include("problems.jl")
 include("models/test_problems.jl")
 include("rules/macros.jl")
 
+# Phase 10 replacement authoring foundation. It remains namespaced until the qualified vertical
+# slice passes and the frozen historical surface is deleted in one migration gate.
+include("authoring/Authoring.jl")
+
 using .System
 using .Layouts
 using .Events

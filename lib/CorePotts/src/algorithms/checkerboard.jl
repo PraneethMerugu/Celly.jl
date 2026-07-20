@@ -110,6 +110,29 @@ function _qualified_snapshot_access(component, algorithm_name)
     return access
 end
 
+function _parallel_component_compatibility(algorithm_name::String,
+        components::ScientificComponentSet, moment_tracker)
+    messages = _scientific_interface_messages(components)
+    isempty(components.constraints) || (messages = (messages...,
+        "$algorithm_name does not qualify hard constraints",))
+    moment_tracker === nothing || (messages = (messages...,
+        "$algorithm_name does not qualify moment-dependent components",))
+    for component in (components.energies..., components.drives...,
+            components.kinetic_modifiers..., components.mechanics...)
+        try
+            _qualified_snapshot_access(component, algorithm_name)
+        catch error
+            messages = (messages..., sprint(showerror, error))
+        end
+    end
+    return messages
+end
+
+algorithm_component_compatibility(::CheckerboardSweepCPM,
+    components::ScientificComponentSet, moment_tracker = nothing) =
+    _parallel_component_compatibility(
+        "CheckerboardSweepCPM", components, moment_tracker)
+
 function _validate_checkerboard_components(components, state, moment_tracker)
     isempty(components.constraints) || throw(ArgumentError(
         "CheckerboardSweepCPM does not yet qualify hard constraints; use SequentialCPM"))

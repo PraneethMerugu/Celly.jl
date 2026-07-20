@@ -55,9 +55,10 @@ The accepted phase order is:
 5. Replace launch, workspace, synchronization, and backend adaptation.
 6. Rebuild algorithms and lifecycle execution against the new engine.
 7. Implement the accepted SciML problem, integrator, and solution behavior.
-8. Rebuild PottsToolkit typed modeling and compilation.
+8. Rebuild PottsToolkit typed modeling and compilation; delete its legacy compiler after the first
+   qualified replacement slice and caller/test migration, before broad component expansion.
 9. Implement the Level 1 rule DSL over the typed API.
-10. Tune performance and remove every remaining legacy path.
+10. Tune performance and verify that no legacy path was restored.
 11. Manually migrate documentation and tutorials.
 12. Run paper-release qualification.
 

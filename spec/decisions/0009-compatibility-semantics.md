@@ -19,10 +19,10 @@ energy-like quantities.
 
 ## Decision
 
-Raw lattice parameters and normalized or physical parameters are different,
-explicit representations. PottsToolkit may accept unitful host-side values, but
-it lowers them to a documented device-compatible numeric representation before
-execution.
+Raw lattice parameters and normalized or physically interpreted parameters are different,
+explicit representations. As superseded for PottsToolkit authoring by Decision 0026, model inputs
+are plain numerical values and Phase 10 performs no Unitful lowering. Any optional unit annotation
+is applied to solutions during Phase 11 post-processing and cannot alter the executable model.
 
 Compatibility is expressed through versioned targets such as
 `CC3DCompatibility`, `MorpheusCompatibility`, and `ArtistooCompatibility`.

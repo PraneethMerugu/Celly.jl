@@ -311,6 +311,8 @@ end
 function component_identity(::PreserveConnectedCells)
     ComponentIdentity(:preserve_connected_cells, v"1.0.0", :constraint)
 end
+component_semantic_data(component::PreserveConnectedCells) =
+    (relation = relation_semantics_report(component.relation),)
 required_relations(::PreserveConnectedCells) = (:connectivity,)
 
 function _connected_after_copy(constraint::PreserveConnectedCells,

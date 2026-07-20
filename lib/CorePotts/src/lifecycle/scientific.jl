@@ -81,6 +81,38 @@ end
 abstract type AbstractLifecycleTrigger end
 abstract type AbstractLifecycleEffect end
 
+"""Restrict a lifecycle event to one immutable set of finite cell-type IDs."""
+struct CellTypeIn{N} <: AbstractLifecycleTrigger
+    type_ids::NTuple{N, UInt32}
+
+    function CellTypeIn(type_ids::NTuple{N, UInt32}) where {N}
+        N > 0 || throw(ArgumentError("a cell-type lifecycle trigger must not be empty"))
+        values = Tuple(sort!(unique!(collect(type_ids))))
+        length(values) == N || throw(ArgumentError(
+            "a cell-type lifecycle trigger must not contain duplicates"))
+        all(!iszero, values) || throw(ArgumentError("cell-type IDs must be positive"))
+        return new{N}(values)
+    end
+end
+
+CellTypeIn(type_ids...) = CellTypeIn(Tuple(UInt32(value(CellTypeID(id))) for id in type_ids))
+
+"""Conjunction of allocation-free lifecycle triggers evaluated against one snapshot."""
+struct AllLifecycleTriggers{T <: Tuple} <: AbstractLifecycleTrigger
+    triggers::T
+
+    function AllLifecycleTriggers(triggers::T) where {T <: Tuple}
+        isempty(triggers) && throw(ArgumentError("a trigger conjunction must not be empty"))
+        all(trigger -> trigger isa AbstractLifecycleTrigger, triggers) || throw(ArgumentError(
+            "every conjunction member must be an AbstractLifecycleTrigger"))
+        return new{T}(triggers)
+    end
+end
+
+
+AllLifecycleTriggers(triggers::AbstractLifecycleTrigger...) =
+    AllLifecycleTriggers(Tuple(triggers))
+
 """Open, side-effect-free trigger query for one target in one common snapshot."""
 function lifecycle_triggered end
 """Open effect-planning operation. Planning must not mutate the supplied snapshot."""

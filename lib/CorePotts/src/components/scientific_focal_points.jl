@@ -237,6 +237,12 @@ FocalPointSpringHamiltonian(links::FocalPointLink...) = FocalPointSpringHamilton
 function component_identity(::FocalPointSpringHamiltonian)
     ComponentIdentity(:focal_point_spring, v"1.0.0", :energy)
 end
+component_semantic_data(component::FocalPointSpringHamiltonian) = (
+    links = Tuple((first = link.first, second = link.second,
+        first_generation = link.first_generation,
+        second_generation = link.second_generation,
+        strength = link.strength, target_length = link.target_length)
+        for link in component.links),)
 required_relations(::FocalPointSpringHamiltonian) = (:center_unwrapping,)
 
 _focal_core(state::CompiledScientificState) = state.potts.storage
@@ -360,6 +366,8 @@ end
 function component_identity(::FixedFocalEndpointConstraint)
     ComponentIdentity(:fixed_focal_endpoint_lifecycle, v"1.0.0", :constraint)
 end
+component_semantic_data(component::FixedFocalEndpointConstraint) =
+    (endpoint_ids = component.endpoint_ids,)
 
 function is_allowed(constraint::FixedFocalEndpointConstraint, proposal::CopyProposal,
         state::Union{CompiledScientificState, ScientificExecutionState})

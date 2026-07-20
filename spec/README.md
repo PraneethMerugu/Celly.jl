@@ -1,6 +1,6 @@
 # Potts.jl Semantics Specification
 
-Version: `0.2-draft`
+Version: `0.3-draft`
 
 Status: Draft
 
@@ -104,6 +104,9 @@ Refactor execution evidence:
 - [Phase 9 Implementation Chunk Plan](../design/audits/phase-9-chunk-plan.md)
 - [Phase 9 Legacy Final-Name Evacuation](../design/audits/phase-9-legacy-evacuation.md)
 - [Phase 9 Completion Audit](../design/audits/phase-9-completion-audit.md)
+- [Phase 10 Typed API and Compiler Decision](decisions/0026-phase-10-typed-api-and-compiler.md)
+- [Phase 10 Current-Code and Gap Audit](../design/audits/phase-10-current-code-and-gap-audit.md)
+- [Phase 10 Implementation Chunk Plan](../design/audits/phase-10-chunk-plan.md)
 - [Phase 8 Minimality Pass](../design/audits/phase-8-minimality-pass.md)
 - [Phase 8 Mechanical Lifecycle Research](../design/audits/phase-8-mechanical-lifecycle-research.md)
 - [JuliaGPU and Open-Protocol Community Validation](../design/audits/juliagpu-open-protocol-research.md)

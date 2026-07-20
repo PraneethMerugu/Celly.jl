@@ -169,6 +169,18 @@ algorithm_guarantees(::LotteryCPM) = AlgorithmGuaranteeProfile(
     dimensions = (2, 3),
 )
 
+function algorithm_component_compatibility(::SequentialEquilibrium,
+        components::ScientificComponentSet, moment_tracker = nothing)
+    messages = _scientific_interface_messages(components)
+    isempty(components.drives) || (messages = (messages...,
+        "SequentialEquilibrium rejects nonconservative drive components",))
+    isempty(components.kinetic_modifiers) || (messages = (messages...,
+        "SequentialEquilibrium rejects kinetic modifier components",))
+    isempty(components.mechanics) || (messages = (messages...,
+        "SequentialEquilibrium rejects mechanical components",))
+    return messages
+end
+
 @inline acceptance_law(::SequentialCPM) = ConventionalMetropolis()
 @inline acceptance_law(::SequentialEquilibrium) = MetropolisHastings()
 
@@ -273,6 +285,11 @@ function _validate_scientific_interfaces(components::ScientificComponentSet,
     foreach(validate_drive_component, components.drives)
     foreach(validate_constraint_component, components.constraints)
     foreach(validate_mechanical_component, components.mechanics)
+    foreach(validate_proposal_component, components.energies)
+    foreach(validate_proposal_component, components.drives)
+    foreach(validate_proposal_component, components.constraints)
+    foreach(validate_proposal_component, components.kinetic_modifiers)
+    foreach(validate_proposal_component, components.mechanics)
     validate_algorithm_component(algorithm)
     return components
 end

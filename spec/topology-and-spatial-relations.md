@@ -213,7 +213,7 @@ The spacing participates in:
 - Physical site area or volume
 - Surface/perimeter quadrature
 - Field derivatives and interpolation
-- Unitful parameter lowering
+- Documented physical interpretation and solution-side unit annotation
 - Anisotropy reports
 
 Bare lattice metrics remain site or edge counts. Physical and normalized metrics are distinct as

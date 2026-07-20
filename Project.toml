@@ -11,6 +11,7 @@ MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [sources]
 CorePotts = {path = "lib/CorePotts"}

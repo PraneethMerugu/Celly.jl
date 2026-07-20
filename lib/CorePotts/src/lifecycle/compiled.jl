@@ -188,6 +188,27 @@ end
     return bernoulli(rng, seed, address, trigger.probability)
 end
 
+
+@inline function compiled_lifecycle_triggered(trigger::CellTypeIn, state,
+        cell, mcs, rng, seed, event_id)
+    type_id = @inbounds state.core.cell_types[cell]
+    return type_id in trigger.type_ids
+end
+
+@inline _compiled_all_lifecycle_triggered(::Tuple{}, state, cell, mcs, rng, seed,
+    event_id) = true
+@inline function _compiled_all_lifecycle_triggered(
+        triggers::Tuple, state, cell, mcs, rng, seed, event_id)
+    compiled_lifecycle_triggered(first(triggers), state, cell, mcs, rng, seed, event_id) ||
+        return false
+    return _compiled_all_lifecycle_triggered(
+        Base.tail(triggers), state, cell, mcs, rng, seed, event_id)
+end
+
+@inline compiled_lifecycle_triggered(trigger::AllLifecycleTriggers, state,
+    cell, mcs, rng, seed, event_id) = _compiled_all_lifecycle_triggered(
+    trigger.triggers, state, cell, mcs, rng, seed, event_id)
+
 @inline _decision_index(event_index, capacity, cell) =
     (event_index - 1) * capacity + cell
 

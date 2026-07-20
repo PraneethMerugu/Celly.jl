@@ -39,6 +39,10 @@ function _validate_lottery_components(components, state, moment_tracker)
             components.mechanics...))
 end
 
+algorithm_component_compatibility(::LotteryCPM,
+    components::ScientificComponentSet, moment_tracker = nothing) =
+    _parallel_component_compatibility("LotteryCPM", components, moment_tracker)
+
 function _allocate_lottery_workspace(state, proposal_relation, accesses, plan)
     if !(plan.backend isa KernelAbstractions.CPU)
         synchronize_observation!(plan)

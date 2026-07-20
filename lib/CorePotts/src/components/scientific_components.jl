@@ -79,6 +79,12 @@ function required_properties(component::QuadraticVolumeHamiltonian)
     )
 end
 
+component_semantic_data(component::QuadraticVolumeHamiltonian) = (
+    target_property = property_key(_volume_target(component)),
+    strength_property = property_key(_volume_strength(component)),
+    number_type = nameof(typeof(component).parameters[3]),
+)
+
 function global_energy(component::QuadraticVolumeHamiltonian, state::LogicalPottsState)
     targets = _property_column(state, _volume_target(component))
     strengths = _property_column(state, _volume_strength(component))
@@ -193,6 +199,17 @@ function required_properties(component::FluctuatingVolumePressure)
     )
 end
 
+component_semantic_data(component::FluctuatingVolumePressure) = (
+    target_property = property_key(_mechanical_target(component)),
+    strength_property = property_key(_mechanical_strength(component)),
+    state_property = property_key(_mechanical_state(component)),
+    eta = component.eta,
+    noise = component.noise,
+    initialization = component.initialization,
+    instance_id = component.instance_id,
+    division = component.division,
+)
+
 @inline function mechanical_work(component::FluctuatingVolumePressure,
         proposal::CopyProposal, state, transaction)
     values = _property_column(state, _mechanical_state(component))
@@ -235,6 +252,13 @@ end
 function component_identity(::UnorderedContactHamiltonian)
     ComponentIdentity(:unordered_contact, v"1.0.0", :energy)
 end
+component_semantic_data(component::UnorderedContactHamiltonian) = (
+    matrix_size = size(component.interactions),
+    interactions = Tuple(component.interactions),
+    medium_owner_ids = component.medium_types.owner_ids,
+    medium_type_ids = component.medium_types.type_ids,
+    relation = relation_semantics_report(component.relation),
+)
 required_relations(::UnorderedContactHamiltonian) = (:contact,)
 
 @inline function _contact_value(component::UnorderedContactHamiltonian, left::UInt32,
@@ -658,3 +682,26 @@ function surface_semantics_report(component::QuadraticBoundaryHamiltonian,
         domain = domain_semantics_report(domain)
     )
 end
+
+
+component_semantic_data(component::QuadraticBoundaryHamiltonian) = (
+    target_property = property_key(_boundary_target(component)),
+    strength_property = property_key(_boundary_strength(component)),
+    number_type = nameof(typeof(component).parameters[3]),
+    metric = _boundary_metric_semantics(component.metric),
+    relation = relation_semantics_report(component.relation),
+)
+
+component_semantic_data(component::FluctuatingSurfaceTension) = (
+    target_property = property_key(_mechanical_target(component)),
+    strength_property = property_key(_mechanical_strength(component)),
+    state_property = property_key(_mechanical_state(component)),
+    eta = component.eta,
+    noise = component.noise,
+    initialization = component.initialization,
+    instance_id = component.instance_id,
+    target_division = component.target_division,
+    division = component.division,
+    metric = _boundary_metric_semantics(component.metric),
+    relation = relation_semantics_report(component.relation),
+)
