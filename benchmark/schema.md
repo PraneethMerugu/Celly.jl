@@ -9,6 +9,11 @@ per baseline or candidate are required for an engineering regression decision, a
 for a paper candidate. Samples within one process remain nested in that process and are not treated
 as independent process repetitions.
 
+The `full` profile is the required five-family latency/regression matrix. The separate `throughput`
+profile uses 256² and 64³ realized domains to exercise publication-scale parallel work. Profile is a
+comparison-identity field: latency and throughput results are never pooled or used to compensate for
+one another.
+
 Before comparing numbers, the comparator requires equality of the benchmark-contract and workload-set
 versions, backend, authoritative hardware identity, Julia version, architecture, operating system,
 Julia thread count, precision, profile, tuning policy, workload inventory, algorithm, semantic model
@@ -28,6 +33,13 @@ threshold is 5%.
 Implementation provenance is distinct from harness provenance. Benchmark-only changes may improve
 measurement without pretending that the scientific implementation changed. Historical schema
 `2.1.0` remains readable evidence and is never rewritten as schema `3.0.0`.
+
+Backend-native `phase12-backend-profile` records use their own `1.0.0` evidence schema. They retain
+the synchronized differential-adhesion workload identity, implementation provenance, backend
+package version, per-algorithm GPUCompiler device-code inventory, native-code byte counts, and only
+the resource metadata present in the backend's authoritative output. Metal records its integrated
+chronological GPU trace; ROCm records a `rocprofv3` HIP/HSA/kernel Perfetto trace and GCN metadata.
+An absent metric remains explicitly unavailable: register counts are never inferred from occupancy.
 
 The warm and cold harness identities hash measurement code, not dependency lockfiles. Exact
 benchmark `Project.toml` and `Manifest.toml` contents are retained separately as
