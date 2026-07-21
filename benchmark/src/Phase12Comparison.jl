@@ -191,6 +191,7 @@ function aggregate_records(records::AbstractVector; minimum_processes::Int = 3)
     workloads = Dict{String, Any}()
     for name in sort!(collect(keys(first(records)["workloads"])))
         workloads[name] = Dict(
+            "algorithm" => first(records)["workloads"][name]["algorithm"],
             "process_steady_seconds_per_mcs" => [Float64(
                 record["workloads"][name]["steady_median_seconds_per_mcs"])
                 for record in records],
@@ -264,7 +265,7 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
     candidate_aggregate = aggregate_records(candidate; minimum_processes)
     residency_issues = _candidate_residency_issues(candidate)
     comparisons = Dict{String, Any}()
-    steady_ratios = Float64[]
+    steady_ratios = Dict{String, Vector{Float64}}()
     passed = isempty(residency_issues)
     for name in sort!(collect(keys(baseline_aggregate["workloads"])))
         before = baseline_aggregate["workloads"][name]
@@ -279,7 +280,8 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
                           first_ratio <= 1 + regression_threshold &&
                           memory_ratio <= 1 + memory_threshold
         passed &= workload_passed
-        push!(steady_ratios, steady_ratio)
+        algorithm = before["algorithm"]
+        push!(get!(steady_ratios, algorithm, Float64[]), steady_ratio)
         comparisons[name] = Dict(
             "passed" => workload_passed,
             "steady_seconds_ratio" => steady_ratio,
@@ -288,8 +290,9 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
             "backend_resident_bytes_ratio" => memory_ratio,
         )
     end
-    geometric_mean_steady_ratio = exp(mean(log, steady_ratios))
-    geometric_mean_passed = geometric_mean_steady_ratio <= 1
+    algorithm_geometric_means = Dict(
+        algorithm => exp(mean(log, ratios)) for (algorithm, ratios) in steady_ratios)
+    geometric_mean_passed = all(<=(1), values(algorithm_geometric_means))
     passed &= geometric_mean_passed
     return Dict(
         "schema_version" => PHASE12_SCHEMA_VERSION,
@@ -298,7 +301,7 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
         "passed" => passed,
         "regression_threshold" => Float64(regression_threshold),
         "memory_threshold" => Float64(memory_threshold),
-        "geometric_mean_steady_seconds_ratio" => geometric_mean_steady_ratio,
+        "algorithm_geometric_mean_steady_seconds_ratios" => algorithm_geometric_means,
         "geometric_mean_passed" => geometric_mean_passed,
         "residency_issues" => residency_issues,
         "baseline" => baseline_aggregate,
@@ -316,8 +319,12 @@ function print_comparison(io::IO, comparison::AbstractDict)
         return comparison
     end
     println(io, "Phase 12 comparison: ", comparison["passed"] ? "PASS" : "FAIL")
-    println(io, "Geometric mean steady-time ratio: ",
-        round(comparison["geometric_mean_steady_seconds_ratio"]; digits = 6))
+    for algorithm in sort!(collect(keys(
+            comparison["algorithm_geometric_mean_steady_seconds_ratios"])))
+        println(io, algorithm, " geometric mean steady-time ratio: ", round(
+            comparison["algorithm_geometric_mean_steady_seconds_ratios"][algorithm];
+            digits = 6))
+    end
     println(io, "| Workload | Steady time | Throughput | First MCS | Memory | Gate |")
     println(io, "|---|---:|---:|---:|---:|---:|")
     for name in sort!(collect(keys(comparison["workloads"])))

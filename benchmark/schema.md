@@ -16,8 +16,10 @@ fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE
 
 The comparison independently gates steady MCS time, first-MCS time, backend-resident memory, and warm
 residency counters. A faster steady result cannot compensate for a failed first-use, memory,
-allocation, transfer, or synchronization gate. The core steady-time geometric mean is evaluated in
-ratio space and must not regress. The default per-workload regression and memory threshold is 5%.
+allocation, transfer, or synchronization gate. Each scientific algorithm has its own steady-time
+geometric mean evaluated in ratio space; scientifically different algorithms never share an
+unlabeled mean. Every algorithm mean must not regress. The default per-workload regression and memory
+threshold is 5%.
 
 Implementation provenance is distinct from harness provenance. Benchmark-only changes may improve
 measurement without pretending that the scientific implementation changed. Historical schema

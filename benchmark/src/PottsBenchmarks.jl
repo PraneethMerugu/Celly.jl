@@ -2687,13 +2687,16 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
 
     measurement_spec(; label, family, dimensions, requires_lifecycle_observation,
         model_builder, problem_builder, problem_binding_required = false,
-        problem_binding_builder = identity) = (
+        problem_binding_builder = identity,
+        compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
+            :CheckerboardSweepCPM, :LotteryCPM)) = (
         label,
         family,
         scale = profile,
         dimensions,
         requires_lifecycle_observation,
         problem_binding_required,
+        compatible_algorithms,
         model_builder,
         problem_binding_builder,
         problem_builder,
@@ -2703,6 +2706,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         label, family, dimensions = length(migration_shape),
         requires_lifecycle_observation = false,
         problem_binding_required = true,
+        compatible_algorithms = (:SequentialCPM, :CheckerboardSweepCPM, :LotteryCPM),
         model_builder = () -> references.chemotaxis_model(; target_volume),
         problem_binding_builder = model ->
             PottsToolkit.Authoring._realize_problem_fields(model,
@@ -2727,6 +2731,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "monolayer_growth",
             dimensions = length(migration_shape),
             requires_lifecycle_observation = true,
+            compatible_algorithms = (:SequentialCPM, :CheckerboardSweepCPM, :LotteryCPM),
             model_builder = () -> references.monolayer_growth_model(
                 target_volume = 8, division_target = 16),
             problem_builder = () -> references.monolayer_growth_problem(
@@ -2739,6 +2744,8 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "differential_adhesion_sorting",
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
+                :CheckerboardSweepCPM, :LotteryCPM),
             model_builder = () -> references.differential_adhesion_model(
                 target_volume = profile == "smoke" ? 16 : 20),
             problem_builder = () -> references.differential_adhesion_problem(
@@ -2752,6 +2759,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "elongation_driven_angiogenesis",
             dimensions = length(angiogenesis_2d_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium),
             model_builder = () -> references.elongation_driven_angiogenesis_model(
                 target_volume = 16,
                 target_elongation = profile == "smoke" ? 1.5 : 3),
@@ -2767,6 +2775,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "elongation_driven_angiogenesis",
             dimensions = length(angiogenesis_3d_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium),
             model_builder = () -> references.elongation_driven_angiogenesis_model(
                 target_volume = angiogenesis_3d_target,
                 target_elongation = profile == "smoke" ? 1.5 : 3),
@@ -2848,17 +2857,52 @@ function _phase10_kernel_resource_evidence(name::String)
     )
 end
 
-"""Measure all mandatory Phase 10 reference families and retain actual MCS accounting."""
-function measure_phase10_reference_backend(name::String; profile::String = "smoke")
+function _validate_reference_mcs_report(name, label, algorithm, report, sites)
+    expected_sites = UInt64(sites)
+    if algorithm isa AbstractSequentialCPMAlgorithm || algorithm isa CheckerboardSweepCPM
+        report.scheduler_candidates == expected_sites || error(
+            "$name $label $(nameof(typeof(algorithm))) scheduler budget differs from mutable sites")
+        report.activated_attempts == expected_sites || error(
+            "$name $label $(nameof(typeof(algorithm))) did not activate exactly one attempt per mutable site")
+    elseif algorithm isa LotteryCPM
+        report.scheduler_candidates == expected_sites * report.internal_rounds || error(
+            "$name $label LotteryCPM scheduler accounting differs from sites times rounds")
+    else
+        error("Phase 12 reference accounting is undefined for $(typeof(algorithm))")
+    end
+    report.realized_proposals == report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name $label $(nameof(typeof(algorithm))) proposal accounting does not reconcile")
+    report.activated_attempts == report.same_owner_no_ops + report.boundary_no_ops +
+        report.immutable_recipient_no_ops + report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name $label $(nameof(typeof(algorithm))) attempt accounting does not reconcile")
+    return nothing
+end
+
+"""Measure compatible mandatory reference families for one scientific algorithm."""
+function measure_phase10_reference_backend(name::String; profile::String = "smoke",
+        algorithm::AbstractPottsAlgorithm = SequentialCPM(temperature = 2.0f0),
+        skip_incompatible::Bool = false)
     samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) : (10, 5, 2)
     horizon = 1 + warmup_steps + samples * steps
     adaptor = _backend_adaptor(name)
     probe = _backend_array(name, zeros(UInt8, 1))
     backend = KernelAbstractions.get_backend(probe)
-    algorithm = SequentialCPM(temperature = 2.0f0)
     workloads = Dict{String, Any}()
+    exclusions = Dict{String, Any}()
 
     for spec in _phase10_reference_measurement_specs(profile, horizon)
+        algorithm_name = nameof(typeof(algorithm))
+        if algorithm_name ∉ spec.compatible_algorithms
+            skip_incompatible || error(
+                "$name $(spec.label) is not scientifically compatible with $algorithm_name")
+            exclusions[spec.label] = [
+                "$algorithm_name is outside this workload's scientific guarantee profile"]
+            continue
+        end
         model_timing = @timed spec.model_builder()
         model = model_timing.value
         normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
@@ -2877,8 +2921,12 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         parentmodule(typeof(problem)) === CorePotts || error(
             "$name $(spec.label) introduced a runtime authoring wrapper")
         backend_report = PottsToolkit.backend_report(problem, algorithm, backend)
-        backend_report.qualified || error(
-            "$name $(spec.label) failed performance preflight: $(backend_report.diagnostics)")
+        if !backend_report.qualified
+            skip_incompatible || error(
+                "$name $(spec.label) failed performance preflight: $(backend_report.messages)")
+            exclusions[spec.label] = collect(backend_report.messages)
+            continue
+        end
 
         initialization_timing = @timed init(problem, algorithm;
             backend, adaptor, verbose = false, save_start = false, save_end = false)
@@ -2928,14 +2976,7 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "$name $(spec.label) diagnostic observation allocated device storage")
         report.mcs == UInt64(integrator.t) || error(
             "$name $(spec.label) report MCS differs from integrator time")
-        report.scheduler_candidates == UInt64(sites) || error(
-            "$name $(spec.label) sequential scheduler budget differs from mutable sites")
-        report.activated_attempts == UInt64(sites) || error(
-            "$name $(spec.label) sequential activated-attempt budget differs from one MCS")
-        report.realized_proposals <= report.activated_attempts || error(
-            "$name $(spec.label) realized proposals exceed activated attempts")
-        report.accepted_copies <= report.realized_proposals || error(
-            "$name $(spec.label) accepted copies exceed realized proposals")
+        _validate_reference_mcs_report(name, spec.label, algorithm, report, sites)
         bound_normalized.fingerprint.digest ==
             lowered.normalized.fingerprint.digest || error(
                 "$name $(spec.label) lowering changed the semantic fingerprint")
@@ -3014,11 +3055,50 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         "warmup_steps" => warmup_steps,
         "algorithm" => string(nameof(typeof(algorithm))),
         "workloads" => workloads,
+        "incompatible_workloads" => exclusions,
         "required_families" => [
             "single_cell_migration", "prescribed_gradient_chemotaxis",
             "monolayer_growth", "differential_adhesion_sorting",
             "elongation_driven_angiogenesis"],
         "kernel_resource_evidence" => _phase10_kernel_resource_evidence(name),
+    )
+end
+
+function measure_phase12_reference_backend(name::String; profile::String = "smoke",
+        sequential_reference = nothing)
+    algorithms = (
+        SequentialCPM(temperature = 2.0f0),
+        SequentialEquilibrium(temperature = 2.0f0),
+        CheckerboardSweepCPM(temperature = 2.0f0),
+        LotteryCPM(temperature = 2.0f0),
+    )
+    measurements = Dict{String, Any}()
+    workloads = Dict{String, Any}()
+    exclusions = Dict{String, Any}()
+    for algorithm in algorithms
+        algorithm_name = string(nameof(typeof(algorithm)))
+        measurement = algorithm isa SequentialCPM && sequential_reference !== nothing ?
+                      sequential_reference : measure_phase10_reference_backend(
+            name; profile, algorithm, skip_incompatible = true)
+        isempty(measurement["workloads"]) && error(
+            "$name Phase 12 algorithm $algorithm_name has no compatible reference workload")
+        measurements[algorithm_name] = measurement
+        exclusions[algorithm_name] = measurement["incompatible_workloads"]
+        for (label, workload) in measurement["workloads"]
+            workloads["$(algorithm_name)__$(label)"] = workload
+        end
+    end
+    reference = first(values(measurements))
+    return Dict(
+        "profile" => profile,
+        "samples" => reference["samples"],
+        "steps_per_sample" => reference["steps_per_sample"],
+        "warmup_steps" => reference["warmup_steps"],
+        "workloads" => workloads,
+        "required_families" => reference["required_families"],
+        "required_algorithms" => collect(keys(measurements)),
+        "incompatible_workloads" => exclusions,
+        "kernel_resource_evidence" => reference["kernel_resource_evidence"],
     )
 end
 

@@ -65,7 +65,7 @@ end
     result = compare_record_groups(baseline, faster)
     @test result["comparable"]
     @test result["passed"]
-    @test result["geometric_mean_steady_seconds_ratio"] < 1
+    @test result["algorithm_geometric_mean_steady_seconds_ratios"]["SequentialCPM"] < 1
 
     regression = [synthetic_record("regression-$index"; steady = 1.2,
                       first_mcs = 2.0, memory = 1000)
@@ -125,6 +125,25 @@ end
     @test result["comparable"]
     @test !result["passed"]
     @test any(contains("device_to_host_transfers"), result["residency_issues"])
+
+    mixed_baseline = deepcopy(baseline)
+    mixed_candidate = deepcopy(faster)
+    for record in mixed_baseline
+        lottery = deepcopy(record["workloads"]["migration_2d"])
+        lottery["algorithm"] = "LotteryCPM"
+        lottery["steady_median_seconds_per_mcs"] = 1.0
+        record["workloads"]["lottery_migration_2d"] = lottery
+    end
+    for record in mixed_candidate
+        lottery = deepcopy(record["workloads"]["migration_2d"])
+        lottery["algorithm"] = "LotteryCPM"
+        lottery["steady_median_seconds_per_mcs"] = 1.2
+        record["workloads"]["lottery_migration_2d"] = lottery
+    end
+    result = compare_record_groups(mixed_baseline, mixed_candidate)
+    @test !result["passed"]
+    @test result["algorithm_geometric_mean_steady_seconds_ratios"]["SequentialCPM"] < 1
+    @test result["algorithm_geometric_mean_steady_seconds_ratios"]["LotteryCPM"] > 1
 
     @test_throws ArgumentError aggregate_records(baseline[1:2])
 end
