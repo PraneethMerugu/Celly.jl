@@ -48,6 +48,15 @@ Run a repeatable smoke or full matrix locally with `benchmark/matrix.jl`, or dis
 `Benchmarks` GitHub workflow and download its machine-readable artifact. GPU jobs run only on
 explicitly enabled, trusted, backend-labeled self-hosted runners.
 
+Launch independent fresh Julia processes with `benchmark/repeat.jl`. One process is diagnostic,
+three full processes are the minimum regression evidence, and five full processes qualify a paper
+candidate:
+
+```sh
+julia --project=benchmark benchmark/repeat.jl \
+  --backend=cpu --profile=full --repetitions=3
+```
+
 Phase 12 comparisons consume repeated fresh-process schema `3.0.0` records. The comparator refuses
 different hardware, precision, algorithm, model fingerprint, workload shape, or measurement-contract
 versions before calculating a performance ratio:

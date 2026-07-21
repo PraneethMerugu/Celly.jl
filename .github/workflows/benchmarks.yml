@@ -4,17 +4,23 @@ on:
   workflow_dispatch:
     inputs:
       backend:
-        description: Backend to benchmark
+        description: Authoritative Phase 12 target
         type: choice
         required: true
-        default: cpu
-        options: [cpu, metal, amdgpu, cuda]
+        default: cpu-arm64
+        options: [cpu-arm64, cpu-x86_64, metal, amdgpu]
       profile:
         description: Smoke or complete baseline matrix
         type: choice
         required: true
         default: smoke
         options: [smoke, full]
+      repetitions:
+        description: Independent fresh Julia processes
+        type: choice
+        required: true
+        default: '1'
+        options: ['1', '3', '5']
 
 permissions:
   contents: read
@@ -28,27 +34,64 @@ env:
   JULIA_NUM_PRECOMPILE_TASKS: 2
 
 jobs:
-  cpu:
-    name: CPU / ${{ inputs.profile }}
-    if: inputs.backend == 'cpu'
-    runs-on: ubuntu-latest
+  cpu-arm64:
+    name: CPU ARM64 / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
+    if: inputs.backend == 'cpu-arm64' && vars.METAL_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, metal]
     timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: _ci/source
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
-      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+          arch: aarch64
+          force-arch: true
       - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - run: julia --project=benchmark --startup-file=no benchmark/matrix.jl --backend=cpu --profile=${{ inputs.profile }}
+      - name: Run independent CPU processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cpu-${{ inputs.profile }}-${{ github.sha }}
-          path: benchmark/results/
+          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          path: _ci/source/benchmark/results/
+          if-no-files-found: error
+
+  cpu-x86_64:
+    name: CPU x86_64 / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
+    if: inputs.backend == 'cpu-x86_64' && vars.ROCM_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, rocm]
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: _ci/source
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Run independent CPU processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   metal:
-    name: Metal / ${{ inputs.profile }}
+    name: Metal / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
     if: inputs.backend == 'metal' && vars.METAL_RUNNER_ENABLED == 'true'
     runs-on: [self-hosted, metal]
     timeout-minutes: 90
@@ -72,15 +115,19 @@ jobs:
         run: |
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - run: julia --project=benchmark/backends/metal --startup-file=no benchmark/matrix.jl --backend=metal --profile=${{ inputs.profile }}
+      - name: Run independent Metal processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-metal-${{ inputs.profile }}-${{ github.sha }}
+          name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   rocm:
-    name: ROCm / ${{ inputs.profile }}
+    name: ROCm / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
     if: inputs.backend == 'amdgpu' && vars.ROCM_RUNNER_ENABLED == 'true'
     runs-on: [self-hosted, rocm]
     timeout-minutes: 90
@@ -102,39 +149,13 @@ jobs:
         run: |
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/matrix.jl --backend=amdgpu --profile=${{ inputs.profile }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: benchmark-rocm-${{ inputs.profile }}-${{ github.sha }}
-          path: _ci/source/benchmark/results/
-          if-no-files-found: error
-
-  cuda:
-    name: CUDA / ${{ inputs.profile }}
-    if: inputs.backend == 'cuda' && vars.CUDA_RUNNER_ENABLED == 'true'
-    runs-on: [self-hosted, cuda]
-    timeout-minutes: 90
-    env:
-      JULIA_LOAD_PATH: "benchmark/backends/cuda:benchmark:@stdlib"
-    defaults:
-      run:
-        working-directory: _ci/source
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          path: _ci/source
-      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
-        with:
-          version: ${{ env.JULIA_VERSION }}
-      - name: Instantiate CUDA runtime
+      - name: Run independent ROCm processes
         env:
-          JULIA_LOAD_PATH: "@:@stdlib"
-        run: |
-          julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-          julia --project=benchmark/backends/cuda --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - run: julia --project=benchmark/backends/cuda --startup-file=no benchmark/matrix.jl --backend=cuda --profile=${{ inputs.profile }}
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cuda-${{ inputs.profile }}-${{ github.sha }}
+          name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
