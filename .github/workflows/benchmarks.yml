@@ -31,7 +31,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: benchmark-${{ inputs.backend }}
+  # Keep duplicate dispatches for the same immutable evidence subject serialized,
+  # without letting a different profile or subject evict a pending run. GitHub
+  # retains only one pending member of a concurrency group even when
+  # cancel-in-progress is false.
+  group: benchmark-${{ inputs.backend }}-${{ inputs.profile }}-${{ inputs.subject_ref || github.sha }}
   cancel-in-progress: false
 
 env:
