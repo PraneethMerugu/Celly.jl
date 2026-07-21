@@ -53,6 +53,19 @@
     @test PottsToolkit.SequentialEquilibrium === CorePotts.SequentialEquilibrium
     @test PottsToolkit.CheckerboardSweepCPM === CorePotts.CheckerboardSweepCPM
     @test PottsToolkit.LotteryCPM === CorePotts.LotteryCPM
+    for name in (
+            :ReadOnlyProperty, :MutableProperty,
+            :CloneOnDivision, :SplitOnDivision, :ResetChildOnDivision,
+            :ResetBothOnDivision, :AsymmetricResetOnDivision, :UnsupportedDivision,
+            :ConstitutiveResetAfterDivision, :PreserveMechanicalOnDivision,
+            :StationaryRedrawAfterDivision, :PreserveOnTransition,
+            :ResetOnTransition, :RecomputeOnTransition, :UnsupportedTransition,
+            :ResetOnRetirement, :ConstitutiveMeanInitialization,
+            :StationaryMechanicalInitialization, :PreserveMechanicalInitialization)
+        @test getfield(PottsToolkit, name) === getfield(CorePotts, name)
+    end
+    @test PottsToolkit.AcceptanceTemperature() isa CorePotts.AlgorithmTemperatureNoise
+    @test PottsToolkit.IndependentNoise(1.0f0) isa CorePotts.FixedMechanicalNoise
 
     field_values = reshape(Float32.(1:9), 3, 3)
     domain = PottsToolkit.CartesianDomain((3, 3))

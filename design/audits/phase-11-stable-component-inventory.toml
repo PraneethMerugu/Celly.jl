@@ -53,6 +53,132 @@ category = "kinetic_modifier"
 status = "covered"
 
 [[component]]
+core = "ReadOnlyProperty"
+level1 = "ReadOnlyProperty"
+category = "property_mutability"
+status = "covered"
+
+[[component]]
+core = "MutableProperty"
+level1 = "MutableProperty"
+category = "property_mutability"
+status = "covered"
+
+[[component]]
+core = "CloneOnDivision"
+level1 = "CloneOnDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "SplitOnDivision"
+level1 = "SplitOnDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "ResetChildOnDivision"
+level1 = "ResetChildOnDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "ResetBothOnDivision"
+level1 = "ResetBothOnDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "AsymmetricResetOnDivision"
+level1 = "AsymmetricResetOnDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "UnsupportedDivision"
+level1 = "UnsupportedDivision"
+category = "division_policy"
+status = "covered"
+
+[[component]]
+core = "ConstitutiveResetAfterDivision"
+level1 = "ConstitutiveResetAfterDivision"
+category = "mechanical_division_policy"
+status = "covered"
+
+[[component]]
+core = "PreserveMechanicalOnDivision"
+level1 = "PreserveMechanicalOnDivision"
+category = "mechanical_division_policy"
+status = "covered"
+
+[[component]]
+core = "StationaryRedrawAfterDivision"
+level1 = "StationaryRedrawAfterDivision"
+category = "mechanical_division_policy"
+status = "covered"
+
+[[component]]
+core = "PreserveOnTransition"
+level1 = "PreserveOnTransition"
+category = "transition_policy"
+status = "covered"
+
+[[component]]
+core = "ResetOnTransition"
+level1 = "ResetOnTransition"
+category = "transition_policy"
+status = "covered"
+
+[[component]]
+core = "RecomputeOnTransition"
+level1 = "RecomputeOnTransition"
+category = "transition_policy"
+status = "covered"
+
+[[component]]
+core = "UnsupportedTransition"
+level1 = "UnsupportedTransition"
+category = "transition_policy"
+status = "covered"
+
+[[component]]
+core = "ResetOnRetirement"
+level1 = "ResetOnRetirement"
+category = "retirement_policy"
+status = "covered"
+
+[[component]]
+core = "ConstitutiveMeanInitialization"
+level1 = "ConstitutiveMeanInitialization"
+category = "mechanical_initialization"
+status = "covered"
+
+[[component]]
+core = "StationaryMechanicalInitialization"
+level1 = "StationaryMechanicalInitialization"
+category = "mechanical_initialization"
+status = "covered"
+
+[[component]]
+core = "PreserveMechanicalInitialization"
+level1 = "PreserveMechanicalInitialization"
+category = "mechanical_initialization"
+status = "covered"
+
+[[component]]
+core = "AlgorithmTemperatureNoise"
+level1 = "AcceptanceTemperature"
+category = "mechanical_noise"
+status = "covered"
+
+[[component]]
+core = "FixedMechanicalNoise"
+level1 = "IndependentNoise"
+category = "mechanical_noise"
+status = "covered"
+
+[[component]]
 core = "PreserveConnectedCells"
 level1 = "PreserveConnectivity"
 category = "constraint"

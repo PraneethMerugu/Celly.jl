@@ -39,8 +39,8 @@
     @test occursin("unresolved_fragment_role", invalid_display)
 
     age = PottsToolkit.CellProperty(:inspection_age, cell;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     phase = PottsToolkit.Phase(:inspection_phase)
     rule = PottsToolkit.@rule phase = phase age(owner) = age(owner) + 1.0f0
     rule_display = sprint(show, MIME("text/plain"), rule)

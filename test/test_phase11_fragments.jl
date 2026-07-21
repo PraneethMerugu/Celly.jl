@@ -8,8 +8,8 @@ using SciMLBase
     adhesion = PottsToolkit.Adhesion(
         (migrating, migrating) => 1.0f0; name = :cohesion, default = 0.0f0)
     age = PottsToolkit.CellProperty(:fragment_age, migrating;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     rate = PottsToolkit.CellParameter(:fragment_rate, migrating => 0.25f0)
     drive = PottsToolkit.Chemotaxis(
         signal, migrating => 0.75f0; name = :migration_drive)
@@ -47,8 +47,8 @@ using SciMLBase
         namespace = fragment_namespace, default = 0.0f0)
     explicit_age = PottsToolkit.CellProperty(:fragment_age, tumor;
         namespace = PottsToolkit.Namespace(), initial = 0.0f0,
-        division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     explicit_rate = PottsToolkit.CellParameter(:fragment_rate, tumor => 0.25f0;
         namespace = fragment_namespace)
     explicit_drive = PottsToolkit.Chemotaxis(

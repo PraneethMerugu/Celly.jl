@@ -182,8 +182,8 @@ end
     medium = PottsToolkit.Medium(:observation_medium)
     cell = PottsToolkit.CellType(:observed_cell)
     age = PottsToolkit.CellProperty(:observed_age, cell; initial = 2.0f0,
-        division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     volume_component = PottsToolkit.Volume(cell => (target = 1, strength = 1))
     volumes = PottsToolkit.CellVolume()
     cell_types = PottsToolkit.CellTypeObservable()
@@ -301,11 +301,11 @@ end
     cell_type = PottsToolkit.CellType(:rule_cell)
     medium = PottsToolkit.Medium(:rule_medium)
     age = PottsToolkit.CellProperty(:age, cell_type; initial = 0.0f0,
-        division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     target = PottsToolkit.CellProperty(:target, cell_type; initial = 2.0f0,
-        division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
 
     mechanics = PottsToolkit.Phase(:mechanics)
     growth_phase = PottsToolkit.Phase(:growth; after = mechanics)
@@ -360,8 +360,8 @@ end
     @test any(diagnostic -> diagnostic.code === :unsafe_rule_output_conversion,
         narrowing_report)
     integer_state = PottsToolkit.CellProperty(:integer_state, cell_type;
-        initial = Int64(0), division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = Int64(0), division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     exact_integer = PottsToolkit.Rule(integer_state, :cell, Int32(2);
         phase = growth_phase)
     @test Base.isvalid(PottsToolkit.PottsModel(
@@ -426,8 +426,8 @@ end
 
     second_cell_type = PottsToolkit.CellType(:second_cell_type)
     shared_age = PottsToolkit.CellProperty(:shared_age, cell_type, second_cell_type;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     partial_rate = PottsToolkit.CellParameter(:partial_rate, cell_type => 0.5)
     incomplete_binding = PottsToolkit.@rule phase = growth_phase shared_age(cell) =
         shared_age(cell) + partial_rate(cell)
@@ -519,26 +519,26 @@ end
         :target, CorePotts.CellID(1)) == 3.0f0
 
     contact_edges = PottsToolkit.CellProperty(:contact_edges, cell_type;
-        initial = Int64(0), division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = Int64(0), division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     contact_weight = PottsToolkit.CellProperty(:contact_weight, cell_type;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     boundary_sites = PottsToolkit.CellProperty(:boundary_sites, cell_type;
-        initial = Int64(0), division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = Int64(0), division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     neighbor_count = PottsToolkit.CellProperty(:neighbor_count, cell_type;
-        initial = Int64(0), division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = Int64(0), division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     neighbor_signal = PottsToolkit.CellProperty(:neighbor_signal, cell_type;
-        initial = 5.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 5.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     neighbor_sum = PottsToolkit.CellProperty(:neighbor_sum, cell_type;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     neighbor_mean = PottsToolkit.CellProperty(:neighbor_mean, cell_type;
-        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 0.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     contact_rules = PottsToolkit.@rules phase = growth_phase begin
         contact_edges(cell) = contact_edge_count(
             cell, Contacting(), AnyFiniteCell())
@@ -617,8 +617,8 @@ end
         PottsToolkit.AnyFiniteCell())
     other_type = PottsToolkit.CellType(:query_other_type)
     scoped_signal = PottsToolkit.CellProperty(:scoped_signal, cell_type;
-        initial = 1.0f0, division = CorePotts.CloneOnDivision(),
-        transition = CorePotts.PreserveOnTransition())
+        initial = 1.0f0, division = PottsToolkit.CloneOnDivision(),
+        transition = PottsToolkit.PreserveOnTransition())
     unsafe_sum = PottsToolkit.Rule(neighbor_sum, :cell,
         PottsToolkit.neighbor_property_sum(scoped_signal, owner_reference,
             PottsToolkit.Contacting(), PottsToolkit.AnyFiniteCell());

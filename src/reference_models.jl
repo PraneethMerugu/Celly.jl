@@ -70,9 +70,9 @@ function chemotaxis_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
     model = chemotaxis_model(; target_volume, kwargs...)
     cell = only(value for value in model.declarations if value isa CellType)
     field = only(value for value in model.declarations if value isa Field)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
     domain = CartesianDomain(shape)
-    return PottsProblem(model, domain, Layout(layout);
+    return PottsProblem(model, domain, layout;
         fields = (field => _gradient_values(shape, profile),), capacity, tspan, seed)
 end
 
@@ -151,7 +151,7 @@ function _seed_label_layout(shape::NTuple{N, <:Integer}, count::Integer,
         end
         push!(declarations, UInt64(index) => cell_type_at(index))
     end
-    return CellLabelLayout(labels, declarations)
+    return LabelledCells(labels, declarations)
 end
 
 function _mixed_seed_labels(shape::NTuple{N, <:Integer}, count::Integer,
@@ -197,7 +197,7 @@ function monolayer_growth_model(;
     growth = Growth(volume, cell; rate = growth_rate)
     division = Division(cell;
         geometry = RandomOrientationSplit(),
-        trigger = CorePotts.PropertyAtLeast(:volume__target, Float32(division_target)))
+        trigger = PropertyAtLeast(:volume__target, Float32(division_target)))
     return PottsModel(medium, cell, volume, adhesion, growth, division)
 end
 
@@ -207,8 +207,8 @@ function monolayer_growth_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 
         tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
     model = monolayer_growth_model(; target_volume, kwargs...)
     cell = only(value for value in model.declarations if value isa CellType)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return PottsProblem(model, CartesianDomain(shape), Layout(layout);
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
         capacity, tspan, seed)
 end
 
@@ -223,7 +223,7 @@ function elongation_driven_angiogenesis_model(;
         target_elongation::Real = 3, elongation_strength::Real = 8,
         endothelial_contact::Real = 4, medium_contact::Real = 10,
         preserve_connectivity::Bool = true,
-        target_division::CorePotts.AbstractDivisionPolicy = CorePotts.CloneOnDivision())
+        target_division::CorePotts.AbstractDivisionPolicy = CloneOnDivision())
     medium = Medium(:Medium)
     endothelial = CellType(:EndothelialCell)
     volume = Volume(endothelial =>
@@ -269,8 +269,8 @@ function single_cell_fluctuation_problem(shape::NTuple{N, <:Integer} = ntuple(_ 
         cell => (target = target_volume, strength = volume_strength);
         eta, noise = AcceptanceTemperature())
     model = PottsModel(medium, cell, volume)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return PottsProblem(model, CartesianDomain(shape), Layout(layout);
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
         capacity, tspan, seed)
 end
 
@@ -291,8 +291,8 @@ function droplet_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 64, 2);
         (cell, cell) => 0)
     adhesion = Adhesion(law)
     model = PottsModel(medium, cell, volume, adhesion)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return PottsProblem(model, CartesianDomain(shape), Layout(layout);
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
         capacity, tspan, seed)
 end
 

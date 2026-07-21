@@ -28,6 +28,6 @@ using TOML
     coverage = covered / denominator
     @test denominator > 0
     @test coverage >= inventory["coverage_target"]
-    @test covered == 51
-    @test denominator == 52
+    @test covered == 72
+    @test denominator == 73
 end

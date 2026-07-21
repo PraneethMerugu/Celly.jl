@@ -83,6 +83,15 @@ export AbstractFieldInterpolation, Multilinear, Nearest, Field
 export LinearResponse, MichaelisMentenResponse, SaturationLinearResponse
 export ExtensionChemotaxis, RetractionChemotaxis, ReciprocalChemotaxis
 export PositiveYield, PropertyAtLeast
+export ReadOnlyProperty, MutableProperty
+export CloneOnDivision, SplitOnDivision, ResetChildOnDivision, ResetBothOnDivision
+export AsymmetricResetOnDivision, UnsupportedDivision
+export ConstitutiveResetAfterDivision, PreserveMechanicalOnDivision
+export StationaryRedrawAfterDivision
+export PreserveOnTransition, ResetOnTransition, RecomputeOnTransition
+export UnsupportedTransition, ResetOnRetirement
+export ConstitutiveMeanInitialization, StationaryMechanicalInitialization
+export PreserveMechanicalInitialization
 export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM
 export AbstractScientificObservable, CellVolume, CellTypeObservable
 export CellBoundaryMeasure, CellPropertyValues, ObservationSet

@@ -10,13 +10,15 @@ computed coverage meets the accepted threshold.
 
 | Measure | Result |
 |---|---:|
-| Stable denominator | 52 |
-| Natural Level 1 spellings | 51 |
+| Stable denominator | 73 |
+| Natural Level 1 spellings | 72 |
 | Stable lower-level-only exceptions | 1 |
-| Coverage | 98.08% |
+| Coverage | 98.63% |
 | Required | 95% |
 
-The sole stable exception is `ExternalFieldOccupancyHamiltonian`. It remains fully available
+The denominator includes the stable property lifecycle, HST initialization/division, and mechanical
+noise policies required to author these components without importing CorePotts. The sole stable
+exception is `ExternalFieldOccupancyHamiltonian`. It remains fully available
 through `NamedCoreComponent(name, component)` at Level 2 and directly through CorePotts at Level 3.
 Freezing a Level 1 biological name before reviewing its coupling-table and sign conventions in a
 representative model would create API debt for no scientific gain.
