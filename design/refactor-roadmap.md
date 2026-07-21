@@ -17,7 +17,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 8: Lifecycle, Initialization, and Persistence | Complete | [Phase 8 completion audit](audits/phase-8-completion-audit.md); open lifecycle and initialization protocols, exact persistence, and CPU/Metal/ROCm qualification |
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
 | Phase 10: PottsToolkit Typed API and Compiler | Complete | [Phase 10 completion audit](audits/phase-10-completion-audit.md); sole Level 2 semantic path, legacy deletion, reference workloads, schema `2.0.0` Metal/ROCm artifacts, and exact-head authoritative CI |
-| Phase 11: PottsToolkit Level 1 DSL | In progress | [Phase 11 implementation matrix](audits/phase-11-implementation-matrix.md); local CPU and real-Metal candidate evidence is green, authoritative CI pending |
+| Phase 11: PottsToolkit Level 1 DSL | Candidate | [Phase 11 completion audit](audits/phase-11-completion-audit.md); local package-family, CPU, and real-Metal evidence is green, authoritative protected CPU/Metal/ROCm CI pending |
 | Phases 12-15 | Not started | Ordered by their own entry gates |
 
 ## Objective

@@ -1,6 +1,6 @@
 # Phase 11 implementation and evidence matrix
 
-Status: Active implementation gate
+Status: Local candidate pass; authoritative protected CI pending
 
 This matrix translates the accepted Level 1 contracts into executable Phase 11 work. A row is
 complete only when its implementation, equivalence fixture, structured diagnostic fixture, and
