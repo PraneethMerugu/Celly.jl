@@ -17,10 +17,14 @@ for algorithm_name in Phase12BackendProfile.PROFILE_ALGORITHMS
     integrator = Phase12BackendProfile.prepare_integrator(
         backend_name, backend, algorithm_name)
     code_directory = joinpath(directory, algorithm_name, "device-code")
+    # Compile the KernelAbstractions launches before asking GPUCompiler to
+    # reflect them. Reflecting the entire cold high-level step can encounter
+    # transient LLVM address-space mismatches even though the kernels execute
+    # correctly; the captured step below still exercises every resident kernel.
+    Phase12BackendProfile.synchronized_steps!(integrator, 1)
     Metal.@device_code dir=code_directory begin
         Phase12BackendProfile.synchronized_steps!(integrator, 1)
     end
-    Phase12BackendProfile.synchronized_steps!(integrator, 1)
     profiled_seconds = Ref(0.0)
     profile_result = Metal.@profile trace=true begin
         profiled_seconds[] = Phase12BackendProfile.synchronized_steps!(integrator, 5)

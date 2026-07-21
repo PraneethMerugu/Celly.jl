@@ -128,10 +128,16 @@ end
         fixture.components, algorithm; seed = 0xc01a)
 
     @test first_run.algorithm_workspace.color_count >= 2
+    @test current_mcs_report(first_run) === nothing
     @test step!(first_run) === first_run
     @test step!(second_run) === second_run
+    launches_before_report = first_run.plan.metrics.launches
+    synchronizations_before_report = first_run.plan.metrics.host_synchronizations
     first_report = current_mcs_report(first_run)
     second_report = current_mcs_report(second_run)
+    @test first_run.plan.metrics.launches == launches_before_report + 1
+    @test first_run.plan.metrics.host_synchronizations ==
+          synchronizations_before_report + 1
     @test first_report == second_report
     @test first_report.mcs == 1
     @test first_report.internal_rounds ==

@@ -578,8 +578,6 @@ _current_mcs_report(integrator::ScientificPottsIntegrator, ::SequentialCPM) =
     _standard_current_mcs_report(integrator)
 _current_mcs_report(integrator::ScientificPottsIntegrator, ::SequentialEquilibrium) =
     _standard_current_mcs_report(integrator)
-_current_mcs_report(integrator::ScientificPottsIntegrator, ::CheckerboardSweepCPM) =
-    _standard_current_mcs_report(integrator)
 
 function logical_state(integrator::ScientificPottsIntegrator)
     return logical_snapshot(integrator.plan, integrator.state.potts)

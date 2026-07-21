@@ -112,6 +112,12 @@ chronological host/device trace. `profile_amdgpu.jl` captures GPUCompiler GCN an
 the same differential-adhesion fixture and retain unavailable resource fields as unavailable rather
 than estimating register pressure from occupancy.
 
+The Metal capture first executes one untimed, synchronized step so KernelAbstractions compiles its
+launches through the ordinary execution path. GPUCompiler reflection then captures a second
+resident step, followed by the separately timed trace. This keeps compilation priming outside both
+the device-code artifact and the warm-profile timing while still requiring nonempty native code for
+every algorithm.
+
 Every matrix now writes a versioned `phase10-reference-suite` TOML record in addition to the
 historical baselines. That record covers all five mandatory reference families, separates Level 2
 host stages from initialization and warm execution, and retains actual proposal accounting,
