@@ -18,6 +18,9 @@ Before comparing numbers, the comparator requires equality of the benchmark-cont
 versions, backend, authoritative hardware identity, Julia version, architecture, operating system,
 Julia thread count, precision, profile, tuning policy, workload inventory, algorithm, semantic model
 fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE`, not a ratio.
+CPU artifacts additionally record the affinity policy. Linux headline and scaling runs bind one
+logical CPU from each selected physical core; Darwin fixes the physical-core count but labels the
+configuration scheduler-managed because macOS exposes no supported process-affinity contract.
 
 The warm comparison independently gates steady MCS time, backend-resident memory, and warm residency
 counters. Its per-workload `first_mcs_seconds` is explicitly an order-dependent diagnostic and is not

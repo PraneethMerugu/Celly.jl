@@ -2907,7 +2907,8 @@ end
 """Measure compatible mandatory reference families for one scientific algorithm."""
 function measure_phase10_reference_backend(name::String; profile::String = "smoke",
         algorithm::AbstractPottsAlgorithm = SequentialCPM(temperature = 2.0f0),
-        skip_incompatible::Bool = false)
+        skip_incompatible::Bool = false,
+        real_type::Type{<:AbstractFloat} = Float32)
     samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) : (10, 5, 2)
     horizon = 1 + warmup_steps + samples * steps
     adaptor = _backend_adaptor(name)
@@ -2925,7 +2926,8 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
                 "$algorithm_name is outside this workload's scientific guarantee profile"]
             continue
         end
-        model_timing = @timed spec.model_builder()
+        model_timing = @timed SciMLBase.remake(spec.model_builder();
+            numerics = CorePotts.NumericalPolicy(real_type))
         model = model_timing.value
         normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
         normalized = normalization_timing.value
@@ -2938,7 +2940,8 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         lowering_timing =
             @timed PottsToolkit.Authoring.lower(problem_bound_model; dimensions)
         lowered = lowering_timing.value
-        problem_timing = @timed spec.problem_builder()
+        problem_timing = @timed SciMLBase.remake(spec.problem_builder();
+            model = lowered.core_model)
         problem = problem_timing.value
         parentmodule(typeof(problem)) === CorePotts || error(
             "$name $(spec.label) introduced a runtime authoring wrapper")
@@ -3076,6 +3079,7 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         "steps_per_sample" => steps,
         "warmup_steps" => warmup_steps,
         "algorithm" => string(nameof(typeof(algorithm))),
+        "precision" => string(real_type),
         "workloads" => workloads,
         "incompatible_workloads" => exclusions,
         "required_families" => [
@@ -3087,12 +3091,13 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
 end
 
 function measure_phase12_reference_backend(name::String; profile::String = "smoke",
-        sequential_reference = nothing)
+        sequential_reference = nothing,
+        real_type::Type{<:AbstractFloat} = Float32)
     algorithms = (
-        SequentialCPM(temperature = 2.0f0),
-        SequentialEquilibrium(temperature = 2.0f0),
-        CheckerboardSweepCPM(temperature = 2.0f0),
-        LotteryCPM(temperature = 2.0f0),
+        SequentialCPM(temperature = real_type(2)),
+        SequentialEquilibrium(temperature = real_type(2)),
+        CheckerboardSweepCPM(temperature = real_type(2)),
+        LotteryCPM(temperature = real_type(2)),
     )
     measurements = Dict{String, Any}()
     workloads = Dict{String, Any}()
@@ -3101,7 +3106,7 @@ function measure_phase12_reference_backend(name::String; profile::String = "smok
         algorithm_name = string(nameof(typeof(algorithm)))
         measurement = algorithm isa SequentialCPM && sequential_reference !== nothing ?
                       sequential_reference : measure_phase10_reference_backend(
-            name; profile, algorithm, skip_incompatible = true)
+            name; profile, algorithm, skip_incompatible = true, real_type)
         isempty(measurement["workloads"]) && error(
             "$name Phase 12 algorithm $algorithm_name has no compatible reference workload")
         measurements[algorithm_name] = measurement
@@ -3116,6 +3121,7 @@ function measure_phase12_reference_backend(name::String; profile::String = "smok
         "samples" => reference["samples"],
         "steps_per_sample" => reference["steps_per_sample"],
         "warmup_steps" => reference["warmup_steps"],
+        "precision" => string(real_type),
         "workloads" => workloads,
         "required_families" => reference["required_families"],
         "required_algorithms" => collect(keys(measurements)),
@@ -3202,7 +3208,7 @@ function phase12_result(name::String, profile::String, device::String;
             "architecture" => string(Sys.ARCH),
             "os" => string(Sys.KERNEL),
             "julia_threads" => Threads.nthreads(),
-            "precision" => "Float32",
+            "precision" => reference_performance["precision"],
             "profile" => profile,
             "tuning_policy" => _phase12_tuning_policy(),
         ),
@@ -3671,6 +3677,8 @@ function provenance(backend::String, device::String)
         "hardware_id" => _hardware_id(backend, device, cpu_model),
         "power_mode" => get(ENV, "POTTS_BENCHMARK_POWER_MODE", "unreported"),
         "thermal_state" => get(ENV, "POTTS_BENCHMARK_THERMAL_STATE", "unreported"),
+        "cpu_affinity_policy" => get(ENV, "POTTS_BENCHMARK_CPU_AFFINITY",
+            "unreported"),
         "kernel_intrinsics_source" => "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git",
         "kernel_intrinsics_commit" => "b3a02b6e80f0839082a02f1838af7e10e992062c"
     )
