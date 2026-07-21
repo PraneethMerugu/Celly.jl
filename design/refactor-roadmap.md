@@ -18,7 +18,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
 | Phase 10: PottsToolkit Typed API and Compiler | Complete | [Phase 10 completion audit](audits/phase-10-completion-audit.md); sole Level 2 semantic path, legacy deletion, reference workloads, schema `2.0.0` Metal/ROCm artifacts, and exact-head authoritative CI |
 | Phase 11: PottsToolkit Level 1 DSL | Complete | [Phase 11 completion audit](audits/phase-11-completion-audit.md); exact-head package-family, integration, documentation, x86_64/ARM64 CPU, real-Metal, and real-ROCm CI is green |
-| Phase 12: Performance Recovery and Backend Qualification | In progress | [Phase 12 entry audit](audits/phase-12-entry-audit.md) and [chunk plan](audits/phase-12-chunk-plan.md) |
+| Phase 12: Performance Recovery and Backend Qualification | In progress | [Phase 12 entry audit](audits/phase-12-entry-audit.md), [chunk plan](audits/phase-12-chunk-plan.md), and [external comparison crosswalk](audits/phase-12-external-comparison-crosswalk.md) |
 | Phases 13-15 | Not started | Ordered by their own entry gates |
 
 ## Objective
