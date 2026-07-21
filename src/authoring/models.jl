@@ -303,6 +303,33 @@ function Base.show(io::IO, model::PottsModel)
         " declarations; real=", CorePotts.real_type(model.numerics), ")")
 end
 
+function Base.show(io::IO, mime::MIME"text/plain", model::PottsModel)
+    diagnostics = validate(model)
+    if isvalid(diagnostics)
+        return show(io, mime, explain(model))
+    end
+    println(io, "PottsToolkit model (invalid)")
+    println(io, "  real type:    ", CorePotts.real_type(model.numerics))
+    println(io, "  declarations: ", length(model.declarations))
+    limit = min(length(model.declarations), 20)
+    for index in 1:limit
+        declaration = model.declarations[index]
+        identity = try semantic_identity(declaration) catch; nothing end
+        println(io, "    - ", identity === nothing ? nameof(typeof(declaration)) :
+            _identity_text(identity), " :: ", nameof(typeof(declaration)))
+    end
+    length(model.declarations) > limit && println(io, "    … ",
+        length(model.declarations) - limit, " more")
+    println(io, "  diagnostics:")
+    diagnostic_limit = min(length(diagnostics), 20)
+    for index in 1:diagnostic_limit
+        item = diagnostics.diagnostics[index]
+        println(io, "    - [", item.code, "] ", item.message)
+    end
+    length(diagnostics) > diagnostic_limit && println(io, "    … ",
+        length(diagnostics) - diagnostic_limit, " more")
+end
+
 function _declaration_identity(declaration)
     return semantic_identity(declaration)
 end

@@ -45,14 +45,15 @@ export Growth, Transition, Division, ShrinkDeath, ImmediateDeath
 export NamedCoreComponent
 export ModelFragment, bind, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance
-export dependencies
+export dependencies, capabilities
 export CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem, validate_problem
 export backend_report
 export semantic_identity, semantic_fingerprint, isvalid
 export execution_fingerprint, semantic_manifest
 export SourceLocation, Diagnostic, ValidationReport, ModelValidationError
 export ProblemValidationError, ModelReport
-export DeclarationReport, DependencyEdge, DependencyReport, ProvenanceEntry
+export DeclarationReport, DependencyEdge, DependencyReport, ModelCapabilityReport
+export ProvenanceEntry
 export SemanticFingerprint, ExecutionFingerprint
 export SemanticManifest
 export AbstractLevel1Declaration, Volume, Surface

@@ -215,6 +215,23 @@ function Base.show(io::IO, rule::Rule)
         ", phase=", rule.phase.name, ')')
 end
 
+function Base.show(io::IO, ::MIME"text/plain", rule::Rule)
+    println(io, "PottsToolkit rule ", _identity_text(rule.name))
+    println(io, "  target:     ", _identity_text(rule.target), '(', rule.owner, ')')
+    println(io, "  phase:      ", _identity_text(rule.phase.name))
+    println(io, "  cell types: ", join((_identity_text(value) for value in rule.cell_types), ", "))
+    reads = _expression_reads(rule.expression)
+    println(io, "  reads:      ", isempty(reads) ? "none" :
+        join((_identity_text(value) for value in reads), ", "))
+    draws = _random_draws(rule.expression)
+    println(io, "  draws:      ", isempty(draws) ? "none" : join((
+        string(nameof(typeof(draw.distribution)), '[', something(draw.label, :draw), ']')
+        for draw in draws), ", "))
+    println(io, "  expression: ", nameof(typeof(rule.expression)))
+    rule.source === nothing || print(io, "  source:     ", rule.source.file, ':',
+        rule.source.line)
+end
+
 """An atomic group of property rules that read one phase snapshot."""
 struct RuleGroup{R <: Tuple}
     name::SemanticName
@@ -245,6 +262,18 @@ function Base.show(io::IO, group::RuleGroup)
         " rules, phase=", group.phase.name, ')')
 end
 
+function Base.show(io::IO, ::MIME"text/plain", group::RuleGroup)
+    println(io, "PottsToolkit rule group ", _identity_text(group.name))
+    println(io, "  phase: ", _identity_text(group.phase.name))
+    println(io, "  rules: ", length(group.rules))
+    limit = min(length(group.rules), 20)
+    for index in 1:limit
+        println(io, "    - ", group.rules[index])
+    end
+    length(group.rules) > limit && println(io, "    … ",
+        length(group.rules) - limit, " more")
+end
+
 """A named pure state-dependent lifecycle predicate."""
 struct TriggerRule{E <: AbstractRuleExpression}
     name::SemanticName
@@ -264,6 +293,17 @@ semantic_identity(trigger::TriggerRule) = trigger.name
 function Base.show(io::IO, trigger::TriggerRule)
     print(io, "TriggerRule(", repr(trigger.name.name), "; phase_snapshot_owner=",
         repr(trigger.owner), ')')
+end
+
+function Base.show(io::IO, ::MIME"text/plain", trigger::TriggerRule)
+    println(io, "PottsToolkit trigger ", _identity_text(trigger.name))
+    println(io, "  owner:      ", trigger.owner)
+    reads = _expression_reads(trigger.expression)
+    println(io, "  reads:      ", isempty(reads) ? "none" :
+        join((_identity_text(value) for value in reads), ", "))
+    println(io, "  expression: ", nameof(typeof(trigger.expression)))
+    trigger.source === nothing || print(io, "  source:     ", trigger.source.file, ':',
+        trigger.source.line)
 end
 
 function _property_at_least(expression::ScalarCall{GreaterEqualOperation})

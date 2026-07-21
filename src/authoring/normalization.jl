@@ -11,6 +11,7 @@ end
 semantic_fingerprint(model::NormalizedModel) = model.fingerprint
 semantic_fingerprint(model::PottsModel) = semantic_fingerprint(normalize(model))
 provenance(model::NormalizedModel) = model.provenance_entries
+provenance(model::PottsModel) = provenance(normalize(model))
 
 _flatten_declarations(::Tuple{}) = ()
 
@@ -983,6 +984,27 @@ function explain(model::NormalizedModel)
     declarations = Tuple(_declaration_report(component) for component in model.components)
     return ModelReport(model.fingerprint, model.numerics, model.cell_types, model.media,
         model.components, declarations, model.provenance_entries, ValidationReport())
+end
+
+function capabilities(model::NormalizedModel)
+    declarations = Tuple((identity = declaration.identity,
+        capabilities = declaration.capabilities) for declaration in explain(model).declarations)
+    dimensions = Set((2, 3))
+    for declaration in declarations
+        intersect!(dimensions, Set(declaration.capabilities.dimensions))
+    end
+    ordered_dimensions = Tuple(sort!(collect(dimensions)))
+    portable = all(declaration -> declaration.capabilities.portable, declarations)
+    return ModelCapabilityReport(CorePotts.ScientificCapabilities(
+        dimensions = ordered_dimensions, portable = portable), declarations,
+        ValidationReport())
+end
+
+function capabilities(model::PottsModel)
+    diagnostics = validate(model)
+    isvalid(diagnostics) && return capabilities(normalize(model))
+    return ModelCapabilityReport(CorePotts.ScientificCapabilities(
+        dimensions = (), portable = false), (), diagnostics)
 end
 
 function _declaration_report(component::VolumeConstraint)

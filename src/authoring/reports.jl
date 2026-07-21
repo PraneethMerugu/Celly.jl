@@ -114,6 +114,47 @@ struct DependencyReport
     unresolved::Tuple
 end
 
+"""Immutable aggregate of model-wide and per-declaration execution capabilities."""
+struct ModelCapabilityReport
+    overall::CorePotts.ScientificCapabilities
+    declarations::Tuple
+    diagnostics::ValidationReport
+end
+
+Base.isvalid(report::ModelCapabilityReport) = isvalid(report.diagnostics)
+
+function Base.show(io::IO, report::ModelCapabilityReport)
+    dimensions = isempty(report.overall.dimensions) ? "none" :
+        join(report.overall.dimensions, '/')
+    print(io, "ModelCapabilityReport(", dimensions, "D, ",
+        report.overall.portable ? "portable" : "not portable", ", ",
+        length(report.declarations), " declarations, ",
+        isvalid(report) ? "valid" : "invalid", ')')
+end
+
+function Base.show(io::IO, ::MIME"text/plain", report::ModelCapabilityReport)
+    println(io, "PottsToolkit model capabilities")
+    println(io, "  dimensions: ", isempty(report.overall.dimensions) ?
+        "none" : join(report.overall.dimensions, ", "))
+    println(io, "  portable:   ", report.overall.portable)
+    println(io, "  declarations:")
+    limit = min(length(report.declarations), 20)
+    for index in 1:limit
+        entry = report.declarations[index]
+        println(io, "    - ", _identity_text(entry.identity), ": ",
+            join(entry.capabilities.dimensions, '/'), "D, ",
+            entry.capabilities.portable ? "portable" : "backend-specific")
+    end
+    length(report.declarations) > limit && println(io, "    … ",
+        length(report.declarations) - limit, " more")
+    if !isvalid(report)
+        println(io, "  diagnostics:")
+        for item in report.diagnostics
+            println(io, "    - [", item.code, "] ", item.message)
+        end
+    end
+end
+
 """Typed origin record for one normalized declaration."""
 struct ProvenanceEntry
     identity::SemanticName
@@ -177,22 +218,31 @@ function Base.show(io::IO, ::MIME"text/plain", report::ModelReport)
     println(io, "  cell types:  ", join((_identity_text(value) for value in report.cell_types), ", "))
     println(io, "  media:       ", join((_identity_text(value) for value in report.media), ", "))
     println(io, "  components:")
-    for component in report.components
+    component_limit = min(length(report.components), 20)
+    for component in report.components[1:component_limit]
         println(io, "    - ", _identity_text(semantic_identity(component)),
             " :: ", typeof(component))
     end
+    length(report.components) > component_limit && println(io, "    … ",
+        length(report.components) - component_limit, " more")
     println(io, "  expansion:")
-    for declaration in report.declarations
+    declaration_limit = min(length(report.declarations), 20)
+    for declaration in report.declarations[1:declaration_limit]
         println(io, "    - ", _identity_text(declaration.identity),
             " [", declaration.kind, "] -> ", join(string.(declaration.lowering), ", "),
             " (", join(declaration.capabilities.dimensions, "/"), "D, ",
             declaration.capabilities.portable ? "portable" : "backend-specific", ")")
     end
+    length(report.declarations) > declaration_limit && println(io, "    … ",
+        length(report.declarations) - declaration_limit, " more")
     if !isempty(report.diagnostics)
         println(io, "  diagnostics:")
-        for item in report.diagnostics
+        diagnostic_limit = min(length(report.diagnostics), 20)
+        for item in report.diagnostics.diagnostics[1:diagnostic_limit]
             println(io, "    - ", item.severity, " ", item.stage,
                 " [", item.code, "]: ", item.message)
         end
+        length(report.diagnostics) > diagnostic_limit && println(io, "    … ",
+            length(report.diagnostics) - diagnostic_limit, " more")
     end
 end

@@ -21,12 +21,14 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent,
                   ModelFragment, bind, PottsModel, NormalizedModel, add, remove, replace,
                   compose, normalize, validate, explain, provenance, dependencies,
+                  capabilities,
                   CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem,
                   validate_problem, backend_report, semantic_identity,
                   semantic_fingerprint, execution_fingerprint, semantic_manifest,
                   SourceLocation, Diagnostic, ValidationReport, ModelValidationError,
                   ProblemValidationError, ModelReport, DeclarationReport, DependencyEdge,
-                  DependencyReport, ProvenanceEntry, SemanticFingerprint,
+                  DependencyReport, ModelCapabilityReport, ProvenanceEntry,
+                  SemanticFingerprint,
                   ExecutionFingerprint, SemanticManifest,
                   AbstractLevel1Declaration, Volume, Surface,
                   FluctuatingVolumePressure, FluctuatingSurfaceTension,
@@ -80,11 +82,13 @@ export PropertyUpdate, StochasticPropertyUpdate, Growth, Transition
 export Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent
 export ModelFragment, bind, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance, dependencies
+export capabilities
 export CellLayout, CellLabelLayout, MediumLayout, LoweredModel
 export lower, problem, validate_problem, backend_report
 export semantic_identity, semantic_fingerprint, execution_fingerprint, semantic_manifest
 export SourceLocation, Diagnostic, ValidationReport, ModelValidationError, ProblemValidationError
-export ModelReport, DeclarationReport, DependencyEdge, DependencyReport, ProvenanceEntry
+export ModelReport, DeclarationReport, DependencyEdge, DependencyReport
+export ModelCapabilityReport, ProvenanceEntry
 export SemanticFingerprint, ExecutionFingerprint, SemanticManifest
 export AbstractLevel1Declaration, Volume, Surface
 export FluctuatingVolumePressure, FluctuatingSurfaceTension
