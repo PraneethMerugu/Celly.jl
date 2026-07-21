@@ -9,4 +9,5 @@ using CorePotts
     include("test_phase11_fragments.jl")
     include("test_phase11_inspection.jl")
     include("test_phase11_inventory.jl")
+    include("test_phase11_macro_contract.jl")
 end

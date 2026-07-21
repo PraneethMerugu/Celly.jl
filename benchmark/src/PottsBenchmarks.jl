@@ -2404,6 +2404,10 @@ function qualify_phase11_backend(name::String)
         phase11_neighbor_mean = PottsToolkit.CellProperty(:phase11_neighbor_mean, cell;
             initial = 0.0f0, division = CloneOnDivision(),
             transition = PreserveOnTransition())
+        phase11_scalar_inventory = PottsToolkit.CellProperty(
+            :phase11_scalar_inventory, cell;
+            initial = 2.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
         phase11_field = PottsToolkit.Field(:phase11_field;
             boundary = PottsToolkit.FixedValue(0.0f0),
             interpolation = PottsToolkit.Nearest())
@@ -2448,6 +2452,16 @@ function qualify_phase11_backend(name::String)
         neighbor_mean_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_mean(owner) =
             neighbor_property_mean(phase11_neighbor_signal, owner,
                 Contacting(), AnyFiniteCell(); empty = 0.0f0)
+        scalar_inventory_rule = PottsToolkit.@rule phase = first_phase phase11_scalar_inventory(owner) =
+            if phase11_scalar_inventory(owner) >= 2.0f0 &&
+                    !(phase11_scalar_inventory(owner) == 3.0f0)
+                clamp(max(abs(-phase11_scalar_inventory(owner)), sqrt(4.0f0)),
+                    0.0f0, 10.0f0) + exp(0.0f0) + log(1.0f0) + sin(0.0f0) +
+                    cos(0.0f0) + tan(0.0f0)
+            else
+                ifelse(phase11_scalar_inventory(owner) != 0.0f0,
+                    min(phase11_scalar_inventory(owner)^2 / 2.0f0, 5.0f0), 0.0f0)
+            end
         dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
             clamp(phase11_age(owner) + 2, 0, 100)
         model = PottsToolkit.PottsModel(
@@ -2455,11 +2469,12 @@ function qualify_phase11_backend(name::String)
             phase11_normal, phase11_direction, phase11_edges,
             phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
             phase11_neighbor_count, phase11_neighbor_signal, phase11_neighbor_sum,
-            phase11_neighbor_mean, phase11_field, phase11_coupling, phase11_rate,
-            phase11_extension,
+            phase11_neighbor_mean, phase11_scalar_inventory, phase11_field,
+            phase11_coupling, phase11_rate, phase11_extension,
             aging, uniform_rule, normal_rule, direction_rule, edge_rule,
             boundary_site_rule, contact_measure_rule, exact_widen_rule,
-            neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule, dependent)
+            neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule,
+            scalar_inventory_rule, dependent)
         shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
         labels = fill(UInt64(1), shape)
         for site in CartesianIndices(labels)
@@ -2506,6 +2521,8 @@ function qualify_phase11_backend(name::String)
             "$name Phase 11 $N-D distinct-neighbor property sum produced the wrong value")
         property_value(snapshot, :phase11_neighbor_mean, CellID(1)) == 5.0f0 || error(
             "$name Phase 11 $N-D distinct-neighbor property mean produced the wrong value")
+        property_value(snapshot, :phase11_scalar_inventory, CellID(1)) == 4.0f0 || error(
+            "$name Phase 11 $N-D closed scalar inventory produced the wrong value")
         uniform_value = property_value(snapshot, :phase11_uniform, CellID(1))
         0.0f0 < uniform_value < 1.0f0 || error(
             "$name Phase 11 $N-D Uniform rule violated its open interval")
@@ -2540,6 +2557,7 @@ function qualify_phase11_backend(name::String)
             "addressed_draw_value" => 1.0,
             "cell_parameter_value" => 0.5,
             "exact_output_conversion" => true,
+            "closed_scalar_inventory" => true,
             "exact_distinct_neighbor_queries" => true,
             "level1_nearest_fixed_field" => true,
             "typed_fragment_roles" => true,
