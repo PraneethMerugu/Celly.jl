@@ -361,7 +361,7 @@ uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
 version = "0.1.0+0"
 
 [[deps.CorePotts]]
-deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Random", "SciMLBase", "StaticArrays", "Statistics", "StructArrays"]
+deps = ["AcceleratedKernels", "Adapt", "ArgCheck", "Atomix", "ChainRulesCore", "ConstructionBase", "Functors", "KernelAbstractions", "KernelIntrinsics", "LinearAlgebra", "Random", "SHA", "SciMLBase", "Serialization", "StaticArrays", "Statistics", "StructArrays"]
 path = "../lib/CorePotts"
 uuid = "047998c1-3edd-4edf-b561-cee99549c5a6"
 version = "0.1.0"
@@ -1119,11 +1119,6 @@ git-tree-sha1 = "f00544d95982ea270145636c181ceda21c4e2575"
 uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 version = "1.2.0"
 
-[[deps.MLStyle]]
-git-tree-sha1 = "bc38dff0548128765760c79eb7388a4b37fae2c8"
-uuid = "d8e11817-5142-5d16-987a-aa16d5891078"
-version = "0.4.17"
-
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -1375,16 +1370,14 @@ uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
 
 [[deps.PottsToolkit]]
-deps = ["Adapt", "CorePotts", "KernelAbstractions", "MLStyle", "Random", "Reexport", "SciMLBase"]
+deps = ["CorePotts", "PrecompileTools", "SHA", "SciMLBase", "StaticArrays"]
 path = ".."
 uuid = "e4c62a4c-8889-4cc8-ad3a-75efc86c53b9"
 version = "0.1.0"
+weakdeps = ["Unitful"]
 
     [deps.PottsToolkit.extensions]
-    PottsToolkitMermaidExt = "Mermaid"
-
-    [deps.PottsToolkit.weakdeps]
-    Mermaid = "922b6a97-db6b-4881-a67b-b45fb8a31c4c"
+    PottsToolkitUnitfulExt = "Unitful"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "PrecompileTools"]

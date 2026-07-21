@@ -5,6 +5,7 @@ authors = ["Praneeth Merugu <merugufam@gmail.com>"]
 
 [deps]
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -15,6 +16,7 @@ CorePotts = {path = "lib/CorePotts"}
 [compat]
 CorePotts = "0.1"
 KernelAbstractions = "0.9.42"
+PrecompileTools = "1"
 SciMLBase = "3"
 StaticArrays = "1"
 Unitful = "1"
