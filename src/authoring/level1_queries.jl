@@ -45,6 +45,12 @@ boundary_site_count(owner::OwnerReference, relation::Contacting,
 
 _expression_reads(::SpatialQueryExpression) = ()
 _normalize_rule_expression(expression::SpatialQueryExpression, ::Type) = expression
+_rule_result_types(expression::SpatialQueryExpression{ContactEdgeCountOperation}, context) =
+    (Int64,)
+_rule_result_types(expression::SpatialQueryExpression{BoundarySiteCountOperation}, context) =
+    (Int64,)
+_rule_result_types(expression::SpatialQueryExpression{ContactMeasureOperation}, context) =
+    (_context_real_type(context),)
 
 _spatial_queries(::Any) = ()
 _spatial_queries(expression::SpatialQueryExpression) = (expression,)

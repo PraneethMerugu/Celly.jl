@@ -23,9 +23,12 @@ struct _CompiledSpatialQueryExpression{O <: AbstractSpatialQueryOperation,
     medium_types::M
 end
 
-struct _CompiledRuleAssignment{Key, E <: AbstractRuleExpression, S <: Tuple}
+struct _ExactRuleOutput{T} end
+
+struct _CompiledRuleAssignment{Key, E <: AbstractRuleExpression, S <: Tuple, P}
     expression::E
     cell_type_ids::S
+    output_policy::P
 end
 
 struct _CompiledRulePhase{A <: Tuple}
@@ -149,8 +152,11 @@ function _compile_rule_assignment(rule::Rule, context::_LoweringContext)
     expression = _compile_rule_expression(rule.expression, rule, context)
     cell_type_ids = Tuple(UInt32(CorePotts.value(CorePotts.CellTypeID(
         _biological_index(context, cell_type)))) for cell_type in rule.cell_types)
-    return _CompiledRuleAssignment{key, typeof(expression), typeof(cell_type_ids)}(
-        expression, cell_type_ids)
+    target = only(component for component in context.declarations
+        if component isa CellProperty && semantic_identity(component) == rule.target)
+    output_policy = _ExactRuleOutput{typeof(target.initial)}()
+    return _CompiledRuleAssignment{key, typeof(expression), typeof(cell_type_ids),
+        typeof(output_policy)}(expression, cell_type_ids, output_policy)
 end
 
 function _rule_phase_order(rules::Tuple)
@@ -331,8 +337,11 @@ end
         radius * cos(angle), radius * sin(angle), z)
 end
 
-@inline _coerce_compiled_rule_output(::NoChange, current) = current
-@inline _coerce_compiled_rule_output(value, current) = convert(typeof(current), value)
+@inline _coerce_compiled_rule_output(::NoChange, current, policy) = current
+@inline _coerce_compiled_rule_output(value::T, current,
+    ::_ExactRuleOutput{T}) where {T} = value
+@inline _coerce_compiled_rule_output(value, current,
+    ::_ExactRuleOutput{T}) where {T} = T(value)
 
 @inline function _compiled_rule_value(assignment::_CompiledRuleAssignment{Key},
         state, cell, mcs, rng, seed, event_id) where {Key}
@@ -343,7 +352,7 @@ end
     if applies
         value = _compiled_rule_evaluate(
             assignment.expression, state, cell, mcs, rng, seed, event_id)
-        return _coerce_compiled_rule_output(value, current)
+        return _coerce_compiled_rule_output(value, current, assignment.output_policy)
     end
     return current
 end

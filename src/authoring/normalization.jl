@@ -61,11 +61,13 @@ function _partition_declarations(declarations::Tuple)
     return _prepend_partition(first(declarations), cells, media, components)
 end
 
-struct _ValidationContext
+struct _ValidationContext{T <: AbstractFloat}
     cell_types::Tuple
     biological_types::Tuple
     components::Tuple
 end
+
+_context_real_type(::_ValidationContext{T}) where {T} = T
 
 _validate_declaration(::Union{CellType, Medium}, context::_ValidationContext) = ()
 
@@ -430,7 +432,9 @@ function _diagnose_model(model::PottsModel)
         :missing_medium, "a runnable model must declare at least one Medium";
         correction = "add a Medium declaration")))
 
-    context = _ValidationContext(cell_types, (cell_types..., media...), components)
+    T = CorePotts.real_type(model.numerics)
+    context = _ValidationContext{T}(
+        cell_types, (cell_types..., media...), components)
     for component in components
         diagnostics = (diagnostics..., _validate_declaration(component, context)...)
     end

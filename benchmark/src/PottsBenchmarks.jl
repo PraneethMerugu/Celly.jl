@@ -2385,16 +2385,19 @@ function qualify_phase11_backend(name::String)
             :phase11_contact_measure, cell;
             initial = 0.0f0, division = CloneOnDivision(),
             transition = PreserveOnTransition())
+        phase11_exact_widen = PottsToolkit.CellProperty(:phase11_exact_widen, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
         phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
         first_phase = PottsToolkit.Phase(:phase11_first)
         second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
         aging = PottsToolkit.@rule phase = first_phase phase11_age(owner) =
             phase11_age(owner) + phase11_rate(owner) +
-            draw(Bernoulli(1.0); label = :aging)
+            draw(Bernoulli(1.0f0); label = :aging)
         uniform_rule = PottsToolkit.@rule phase = first_phase phase11_uniform(owner) =
-            draw(Uniform(0.0, 1.0); label = :uniform)
+            draw(Uniform(0.0f0, 1.0f0); label = :uniform)
         normal_rule = PottsToolkit.@rule phase = first_phase phase11_normal(owner) =
-            draw(Normal(0.0, 1.0); label = :normal)
+            draw(Normal(0.0f0, 1.0f0); label = :normal)
         direction_rule = PottsToolkit.@rule phase = first_phase phase11_direction(owner) =
             draw(UnitVector($N); label = :direction)
         edge_rule = PottsToolkit.@rule phase = first_phase phase11_edges(owner) =
@@ -2403,14 +2406,18 @@ function qualify_phase11_backend(name::String)
             boundary_site_count(owner, Contacting(), AnyFiniteCell())
         contact_measure_rule = PottsToolkit.@rule phase = first_phase phase11_contact_measure(owner) =
             contact_measure(owner, Contacting(), CellTypeFilter(cell))
+        exact_widen_rule = PottsToolkit.Rule(
+            phase11_exact_widen, :owner, PottsToolkit.RuleLiteral(Int32(7));
+            phase = first_phase)
         dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
             clamp(phase11_age(owner) + 2, 0, 100)
         model = PottsToolkit.PottsModel(
             medium, cell, phase11_age, phase11_target, phase11_uniform,
             phase11_normal, phase11_direction, phase11_edges,
-            phase11_boundary_sites, phase11_contact_measure, phase11_rate,
+            phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
+            phase11_rate,
             aging, uniform_rule, normal_rule, direction_rule, edge_rule,
-            boundary_site_rule, contact_measure_rule, dependent)
+            boundary_site_rule, contact_measure_rule, exact_widen_rule, dependent)
         shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
         labels = fill(UInt64(1), shape)
         for site in CartesianIndices(labels)
@@ -2448,6 +2455,8 @@ function qualify_phase11_backend(name::String)
             "$name Phase 11 $N-D parameter/Bernoulli rule produced the wrong value")
         property_value(snapshot, :phase11_target, CellID(1)) == 3.5f0 || error(
             "$name Phase 11 $N-D ordered phase did not observe the prior phase commit")
+        property_value(snapshot, :phase11_exact_widen, CellID(1)) == Int64(7) || error(
+            "$name Phase 11 $N-D exact integer widening produced the wrong value")
         uniform_value = property_value(snapshot, :phase11_uniform, CellID(1))
         0.0f0 < uniform_value < 1.0f0 || error(
             "$name Phase 11 $N-D Uniform rule violated its open interval")
@@ -2481,6 +2490,7 @@ function qualify_phase11_backend(name::String)
             "ordered_phase_value" => 3.5,
             "addressed_draw_value" => 1.0,
             "cell_parameter_value" => 0.5,
+            "exact_output_conversion" => true,
             "uniform_open_interval" => true,
             "normal_finite" => true,
             "unit_vector_norm" => sum(abs2, direction_value),

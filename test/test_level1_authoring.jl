@@ -291,13 +291,13 @@ end
     @test_throws ArgumentError PottsToolkit.Phase(:bad;
         after = (mechanics, mechanics))
 
-    growth = PottsToolkit.@rule phase = growth_phase age(cell) = age(cell) + 1.0
+    growth = PottsToolkit.@rule phase = growth_phase age(cell) = age(cell) + 1.0f0
     @test growth isa PottsToolkit.Rule
     @test growth.phase === growth_phase
     @test growth.source isa PottsToolkit.SourceLocation
     @test PottsToolkit.evaluate(growth, (age = 2.0f0,)) == 3.0f0
     owner = PottsToolkit.OwnerReference(:cell)
-    programmatic_growth = PottsToolkit.Rule(age, :cell, age(owner) + 1.0;
+    programmatic_growth = PottsToolkit.Rule(age, :cell, age(owner) + 1.0f0;
         phase = growth_phase)
     macro_model = PottsToolkit.PottsModel(medium, cell_type, age, growth)
     programmatic_model = PottsToolkit.PottsModel(
@@ -316,8 +316,8 @@ end
     @test CorePotts.property_value(growth_solution.u[end].state,
         :age, CorePotts.CellID(1)) == 1.0f0
 
-    growth_rate = PottsToolkit.CellParameter(:growth_rate, cell_type => 0.5)
-    global_rate = PottsToolkit.ModelParameter(:global_rate, 0.25)
+    growth_rate = PottsToolkit.CellParameter(:growth_rate, cell_type => 0.5f0)
+    global_rate = PottsToolkit.ModelParameter(:global_rate, 0.25f0)
     typed_growth = PottsToolkit.@rule phase = growth_phase age(cell) =
         age(cell) + growth_rate(cell)
     global_growth = PottsToolkit.@rule phase = growth_phase target(cell) =
@@ -329,6 +329,25 @@ end
         PottsToolkit.lower(parameter_model; dimensions = 2).core_model)) == 1
     @test PottsToolkit.evaluate(typed_growth,
         (age = 2.0, growth_rate = 0.5)) == 2.5
+
+    narrowing = PottsToolkit.@rule phase = growth_phase age(cell) = age(cell) + 1.0
+    narrowing_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, narrowing))
+    @test any(diagnostic -> diagnostic.code === :unsafe_rule_output_conversion,
+        narrowing_report)
+    integer_state = PottsToolkit.CellProperty(:integer_state, cell_type;
+        initial = Int64(0), division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    exact_integer = PottsToolkit.Rule(integer_state, :cell, Int32(2);
+        phase = growth_phase)
+    @test Base.isvalid(PottsToolkit.PottsModel(
+        medium, cell_type, integer_state, exact_integer))
+    rounded_integer = PottsToolkit.Rule(integer_state, :cell, 2.0f0;
+        phase = growth_phase, name = :rounded_integer)
+    rounded_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, integer_state, rounded_integer))
+    @test any(diagnostic -> diagnostic.code === :unsafe_rule_output_conversion,
+        rounded_report)
 
     stochastic = PottsToolkit.@rule phase = growth_phase age(cell) =
         age(cell) + draw(Bernoulli(1.0); label = :aging_draw)

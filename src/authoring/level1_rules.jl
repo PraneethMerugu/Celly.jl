@@ -461,7 +461,185 @@ function _validate_declaration(rule::Rule, context::_ValidationContext)
     end
     return (diagnostics..., _rule_expression_diagnostics(rule)...,
         _query_diagnostics(rule, context)...,
-        _random_draw_diagnostics(rule)...)
+        _random_draw_diagnostics(rule)...,
+        _rule_output_diagnostics(rule, context)...)
+end
+
+_declaration_value_type(declaration::CellProperty) = typeof(declaration.initial)
+_declaration_value_type(::CellParameter{T}) where {T} = T
+_declaration_value_type(::ModelParameter{T}) where {T} = T
+
+function _referenced_value_type(identity::SemanticName, context::_ValidationContext)
+    index = findfirst(component -> semantic_identity(component) == identity,
+        context.components)
+    index === nothing && return nothing
+    declaration = context.components[index]
+    return declaration isa Union{CellProperty, CellParameter, ModelParameter} ?
+        _declaration_value_type(declaration) : nothing
+end
+
+_rule_result_types(expression::RuleLiteral, context) = (typeof(expression.value),)
+function _rule_result_types(expression::PropertyRead, context)
+    type = _referenced_value_type(expression.property, context)
+    return type === nothing ? () : (type,)
+end
+function _rule_result_types(expression::CellParameterRead, context)
+    type = _referenced_value_type(expression.parameter, context)
+    return type === nothing ? () : (type,)
+end
+function _rule_result_types(expression::ModelParameterRead, context)
+    type = _referenced_value_type(expression.parameter, context)
+    return type === nothing ? () : (type,)
+end
+_rule_result_types(::OwnerReference, context) = ()
+_rule_result_types(::NoChange, context) = ()
+
+_nochange_only(::Any) = false
+_nochange_only(::NoChange) = true
+_nochange_only(expression::ConditionalExpression) =
+    _nochange_only(expression.if_true) && _nochange_only(expression.if_false)
+_scalar_function(::AddOperation) = +
+_scalar_function(::SubtractOperation) = -
+_scalar_function(::MultiplyOperation) = *
+_scalar_function(::DivideOperation) = /
+_scalar_function(::PowerOperation) = ^
+_scalar_function(::LessOperation) = <
+_scalar_function(::LessEqualOperation) = <=
+_scalar_function(::GreaterOperation) = >
+_scalar_function(::GreaterEqualOperation) = >=
+_scalar_function(::EqualOperation) = ==
+_scalar_function(::NotEqualOperation) = !=
+_scalar_function(::MinOperation) = min
+_scalar_function(::MaxOperation) = max
+_scalar_function(::ClampOperation) = clamp
+_scalar_function(::AbsOperation) = abs
+_scalar_function(::SqrtOperation) = sqrt
+_scalar_function(::ExpOperation) = exp
+_scalar_function(::LogOperation) = log
+_scalar_function(::SinOperation) = sin
+_scalar_function(::CosOperation) = cos
+_scalar_function(::TanOperation) = tan
+
+function _concrete_result_types(type)
+    type === Union{} && return ()
+    types = Base.uniontypes(type)
+    all(isconcretetype, types) || return ()
+    return Tuple(types)
+end
+
+function _scalar_result_types(operation::Union{AndOperation, OrOperation}, types::Tuple)
+    return length(types) == 2 && all(==(Bool), types) ? (Bool,) : ()
+end
+
+function _scalar_result_types(::NotOperation, types::Tuple)
+    return types == (Bool,) ? (Bool,) : ()
+end
+
+function _scalar_result_types(::IfElseOperation, types::Tuple)
+    length(types) == 3 && first(types) === Bool || return ()
+    return Tuple(unique((types[2], types[3])))
+end
+
+function _scalar_result_types(operation::AbstractScalarOperation, types::Tuple)
+    result = try
+        Base.promote_op(_scalar_function(operation), types...)
+    catch
+        Union{}
+    end
+    return _concrete_result_types(result)
+end
+
+function _rule_result_types(expression::ScalarCall, context)
+    argument_types = map(argument -> _rule_result_types(argument, context),
+        expression.arguments)
+    any(isempty, argument_types) && return ()
+    results = DataType[]
+    for types in Iterators.product(argument_types...)
+        append!(results, _scalar_result_types(expression.operation, types))
+    end
+    return Tuple(unique(results))
+end
+
+function _rule_result_types(expression::ConditionalExpression, context)
+    _rule_result_types(expression.condition, context) == (Bool,) || return ()
+    return Tuple(unique((_rule_result_types(expression.if_true, context)...,
+        _rule_result_types(expression.if_false, context)...)))
+end
+
+_rule_result_types(::RandomDraw{<:Bernoulli}, context) = (Bool,)
+
+function _distribution_numeric_types(expressions, context)
+    types = Tuple(type for expression in expressions
+        for type in _rule_result_types(expression, context))
+    length(types) == length(expressions) && all(type -> type <: Real, types) || return ()
+    return types
+end
+
+function _rule_result_types(draw::RandomDraw{<:Uniform}, context)
+    types = _distribution_numeric_types(
+        _distribution_expressions(draw.distribution), context)
+    isempty(types) && return ()
+    return (float(promote_type(types...)),)
+end
+
+function _rule_result_types(draw::RandomDraw{<:Normal}, context)
+    types = _distribution_numeric_types(
+        _distribution_expressions(draw.distribution), context)
+    isempty(types) && return ()
+    return (float(promote_type(types...)),)
+end
+
+function _rule_result_types(draw::RandomDraw{<:UnitVector}, context)
+    N = Int(draw.distribution.dimensions)
+    T = _context_real_type(context)
+    return (StaticArrays.SVector{N, T},)
+end
+
+_exact_automatic_conversion(source::Type, target::Type) = source === target
+function _exact_automatic_conversion(source::Type{<:Integer}, target::Type{<:Integer})
+    source === target && return true
+    integer_types = (Bool, Int8, Int16, Int32, Int64, Int128,
+        UInt8, UInt16, UInt32, UInt64, UInt128)
+    source in integer_types && target in integer_types || return false
+    return typemin(target) <= typemin(source) && typemax(source) <= typemax(target)
+end
+function _exact_automatic_conversion(source::Type{<:AbstractFloat},
+        target::Type{<:AbstractFloat})
+    source === target && return true
+    source in (Float16, Float32, Float64) && target in (Float16, Float32, Float64) ||
+        return false
+    return sizeof(source) <= sizeof(target)
+end
+function _exact_automatic_conversion(source::Type{<:Integer},
+        target::Type{<:AbstractFloat})
+    source in (Bool, Int8, Int16, Int32, Int64, Int128,
+        UInt8, UInt16, UInt32, UInt64, UInt128) || return false
+    target in (Float16, Float32, Float64) || return false
+    source_bits = source === Bool ? 1 : 8 * sizeof(source)
+    return source_bits <= precision(target)
+end
+
+function _rule_output_diagnostics(rule::Rule, context::_ValidationContext)
+    target_index = findfirst(component -> semantic_identity(component) == rule.target,
+        context.components)
+    target_index === nothing && return ()
+    target = context.components[target_index]
+    target isa CellProperty || return ()
+    result_types = _rule_result_types(rule.expression, context)
+    _nochange_only(rule.expression) && return ()
+    isempty(result_types) && return (Diagnostic(:error,
+        :unsupported_rule_output_type,
+        "rule output type cannot be resolved to a portable concrete value";
+        identity = rule.name, source = rule.source,
+        correction = "use the closed scalar expression vocabulary with concrete typed values"),)
+    target_type = typeof(target.initial)
+    unsafe = Tuple(type for type in result_types
+        if !_exact_automatic_conversion(type, target_type))
+    isempty(unsafe) && return ()
+    return (Diagnostic(:error, :unsafe_rule_output_conversion,
+        "rule output requires narrowing, rounding, precision loss, or an undefined conversion";
+        identity = rule.name, related = (unsafe..., target_type), source = rule.source,
+        correction = "make the expression type match the property or declare a future named conversion policy"),)
 end
 
 _operation_arity(::Union{AddOperation, MultiplyOperation}) = 2:typemax(Int)
