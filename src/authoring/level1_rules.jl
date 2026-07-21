@@ -293,10 +293,10 @@ AtMCS(boundaries) = CorePotts.AtMCS(boundaries)
 BetweenMCS(start::Integer, stop::Integer; every::Integer = 1) =
     CorePotts.PeriodicMCS(start, every; stop)
 
-_operation_value(::AddOperation, left, right) = left + right
+_operation_value(::AddOperation, values...) = +(values...)
 _operation_value(::SubtractOperation, left, right) = left - right
 _operation_value(::SubtractOperation, value) = -value
-_operation_value(::MultiplyOperation, left, right) = left * right
+_operation_value(::MultiplyOperation, values...) = *(values...)
 _operation_value(::DivideOperation, left, right) = left / right
 _operation_value(::PowerOperation, left, right) = left^right
 _operation_value(::LessOperation, left, right) = left < right
@@ -441,20 +441,60 @@ function _validate_declaration(rule::Rule, context::_ValidationContext)
     for identity in _expression_reads(rule.expression)
         index = findfirst(component -> semantic_identity(component) == identity,
             context.components)
-        index !== nothing && context.components[index] isa Union{
+        declaration = index === nothing ? nothing : context.components[index]
+        declaration isa Union{
             CellProperty, CellParameter, ModelParameter} ||
             (diagnostics = (diagnostics..., Diagnostic(:error, :unknown_rule_read,
                 "rule expression reads an undeclared or incompatible property";
                 identity = rule.name, related = (identity,), source = rule.source,
                 correction = "declare a compatible typed property reference")))
+        if declaration isa CellParameter
+            missing = Tuple(cell_type for cell_type in rule.cell_types
+                if !haskey(declaration.bindings, cell_type))
+            isempty(missing) || (diagnostics = (diagnostics..., Diagnostic(
+                :error, :missing_cell_parameter_binding,
+                "a cell parameter read must be bound for every cell type in the rule scope";
+                identity = rule.name, related = (identity, missing...),
+                source = rule.source,
+                correction = "add the missing bindings or narrow the target property scope")))
+        end
     end
-    diagnostics = (diagnostics..., _random_draw_diagnostics(rule)...)
-    _qualified_rule_increment(rule, context) ||
-        (diagnostics = (diagnostics..., Diagnostic(
-        :error, :unqualified_rule_lowering,
-        "this rule is valid Level 1 syntax but has no qualified runtime lowering yet";
-        identity = rule.name, source = rule.source,
-        correction = "the current executable slice supports `property(cell) = property(cell) + literal`"),))
+    return (diagnostics..., _rule_expression_diagnostics(rule)...,
+        _random_draw_diagnostics(rule)...)
+end
+
+_operation_arity(::Union{AddOperation, MultiplyOperation}) = 2:typemax(Int)
+_operation_arity(::Union{DivideOperation, PowerOperation, LessOperation, LessEqualOperation, GreaterOperation,
+    GreaterEqualOperation, EqualOperation, NotEqualOperation, AndOperation,
+    OrOperation}) = 2:2
+_operation_arity(::SubtractOperation) = 1:2
+_operation_arity(::Union{NotOperation, AbsOperation, SqrtOperation, ExpOperation,
+    LogOperation, SinOperation, CosOperation, TanOperation}) = 1:1
+_operation_arity(::Union{MinOperation, MaxOperation}) = 1:typemax(Int)
+_operation_arity(::Union{ClampOperation, IfElseOperation}) = 3:3
+
+_scalar_calls(::Any) = ()
+_scalar_calls(expression::ScalarCall) = (expression, Tuple(call
+    for argument in expression.arguments for call in _scalar_calls(argument))...)
+_scalar_calls(expression::ConditionalExpression) = Tuple(call
+    for branch in (expression.condition, expression.if_true, expression.if_false)
+    for call in _scalar_calls(branch))
+_scalar_calls(expression::RandomDraw) = Tuple(call
+    for parameter in _distribution_expressions(expression.distribution)
+    for call in _scalar_calls(parameter))
+
+function _rule_expression_diagnostics(rule::Rule)
+    diagnostics = ()
+    for call in _scalar_calls(rule.expression)
+        length(call.arguments) in _operation_arity(call.operation) ||
+            (diagnostics = (diagnostics..., Diagnostic(:error,
+                :invalid_scalar_operation_arity,
+                "a Level 1 scalar operation has an unsupported number of arguments";
+                identity = rule.name,
+                related = (Symbol(nameof(typeof(call.operation))),
+                    length(call.arguments)), source = rule.source,
+                correction = "use the ordinary Julia arity documented for this operation"),))
+    end
     return diagnostics
 end
 
@@ -492,6 +532,30 @@ function _random_draw_diagnostics(rule::Rule)
                     identity = rule.name, related = (probability,), source = rule.source,
                     correction = "use a probability between zero and one"),))
         end
+        if distribution isa Uniform && distribution.lower isa RuleLiteral &&
+                distribution.upper isa RuleLiteral
+            lower = distribution.lower.value
+            upper = distribution.upper.value
+            lower isa Real && upper isa Real && isfinite(lower) && isfinite(upper) &&
+                lower < upper ||
+                (diagnostics = (diagnostics..., Diagnostic(:error,
+                    :invalid_distribution_parameter,
+                    "Uniform bounds must be finite real values with lower < upper";
+                    identity = rule.name, related = (lower, upper), source = rule.source,
+                    correction = "supply finite, strictly ordered Uniform bounds"),))
+        end
+        if distribution isa Normal &&
+                distribution.standard_deviation isa RuleLiteral
+            standard_deviation = distribution.standard_deviation.value
+            standard_deviation isa Real && isfinite(standard_deviation) &&
+                standard_deviation > 0 ||
+                (diagnostics = (diagnostics..., Diagnostic(:error,
+                    :invalid_distribution_parameter,
+                    "Normal standard deviation must be a finite positive real value";
+                    identity = rule.name, related = (standard_deviation,),
+                    source = rule.source,
+                    correction = "supply a finite standard deviation greater than zero"),))
+        end
     end
     return diagnostics
 end
@@ -528,53 +592,11 @@ function _rule_increment(rule::Rule)
 end
 
 _property_write_target(rule::Rule) = (rule.target, :value)
-_lifecycle_event_id(rule::Rule) =
-    UInt16(1 + _semantic_rng_code(rule.name, :event, UInt16(0x0ffe)))
+_lifecycle_event_id(::Rule) = nothing
+_rule_program_event_id() =
+    UInt16(_lifecycle_event_id(SemanticName(:level1_rule_program)))
 
-function _lower_component(rule::Rule, context::_LoweringContext)
-    increment = _rule_increment_expression(rule)
-    increment === nothing && throw(ArgumentError(
-        "rule $(rule.name) has no qualified runtime lowering"))
-    if increment isa RuleLiteral && increment.value isa Real
-        update = PropertyUpdate(rule.target, rule.cell_types...;
-            name = rule.name.name, namespace = rule.name.namespace,
-            role = :value, amount = increment.value, schedule = CorePotts.EveryMCS())
-        return _lower_component(update, context)
-    elseif increment isa RandomDraw{<:Bernoulli} &&
-            increment.distribution.probability isa RuleLiteral
-        probability = increment.distribution.probability.value
-        label = something(increment.label, :draw)
-        operation = _semantic_rng_code(rule.name, label, UInt16(0x03ff))
-        trigger = CorePotts.BernoulliCellTrigger(probability, operation)
-        update = PropertyUpdate(rule.target, rule.cell_types...;
-            name = rule.name.name, namespace = rule.name.namespace,
-            role = :value, amount = 1, schedule = CorePotts.EveryMCS(), trigger)
-        return _lower_component(update, context)
-    elseif increment isa ModelParameterRead
-        parameter = only(component for component in context.declarations
-            if semantic_identity(component) == increment.parameter)
-        update = PropertyUpdate(rule.target, rule.cell_types...;
-            name = rule.name.name, namespace = rule.name.namespace,
-            role = :value, amount = parameter.value, schedule = CorePotts.EveryMCS())
-        return _lower_component(update, context)
-    elseif increment isa CellParameterRead
-        parameter = only(component for component in context.declarations
-            if semantic_identity(component) == increment.parameter)
-        lowered = _LoweredComponents()
-        for cell_type in rule.cell_types
-            amount = parameter.bindings[cell_type]
-            suffix = Base.replace(
-                _identity_text(semantic_identity(cell_type)), '.' => '_')
-            update = PropertyUpdate(rule.target, cell_type;
-                name = Symbol(rule.name.name, "__", suffix),
-                namespace = rule.name.namespace, role = :value, amount,
-                schedule = CorePotts.EveryMCS())
-            lowered = _merge_lowered(lowered, _lower_component(update, context))
-        end
-        return lowered
-    end
-    throw(ArgumentError("rule $(rule.name) has no qualified runtime lowering"))
-end
+_lower_component(::Rule, context::_LoweringContext) = _LoweredComponents()
 
 function _declaration_report(rule::Rule)
     reads = _expression_reads(rule.expression)
@@ -689,6 +711,24 @@ function _phase_diagnostics(components::Tuple)
     rules = Tuple(component for component in components if component isa Rule)
     isempty(rules) && return ()
     diagnostics = ()
+
+    draw_addresses = Dict{UInt16, Vector{Tuple{SemanticName, Symbol}}}()
+    for rule in rules, draw in _random_draws(rule.expression)
+        label = something(draw.label, :draw)
+        operation = UInt16(_semantic_rng_code(rule.name, label, UInt16(0x03ff)))
+        identities = get!(draw_addresses, operation, Tuple{SemanticName, Symbol}[])
+        identity = (rule.name, label)
+        identity in identities || push!(identities, identity)
+    end
+    for (operation, identities) in draw_addresses
+        length(identities) <= 1 && continue
+        diagnostics = (diagnostics..., Diagnostic(:error,
+            :random_draw_rng_identity_collision,
+            "Level 1 random draws collide in the compiled RNG operation domain";
+            related = (operation, identities...),
+            correction = "rename one rule or draw label to obtain a distinct semantic address"))
+    end
+
     phases = Dict{SemanticName, Tuple}()
     sources = Dict{SemanticName, Union{Nothing, SourceLocation}}()
     for rule in rules
@@ -705,6 +745,58 @@ function _phase_diagnostics(components::Tuple)
             sources[identity] = rule.source
         end
     end
+
+    rules_by_phase = Dict(identity => Tuple(rule for rule in rules
+        if rule.phase.name == identity) for identity in keys(phases))
+    for (identity, phase_rules) in rules_by_phase
+        targets = Tuple(rule.target for rule in phase_rules)
+        duplicates = Tuple(unique(target for target in targets
+            if count(==(target), targets) > 1))
+        isempty(duplicates) || (diagnostics = (diagnostics..., Diagnostic(
+            :error, :duplicate_phase_writer,
+            "one rule phase cannot write the same property more than once";
+            identity, related = duplicates, source = sources[identity],
+            correction = "combine the writers explicitly or place them in ordered phases"),))
+    end
+
+    function precedes(first_identity, second_identity, visited = Set{SemanticName}())
+        first_identity == second_identity && return true
+        second_identity in visited && return false
+        push!(visited, second_identity)
+        return any(dependency -> dependency == first_identity ||
+            precedes(first_identity, dependency, visited),
+            get(phases, second_identity, ()))
+    end
+
+    identities = sort!(collect(keys(phases)))
+    for first_index in eachindex(identities)
+        for second_index in (first_index + 1):length(identities)
+            first_identity = identities[first_index]
+            second_identity = identities[second_index]
+            precedes(first_identity, second_identity) ||
+                precedes(second_identity, first_identity) || begin
+                first_rules = rules_by_phase[first_identity]
+                second_rules = rules_by_phase[second_identity]
+                first_writes = Set(rule.target for rule in first_rules)
+                second_writes = Set(rule.target for rule in second_rules)
+                first_reads = Set(identity for rule in first_rules
+                    for identity in _expression_reads(rule.expression))
+                second_reads = Set(identity for rule in second_rules
+                    for identity in _expression_reads(rule.expression))
+                hazard = !isempty(intersect(first_writes,
+                    union(second_writes, second_reads))) ||
+                    !isempty(intersect(second_writes,
+                        union(first_writes, first_reads)))
+                hazard && (diagnostics = (diagnostics..., Diagnostic(
+                    :error, :unordered_phase_dependency,
+                    "unordered rule phases have a read/write or write/write dependency";
+                    identity = first_identity,
+                    related = (second_identity,), source = sources[first_identity],
+                    correction = "declare one phase `after` the other"),))
+            end
+        end
+    end
+
     function visit(identity, active::Set{SemanticName}, complete::Set{SemanticName})
         identity in complete && return false
         identity in active && return true
@@ -766,6 +858,19 @@ end
 
 function _macro_distribution(expression::Expr, owner::Symbol)
     constructor = _DRAW_DISTRIBUTIONS[first(expression.args)]
+    if constructor === UnitVector
+        arguments = @view expression.args[2:end]
+        length(arguments) == 1 || throw(ArgumentError(
+            "`UnitVector` requires exactly one dimension"))
+        dimension = only(arguments)
+        if dimension isa Integer
+            return :($constructor($(QuoteNode(dimension))))
+        elseif dimension isa Expr && dimension.head === :$
+            return :($constructor($(esc(only(dimension.args)))))
+        end
+        throw(ArgumentError(
+            "a unit-vector dimension must be the literal 2 or 3, or an interpolated integer"))
+    end
     arguments = map(value -> _macro_rule_expression(value, owner),
         @view(expression.args[2:end]))
     return :($constructor($(arguments...)))

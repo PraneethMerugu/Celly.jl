@@ -2351,6 +2351,114 @@ function qualify_phase10_backend(name::String)
     )
 end
 
+"""Qualify ordered, simultaneous, addressed Level 1 rules on the selected real backend."""
+function qualify_phase11_backend(name::String)
+    adaptor = _backend_adaptor(name)
+    probe = _backend_array(name, zeros(UInt8, 1))
+    backend = KernelAbstractions.get_backend(probe)
+    profiles = Dict{String, Any}()
+    for N in (2, 3)
+        medium = PottsToolkit.Medium(Symbol(:phase11_medium_, N))
+        cell = PottsToolkit.CellType(Symbol(:phase11_cell_, N))
+        phase11_age = PottsToolkit.CellProperty(:phase11_age, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_target = PottsToolkit.CellProperty(:phase11_target, cell;
+            initial = 2.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_uniform = PottsToolkit.CellProperty(:phase11_uniform, cell;
+            initial = 0.5f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_normal = PottsToolkit.CellProperty(:phase11_normal, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_direction = PottsToolkit.CellProperty(:phase11_direction, cell;
+            initial = zero(SVector{N, Float32}), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
+        first_phase = PottsToolkit.Phase(:phase11_first)
+        second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
+        aging = PottsToolkit.@rule phase = first_phase phase11_age(owner) =
+            phase11_age(owner) + phase11_rate(owner) +
+            draw(Bernoulli(1.0); label = :aging)
+        uniform_rule = PottsToolkit.@rule phase = first_phase phase11_uniform(owner) =
+            draw(Uniform(0.0, 1.0); label = :uniform)
+        normal_rule = PottsToolkit.@rule phase = first_phase phase11_normal(owner) =
+            draw(Normal(0.0, 1.0); label = :normal)
+        direction_rule = PottsToolkit.@rule phase = first_phase phase11_direction(owner) =
+            draw(UnitVector($N); label = :direction)
+        dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
+            clamp(phase11_age(owner) + 2, 0, 100)
+        model = PottsToolkit.PottsModel(
+            medium, cell, phase11_age, phase11_target, phase11_uniform,
+            phase11_normal, phase11_direction, phase11_rate, aging,
+            uniform_rule, normal_rule, direction_rule, dependent)
+        shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
+        problem = PottsToolkit.PottsProblem(
+            model, PottsToolkit.CartesianDomain(shape),
+            PottsToolkit.Layout(PottsToolkit.Place(
+                cell, trues(shape); identity = 1));
+            capacity = 1, tspan = (0, 2), seed = 0x7068617365311000 + N)
+        algorithm = CheckerboardSweepCPM(temperature = 0.0f0)
+        integrator = init(problem, algorithm;
+            backend, adaptor, verbose = false,
+            save_start = false, save_end = false)
+        metrics = integrator.inner.plan.metrics
+        before_syncs = metrics.host_synchronizations
+        before_transfers = metrics.device_to_host_transfers
+        before_allocations = metrics.device_allocations
+        before_launches = metrics.launches
+        step!(integrator)
+        synchronization_delta = metrics.host_synchronizations - before_syncs
+        transfer_delta = metrics.device_to_host_transfers - before_transfers
+        allocation_delta = metrics.device_allocations - before_allocations
+        launch_delta = metrics.launches - before_launches
+        synchronization_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced host synchronization")
+        transfer_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced device-to-host transfer")
+        allocation_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced device allocation")
+        KernelAbstractions.synchronize(backend)
+        snapshot = logical_state(integrator)
+        property_value(snapshot, :phase11_age, CellID(1)) == 1.5f0 || error(
+            "$name Phase 11 $N-D parameter/Bernoulli rule produced the wrong value")
+        property_value(snapshot, :phase11_target, CellID(1)) == 3.5f0 || error(
+            "$name Phase 11 $N-D ordered phase did not observe the prior phase commit")
+        uniform_value = property_value(snapshot, :phase11_uniform, CellID(1))
+        0.0f0 < uniform_value < 1.0f0 || error(
+            "$name Phase 11 $N-D Uniform rule violated its open interval")
+        normal_value = property_value(snapshot, :phase11_normal, CellID(1))
+        isfinite(normal_value) || error(
+            "$name Phase 11 $N-D Normal rule produced a non-finite value")
+        direction_value = property_value(snapshot, :phase11_direction, CellID(1))
+        isapprox(sum(abs2, direction_value), 1.0f0; atol = 8eps(Float32)) || error(
+            "$name Phase 11 $N-D unit-vector rule produced a non-unit vector")
+        profiles["$(N)d"] = Dict(
+            "ordered_phase_value" => 3.5,
+            "addressed_draw_value" => 1.0,
+            "cell_parameter_value" => 0.5,
+            "uniform_open_interval" => true,
+            "normal_finite" => true,
+            "unit_vector_norm" => sum(abs2, direction_value),
+            "warm_mcs_launches" => launch_delta,
+            "warm_mcs_host_synchronizations" => synchronization_delta,
+            "warm_mcs_device_to_host_transfers" => transfer_delta,
+            "warm_mcs_device_allocations" => allocation_delta,
+            "isbits_rule_effect" => isbits(only(lifecycle_events(problem.model)).effect),
+        )
+    end
+    return Dict(
+        "backend" => name,
+        "dimensions" => [2, 3],
+        "profiles" => profiles,
+        "simultaneous_snapshot_commit" => true,
+        "explicit_phase_order" => true,
+        "semantic_rng_addressing" => true,
+        "hidden_host_fallback" => false,
+    )
+end
+
 """Measure Level 2 host work separately from identical CorePotts warm execution."""
 function measure_phase10_backend(name::String; steps::Int = 5)
     steps > 0 || throw(ArgumentError("Phase 10 steady-state sample size must be positive"))

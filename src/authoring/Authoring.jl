@@ -3,6 +3,7 @@ module Authoring
 import CorePotts
 import SciMLBase
 import SHA
+import StaticArrays
 import Base: isvalid
 
 include("identities.jl")
@@ -17,6 +18,7 @@ include("normalization.jl")
 include("lowering.jl")
 include("level1.jl")
 include("level1_rules.jl")
+include("level1_runtime.jl")
 include("level1_fields.jl")
 include("level1_observables.jl")
 include("level1_units.jl")

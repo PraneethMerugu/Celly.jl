@@ -120,7 +120,11 @@ Place(medium::Medium, mask::AbstractArray{Bool}; kwargs...) =
 LabelledCells(labels::AbstractArray{<:Integer}, declarations; kwargs...) =
     CellLabelLayout(labels, declarations; kwargs...)
 
-const CartesianDomain = CorePotts.CartesianDomain
+"""Construct a Level 1 Cartesian domain with the portable `Float32` spacing default."""
+function CartesianDomain(dims::NTuple{N, <:Integer};
+        spacing = ntuple(_ -> 1.0f0, Val(N)), kwargs...) where {N}
+    return CorePotts.CartesianDomain(dims; spacing, kwargs...)
+end
 const PeriodicBoundary = CorePotts.PeriodicBoundary
 const ClosedBoundary = CorePotts.ClosedBoundary
 const FixedExterior = CorePotts.FixedExterior

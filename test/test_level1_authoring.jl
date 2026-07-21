@@ -245,7 +245,7 @@ end
         growth_rate, global_rate, typed_growth, global_growth)
     @test Base.isvalid(parameter_model)
     @test length(CorePotts.lifecycle_events(
-        PottsToolkit.lower(parameter_model; dimensions = 2).core_model)) == 2
+        PottsToolkit.lower(parameter_model; dimensions = 2).core_model)) == 1
     @test PottsToolkit.evaluate(typed_growth,
         (age = 2.0, growth_rate = 0.5)) == 2.5
 
@@ -280,6 +280,64 @@ end
         medium, cell_type, age, invalid_draw))
     @test any(diagnostic -> diagnostic.code === :invalid_distribution_parameter,
         invalid_draw_report)
+    invalid_uniform = PottsToolkit.@rule phase = growth_phase age(cell) =
+        draw(Uniform(2.0, 1.0); label = :invalid_uniform)
+    invalid_normal = PottsToolkit.@rule phase = growth_phase age(cell) =
+        draw(Normal(0.0, 0.0); label = :invalid_normal)
+    for invalid_rule in (invalid_uniform, invalid_normal)
+        report = PottsToolkit.validate(PottsToolkit.PottsModel(
+            medium, cell_type, age, invalid_rule))
+        @test any(diagnostic ->
+            diagnostic.code === :invalid_distribution_parameter, report)
+    end
+
+    invalid_arity = PottsToolkit.Rule(age, :cell,
+        PottsToolkit.ScalarCall(PottsToolkit.Authoring.AddOperation(),
+            (PottsToolkit.RuleLiteral(1),)); phase = growth_phase,
+        name = :invalid_arity)
+    invalid_arity_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, invalid_arity))
+    @test any(diagnostic -> diagnostic.code === :invalid_scalar_operation_arity,
+        invalid_arity_report)
+
+    second_cell_type = PottsToolkit.CellType(:second_cell_type)
+    shared_age = PottsToolkit.CellProperty(:shared_age, cell_type, second_cell_type;
+        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    partial_rate = PottsToolkit.CellParameter(:partial_rate, cell_type => 0.5)
+    incomplete_binding = PottsToolkit.@rule phase = growth_phase shared_age(cell) =
+        shared_age(cell) + partial_rate(cell)
+    incomplete_binding_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, second_cell_type, shared_age, partial_rate,
+        incomplete_binding))
+    @test any(diagnostic -> diagnostic.code === :missing_cell_parameter_binding,
+        incomplete_binding_report)
+
+    operation_owners = Dict{UInt16, Symbol}()
+    collision = nothing
+    for index in 1:4096
+        name = Symbol(:rng_collision_rule_, index)
+        operation = UInt16(PottsToolkit.Authoring._semantic_rng_code(
+            PottsToolkit.SemanticName(name), :collision, UInt16(0x03ff)))
+        if haskey(operation_owners, operation)
+            collision = (operation_owners[operation], name)
+            break
+        end
+        operation_owners[operation] = name
+    end
+    first_name, second_name = something(collision)
+    collision_draw = PottsToolkit.draw(PottsToolkit.Bernoulli(0.5);
+        label = :collision)
+    first_collision_rule = PottsToolkit.Rule(age, :cell, collision_draw;
+        phase = growth_phase, name = first_name)
+    second_collision_rule = PottsToolkit.Rule(target, :cell, collision_draw;
+        phase = growth_phase, name = second_name)
+    collision_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, target,
+        first_collision_rule, second_collision_rule))
+    @test any(diagnostic ->
+        diagnostic.code === :random_draw_rng_identity_collision,
+        collision_report)
     @test PottsToolkit.draw(PottsToolkit.UnitVector(2);
         label = :polarity) isa PottsToolkit.RandomDraw
 
@@ -294,13 +352,54 @@ end
 
     simultaneous = PottsToolkit.@rules phase = growth_phase begin
         age(cell) = age(cell) + 1
-        target(cell) = target(cell) + 2
+        target(cell) = age(cell) + 2
     end
     @test simultaneous isa PottsToolkit.RuleGroup
     @test length(simultaneous.rules) == 2
     @test PottsToolkit.evaluate(simultaneous.rules[1], (age = 3, target = 4)) == 4
+    @test PottsToolkit.evaluate(simultaneous.rules[2], (age = 3, target = 4)) == 5
     @test_throws ArgumentError PottsToolkit.RuleGroup(
         (simultaneous.rules[1], simultaneous.rules[1]))
+
+    simultaneous_model = PottsToolkit.PottsModel(
+        medium, cell_type, age, target, simultaneous)
+    simultaneous_problem = PottsToolkit.PottsProblem(
+        simultaneous_model, PottsToolkit.CartesianDomain((3, 3)),
+        PottsToolkit.Layout(PottsToolkit.Place(
+            cell_type, trues(3, 3); identity = 1));
+        capacity = 1, tspan = (0, 1), seed = 1)
+    simultaneous_solution = CorePotts.solve(simultaneous_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    simultaneous_state = simultaneous_solution.u[end].state
+    @test CorePotts.property_value(simultaneous_state,
+        :age, CorePotts.CellID(1)) == 1.0f0
+    @test CorePotts.property_value(simultaneous_state,
+        :target, CorePotts.CellID(1)) == 2.0f0
+
+    dependent_phase = PottsToolkit.Phase(:dependent; after = growth_phase)
+    first_ordered = PottsToolkit.@rule phase = growth_phase age(cell) = age(cell) + 1
+    second_ordered = PottsToolkit.@rule phase = dependent_phase target(cell) = age(cell) + 2
+    ordered_model = PottsToolkit.PottsModel(
+        medium, cell_type, age, target, first_ordered, second_ordered)
+    ordered_problem = PottsToolkit.PottsProblem(
+        ordered_model, PottsToolkit.CartesianDomain((3, 3)),
+        PottsToolkit.Layout(PottsToolkit.Place(
+            cell_type, trues(3, 3); identity = 1));
+        capacity = 1, tspan = (0, 1), seed = 1)
+    ordered_solution = CorePotts.solve(ordered_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    ordered_state = ordered_solution.u[end].state
+    @test CorePotts.property_value(ordered_state,
+        :target, CorePotts.CellID(1)) == 3.0f0
+
+    unordered_phase = PottsToolkit.Phase(:unordered)
+    unordered_rule = PottsToolkit.@rule phase = unordered_phase target(cell) = age(cell) + 2
+    unordered_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, target, first_ordered, unordered_rule))
+    @test any(diagnostic -> diagnostic.code === :unordered_phase_dependency,
+        unordered_report)
 
     unchanged = PottsToolkit.@rule phase = growth_phase age(cell) = NoChange()
     @test PottsToolkit.evaluate(unchanged, (age = 2,)) isa PottsToolkit.NoChange

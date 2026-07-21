@@ -173,6 +173,7 @@ export NoCompiledLifecycle, CompiledPropertyLifecycle, CompiledLifecycleDescript
        CompiledCustomEffect, compiled_effect_category, compiled_schedule_due,
        compiled_identity_change, compiled_is_division, compiled_effect_phase,
        compiled_target_applies, compiled_lifecycle_triggered,
+       compiled_lifecycle_rng_address,
        compiled_prepare_division_geometry, compiled_division_region,
        compiled_division_property_update, compiled_transition_property_value,
        compiled_retired_property_value, compiled_apply_effect!,

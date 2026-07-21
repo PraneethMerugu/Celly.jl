@@ -188,6 +188,20 @@ end
     return bernoulli(rng, seed, address, trigger.probability)
 end
 
+"""
+Construct the device-safe semantic RNG address for a custom compiled lifecycle effect.
+
+Extension effects use the lifecycle event as their operation namespace and a stable draw role as
+their local address. Event and draw bounds are validated when the effect is constructed on the
+host; this helper performs no device-side validation or allocation.
+"""
+@inline function compiled_lifecycle_rng_address(mcs::UInt64, event_id::Integer,
+        cell::Integer, generation::UInt64, draw::UInt16)
+    return _rng_address_unchecked(EventStream, mcs, UInt8(0),
+        Base.unsafe_trunc(UInt16, event_id), CellEntity,
+        Base.unsafe_trunc(UInt32, cell), generation, UInt8(0), draw)
+end
+
 
 @inline function compiled_lifecycle_triggered(trigger::CellTypeIn, state,
         cell, mcs, rng, seed, event_id)

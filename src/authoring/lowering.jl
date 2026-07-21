@@ -486,6 +486,7 @@ function lower(model::PottsModel; dimensions::Integer,
         normalized.cell_types, normalized.media, normalized.components,
         contact_relation, surface_relation, connectivity_relation)
     lowered = _lower_components(normalized.components, context)
+    rule_lifecycle = _lower_rule_program(normalized.components, context)
     components = CorePotts.ScientificComponentSet(
         energies = lowered.energies, drives = lowered.drives,
         constraints = lowered.constraints, kinetic_modifiers = lowered.modifiers,
@@ -497,7 +498,8 @@ function lower(model::PottsModel; dimensions::Integer,
     observables = Tuple(symbol for component in normalized.components
         for symbol in (_observable_symbol(component),) if symbol !== nothing)
     core_model = CorePotts.PottsModel(proposal_relation, tracker; components,
-        moment_tracker, lifecycle_events = lowered.lifecycle, observables)
+        moment_tracker,
+        lifecycle_events = (lowered.lifecycle..., rule_lifecycle...), observables)
     schema = CorePotts.merge_property_schemas(lowered.schemas...)
     cell_type_ids = _id_table(normalized.cell_types, CorePotts.CellTypeID)
     medium_ids = _id_table(normalized.media, CorePotts.MediumID)

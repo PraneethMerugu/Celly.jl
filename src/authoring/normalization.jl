@@ -439,6 +439,8 @@ function _diagnose_model(model::PottsModel)
     diagnostics = (diagnostics..., _phase_diagnostics(components)...)
     lifecycle_ids = Tuple(filter(value -> !isnothing(value),
         map(_lifecycle_event_id, components)))
+    any(component -> component isa Rule, components) &&
+        (lifecycle_ids = (lifecycle_ids..., _rule_program_event_id()))
     for event_id in unique(lifecycle_ids)
         count(==(event_id), lifecycle_ids) > 1 && (diagnostics = (diagnostics...,
             Diagnostic(:error, :lifecycle_rng_identity_collision,
