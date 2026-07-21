@@ -3,38 +3,38 @@
 CairoMakie.activate!()</code></pre><h1 id="3D-Tumor-Spheroid"><a class="docs-heading-anchor" href="#3D-Tumor-Spheroid">3D Tumor Spheroid</a><a id="3D-Tumor-Spheroid-1"></a><a class="docs-heading-anchor-permalink" href="#3D-Tumor-Spheroid" title="Permalink"></a></h1><p>Tumour spheroids grown in suspension are a classical <em>in vitro</em> model for avascular solid tumours. They recapitulate key features of in vivo tumour biology: a proliferating outer shell, a quiescent mid-zone, and a necrotic core — all driven by oxygen and nutrient gradients. Simulating spheroid growth in 3D is essential because the geometry of diffusion-limited growth is qualitatively different from its 2D projection.</p><p>Potts.jl uses the exact same API in 3D as in 2D: the only change is the topology type and grid dimensionality. This tutorial demonstrates that generality on a 50 × 50 × 50 lattice.</p><h2 id="Packages"><a class="docs-heading-anchor" href="#Packages">Packages</a><a id="Packages-1"></a><a class="docs-heading-anchor-permalink" href="#Packages" title="Permalink"></a></h2><p><code>Zarr</code> is imported alongside PottsToolkit so we can use <code>ZarrBackend</code> to write the 3D time-series to disk. 3D simulations produce large arrays (50³ × n_frames × 4 bytes ≈ tens of MB per run), making on-disk backends preferable to the default in-memory <code>MemoryBackend</code>.</p><pre><code class="language-julia hljs">using PottsToolkit
 using MakiePotts
 using Zarr</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Precompiling packages...
-    530.8 ms  ✓ ChunkCodecCore
-    656.2 ms  ✓ URIs
-    449.4 ms  ✓ SimpleBufferStream
-    493.5 ms  ✓ InputBuffers
-    556.4 ms  ✓ LRUCache
-    484.7 ms  ✓ BitFlags
-    776.3 ms  ✓ ConcurrentUtilities
-    730.0 ms  ✓ CodecInflate64
-    484.6 ms  ✓ DateTimes64
-    620.7 ms  ✓ ExceptionUnwrapping
-    758.2 ms  ✓ Lz4_jll
-    749.4 ms  ✓ MbedTLS_jll
-    613.4 ms  ✓ ChunkCodecLibZstd
-    547.5 ms  ✓ ChunkCodecLibZlib
-    495.4 ms  ✓ LRUCache → SerializationExt
-   1199.8 ms  ✓ DiskArrays
-   2035.4 ms  ✓ OpenSSL
-    705.1 ms  ✓ Blosc_jll
-   1116.6 ms  ✓ MbedTLS
-    577.5 ms  ✓ Blosc
-   6582.2 ms  ✓ ZipArchives
-  18080.6 ms  ✓ HTTP
-   2398.3 ms  ✓ Zarr
-  23 dependencies successfully precompiled in 30 seconds. 46 already precompiled.
+    587.6 ms  ✓ ChunkCodecCore
+    718.4 ms  ✓ URIs
+    480.9 ms  ✓ SimpleBufferStream
+    533.5 ms  ✓ InputBuffers
+    610.5 ms  ✓ LRUCache
+    520.9 ms  ✓ BitFlags
+    839.2 ms  ✓ ConcurrentUtilities
+    788.4 ms  ✓ CodecInflate64
+    518.7 ms  ✓ DateTimes64
+    650.1 ms  ✓ ExceptionUnwrapping
+    818.3 ms  ✓ Lz4_jll
+    819.0 ms  ✓ MbedTLS_jll
+    648.7 ms  ✓ ChunkCodecLibZstd
+    582.1 ms  ✓ ChunkCodecLibZlib
+    478.6 ms  ✓ LRUCache → SerializationExt
+   1266.9 ms  ✓ DiskArrays
+   2159.8 ms  ✓ OpenSSL
+    750.2 ms  ✓ Blosc_jll
+   1181.2 ms  ✓ MbedTLS
+    603.7 ms  ✓ Blosc
+   6663.1 ms  ✓ ZipArchives
+  19029.5 ms  ✓ HTTP
+   2591.5 ms  ✓ Zarr
+  23 dependencies successfully precompiled in 31 seconds. 46 already precompiled.
 Precompiling packages...
-    581.2 ms  ✓ FilePaths → FilePathsURIsExt
+    604.7 ms  ✓ FilePaths → FilePathsURIsExt
   1 dependency successfully precompiled in 1 seconds. 12 already precompiled.
 Precompiling packages...
-   1215.5 ms  ✓ FileIO → HTTPExt
+   1270.5 ms  ✓ FileIO → HTTPExt
   1 dependency successfully precompiled in 1 seconds. 46 already precompiled.
 Precompiling packages...
-   1505.2 ms  ✓ CorePotts → CorePottsZarrExt
+   1575.7 ms  ✓ CorePotts → CorePottsZarrExt
   1 dependency successfully precompiled in 2 seconds. 151 already precompiled.</code></pre><h2 id="Cell-Type"><a class="docs-heading-anchor" href="#Cell-Type">Cell Type</a><a id="Cell-Type-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-Type" title="Permalink"></a></h2><pre><code class="language- hljs">Tumor = CellType(:Tumor)
 Medium = CellType(:Medium, is_background = true)</code></pre><h2 id="Energy-Model"><a class="docs-heading-anchor" href="#Energy-Model">Energy Model</a><a id="Energy-Model-1"></a><a class="docs-heading-anchor-permalink" href="#Energy-Model" title="Permalink"></a></h2><p>VolumeComponent and AdhesionComponent are sufficient to produce compact spheroidal growth morphology. In 3D, a target volume of 65 lattice sites corresponds roughly to a sphere of radius 2.5 voxels. J(Tumor,Medium) is set high to ensure tight packing: tumour cells prefer contact with each other over the surrounding medium, consistent with the elevated E-cadherin expression observed in early-stage carcinomas.</p><pre><code class="language- hljs">sys = PottsSystem(
     cell_types = [Medium, Tumor],
@@ -69,4 +69,4 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)</code></pre><h2 id
     ],
     framerate = 20,
     resolution = (1200, 700)
-)</code></pre><video autoplay loop muted playsinline controls src="../05_tumor_spheroid_3d.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../04_epithelial_sheet/">« 4: Epithelial Sheet</a><a class="docs-footer-nextpage" href="../06_gpu_acceleration/">6: GPU Acceleration »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 21 July 2026 00:08">Tuesday 21 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+)</code></pre><video autoplay loop muted playsinline controls src="../05_tumor_spheroid_3d.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../04_epithelial_sheet/">« 4: Epithelial Sheet</a><a class="docs-footer-nextpage" href="../06_gpu_acceleration/">6: GPU Acceleration »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 21 July 2026 15:31">Tuesday 21 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
