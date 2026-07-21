@@ -19,7 +19,7 @@ end
 
 function _volume_bindings(pairs::Tuple)
     isempty(pairs) && throw(ArgumentError("a volume constraint must bind at least one cell type"))
-    all(pair -> first(pair) isa CellType && last(pair) isa NamedTuple &&
+    all(pair -> _is_cell_reference(first(pair)) && last(pair) isa NamedTuple &&
         haskey(last(pair), :target) && (haskey(last(pair), :strength) || haskey(last(pair), :λ)),
         pairs) || throw(ArgumentError(
         "volume entries must be `CellType => (target=..., strength=...)`"))
@@ -33,7 +33,7 @@ function _volume_bindings(pairs::Tuple)
         values = last(pair)
         strength = haskey(values, :strength) ? values.strength : values.λ
         Binding{CellType, VolumeParameters{T}}(
-            first(pair), VolumeParameters(T(values.target), T(strength)))
+            _cell_reference(first(pair)), VolumeParameters(T(values.target), T(strength)))
     end
     return BindingTable{CellType, VolumeParameters{T}}(Tuple(entries))
 end
@@ -97,7 +97,7 @@ end
 function _elongation_bindings(pairs::Tuple)
     isempty(pairs) && throw(ArgumentError(
         "an elongation constraint must bind at least one cell type"))
-    all(pair -> first(pair) isa CellType && last(pair) isa NamedTuple &&
+    all(pair -> _is_cell_reference(first(pair)) && last(pair) isa NamedTuple &&
         haskey(last(pair), :target) && (haskey(last(pair), :strength) ||
         haskey(last(pair), :λ)), pairs) || throw(ArgumentError(
         "elongation entries must be `CellType => (target=..., strength=...)`"))
@@ -110,7 +110,7 @@ function _elongation_bindings(pairs::Tuple)
     entries = map(pairs) do pair
         values = last(pair)
         strength = haskey(values, :strength) ? values.strength : values.λ
-        Binding{CellType, ElongationParameters{T}}(first(pair),
+        Binding{CellType, ElongationParameters{T}}(_cell_reference(first(pair)),
             ElongationParameters(T(values.target), T(strength)))
     end
     return BindingTable{CellType, ElongationParameters{T}}(Tuple(entries))
@@ -153,7 +153,7 @@ end
 function _boundary_bindings(metric::CorePotts.AbstractBoundaryMetric, pairs::Tuple)
     isempty(pairs) && throw(ArgumentError(
         "a boundary constraint must bind at least one cell type"))
-    all(pair -> first(pair) isa CellType && last(pair) isa NamedTuple &&
+    all(pair -> _is_cell_reference(first(pair)) && last(pair) isa NamedTuple &&
         haskey(last(pair), :target) && (haskey(last(pair), :strength) ||
         haskey(last(pair), :λ)), pairs) || throw(ArgumentError(
         "boundary entries must be `CellType => (target=..., strength=...)`"))
@@ -164,14 +164,14 @@ function _boundary_bindings(metric::CorePotts.AbstractBoundaryMetric, pairs::Tup
         all(pair -> last(pair).target isa Integer, pairs) || throw(ArgumentError(
             "boundary-edge-count targets must be integers"))
         entries = map(zip(pairs, strengths)) do (pair, strength)
-            Binding{CellType, BoundaryParameters{Int64, T}}(first(pair),
+            Binding{CellType, BoundaryParameters{Int64, T}}(_cell_reference(first(pair)),
                 BoundaryParameters(Int64(last(pair).target), T(strength)))
         end
         return BindingTable{CellType, BoundaryParameters{Int64, T}}(Tuple(entries))
     end
     Q = float(promote_type(map(pair -> typeof(last(pair).target), pairs)..., T))
     entries = map(zip(pairs, strengths)) do (pair, strength)
-        Binding{CellType, BoundaryParameters{Q, T}}(first(pair),
+        Binding{CellType, BoundaryParameters{Q, T}}(_cell_reference(first(pair)),
             BoundaryParameters(Q(last(pair).target), T(strength)))
     end
     return BindingTable{CellType, BoundaryParameters{Q, T}}(Tuple(entries))
@@ -269,26 +269,33 @@ struct PropertyUpdate{T, S, G}
     trigger::G
 end
 
+_lifecycle_trigger(trigger::CorePotts.AbstractLifecycleTrigger) = trigger
+_lifecycle_trigger(trigger) = throw(ArgumentError(
+    "$(typeof(trigger)) is not a supported lifecycle trigger"))
 
-function PropertyUpdate(source, cell_types::CellType...;
+function PropertyUpdate(source, cell_types...;
         name::Symbol = :property_update, namespace::Namespace = Namespace(),
         role::Symbol = :target, amount::Real,
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger())
+        trigger = CorePotts.AlwaysLifecycleTrigger())
     isempty(cell_types) && throw(ArgumentError(
         "a property update must target at least one cell type"))
+    all(_is_cell_reference, cell_types) || throw(ArgumentError(
+        "property updates must target CellType or CellRole values"))
     role in (:value, :target, :strength) || throw(ArgumentError(
         "property updates support :value, :target, or :strength roles"))
     T = float(typeof(amount))
     value = T(amount)
     isfinite(value) || throw(ArgumentError("a property update amount must be finite"))
+    resolved_trigger = _lifecycle_trigger(trigger)
+    scope = Tuple(_cell_reference(value) for value in cell_types)
     return PropertyUpdate(SemanticName(name; namespace), semantic_identity(source), role,
-        Tuple(sort!(unique!(collect(cell_types)); by = _identity_text)), value,
-        schedule, trigger)
+        Tuple(sort!(unique!(collect(scope)); by = _identity_text)), value,
+        schedule, resolved_trigger)
 end
 
 
-function StochasticPropertyUpdate(source, cell_types::CellType...;
+function StochasticPropertyUpdate(source, cell_types...;
         name::Symbol = :stochastic_property_update, namespace::Namespace = Namespace(),
         role::Symbol = :target, amount::Real,
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),

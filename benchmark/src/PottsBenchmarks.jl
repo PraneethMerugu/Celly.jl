@@ -28,8 +28,12 @@ CorePotts.scientific_access(::Phase10QualificationEnergy) = SnapshotScientificAc
 CorePotts.component_semantic_data(component::Phase10QualificationEnergy) =
     (value = component.value,)
 
+# A downstream package's polished Level 1 constructor is ordinary Julia. The returned component
+# enters PottsToolkit through CorePotts's public scientific protocol and needs no central registry.
+Phase11ExtensionEnergy(value::Real) = Phase10QualificationEnergy(Float32(value))
+
 const SCHEMA_VERSION = "1.0.0"
-const PHASE10_SCHEMA_VERSION = "2.0.0"
+const PHASE10_SCHEMA_VERSION = "2.1.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
@@ -2351,6 +2355,235 @@ function qualify_phase10_backend(name::String)
     )
 end
 
+"""Qualify ordered, simultaneous, addressed Level 1 rules on the selected real backend."""
+function qualify_phase11_backend(name::String)
+    adaptor = _backend_adaptor(name)
+    probe = _backend_array(name, zeros(UInt8, 1))
+    backend = KernelAbstractions.get_backend(probe)
+    profiles = Dict{String, Any}()
+    for N in (2, 3)
+        medium = PottsToolkit.Medium(Symbol(:phase11_medium_, N))
+        cell = PottsToolkit.CellType(Symbol(:phase11_cell_, N))
+        phase11_age = PottsToolkit.CellProperty(:phase11_age, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_target = PottsToolkit.CellProperty(:phase11_target, cell;
+            initial = 2.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_uniform = PottsToolkit.CellProperty(:phase11_uniform, cell;
+            initial = 0.5f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_normal = PottsToolkit.CellProperty(:phase11_normal, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_direction = PottsToolkit.CellProperty(:phase11_direction, cell;
+            initial = zero(SVector{N, Float32}), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_edges = PottsToolkit.CellProperty(:phase11_edges, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_boundary_sites = PottsToolkit.CellProperty(:phase11_boundary_sites, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_contact_measure = PottsToolkit.CellProperty(
+            :phase11_contact_measure, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_exact_widen = PottsToolkit.CellProperty(:phase11_exact_widen, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_count = PottsToolkit.CellProperty(:phase11_neighbor_count, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_signal = PottsToolkit.CellProperty(:phase11_neighbor_signal, cell;
+            initial = 5.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_sum = PottsToolkit.CellProperty(:phase11_neighbor_sum, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_mean = PottsToolkit.CellProperty(:phase11_neighbor_mean, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_scalar_inventory = PottsToolkit.CellProperty(
+            :phase11_scalar_inventory, cell;
+            initial = 2.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_field = PottsToolkit.Field(:phase11_field;
+            boundary = PottsToolkit.FixedValue(0.0f0),
+            interpolation = PottsToolkit.Nearest())
+        phase11_cell_role = PottsToolkit.CellRole(:phase11_cells)
+        phase11_field_role = PottsToolkit.FieldRole(:phase11_signal)
+        phase11_role_chemotaxis = PottsToolkit.Chemotaxis(
+            phase11_field_role, phase11_cell_role => 0.0f0;
+            response = PottsToolkit.MichaelisMentenResponse(1.0f0),
+            mode = PottsToolkit.RetractionChemotaxis())
+        phase11_coupling = PottsToolkit.bind(PottsToolkit.ModelFragment(
+                :phase11_coupling, phase11_role_chemotaxis;
+                requires = (phase11_cell_role, phase11_field_role),
+                exports = (phase11_role_chemotaxis,)),
+            phase11_cell_role => cell, phase11_field_role => phase11_field)
+        phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
+        phase11_extension = Phase11ExtensionEnergy(0.0f0)
+        first_phase = PottsToolkit.Phase(:phase11_first)
+        second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
+        aging = PottsToolkit.@rule phase = first_phase phase11_age(owner) =
+            phase11_age(owner) + phase11_rate(owner) +
+            draw(Bernoulli(1.0f0); label = :aging)
+        uniform_rule = PottsToolkit.@rule phase = first_phase phase11_uniform(owner) =
+            draw(Uniform(0.0f0, 1.0f0); label = :uniform)
+        normal_rule = PottsToolkit.@rule phase = first_phase phase11_normal(owner) =
+            draw(Normal(0.0f0, 1.0f0); label = :normal)
+        direction_rule = PottsToolkit.@rule phase = first_phase phase11_direction(owner) =
+            draw(UnitVector($N); label = :direction)
+        edge_rule = PottsToolkit.@rule phase = first_phase phase11_edges(owner) =
+            contact_edge_count(owner, Contacting(), AnyFiniteCell())
+        boundary_site_rule = PottsToolkit.@rule phase = first_phase phase11_boundary_sites(owner) =
+            boundary_site_count(owner, Contacting(), AnyFiniteCell())
+        contact_measure_rule = PottsToolkit.@rule phase = first_phase phase11_contact_measure(owner) =
+            contact_measure(owner, Contacting(), CellTypeFilter(cell))
+        exact_widen_rule = PottsToolkit.Rule(
+            phase11_exact_widen, :owner, PottsToolkit.RuleLiteral(Int32(7));
+            phase = first_phase)
+        neighbor_count_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_count(owner) =
+            neighbor_cell_count(owner, Contacting(), AnyFiniteCell())
+        neighbor_sum_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_sum(owner) =
+            neighbor_property_sum(
+                phase11_neighbor_signal, owner, Contacting(), AnyFiniteCell())
+        neighbor_mean_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_mean(owner) =
+            neighbor_property_mean(phase11_neighbor_signal, owner,
+                Contacting(), AnyFiniteCell(); empty = 0.0f0)
+        scalar_inventory_rule = PottsToolkit.@rule phase = first_phase phase11_scalar_inventory(owner) =
+            if phase11_scalar_inventory(owner) >= 2.0f0 &&
+                    !(phase11_scalar_inventory(owner) == 3.0f0)
+                clamp(max(abs(-phase11_scalar_inventory(owner)), sqrt(4.0f0)),
+                    0.0f0, 10.0f0) + exp(0.0f0) + log(1.0f0) + sin(0.0f0) +
+                    cos(0.0f0) + tan(0.0f0)
+            else
+                ifelse(phase11_scalar_inventory(owner) != 0.0f0,
+                    min(phase11_scalar_inventory(owner)^2 / 2.0f0, 5.0f0), 0.0f0)
+            end
+        dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
+            clamp(phase11_age(owner) + 2, 0, 100)
+        model = PottsToolkit.PottsModel(
+            medium, cell, phase11_age, phase11_target, phase11_uniform,
+            phase11_normal, phase11_direction, phase11_edges,
+            phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
+            phase11_neighbor_count, phase11_neighbor_signal, phase11_neighbor_sum,
+            phase11_neighbor_mean, phase11_scalar_inventory, phase11_field,
+            phase11_coupling, phase11_rate, phase11_extension,
+            aging, uniform_rule, normal_rule, direction_rule, edge_rule,
+            boundary_site_rule, contact_measure_rule, exact_widen_rule,
+            neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule,
+            scalar_inventory_rule, dependent)
+        shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
+        labels = fill(UInt64(1), shape)
+        for site in CartesianIndices(labels)
+            site[1] > shape[1] ÷ 2 && (labels[site] = UInt64(2))
+        end
+        domain = PottsToolkit.CartesianDomain(shape)
+        problem = PottsToolkit.PottsProblem(
+            model, domain,
+            PottsToolkit.Layout(PottsToolkit.LabelledCells(
+                labels, (1 => cell, 2 => cell)));
+            fields = (phase11_field => fill(1.0f0, shape),),
+            capacity = 2, tspan = (0, 2), seed = 0x7068617365311000 + N)
+        algorithm = CheckerboardSweepCPM(temperature = 1.0f0)
+        integrator = init(problem, algorithm;
+            backend, adaptor, verbose = false,
+            save_start = false, save_end = false)
+        metrics = integrator.inner.plan.metrics
+        before_syncs = metrics.host_synchronizations
+        before_transfers = metrics.device_to_host_transfers
+        before_allocations = metrics.device_allocations
+        before_launches = metrics.launches
+        step!(integrator)
+        synchronization_delta = metrics.host_synchronizations - before_syncs
+        transfer_delta = metrics.device_to_host_transfers - before_transfers
+        allocation_delta = metrics.device_allocations - before_allocations
+        launch_delta = metrics.launches - before_launches
+        synchronization_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced host synchronization")
+        transfer_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced device-to-host transfer")
+        allocation_delta == 0 || error(
+            "$name Phase 11 $N-D rule execution introduced device allocation")
+        KernelAbstractions.synchronize(backend)
+        snapshot = logical_state(integrator)
+        property_value(snapshot, :phase11_age, CellID(1)) == 1.5f0 || error(
+            "$name Phase 11 $N-D parameter/Bernoulli rule produced the wrong value")
+        property_value(snapshot, :phase11_target, CellID(1)) == 3.5f0 || error(
+            "$name Phase 11 $N-D ordered phase did not observe the prior phase commit")
+        property_value(snapshot, :phase11_exact_widen, CellID(1)) == Int64(7) || error(
+            "$name Phase 11 $N-D exact integer widening produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_count, CellID(1)) == Int64(1) || error(
+            "$name Phase 11 $N-D distinct-neighbor count produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_sum, CellID(1)) == 5.0f0 || error(
+            "$name Phase 11 $N-D distinct-neighbor property sum produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_mean, CellID(1)) == 5.0f0 || error(
+            "$name Phase 11 $N-D distinct-neighbor property mean produced the wrong value")
+        property_value(snapshot, :phase11_scalar_inventory, CellID(1)) == 4.0f0 || error(
+            "$name Phase 11 $N-D closed scalar inventory produced the wrong value")
+        uniform_value = property_value(snapshot, :phase11_uniform, CellID(1))
+        0.0f0 < uniform_value < 1.0f0 || error(
+            "$name Phase 11 $N-D Uniform rule violated its open interval")
+        normal_value = property_value(snapshot, :phase11_normal, CellID(1))
+        isfinite(normal_value) || error(
+            "$name Phase 11 $N-D Normal rule produced a non-finite value")
+        direction_value = property_value(snapshot, :phase11_direction, CellID(1))
+        isapprox(sum(abs2, direction_value), 1.0f0; atol = 8eps(Float32)) || error(
+            "$name Phase 11 $N-D unit-vector rule produced a non-unit vector")
+        query_relation = first_shell_relation(
+            SpatialQueryRole(), Val(N); spacing = domain.spacing)
+        medium_types = MediumTypeTable(MediumID(1) => CellTypeID(2))
+        for id in (CellID(1), CellID(2))
+            owner = CellOwner(id)
+            expected_edges = contact_edge_count(snapshot, domain, query_relation,
+                owner, CorePotts.AnyFiniteCell(), medium_types)
+            expected_boundary_sites = boundary_site_count(snapshot, domain,
+                query_relation, owner, CorePotts.AnyFiniteCell(), medium_types)
+            expected_measure = contact_measure(snapshot, domain, query_relation,
+                owner, CorePotts.CellTypeFilter(CellTypeID(1)), medium_types)
+            property_value(snapshot, :phase11_edges, id) == expected_edges || error(
+                "$name Phase 11 $N-D contact-edge query differs from the oracle")
+            property_value(snapshot, :phase11_boundary_sites, id) ==
+                expected_boundary_sites || error(
+                "$name Phase 11 $N-D boundary-site query differs from the oracle")
+            property_value(snapshot, :phase11_contact_measure, id) ==
+                expected_measure || error(
+                "$name Phase 11 $N-D contact-measure query differs from the oracle")
+        end
+        profiles["$(N)d"] = Dict(
+            "ordered_phase_value" => 3.5,
+            "addressed_draw_value" => 1.0,
+            "cell_parameter_value" => 0.5,
+            "exact_output_conversion" => true,
+            "closed_scalar_inventory" => true,
+            "exact_distinct_neighbor_queries" => true,
+            "level1_nearest_fixed_field" => true,
+            "typed_fragment_roles" => true,
+            "downstream_custom_physics" => true,
+            "uniform_open_interval" => true,
+            "normal_finite" => true,
+            "unit_vector_norm" => sum(abs2, direction_value),
+            "exact_spatial_queries" => true,
+            "warm_mcs_launches" => launch_delta,
+            "warm_mcs_host_synchronizations" => synchronization_delta,
+            "warm_mcs_device_to_host_transfers" => transfer_delta,
+            "warm_mcs_device_allocations" => allocation_delta,
+            "isbits_rule_effect" => isbits(only(lifecycle_events(problem.model)).effect),
+        )
+    end
+    return Dict(
+        "backend" => name,
+        "dimensions" => [2, 3],
+        "profiles" => profiles,
+        "simultaneous_snapshot_commit" => true,
+        "explicit_phase_order" => true,
+        "semantic_rng_addressing" => true,
+        "hidden_host_fallback" => false,
+    )
+end
+
 """Measure Level 2 host work separately from identical CorePotts warm execution."""
 function measure_phase10_backend(name::String; steps::Int = 5)
     steps > 0 || throw(ArgumentError("Phase 10 steady-state sample size must be positive"))
@@ -2449,14 +2682,30 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         throw(ArgumentError("Phase 10 profile must be smoke or full"))
     end
 
-    chemotaxis_spec(label, family, profile_name, seed) = (
-        label = label,
-        family = family,
+    measurement_spec(; label, family, dimensions, requires_lifecycle_observation,
+        model_builder, problem_builder, problem_binding_required = false,
+        problem_binding_builder = identity) = (
+        label,
+        family,
         scale = profile,
-        dimensions = length(migration_shape),
+        dimensions,
+        requires_lifecycle_observation,
+        problem_binding_required,
+        model_builder,
+        problem_binding_builder,
+        problem_builder,
+    )
+
+    chemotaxis_spec(label, family, profile_name, seed) = measurement_spec(;
+        label, family, dimensions = length(migration_shape),
         requires_lifecycle_observation = false,
-        model_builder = () -> references.chemotaxis_model(
-            migration_shape; profile = profile_name, target_volume),
+        problem_binding_required = true,
+        model_builder = () -> references.chemotaxis_model(; target_volume),
+        problem_binding_builder = model ->
+            PottsToolkit.Authoring._realize_problem_fields(model,
+                PottsToolkit.CartesianDomain(migration_shape),
+                (references._chemotaxis_field_binding(
+                    model, migration_shape, profile_name),)),
         problem_builder = () -> references.chemotaxis_problem(
             migration_shape; profile = profile_name, target_volume,
             capacity = 4, tspan = (0, horizon), seed),
@@ -2470,10 +2719,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             :half_normal, 0x7068617365313103),
         chemotaxis_spec("chemotaxis_exponential", "prescribed_gradient_chemotaxis",
             :exponential, 0x7068617365313104),
-        (
+        measurement_spec(;
             label = "monolayer_growth",
             family = "monolayer_growth",
-            scale = profile,
             dimensions = length(migration_shape),
             requires_lifecycle_observation = true,
             model_builder = () -> references.monolayer_growth_model(
@@ -2483,10 +2731,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 16 : 128,
                 tspan = (0, horizon), seed = 0x7068617365313105),
         ),
-        (
+        measurement_spec(;
             label = "differential_adhesion",
             family = "differential_adhesion_sorting",
-            scale = profile,
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.differential_adhesion_model(
@@ -2497,10 +2744,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 8 : 64,
                 tspan = (0, horizon), seed = 0x7068617365313106),
         ),
-        (
+        measurement_spec(;
             label = "angiogenesis_2d",
             family = "elongation_driven_angiogenesis",
-            scale = profile,
             dimensions = length(angiogenesis_2d_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.elongation_driven_angiogenesis_model(
@@ -2513,10 +2759,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 8 : 64,
                 tspan = (0, horizon), seed = 0x7068617365313107),
         ),
-        (
+        measurement_spec(;
             label = "angiogenesis_3d",
             family = "elongation_driven_angiogenesis",
-            scale = profile,
             dimensions = length(angiogenesis_3d_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.elongation_driven_angiogenesis_model(
@@ -2615,8 +2860,14 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         model = model_timing.value
         normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
         normalized = normalization_timing.value
+        problem_binding_timing = @timed spec.problem_binding_builder(model)
+        problem_bound_model = problem_binding_timing.value
+        bound_normalization_timing =
+            @timed PottsToolkit.Authoring.normalize(problem_bound_model)
+        bound_normalized = bound_normalization_timing.value
         dimensions = spec.dimensions
-        lowering_timing = @timed PottsToolkit.Authoring.lower(model; dimensions)
+        lowering_timing =
+            @timed PottsToolkit.Authoring.lower(problem_bound_model; dimensions)
         lowered = lowering_timing.value
         problem_timing = @timed spec.problem_builder()
         problem = problem_timing.value
@@ -2682,8 +2933,13 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "$name $(spec.label) realized proposals exceed activated attempts")
         report.accepted_copies <= report.realized_proposals || error(
             "$name $(spec.label) accepted copies exceed realized proposals")
-        normalized.fingerprint.digest == lowered.normalized.fingerprint.digest || error(
-            "$name $(spec.label) lowering changed the semantic fingerprint")
+        bound_normalized.fingerprint.digest ==
+            lowered.normalized.fingerprint.digest || error(
+                "$name $(spec.label) lowering changed the semantic fingerprint")
+        binding_changed_fingerprint = normalized.fingerprint.digest !=
+                                      bound_normalized.fingerprint.digest
+        binding_changed_fingerprint == spec.problem_binding_required || error(
+            "$name $(spec.label) problem-binding fingerprint contract was violated")
         if profile == "smoke"
             n_cells(snapshot) >= n_cells(problem.u0) || error(
                 "$name $(spec.label) lost a finite cell in the timing smoke fixture")
@@ -2698,11 +2954,19 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "final_cells" => n_cells(snapshot),
             "algorithm" => string(nameof(typeof(algorithm))),
             "semantic_fingerprint" => normalized.fingerprint.digest,
+            "problem_bound_semantic_fingerprint" =>
+                bound_normalized.fingerprint.digest,
             "lowered_semantic_fingerprint" => lowered.normalized.fingerprint.digest,
+            "problem_binding_required" => spec.problem_binding_required,
+            "problem_binding_changed_fingerprint" => binding_changed_fingerprint,
             "model_construction_seconds" => model_timing.time,
             "model_construction_host_bytes" => model_timing.bytes,
             "normalization_seconds" => normalization_timing.time,
             "normalization_host_bytes" => normalization_timing.bytes,
+            "problem_binding_seconds" => problem_binding_timing.time,
+            "problem_binding_host_bytes" => problem_binding_timing.bytes,
+            "problem_bound_normalization_seconds" => bound_normalization_timing.time,
+            "problem_bound_normalization_host_bytes" => bound_normalization_timing.bytes,
             "lowering_seconds" => lowering_timing.time,
             "lowering_host_bytes" => lowering_timing.bytes,
             "problem_construction_seconds" => problem_timing.time,

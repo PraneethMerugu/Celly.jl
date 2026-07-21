@@ -69,21 +69,32 @@ struct Chemotaxis{T <: AbstractFloat, R <: CorePotts.AbstractFieldResponse,
     mode::M
 end
 
-function Chemotaxis(field, pairs::Pair...; name::Symbol = :chemotaxis,
+function _chemotaxis(field_identity::SemanticName, dimensions::Integer,
+        pairs::Tuple; name::Symbol = :chemotaxis,
         namespace::Namespace = Namespace(),
         response::CorePotts.AbstractFieldResponse = CorePotts.LinearResponse(),
         mode::CorePotts.AbstractChemotaxisMode = CorePotts.ExtensionChemotaxis())
     isempty(pairs) && throw(ArgumentError(
         "chemotaxis must bind a sensitivity for at least one cell type"))
-    all(pair -> first(pair) isa CellType && last(pair) isa Real, pairs) ||
-        throw(ArgumentError("chemotaxis entries must be `CellType => Real` pairs"))
+    all(pair -> _is_cell_reference(first(pair)) && last(pair) isa Real, pairs) ||
+        throw(ArgumentError(
+            "chemotaxis entries must be `CellType or CellRole => Real` pairs"))
     T = float(promote_type(map(pair -> typeof(last(pair)), pairs)...))
-    entries = Tuple(Binding{CellType, T}(first(pair), T(last(pair))) for pair in pairs)
+    entries = Tuple(Binding{CellType, T}(
+        _cell_reference(first(pair)), T(last(pair))) for pair in pairs)
     all(entry -> isfinite(entry.value), entries) || throw(ArgumentError(
         "chemotaxis sensitivities must be finite"))
     return Chemotaxis{T, typeof(response), typeof(mode)}(
-        SemanticName(name; namespace), semantic_identity(field), UInt8(ndims(field.values)),
+        SemanticName(name; namespace), field_identity, UInt8(dimensions),
         BindingTable{CellType, T}(entries), response, mode)
+end
+
+function Chemotaxis(field::PrescribedField, pairs::Pair...; kwargs...)
+    return _chemotaxis(semantic_identity(field), ndims(field.values), Tuple(pairs); kwargs...)
+end
+
+function Chemotaxis(field::FieldRole, pairs::Pair...; kwargs...)
+    return _chemotaxis(semantic_identity(field), 0, Tuple(pairs); kwargs...)
 end
 
 semantic_identity(component::Chemotaxis) = component.name

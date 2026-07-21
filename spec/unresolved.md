@@ -26,9 +26,10 @@ transforms. Specify which transforms are bitwise portable and which are only sta
 
 ### SEM-RNG-006: Default generator implementation
 
-Validate Philox4x32-10 performance, compilation, known-answer vectors, and raw-bit identity on CPU,
-Metal, and AMDGPU before making it the accepted default implementation. CUDA qualification remains
-separate from the current first-class backend contract.
+Resolved by `Philox4x32x10V1`, RNG contract version `1.0.0`. Known-answer vectors, semantic-address
+packing, compilation, and raw-word identity are qualified on CPU, Metal, and AMDGPU through the
+CorePotts RNG suite and backend qualification matrix. CUDA remains outside the current first-class
+backend contract and does not block the accepted default.
 
 ## Energy, Proposals, and Trackers
 
@@ -168,7 +169,7 @@ rule phase read one snapshot and commit simultaneously after successful validati
 Resolved by the accepted Julia-first Level 1 language in
 [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md). Rules use thin
 `@rule`/`@rules` syntax over ordinary builders, callable typed references, Julia conditionals and
-local expressions, explicit interpolation, semantic `rand`, lazy query reductions, and no general
+local expressions, explicit interpolation, declarative `draw`, lazy query reductions, and no general
 dynamic loops or collections. The exact registered method list is maintained as a release inventory.
 
 ### SEM-DSL-003: Spatial query definitions
@@ -208,13 +209,16 @@ same scientific contracts rather than forced through PottsToolkit IR.
 
 ### SEM-DSL-007: Exact surface syntax and usability contract
 
-Define the concrete Level 1 grammar, remaining constructor names, fragment binding syntax, rule and
-phase spelling, canonical displays, and IDE expectations. Surface syntax must realize `SEM-DSL-006`
-and normalize to the accepted semantic model. The Level 1 rule-language shape and behavior and the
-principal Level 2 `PottsToolkit.PottsModel`/single-`PottsProblem` ownership are accepted. Remaining
-work concerns top-level Level 1 declarations, phase-dependency names, fragment spelling, and
-canonical formatting. Breaking changes remain allowed until the paper freeze, so no migration
-experience or compatibility layer is required for the current prototype.
+Resolved by the accepted Level 1 surface in
+[PottsToolkit Authoring, Composition, and API Semantics](pottstoolkit-authoring-composition-and-api-semantics.md)
+and [PottsToolkit Rule and Model Semantics](pottstoolkit-rule-and-model-semantics.md). The contract
+defines top-level declarations, typed properties and parameters, fields, pairwise laws, model and
+problem construction, rule/trigger/query/random-draw syntax, explicit phases, fragments and roles,
+inspection, diagnostics, observables, optional units, persistence, and editor independence.
+
+Breaking changes remain allowed during Phase 11 implementation. DSL/IR 1.0 freezes only after the
+accepted reference-model, backend, custom-extension, documentation, legacy-deletion, usability, and
+performance evidence gate passes.
 
 ## CorePotts Public Interfaces
 

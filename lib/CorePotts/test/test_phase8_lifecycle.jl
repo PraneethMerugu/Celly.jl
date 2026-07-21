@@ -30,6 +30,34 @@ function CorePotts.compiled_apply_effect!(::DoubleProperty{Key}, state, cell,
     @inbounds values[cell] *= 2
     return nothing
 end
+
+struct SwapStage end
+struct StagedSwapProperty{Key} <: AbstractLifecycleEffect end
+StagedSwapProperty(key::Symbol) = StagedSwapProperty{key}()
+
+CorePotts.compiled_effect_category(::StagedSwapProperty) =
+    CompiledStagedPropertyEffect()
+CorePotts.compiled_effect_stages(::StagedSwapProperty) = (SwapStage(),)
+function CorePotts.compiled_effect_workspace(::StagedSwapProperty{Key}, state,
+        plan) where {Key}
+    values = getproperty(state.potts.storage.properties, Key)
+    return CompiledStagedEffectWorkspace(((similar(values),),))
+end
+function CorePotts.compiled_evaluate_effect_stage!(::StagedSwapProperty{Key},
+        ::SwapStage, workspace::Tuple, state, cell, properties, mcs, rng,
+        seed) where {Key}
+    values = getproperty(state.core.properties, Key)
+    other = cell == 1 ? 2 : 1
+    @inbounds workspace[1][cell] = values[other]
+    return nothing
+end
+function CorePotts.compiled_commit_effect_stage!(::StagedSwapProperty{Key},
+        ::SwapStage, workspace::Tuple, state, cell, properties, mcs, rng,
+        seed) where {Key}
+    values = getproperty(state.core.properties, Key)
+    @inbounds values[cell] = workspace[1][cell]
+    return nothing
+end
 end
 
 function phase8_lifecycle_state(; capacity = 4)
@@ -229,6 +257,15 @@ end
     step!(custom_integrator)
     @test custom_metrics.host_synchronizations == 0
     @test property_values(logical_state(custom_integrator), :age)[1:2] == Int32[8, 1]
+
+    staged = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
+        AlwaysLifecycleTrigger(),
+        Phase8LifecycleExtension.StagedSwapProperty(:age); semantic_id = 109)
+    staged_integrator, staged_metrics = make_integrator((staged,))
+    step!(staged_integrator)
+    @test staged_metrics.host_synchronizations == 0
+    @test staged_metrics.device_allocations == 0
+    @test property_values(logical_state(staged_integrator), :age)[1:2] == Int32[1, 4]
 
     transition = LifecycleEvent(ActiveCellsTarget(), OnceAtMCS(1),
         AlwaysLifecycleTrigger(), TransitionCell(CellTypeID(3));

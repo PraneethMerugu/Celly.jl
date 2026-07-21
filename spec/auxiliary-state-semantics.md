@@ -139,8 +139,15 @@ scientific proof from one observable to another.
 PottsToolkit authoring is organized by scientific concern. Conceptual spellings include a classical
 quadratic volume or surface constraint and a separately named fluctuating-pressure or
 fluctuating-tension mechanical component. There is no stable equilibrium-auxiliary spelling. Exact
-DSL constructor names remain part of the provisional surface-syntax inventory, but users MUST NOT
-construct device buffers, RNG coordinates, or update kernels directly.
+Level 1 constructors are `Volume`, `Surface`, `FluctuatingVolumePressure`, and
+`FluctuatingSurfaceTension`. The fluctuating families are first-class mechanical components, not
+alternative implementations of the equilibrium constraints. Public `HST...` names are removed.
+Users MUST NOT construct device buffers, RNG coordinates, or update kernels directly.
+
+Mechanical noise uses an explicit typed value such as `IndependentNoise(theta)` or
+`AcceptanceTemperature()`. There is no invisible numerical default coupling mechanical noise to the
+acceptance law. `AcceptanceTemperature()` is a deferred semantic reference resolved and recorded
+during model--algorithm preflight.
 
 `explain` MUST report the category, state variable, target or constitutive law, time interpretation,
 algorithm compatibility, backend support, lifecycle support, and evidence level.

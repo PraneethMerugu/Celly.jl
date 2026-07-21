@@ -10,7 +10,7 @@ function phase9_distributed_problem()
         medium_domains = (MediumID(1),), property_schema = required_properties(volume))
     property_values(logical, :target_volume)[1] = 6
     property_values(logical, :volume_strength)[1] = 1
-    domain = CartesianDomain((5, 5))
+    domain = CorePotts.CartesianDomain((5, 5))
     proposal = first_shell_relation(ProposalRole(), Val(2))
     surface = first_shell_relation(SurfaceRole(), Val(2))
     tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface)

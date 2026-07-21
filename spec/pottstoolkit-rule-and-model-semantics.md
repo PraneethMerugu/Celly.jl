@@ -1,6 +1,6 @@
 # PottsToolkit Rule and Model Semantics
 
-Status: Accepted for sections explicitly marked Accepted; otherwise Provisional
+Status: Accepted semantic contract; Phase 11 implementation evidence pending
 
 ## Purpose
 
@@ -129,7 +129,9 @@ reusable, displayable, inspectable value.
 The accepted Level 1 shape is mathematically assignment-like:
 
 ```julia
-growth = @rule target_volume(cell) =
+growth_phase = Phase(:growth)
+
+growth = @rule phase = growth_phase target_volume(cell) =
     target_volume(cell) + growth_rate(cell)
 ```
 
@@ -149,7 +151,9 @@ cell type, several types, a biological role, a medium domain, or another support
 Several outputs may be declared in one named phase:
 
 ```julia
-growth = @rules phase = :growth begin
+growth_phase = Phase(:growth)
+
+growth = @rules phase = growth_phase begin
     target_volume(cell) = target_volume(cell) + growth_rate(cell)
     age(cell) = age(cell) + 1
 end
@@ -161,8 +165,23 @@ semantic effect.
 Sequential behavior uses separate named phases with explicit ordering or dependencies. Reordering
 source lines, declarations, or container elements never creates sequential behavior.
 
-The precise keyword spelling for phase dependencies remains subject to final API review, but phase
-identity and ordering are explicit model data.
+Phases are immutable semantic values with explicit identities and `after` dependencies:
+
+```julia
+mechanics_phase = Phase(:mechanics)
+growth_phase = Phase(:growth; after = (mechanics_phase,))
+
+growth = @rules phase = growth_phase begin
+    target_volume(cell) = target_volume(cell) + growth_rate(cell)
+    age(cell) = age(cell) + 1
+end
+```
+
+Every state-writing Level 1 rule belongs to an explicit phase. The primary API does not provide
+redundant `before`, numeric stage, source-order, or priority scheduling. Phase dependencies form a
+directed acyclic graph; a cycle or potentially conflicting unordered phases are model-validation
+errors. Built-in components may provide standard named phases, but those phases and dependencies
+remain visible through inspection.
 
 ### Property, parameter, and law calls
 
@@ -234,7 +253,8 @@ Julia interpolation syntax explicitly captures host values:
 
 ```julia
 rate = 0.05
-rule = @rule target_volume(cell) = target_volume(cell) + $rate
+growth_phase = Phase(:growth)
+rule = @rule phase = growth_phase target_volume(cell) = target_volume(cell) + $rate
 ```
 
 The value at construction time becomes part of the authoring model. No global or host lookup occurs
@@ -246,24 +266,33 @@ adaptation, mutation, and serialization behavior.
 
 ### Random draws
 
-Level 1 uses familiar `rand` syntax with Potts.jl semantic RNG behavior:
+Level 1 distinguishes declarative stochastic operations from Julia's immediate `rand` operation.
+It uses `draw` to construct an addressed stochastic rule node:
 
 ```julia
-@rule polarity(cell) = rand(UnitVector(2); label = :new_polarity)
+renewal_phase = Phase(:renewal)
 
-@rule division_time(cell) =
-    rand(Normal(mean_time(cell), std_time(cell)); label = :division_time)
+@rule phase = renewal_phase polarity(cell) =
+    draw(UnitVector(2); label = :new_polarity)
+
+@rule phase = renewal_phase division_time(cell) =
+    draw(Normal(mean_time(cell), std_time(cell)); label = :division_time)
 ```
 
-This syntax never invokes Julia's default or task-local RNG. The distribution descriptor, owner,
-rule, phase, MCS, and optional label contribute to the accepted semantic address.
+`draw` does not consume random state while the model is authored. Its ordinary programmatic
+representation is an immutable `RandomDraw` value. The distribution descriptor, owner, rule,
+phase, MCS, event occurrence, and optional label contribute to the accepted semantic address when
+the rule is lowered and executed.
 
 A label is optional only when the draw has one stable unambiguous identity. It is required when an
 identity would otherwise be ambiguous. Publication-oriented diagnostics encourage explicit labels
 where they improve edit-stable provenance.
 
-Level 1 users do not pass an RNG object. Lower levels MAY expose addressed RNG objects and functions
-under the accepted randomness contract.
+Level 1 users do not pass an RNG object. Lower execution layers MAY extend Julia's standard
+`rand(rng::PottsRNG, sampler::PottsSampler)` protocol for Potts-owned RNG and sampler types under the
+accepted randomness contract. Such methods are ordinary dispatch, not a reinterpretation of
+`rand` in the DSL. PottsToolkit MUST NOT pirate `rand` methods for types it does not own, and loading
+an optional distribution package MUST NOT change the meaning of existing draws.
 
 ### No change and missingness
 
@@ -278,8 +307,32 @@ Device storage MAY compile it to another representation without changing its pub
 
 ### Spatial collections and reductions
 
-Neighbor queries produce lazy bounded scientific collections, not allocated vectors. They support
-familiar reductions such as:
+Spatial relationships are immutable typed values selected through dispatch rather than magic
+symbols. For example:
+
+```julia
+neighbors(cell, Contacting())
+neighbors(cell, Within(3.0))
+```
+
+Entity predicates are filters, not spatial relations. A same-type restriction therefore uses a
+typed filter such as `where = same_type_as(cell)` on an already declared relationship; it is not a
+`SameType()` neighborhood.
+
+The Level 1 vocabulary preserves distinct scientific result domains:
+
+```julia
+neighbors(cell, Contacting())  # unique finite-cell entities
+contacts(cell)                 # contact/interface observations
+sites(cell)                    # owned lattice sites
+boundary_sites(cell)           # owned boundary sites
+```
+
+These produce different lazy bounded scientific collections, not allocated vectors. Every query
+declares uniqueness, contact multiplicity, weighting, metric, and domain-owner participation. No
+query promises iteration order unless the author explicitly requests an ordered query.
+
+Query collections support familiar reductions such as:
 
 - `sum`
 - `mean`
@@ -288,9 +341,35 @@ familiar reductions such as:
 - `any` and `all`
 - An explicitly supported `mapreduce`
 
-Query options use readable keyword arguments for relation, filters, weighting, metric, and empty
-behavior. A scientifically meaningful option has no implicit default unless it belongs to a named,
-versioned preset.
+The ordinary `f, collection` and Julia `do`-block reduction spellings are accepted. Restricted
+anonymous functions inside an approved bounded query operation may read typed DSL references and
+immutable interpolated values. They cannot mutate state, allocate dynamic collections, perform I/O,
+or escape the queried entity. Lowering does not materialize a host collection.
+
+Counts and sums over an empty collection return their mathematical identities; `any` returns
+`false` and `all` returns `true`. `mean`, `minimum`, and `maximum` produce a semantic error on an
+empty collection unless an explicit empty policy is supplied. This policy is identical across host
+and device execution; device execution reports the error through the accepted transactional device
+error mechanism.
+
+Query options use readable typed arguments or keyword arguments for relation, filters, weighting,
+metric, and empty behavior. A scientifically meaningful option has no implicit default unless it
+belongs to a named, versioned preset.
+
+Fields are sampled at an explicit spatial argument:
+
+```julia
+chemo(site)
+chemo(center(cell))
+gradient(chemo, center(cell))
+mean(chemo, sites(cell))
+```
+
+`chemo(cell)` has no implicit center, site-average, centroid-interpolation, or membrane meaning.
+Interpolation and boundary behavior belong to the field declaration. Proposal-local field
+couplings such as chemotaxis separately declare their source/recipient sampling law; they are not
+inferred from cell-level sampling syntax. Spatial coordinates and displacement vectors lower to
+statically sized device-compatible values.
 
 General user-written iteration over neighbors or populations is not accepted in Level 1 initially.
 Level 2 and CorePotts extensions may use ordinary loops when bounds, storage, and device behavior are
@@ -455,8 +534,8 @@ Every stochastic expression is a typed semantic node containing:
 - Draw identity
 - Result type and domain
 
-The compiler assigns distinct addressed random coordinates to distinct draw nodes. Multiple calls to
-`rand` or another distribution in one rule MUST NOT reuse one numeric offset accidentally.
+The compiler assigns distinct addressed random coordinates to distinct draw nodes. Multiple `draw`
+operations in one rule MUST NOT reuse one numeric offset accidentally.
 
 Users MAY provide a stable draw label when reproducibility should survive unrelated edits to the
 rule. Duplicate labels in one semantic scope are validation errors.
@@ -520,6 +599,67 @@ remain distinct:
 Event conflicts and lifecycle commits follow
 [Lifecycle](lifecycle.md). Event ordering, schedules, and RNG identity are explicit. A closure that
 mutates cell data directly is not a portable action.
+
+### Level 1 lifecycle spelling
+
+Level 1 represents scientifically distinct lifecycle operations with distinct immutable
+constructors rather than a generic `Event(kind = ...)` value. The initial vocabulary includes
+`Division`, `ImmediateDeath`, `ShrinkDeath`, `Transition`, and `PropertyUpdate`. Their different
+identity, transaction, and biological meanings remain visible to dispatch and inspection.
+
+A state-dependent trigger uses a thin syntax-capture macro with explicit semantic identity:
+
+```julia
+ready_to_divide = @trigger ready_to_divide(cell) =
+    volume(cell) >= division_volume(cell)
+```
+
+Its ordinary programmatic representation is an immutable `TriggerRule`. A trigger reads the common
+pre-lifecycle snapshot and returns a decision. It cannot mutate state. Its name participates in
+provenance, diagnostics, serialization, and any addressed stochastic operations it contains.
+
+Built-in schedule spellings make the integer-MCS unit explicit:
+
+```julia
+EveryMCS()
+EveryMCS(5; start = 5)
+AtMCS(100)
+AtMCS((50, 100, 150))
+BetweenMCS(10, 100; every = 5)
+```
+
+These are conveniences implementing the open schedule protocol, not a closed enumeration. They
+reject MCS zero and negative lifecycle times under the accepted lifecycle contract.
+
+A complete common event is assembled through its scientific constructor:
+
+```julia
+division = Division(
+    Tumor;
+    schedule = EveryMCS(),
+    trigger = ready_to_divide,
+    geometry = MinorAxisSplit(),
+)
+```
+
+Target, schedule, trigger, geometry or transformation, and effect remain separately inspectable.
+Equivalent Level 2 construction lowers to the same semantic event. Event declaration order has no
+biological meaning.
+
+Potentially overlapping identity-changing events reject ambiguity by default. An intended overlap
+requires a typed resolver, for example:
+
+```julia
+PriorityResolver(
+    immediate_death => 3,
+    transition      => 2,
+    division        => 1,
+)
+```
+
+Priority numbers are semantic values; pair order is irrelevant. Custom resolvers extend the public
+protocol but must preserve one identity-changing outcome per cell, atomicity, determinism,
+declaration-order invariance, and every backend capability they claim.
 
 ## Portability and Capability Profiles
 

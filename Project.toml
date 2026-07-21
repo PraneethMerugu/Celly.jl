@@ -7,6 +7,7 @@ authors = ["Praneeth Merugu <merugufam@gmail.com>"]
 CorePotts = "047998c1-3edd-4edf-b561-cee99549c5a6"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources]
 CorePotts = {path = "lib/CorePotts"}
@@ -15,14 +16,24 @@ CorePotts = {path = "lib/CorePotts"}
 CorePotts = "0.1"
 KernelAbstractions = "0.9.42"
 SciMLBase = "3"
+StaticArrays = "1"
+Unitful = "1"
 julia = "1.12.6"
+
+[weakdeps]
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[extensions]
+PottsToolkitUnitfulExt = "Unitful"
 
 [extras]
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [targets]
-test = ["KernelAbstractions", "Test"]
+test = ["KernelAbstractions", "Test", "TOML", "Unitful"]
 
 [workspace]
 projects = ["integration", "lib/CorePotts", "lib/MakiePotts", "lib/NeuralPotts"]

@@ -39,25 +39,33 @@ function _gradient_values(shape::NTuple{N, <:Integer}, profile::Symbol;
     return values
 end
 
-"""Reusable Level 2 single-cell chemotaxis model for one fixed gradient profile."""
-function chemotaxis_model(shape::NTuple{N, <:Integer};
-        profile::Symbol = :linear, sensitivity::Real = 4,
+"""Reusable Level 1 single-cell chemotaxis model independent of realized field values."""
+function chemotaxis_model(;
+        sensitivity::Real = 4,
         target_volume::Real = 32, volume_strength::Real = 2,
         adhesion_to_medium::Real = 8,
         response::CorePotts.AbstractFieldResponse = CorePotts.LinearResponse(),
-        mode::CorePotts.AbstractChemotaxisMode = CorePotts.ExtensionChemotaxis()) where {N}
+        mode::CorePotts.AbstractChemotaxisMode = CorePotts.ExtensionChemotaxis())
     medium = Medium(:Medium)
     cell = CellType(:MigratingCell)
-    field = PrescribedField(Symbol(profile, :_gradient),
-        _gradient_values(shape, profile))
-    volume = VolumeConstraint(
+    field = Field(:chemo_gradient;
+        placement = CellCentered(), boundary = NoFlux(),
+        interpolation = Multilinear())
+    volume = Volume(
         cell => (target = target_volume, strength = volume_strength))
-    adhesion = Adhesion(
+    contact_energy = PairwiseLaw(:contact_energy,
         (medium, medium) => 0,
         (medium, cell) => adhesion_to_medium,
         (cell, cell) => 0)
+    adhesion = Adhesion(contact_energy)
     drive = Chemotaxis(field, cell => sensitivity; response, mode)
     return PottsModel(medium, cell, volume, adhesion, field, drive)
+end
+
+function _chemotaxis_field_binding(model::PottsModel,
+        shape::NTuple{N, <:Integer}, profile::Symbol) where {N}
+    field = only(value for value in model.declarations if value isa Field)
+    return field => _gradient_values(shape, profile)
 end
 
 """Construct an executable fixed-gradient chemotaxis reference problem."""
@@ -65,16 +73,19 @@ function chemotaxis_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
         profile::Symbol = :linear, target_volume::Real = 32,
         capacity::Integer = 4, tspan = (0, 20), seed::Integer = 0,
         kwargs...) where {N}
-    model = chemotaxis_model(shape; profile, target_volume, kwargs...)
+    model = chemotaxis_model(; target_volume, kwargs...)
     cell = only(value for value in model.declarations if value isa CellType)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return problem(model, shape, layout; capacity, tspan, seed)
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    domain = CartesianDomain(shape)
+    return PottsProblem(model, domain, layout;
+        fields = (_chemotaxis_field_binding(model, shape, profile),),
+        capacity, tspan, seed)
 end
 
 single_cell_biased_migration_problem(args...; kwargs...) =
     chemotaxis_problem(args...; profile = :linear, kwargs...)
 
-"""Reusable two-population differential-adhesion Level 2 model."""
+"""Reusable two-population differential-adhesion Level 1 model."""
 function differential_adhesion_model(;
         target_volume::Real = 20, volume_strength::Real = 2,
         within_a::Real = 2, within_b::Real = 2, between::Real = 15,
@@ -82,16 +93,17 @@ function differential_adhesion_model(;
     medium = Medium(:Medium)
     first_population = CellType(:PopulationA)
     second_population = CellType(:PopulationB)
-    volume = VolumeConstraint(
+    volume = Volume(
         first_population => (target = target_volume, strength = volume_strength),
         second_population => (target = target_volume, strength = volume_strength))
-    adhesion = Adhesion(
+    contact_energy = PairwiseLaw(:contact_energy,
         (medium, medium) => 0,
         (medium, first_population) => medium_contact,
         (medium, second_population) => medium_contact,
         (first_population, first_population) => within_a,
         (second_population, second_population) => within_b,
         (first_population, second_population) => between)
+    adhesion = Adhesion(contact_energy)
     return PottsModel(medium, first_population, second_population, volume, adhesion)
 end
 
@@ -145,7 +157,7 @@ function _seed_label_layout(shape::NTuple{N, <:Integer}, count::Integer,
         end
         push!(declarations, UInt64(index) => cell_type_at(index))
     end
-    return CellLabelLayout(labels, declarations)
+    return LabelledCells(labels, declarations)
 end
 
 function _mixed_seed_labels(shape::NTuple{N, <:Integer}, count::Integer,
@@ -168,7 +180,8 @@ function differential_adhesion_problem(shape::NTuple{N, <:Integer} = ntuple(_ ->
         shape, 2cells_per_population, target_volume, populations...)
     capacity >= 2cells_per_population || throw(ArgumentError(
         "cell capacity must contain every initial sorting cell"))
-    return problem(model, shape, layout; capacity, tspan, seed)
+    return PottsProblem(model, CartesianDomain(shape), Layout(layout);
+        capacity, tspan, seed)
 end
 
 """Reusable growth/division/repulsion model for a one-cell monolayer seed."""
@@ -180,16 +193,17 @@ function monolayer_growth_model(;
         "division_target must exceed the initial target volume"))
     medium = Medium(:Medium)
     cell = CellType(:MonolayerCell)
-    volume = VolumeConstraint(
+    volume = Volume(
         cell => (target = target_volume, strength = volume_strength))
-    adhesion = Adhesion(
+    contact_energy = PairwiseLaw(:contact_energy,
         (medium, medium) => 0,
         (medium, cell) => medium_contact,
         (cell, cell) => cell_repulsion)
+    adhesion = Adhesion(contact_energy)
     growth = Growth(volume, cell; rate = growth_rate)
     division = Division(cell;
-        geometry = CorePotts.RandomOrientationDivision(0),
-        trigger = CorePotts.PropertyAtLeast(:volume__target, Float32(division_target)))
+        geometry = RandomOrientationSplit(),
+        trigger = PropertyAtLeast(:volume__target, Float32(division_target)))
     return PottsModel(medium, cell, volume, adhesion, growth, division)
 end
 
@@ -199,8 +213,9 @@ function monolayer_growth_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 
         tspan = (0, 50), seed::Integer = 0, kwargs...) where {N}
     model = monolayer_growth_model(; target_volume, kwargs...)
     cell = only(value for value in model.declarations if value isa CellType)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return problem(model, shape, layout; capacity, tspan, seed)
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
+        capacity, tspan, seed)
 end
 
 """
@@ -214,18 +229,19 @@ function elongation_driven_angiogenesis_model(;
         target_elongation::Real = 3, elongation_strength::Real = 8,
         endothelial_contact::Real = 4, medium_contact::Real = 10,
         preserve_connectivity::Bool = true,
-        target_division::CorePotts.AbstractDivisionPolicy = CorePotts.CloneOnDivision())
+        target_division::CorePotts.AbstractDivisionPolicy = CloneOnDivision())
     medium = Medium(:Medium)
     endothelial = CellType(:EndothelialCell)
-    volume = VolumeConstraint(endothelial =>
+    volume = Volume(endothelial =>
         (target = target_volume, strength = volume_strength))
     elongation = Elongation(endothelial =>
         (target = target_elongation, strength = elongation_strength);
         target_division)
-    adhesion = Adhesion(
+    contact_energy = PairwiseLaw(:contact_energy,
         (medium, medium) => 0,
         (medium, endothelial) => medium_contact,
         (endothelial, endothelial) => endothelial_contact)
+    adhesion = Adhesion(contact_energy)
     declarations = preserve_connectivity ?
         (medium, endothelial, volume, elongation, adhesion, PreserveConnectivity()) :
         (medium, endothelial, volume, elongation, adhesion)
@@ -245,7 +261,8 @@ function elongation_driven_angiogenesis_problem(
     endothelial = only(value for value in model.declarations if value isa CellType)
     layout = _seed_label_layout(
         shape, cells, target_volume, _ -> endothelial)
-    return problem(model, shape, layout; capacity, tspan, seed)
+    return PottsProblem(model, CartesianDomain(shape), Layout(layout);
+        capacity, tspan, seed)
 end
 
 """Modern fluctuating-volume reference used by thermodynamic verification."""
@@ -254,11 +271,13 @@ function single_cell_fluctuation_problem(shape::NTuple{N, <:Integer} = ntuple(_ 
         capacity::Integer = 2, tspan = (0, 100), seed::Integer = 0) where {N}
     medium = Medium(:Medium)
     cell = CellType(:Cell)
-    volume = FluctuatingVolumeConstraint(
-        cell => (target = target_volume, strength = volume_strength); eta)
+    volume = FluctuatingVolumePressure(
+        cell => (target = target_volume, strength = volume_strength);
+        eta, noise = AcceptanceTemperature())
     model = PottsModel(medium, cell, volume)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return problem(model, shape, layout; capacity, tspan, seed)
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
+        capacity, tspan, seed)
 end
 
 """Modern 2D/3D fluctuating droplet with explicit contact energy."""
@@ -269,15 +288,18 @@ function droplet_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 64, 2);
         tspan = (0, 50), seed::Integer = 0) where {N}
     medium = Medium(:Medium)
     cell = CellType(:Droplet)
-    volume = FluctuatingVolumeConstraint(
-        cell => (target = target_volume, strength = volume_strength); eta)
-    adhesion = Adhesion(
+    volume = FluctuatingVolumePressure(
+        cell => (target = target_volume, strength = volume_strength);
+        eta, noise = AcceptanceTemperature())
+    law = PairwiseLaw(:contact_energy,
         (medium, medium) => 0,
         (medium, cell) => contact_energy,
         (cell, cell) => 0)
+    adhesion = Adhesion(law)
     model = PottsModel(medium, cell, volume, adhesion)
-    layout = CellLayout(cell, 1, _ball_mask(shape, target_volume))
-    return problem(model, shape, layout; capacity, tspan, seed)
+    layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
+    return PottsProblem(model, CartesianDomain(shape), layout;
+        capacity, tspan, seed)
 end
 
 end

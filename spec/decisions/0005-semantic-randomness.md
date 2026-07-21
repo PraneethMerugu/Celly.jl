@@ -30,8 +30,8 @@ Exact and approximate distributions are separately named. Exact checkpoints reco
 RNG version, semantic counters, cell generations, complete state, model fingerprint, and execution
 provenance.
 
-Philox4x32-10 is the provisional default candidate pending compilation, performance, and known-answer
-validation on all first-class backends.
+`Philox4x32x10V1` is the accepted default contract after compilation, known-answer, semantic-address,
+and raw-word validation on CPU, Metal, and AMDGPU. Its public RNG contract version is `1.0.0`.
 
 ## Consequences
 

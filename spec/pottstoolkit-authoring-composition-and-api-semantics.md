@@ -1,6 +1,6 @@
 # PottsToolkit Authoring, Composition, and API Semantics
 
-Status: Accepted Level 2 authoring and composition contract; exact Level 1 surface syntax remains provisional
+Status: Accepted Level 1 and Level 2 authoring, composition, and API contract; implementation evidence pending
 
 ## Purpose
 
@@ -80,6 +80,12 @@ PottsToolkit performs no authoring-time unit conversion and does not carry Unitf
 normalization or lowering. Optional units are a Phase 11 solution post-processing concern and do
 not alter model semantics or execution.
 
+Phase 11 supplies that concern through an optional Unitful package extension. `with_units(sol,
+scale)` creates a lazy immutable solution view using an explicit `PhysicalScale`; it does not alter
+the model, normalized identity, execution, backend residency, or parent solution fingerprint.
+Physical conversion is available only for observables whose metric and calibration metadata define
+it unambiguously.
+
 ### Level 3: CorePotts scientific API
 
 CorePotts exposes stable scientific objects and protocols for state, topology, energy components,
@@ -128,9 +134,27 @@ contracts when they seek Level 1 DSL syntax, normalized serialization, or DSL co
 an extension declares its syntax or constructor entry points, IR lowering, type rules, effects,
 capabilities, reference behavior, device behavior, documentation, and conformance tests.
 
+Registration grants authoring polish, not privileged access to simulation. A conforming Level 2 or
+Level 3 component is first-class custom physics before it has a Level 1 spelling. The 95% coverage
+target applies to the stable scientific inventory shipped by the project; it does not prevent an
+experimental or third-party component from participating through the public typed protocols.
+
 Direct Level 3 or Level 4 use follows the corresponding CorePotts public protocol and does not
 require a PottsToolkit IR adapter. Internal, undocumented CorePotts representation details remain
 outside all public levels.
+
+### Extension protocol ergonomics
+
+Required implementation work scales with scientific complexity. A simple immutable proposal-local
+energy or drive supplies its identity, requirements, local law, and applicable capabilities; it is
+not forced to implement lifecycle, field, serialization, or workspace methods it does not use.
+Shared lawful defaults and small helper constructors provide absent effects, empty requirements,
+reference capability declarations, and standard inspection metadata.
+
+Advanced protocols become mandatory only when an extension claims the associated behavior. In
+particular, a GPU capability claim requires concrete device lowering and evidence, while a
+reference-only component remains a valid explicitly CPU-only component. Neither PottsToolkit nor
+CorePotts may silently execute it on the host during a GPU solve.
 
 ## Cross-Level Coverage and Interoperability
 
@@ -287,6 +311,24 @@ default for model structure. Macros are reserved for contexts where syntax mater
 clarity, source mapping, or safety, especially rule expressions. A future top-level macro requires
 usability evidence and must lower through the same Level 1 authoring model.
 
+The primary model constructor accepts a flat sequence of typed scientific declarations:
+
+```julia
+model = PottsModel(
+    medium,
+    Tumor,
+    Stroma,
+    volume,
+    adhesion,
+    growth,
+    division;
+    lifecycle_resolver = resolver,
+)
+```
+
+It does not require category buckets such as `cell_types`, `penalties`, or `events`. Declaration
+types and public protocols provide their categories, and declaration order is not semantic.
+
 ### Cell types and media
 
 `CellType` is a central biological declaration representing a named finite-cell category with
@@ -297,6 +339,44 @@ Medium is not permanently modeled as a special cell type. Level 1 exposes an exp
 concept. The semantic object model permits multiple named medium domains even while an initial
 engine capability supports only one conceptual medium. Compatibility syntax MAY interpret a
 historical background `CellType` as a medium after explicit validation and reporting.
+
+The Level 1 spelling uses explicit semantic names:
+
+```julia
+Tumor = CellType(:tumor)
+Stroma = CellType(:stroma)
+medium = Medium(:extracellular)
+```
+
+The symbol is the durable semantic identity; the Julia variable name is only a local binding.
+Renaming a local binding does not alter normalized meaning.
+
+### Properties and parameters
+
+State and parameter ownership use distinct constructors:
+
+```julia
+polarity = CellProperty(
+    :polarity,
+    Tumor;
+    initial = SVector(1.0, 0.0),
+    division = CopyToBoth(),
+    transition = Preserve(),
+    retirement = Reset(),
+)
+
+growth_rate = CellParameter(
+    :growth_rate,
+    Tumor => 0.05,
+    Stroma => 0.0,
+)
+
+drag = ModelParameter(:drag, 0.2)
+```
+
+A `CellProperty` is mutable per-cell biological state, a `CellParameter` is immutable data selected
+by cell type, and a `ModelParameter` is global model data. Sharing one numerical Julia type does not
+make these declaration categories interchangeable.
 
 ### Model and problem
 
@@ -341,6 +421,50 @@ specification. Concrete lattice sizes, spacing realization, and storage belong t
 model can be reused across compatible geometries and initial conditions; dimension-, topology-, or
 field-specific components expose their requirements explicitly.
 
+The Level 1 geometry spelling is a typed `CartesianDomain`:
+
+```julia
+domain = CartesianDomain(
+    (200, 200);
+    spacing = (1.0, 1.0),
+    boundaries = PeriodicBoundary(),
+)
+```
+
+Mixed faces use typed `AxisBoundary` values. Boundaries, obstacles, and spacing are semantic
+geometry rather than unvalidated symbols.
+
+Initial declarations compose through one immutable `Layout` value:
+
+```julia
+layout = Layout(
+    UniformSiteSeeds(Tumor, 100),
+    Place(Stroma, Rectangle(origin, size)),
+)
+```
+
+Uniform one-site seeding and bounded sequential rejection of declared shapes use distinct names.
+`SequentialRejectionPlacement` exposes its shape, attempt bound, periodic behavior, and failure
+contract. Level 1 does not provide an ambiguous `RandomLayout` constructor.
+
+The final Level 1 problem form is:
+
+```julia
+prob = PottsProblem(
+    model,
+    domain,
+    layout;
+    fields = (chemo => chemo_values,),
+    tspan = (0, 1_000),
+    capacity = 4_096,
+    seed = 42,
+)
+```
+
+`capacity` and `seed` are explicit problem data. Level 1 always requires fixed capacity rather than
+inferring future lifecycle headroom. A different ordinary trajectory uses `remake(prob; seed)`, not
+a solve-time seed override.
+
 ### Algorithms and temperature
 
 The Monte Carlo algorithm is normally supplied through `solve(problem, algorithm)` or
@@ -379,6 +503,26 @@ indices depend on declaration order. It declares:
 A raw matrix remains available at a lower level or through an explicitly indexed compatibility
 constructor.
 
+The Level 1 constructor takes an explicit law identity and ordinary tuple pairs:
+
+```julia
+contact_energy = PairwiseLaw(
+    :contact_energy,
+    (Tumor, Tumor)   => 4.0,
+    (Tumor, Stroma)  => 12.0,
+    (Tumor, medium)  => 16.0,
+    (Stroma, Stroma) => 3.0,
+    (Stroma, medium) => 10.0;
+    symmetric = true,
+    missing = RejectMissingPairs(),
+)
+
+adhesion = Adhesion(contact_energy)
+```
+
+Symmetry or direction, domain participation, and missing-pair behavior are typed semantic choices.
+Pair and declaration order never create priority or dense indices.
+
 ### Properties and observables
 
 Custom properties are declared independently of rules. A property schema declares owner, type,
@@ -395,15 +539,74 @@ Level 1 ordinarily exposes scientific observables rather than tracker-cache impl
 Advanced users MAY request a tracker explicitly when it is itself a stable scientific API, but
 volume, surface, contacts, and related quantities remain the primary vocabulary.
 
+Common components accept either concise literal parameters or typed state/parameter handles. For
+example, a literal volume target is immutable type-level data:
+
+```julia
+volume = Volume(Tumor => (target = 50, strength = 2.0))
+```
+
+An evolving target is declared and referenced explicitly:
+
+```julia
+target_volume = CellProperty(
+    :target_volume,
+    Tumor;
+    initial = 50.0,
+    division = SplitConservatively(),
+    transition = Preserve(),
+    retirement = Reset(),
+)
+
+volume = Volume(
+    Tumor => (target = target_volume, strength = 2.0),
+)
+```
+
+Convenience-generated declarations have deterministic identities derived from the component family
+and semantic owner scope and appear in `explain`. If that identity would be ambiguous, construction
+requires an explicit component name. Generated declarations cannot collide with or silently replace
+an explicit property.
+
+### Fields and problem binding
+
+The reusable model declares field meaning independently of realized experiment data:
+
+```julia
+chemo = Field(
+    :chemo;
+    placement = CellCentered(),
+    boundary = NoFlux(),
+    interpolation = Multilinear(),
+)
+```
+
+The problem binds compatible field values or a typed initializer through `chemo => values`. This
+allows one model to be reused across field profiles and resolutions. A realized array is not part of
+reusable model identity unless the author explicitly declares it fixed model data.
+
 ### Events and schedules
 
 Events are ordinary model components participating in dependency, effect, capability, provenance,
 and composition analysis. Growth, division, death, transition, property update, and field coupling
 retain distinct effect semantics despite sharing the component framework.
 
+Level 1 uses the distinct scientific constructors `Division`, `ImmediateDeath`, `ShrinkDeath`,
+`Transition`, and `PropertyUpdate`; it does not encode these meanings with a `kind` symbol in one
+generic constructor. State-dependent predicates use explicitly named `@trigger` declarations with
+an ordinary immutable `TriggerRule` representation.
+
 Schedules are reusable typed values. Every-boundary, periodic, one-time, explicit finite-time, and
 future conforming positive integer-MCS schedules are inspectable independently of an event. A
 state-dependent condition is a trigger rather than a schedule.
+
+The built-in Level 1 spellings are `EveryMCS`, `AtMCS`, and `BetweenMCS`. Their names deliberately
+distinguish lifecycle MCS boundaries from future physical-time, PDE-time, and solution-side time
+representations. Common events accept `schedule` and `trigger` as explicit keyword arguments.
+
+Overlapping identity-changing events use reject-ambiguity behavior unless the model supplies a typed
+resolver such as `PriorityResolver(event => priority, ...)`. Priority values, not declaration or
+pair order, determine its result.
 
 ### Rule ownership and roles
 
@@ -514,10 +717,38 @@ A model fragment is a first-class immutable declaration bundle. It declares:
 
 Applying a fragment returns a new model and produces an inspectable composition result.
 
+The primary Level 1 representation is an ordinary `ModelFragment`, not a required macro. Ordinary
+Julia functions may construct or generate fragments. Fragment requirements are typed roles such as
+`CellRole` and `FieldRole`; a symbol or dictionary key is not a substitute for a role value.
+
+```julia
+migrating_cells = CellRole(:migrating_cells)
+signal_field = FieldRole(:signal_field)
+
+migration = ModelFragment(
+    :migration;
+    requires = (migrating_cells, signal_field),
+    declarations = (polarity, persistence, chemotaxis),
+)
+
+bound_migration = bind(
+    migration,
+    migrating_cells => Tumor,
+    signal_field    => chemo,
+)
+```
+
+`bind` returns an immutable bound-fragment declaration that may be passed directly to
+`PottsModel`. Missing, duplicate, or category-incompatible bindings are validation errors.
+
 ### Namespaces and binding
 
 Fragments have lexical namespaces by default. Internal names are private unless explicitly exported.
 The applying model binds fragment requirements and MAY explicitly rename exports.
+
+Routine users do not manually manage namespaces. A fragment's explicit identity and version define
+its durable namespace, and its private declarations are qualified automatically. Direct
+`Namespace` construction remains an advanced authoring operation.
 
 String concatenation, gensymmed public symbols, and global naming conventions are not substitutes
 for namespaces.
@@ -542,15 +773,29 @@ Component attachment is declarative. A component declares what it provides, requ
 writes, constrains, observes, and which backend or numerical capabilities it needs.
 
 Attaching a component produces a new model and runs composition validation. Components have stable
-identities so models support identity-based operations conceptually equivalent to:
+identities. The persistent model-editing API uses:
 
 - `add(model, component)`
 - `remove(model, component_id)`
 - `replace(model, component_id => replacement)`
 - `remake(model; ...)`
 
-The exact spelling remains provisional. These operations MUST NOT depend on object position or
-vector order.
+These operations MUST NOT depend on object position or vector order. `add` rejects a conflicting
+identity. `replace` is the explicit operation that supersedes an existing identity and records the
+replacement in provenance. PottsToolkit does not overload `+`, `-`, indexing assignment, or hidden
+mutation for model revision.
+
+### Custom-physics qualification
+
+The project supplies conformance helpers for custom scientific components. Applicable helpers test
+reference behavior, local-versus-global laws, declared effects and dependencies, type-stable device
+lowering, backend adaptation, forbidden host allocation or synchronization, CPU/Metal/ROCm
+execution, numerical agreement, RNG addressing, and transaction behavior. A helper only demands
+tests relevant to capabilities the component claims.
+
+Third-party fragments may package properties, rules, components, fields, and lifecycle behavior
+behind typed biological roles. Fragment-private declarations remain collision-free, while every
+expanded declaration, capability limitation, and replacement remains visible through inspection.
 
 ## Defaults, Presets, and Convenience
 
@@ -591,10 +836,15 @@ continuing would make subsequent diagnostics misleading, unsafe, or excessively 
 
 Validation MUST NOT defer a host-detectable semantic error until GPU execution.
 
+`validate(model)` returns an immutable `ValidationReport` rather than throwing for ordinary model
+invalidity. `isvalid(report)` returns its validity. An operation that requires a valid model, such
+as problem construction or lowering, throws one structured `ModelValidationError` containing the
+applicable report. PottsToolkit does not use a mutating `validate!` spelling.
+
 ## Inspection Interface
 
 Users can inspect every meaningful compilation stage through stable semantic reports. PottsToolkit
-provides operations conceptually equivalent to:
+provides:
 
 - `validate(model)`
 - `normalize(model)`
@@ -604,11 +854,32 @@ provides operations conceptually equivalent to:
 - `lower(model; backend)`
 - `provenance(model)`
 
-The exact names and return types remain provisional. Internal compiler objects need not be public,
-but reports MUST expose scientific choices, expansion of conveniences, dependencies, effects,
-capability requirements, defaults, approximations, and portability limitations.
+Each operation returns an immutable typed report rather than formatted text. Reports support normal
+display, testing, filtering, and applicable serialization. `normalize(model)` returns a public,
+immutable, inspectable `NormalizedModel`; it does not expose mutable compiler machinery. Reports
+MUST expose scientific choices, expansion of conveniences, dependencies, effects, capability
+requirements, defaults, approximations, and portability limitations.
 
 Inspection does not require executing an MCS.
+
+## Display and Tooling
+
+The compact `show` form for a model reports its type and a small declaration summary. Its rich
+`text/plain` display provides a bounded scientific outline containing cell types, media,
+components, phases, lifecycle events, unresolved roles, warnings, and capability limitations. It
+does not recursively dump compiler structures or large parameter tables. Detailed reasoning belongs
+to `explain(model)`.
+
+Basic authoring requires no custom editor plugin. Ordinary constructors, typed keyword arguments,
+methods, exported values, and docstrings provide Julia completion and help. Metaprogramming remains
+limited to the accepted `@rule`, `@rules`, and `@trigger` syntax-capture boundaries. These macros
+preserve source spans and their programmatic representations remain available for tooling and
+testing.
+
+Rule-aware language-server features MAY later provide richer hover information, completion, or
+early diagnostics. Model correctness, discoverability, and execution cannot depend on them; the
+same API remains usable in the REPL, VS Code, Pluto, Jupyter, Emacs, and other ordinary Julia
+environments.
 
 ## Revision, Remake, and Compilation Reuse
 
@@ -647,21 +918,57 @@ PottsToolkit distinguishes a versioned semantic manifest, runtime checkpoints, a
 model serialization. A semantic manifest supports provenance, exchange, and validation without
 promising that every Julia extension can be reconstructed.
 
+The public operations are distinct:
+
+```julia
+semantic_manifest(model)
+save_model(path, model)
+save_checkpoint(path, integrator)
+```
+
+A manifest describes scientific meaning and provenance, a saved model promises reconstructable
+authoring semantics when every component supports it, and a checkpoint promises continuation from
+a completed MCS. None silently substitutes for another.
+
+The paper-release model format is a versioned human-readable Potts JSON schema, conventionally using
+the `.potts.json` suffix. `save_model(path, model; format = PottsJSON())` and `load_model(path)` use
+format dispatch so later exchange formats need not change model semantics. The schema records its
+own version together with applicable DSL, IR, component, fragment, RNG, and numerical contract
+versions. Loading never invokes `eval` or opaque Julia object deserialization.
+
 Semantic round-tripping is guaranteed only when every participating component opts into the
 versioned serialization protocol. Loading such a model reconstructs an equivalent normalized model
 and fingerprint under the recorded contract versions.
 
 The project does not promise to reproduce original source formatting, comments, macro choice, or
-declaration order. A pretty-printer MAY emit canonical authoring code.
+declaration order. Julia source is not the authoritative serialization, and no canonical code
+pretty-printer is required for the paper release. A later documentation helper MAY emit example
+authoring code but cannot become the reproducibility contract.
 
 Arbitrary closures, host resources, secret-bearing objects, and backend-specific handles prevent
 portable serialization unless a registered resource representation exists. They are never restored
 through `eval`. The model report labels such a model non-portable and explains why.
 
+Custom physics does not require serialization support. A custom component opts into reconstruction
+by supplying a stable external identity, codec version, semantic encoder, validating decoder,
+package/dependency identity, and round-trip tests. If any component lacks a codec, `save_model`
+throws one structured portability error listing every blocker; `semantic_manifest` can still report
+the model and that limitation.
+
+Before the paper API freeze, saved-model formats carry no migration guarantee. The freeze declares
+the first stable DSL, IR, and Potts JSON versions. Later migrations are explicit and versioned,
+retain the original manifest and migration path in provenance, and preserve semantic meaning.
+Unsupported versions fail rather than being silently reinterpreted.
+
+Fingerprints derive from normalized semantic content and its contract versions. They exclude object
+addresses, declaration and dictionary order, incidental filesystem paths, and secret values.
+External resources participate through explicit content identities.
+
 ## Diagnostic Contract
 
 Composition and authoring diagnostics include as applicable:
 
+- Stable diagnostic code and severity
 - Source locations and model paths
 - Namespace and fragment paths
 - Stable declaration or component identities
@@ -672,7 +979,9 @@ Composition and authoring diagnostics include as applicable:
 - Suggested explicit bindings, renames, or replacements
 
 Diagnostics distinguish invalid syntax, unresolved meaning, incompatible composition, unsupported
-backend capability, and migration failure.
+backend capability, and migration failure. They are immutable structured values; tests inspect
+codes and fields rather than matching complete rendered strings. Independently actionable
+diagnostics are accumulated when doing so remains safe and meaningful.
 
 ## Conformance Requirements
 
@@ -710,16 +1019,21 @@ backend capability, and migration failure.
 - Documented CorePotts public protocols interoperate with PottsToolkit without exposing internal
   storage representations.
 
-## Exact Level 1 Surface Syntax Still to Define
+## Level 1 API Freeze Evidence Gate
 
-The following remain provisional until dedicated syntax and usability interviews are accepted:
+The surface accepted here remains breakable during Phase 11 implementation. DSL and IR version 1.0
+are frozen only after:
 
-- Model, type, property, parameter, field, component, and relation declaration grammar
-- Rule, transaction, conditional, random draw, and query grammar
-- Namespace, fragment application, binding, and override spelling
-- Remaining Level 1 constructor names and builder return types; the principal Level 2
-  `PottsToolkit.PottsModel` and single runtime `PottsProblem` ownership are accepted
-- Inspection result types and display conventions
-- Canonical pretty-printing
-- Post-freeze deprecation policy; no pre-freeze migration layer is required
-- IDE, completion, formatting, and documentation integration
+- All five required paper reference models have natural Level 1 spellings.
+- Equivalent Level 1 and Level 2 models normalize to equal scientific meaning.
+- The complete paths execute on CPU, Metal, and ROCm under the claimed capabilities.
+- Rule, trigger, random-draw, query, lifecycle, and custom-physics downstream fixtures pass.
+- Inspection, structured diagnostics, optional units, observables, and persistence have documented
+  end-to-end examples.
+- Required library tests, tutorials, and documentation use the replacement API.
+- The legacy compiler and runtime fallback path are absent.
+- Compilation latency and execution benchmarks preserve or improve the accepted Phase 10 baseline.
+- A final usability audit of complete model scripts finds no material API defect.
+
+No migration layer is required before this freeze. Post-freeze changes follow the accepted explicit
+DSL, IR, and Potts JSON versioning contract.

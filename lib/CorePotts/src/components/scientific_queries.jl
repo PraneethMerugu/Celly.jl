@@ -26,6 +26,10 @@ struct AnyMediumDomain <: AbstractOwnerFilter end
 _query_sites(domain::CartesianDomain) = findall(vec(domain.mutable_mask))
 _query_sites(domain::CompiledCartesianDomain) = domain.storage.mutable_sites
 
+"""Device-safe finite-cell owner construction after compiled capacity validation."""
+@inline compiled_cell_owner(cell::Integer) =
+    _owner_ref_unchecked(_CELL_OWNER_TAG, Base.unsafe_trunc(UInt32, cell))
+
 function contact_edge_count(
         state, domain, relation::StaticCartesianRelation{<:SpatialQueryRole},
         owner::OwnerRef, filter::AbstractOwnerFilter, medium_types::MediumTypeTable)
@@ -106,6 +110,23 @@ function neighbor_cells(
 end
 
 neighbor_cell_count(args...) = length(neighbor_cells(args...))
+
+"""Return whether two distinct owners share at least one realized query-relation incidence."""
+@inline function owners_are_neighbors(state, domain,
+        relation::StaticCartesianRelation{<:SpatialQueryRole},
+        left::OwnerRef, right::OwnerRef)
+    left == right && return false
+    for site_value in _query_sites(domain)
+        site = Int(site_value)
+        _proposal_owner_at(state, site) == left || continue
+        for direction in 1:direction_count(relation)
+            neighbor = realize_neighbor(domain, relation, site, direction)
+            neighbor.kind in (AbsentNeighbor, InvalidNeighbor) && continue
+            _realized_owner(state, neighbor) == right && return true
+        end
+    end
+    return false
+end
 
 """Canonical unordered interface measure between two explicit owner filters."""
 function global_interface_measure(state, domain,

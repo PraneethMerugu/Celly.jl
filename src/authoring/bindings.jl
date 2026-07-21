@@ -98,13 +98,16 @@ function PairwiseLaw(pairs::Pair...; name::Symbol = :pairwise,
         namespace::Namespace = Namespace(), symmetric::Bool = true, default = nothing)
     isempty(pairs) && throw(ArgumentError("a pairwise law must declare at least one pair"))
     all(pair -> first(pair) isa Tuple && length(first(pair)) == 2 &&
-        all(value -> value isa AbstractBiologicalType, first(pair)) && last(pair) isa Real,
+        all(value -> value isa Union{AbstractBiologicalType, CellRole}, first(pair)) &&
+        last(pair) isa Real,
         pairs) || throw(ArgumentError(
-        "pairwise entries must be `(biological_type, biological_type) => real`"))
+            "pairwise entries must be `(biological_type_or_cell_role, biological_type_or_cell_role) => real`"))
     T = float(promote_type(map(pair -> typeof(last(pair)), pairs)...,
         default === nothing ? Float32 : typeof(default)))
     converted = map(pairs) do pair
         left, right = first(pair)
+        left = left isa CellRole ? _cell_reference(left) : left
+        right = right isa CellRole ? _cell_reference(right) : right
         PairIdentity(left, right; symmetric) => T(last(pair))
     end
     entries = Tuple(Binding{PairIdentity, T}(first(pair), last(pair)) for pair in converted)

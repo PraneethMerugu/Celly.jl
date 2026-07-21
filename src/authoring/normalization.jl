@@ -11,6 +11,7 @@ end
 semantic_fingerprint(model::NormalizedModel) = model.fingerprint
 semantic_fingerprint(model::PottsModel) = semantic_fingerprint(normalize(model))
 provenance(model::NormalizedModel) = model.provenance_entries
+provenance(model::PottsModel) = provenance(normalize(model))
 
 _flatten_declarations(::Tuple{}) = ()
 
@@ -61,11 +62,13 @@ function _partition_declarations(declarations::Tuple)
     return _prepend_partition(first(declarations), cells, media, components)
 end
 
-struct _ValidationContext
+struct _ValidationContext{T <: AbstractFloat}
     cell_types::Tuple
     biological_types::Tuple
     components::Tuple
 end
+
+_context_real_type(::_ValidationContext{T}) where {T} = T
 
 _validate_declaration(::Union{CellType, Medium}, context::_ValidationContext) = ()
 
@@ -226,6 +229,11 @@ end
 
 _validate_declaration(::PrescribedField, context::_ValidationContext) = ()
 
+_is_field_declaration(::Any) = false
+_is_field_declaration(::PrescribedField) = true
+_field_declaration_dimension(field::PrescribedField) = ndims(field.values)
+_field_declaration_values(field::PrescribedField) = field.values
+
 function _validate_declaration(component::Chemotaxis, context::_ValidationContext)
     diagnostics = ()
     field_index = findfirst(value -> semantic_identity(value) == component.field,
@@ -235,21 +243,23 @@ function _validate_declaration(component::Chemotaxis, context::_ValidationContex
             "chemotaxis references an undeclared prescribed field";
             identity = component.name, related = (component.field,),
             correction = "add the PrescribedField declaration or correct the field name"))
-    elseif !(context.components[field_index] isa PrescribedField)
+    elseif !_is_field_declaration(context.components[field_index])
         diagnostics = (diagnostics..., Diagnostic(:error, :invalid_chemotaxis_field,
             "chemotaxis field reference resolves to a non-field declaration";
             identity = component.name, related = (component.field,),
-            correction = "reference a PrescribedField declaration"))
+            correction = "reference a Field or PrescribedField declaration"))
     else
         field = context.components[field_index]
-        ndims(field.values) == component.dimensions ||
+        field_dimensions = _field_declaration_dimension(field)
+        (field_dimensions === nothing || component.dimensions == 0 ||
+            field_dimensions == component.dimensions) ||
             (diagnostics = (diagnostics..., Diagnostic(:error,
                 :chemotaxis_field_dimension_mismatch,
                 "chemotaxis dimensionality does not match its prescribed field";
                 identity = component.name, related = (component.field,
-                    Int(component.dimensions), ndims(field.values)),
+                    Int(component.dimensions), field_dimensions),
                 correction = "reconstruct the chemotaxis declaration from this field"),))
-        for value in field.values
+        for value in _field_declaration_values(field)
             try
                 CorePotts.field_response(component.response, value)
             catch error
@@ -368,11 +378,19 @@ function _fragment_diagnostics(fragment::ModelFragment, declared::Tuple)
             correction = "remove the export or add a declaration with that identity"),))
     end
     for requirement in fragment.requirements
-        requirement in declared || (diagnostics = (diagnostics..., Diagnostic(
-            :error, :unsatisfied_fragment_requirement,
-            "fragment requirement is not provided by the composed model";
-            identity = fragment.name, related = (requirement,), fragment = fragment.name,
-            correction = "compose a provider for the required identity"),))
+        if requirement isa AbstractFragmentRole
+            diagnostics = (diagnostics..., Diagnostic(
+                :error, :unresolved_fragment_role,
+                "fragment has an unbound typed requirement";
+                identity = fragment.name, related = (requirement,), fragment = fragment.name,
+                correction = "bind the role explicitly before constructing a problem"))
+        elseif requirement ∉ declared
+            diagnostics = (diagnostics..., Diagnostic(
+                :error, :unsatisfied_fragment_requirement,
+                "fragment requirement is not provided by the composed model";
+                identity = fragment.name, related = (requirement,), fragment = fragment.name,
+                correction = "compose a provider for the required identity"))
+        end
     end
     for declaration in _scoped_fragment_declarations(fragment)
         declaration isa ModelFragment || continue
@@ -423,14 +441,19 @@ function _diagnose_model(model::PottsModel)
         :missing_medium, "a runnable model must declare at least one Medium";
         correction = "add a Medium declaration")))
 
-    context = _ValidationContext(cell_types, (cell_types..., media...), components)
+    T = CorePotts.real_type(model.numerics)
+    context = _ValidationContext{T}(
+        cell_types, (cell_types..., media...), components)
     for component in components
         diagnostics = (diagnostics..., _validate_declaration(component, context)...)
     end
     diagnostics = (diagnostics...,
         _composition_diagnostics(model, declarations, components)...)
+    diagnostics = (diagnostics..., _phase_diagnostics(components)...)
     lifecycle_ids = Tuple(filter(value -> !isnothing(value),
         map(_lifecycle_event_id, components)))
+    any(component -> component isa Rule, components) &&
+        (lifecycle_ids = (lifecycle_ids..., _rule_program_event_id()))
     for event_id in unique(lifecycle_ids)
         count(==(event_id), lifecycle_ids) > 1 && (diagnostics = (diagnostics...,
             Diagnostic(:error, :lifecycle_rng_identity_collision,
@@ -963,6 +986,27 @@ function explain(model::NormalizedModel)
         model.components, declarations, model.provenance_entries, ValidationReport())
 end
 
+function capabilities(model::NormalizedModel)
+    declarations = Tuple((identity = declaration.identity,
+        capabilities = declaration.capabilities) for declaration in explain(model).declarations)
+    dimensions = Set((2, 3))
+    for declaration in declarations
+        intersect!(dimensions, Set(declaration.capabilities.dimensions))
+    end
+    ordered_dimensions = Tuple(sort!(collect(dimensions)))
+    portable = all(declaration -> declaration.capabilities.portable, declarations)
+    return ModelCapabilityReport(CorePotts.ScientificCapabilities(
+        dimensions = ordered_dimensions, portable = portable), declarations,
+        ValidationReport())
+end
+
+function capabilities(model::PottsModel)
+    diagnostics = validate(model)
+    isvalid(diagnostics) && return capabilities(normalize(model))
+    return ModelCapabilityReport(CorePotts.ScientificCapabilities(
+        dimensions = (), portable = false), (), diagnostics)
+end
+
 function _declaration_report(component::VolumeConstraint)
     prefix = _property_prefix(component.name)
     return DeclarationReport(component.name, :energy,
@@ -1071,6 +1115,7 @@ end
 
 function _declaration_report(component::Chemotaxis)
     field = component.field
+    dimensions = component.dimensions == 0 ? (2, 3) : (Int(component.dimensions),)
     return DeclarationReport(component.name, :drive,
         (field, Tuple(entry.key for entry in component.sensitivity)...),
         (Symbol(_property_prefix(component.name), "__sensitivity"),),
@@ -1079,7 +1124,7 @@ function _declaration_report(component::Chemotaxis)
             sensitivity = Tuple((cell_type = semantic_identity(entry.key),
                 value = entry.value) for entry in component.sensitivity),
             response = component.response, mode = component.mode),
-        CorePotts.ScientificCapabilities(dimensions = (Int(component.dimensions),)))
+        CorePotts.ScientificCapabilities(; dimensions))
 end
 
 _invariant_semantics(::UnboundedProperty) = (kind = :unbounded,)

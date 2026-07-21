@@ -125,10 +125,11 @@ behavior; Phase 8 does not implement a general resolver-composition algebra. A p
 semantics; declaration position, tuple layout, cell ID, compiler batching, workgroup size, launch
 decomposition, thread scheduling, and atomic arrival order are not implicit priority keys.
 
-A default resolver MAY define category priority, but its policy MUST be public and stable. Statically
-detectable unresolved conflicts MUST fail model construction. A conflict discovered only from the
-runtime trigger set MUST abort the affected phase before any lifecycle mutation and produce a
-bounded structured diagnostic or error.
+The default policy rejects ambiguity; it does not assign universal category priority. Statically
+detectable unresolved conflicts MUST fail model construction. Intended overlap requires an explicit
+typed resolver such as stable semantic priority. A conflict discovered only from the runtime trigger
+set MUST abort the affected phase before any lifecycle mutation and produce a bounded structured
+diagnostic or error.
 
 For the same pre-snapshot, trigger decisions, semantic identities, and explicit resolver, the
 resolved transaction set MUST be invariant under permutation of declarations, tuple representation,

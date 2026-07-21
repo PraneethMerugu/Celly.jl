@@ -58,7 +58,7 @@ struct CellProperty{T, I <: AbstractPropertyInvariant, D, X, R}
     optionality::PropertyOptionality
 end
 
-function CellProperty(name::Symbol, cell_types::CellType...;
+function CellProperty(name::Symbol, cell_types...;
         namespace::Namespace = Namespace(), initial,
         invariant::AbstractPropertyInvariant = UnboundedProperty(),
         mutability::CorePotts.PropertyMutability = CorePotts.MutableProperty,
@@ -72,13 +72,61 @@ function CellProperty(name::Symbol, cell_types::CellType...;
         optionality::PropertyOptionality = RequiredProperty)
     isempty(cell_types) && throw(ArgumentError(
         "a cell property must declare at least one applicable cell type"))
+    all(_is_cell_reference, cell_types) || throw(ArgumentError(
+        "cell properties must apply to CellType or CellRole values"))
     T = typeof(initial)
     isbitstype(T) || throw(ArgumentError("cell property values must use an isbits type"))
     _satisfies_invariant(initial, invariant) || throw(ArgumentError(
         "cell property initial value violates its declared invariant"))
-    ordered = Tuple(sort!(unique!(collect(cell_types)); by = _identity_text))
+    ordered = Tuple(sort!(unique!(collect(_cell_reference.(cell_types)));
+        by = _identity_text))
     return CellProperty(SemanticName(name; namespace), ordered, initial, invariant,
         mutability, division, transition, retirement, visibility, persistence, optionality)
 end
 
 semantic_identity(property::CellProperty) = property.name
+
+"""Immutable data selected by finite-cell type rather than stored once per cell."""
+struct CellParameter{T}
+    name::SemanticName
+    bindings::BindingTable{CellType, T}
+end
+
+function CellParameter(name::Symbol, pairs::Pair...;
+        namespace::Namespace = Namespace())
+    isempty(pairs) && throw(ArgumentError(
+        "a cell parameter must bind at least one cell type"))
+    all(pair -> _is_cell_reference(first(pair)) && isbits(last(pair)), pairs) ||
+        throw(ArgumentError(
+            "cell parameters must use `CellType => immutable_isbits_value` bindings"))
+    values = last.(pairs)
+    T = all(value -> value isa Number, values) ?
+        promote_type(map(typeof, values)...) : typeof(first(values))
+    all(value -> value isa Number || typeof(value) === T, values) || throw(ArgumentError(
+        "non-numeric cell parameter bindings must share one concrete type"))
+    entries = Tuple(Binding{CellType, T}(
+        _cell_reference(first(pair)), convert(T, last(pair)))
+        for pair in pairs)
+    return CellParameter(SemanticName(name; namespace),
+        BindingTable{CellType, T}(entries))
+end
+
+semantic_identity(parameter::CellParameter) = parameter.name
+
+"""Immutable model-global scientific data."""
+struct ModelParameter{T}
+    name::SemanticName
+    value::T
+
+    function ModelParameter(name::SemanticName, value::T) where {T}
+        isbitstype(T) || throw(ArgumentError(
+            "model parameter values must use an immutable isbits type"))
+        return new{T}(name, value)
+    end
+end
+
+
+ModelParameter(name::Symbol, value; namespace::Namespace = Namespace()) =
+    ModelParameter(SemanticName(name; namespace), value)
+
+semantic_identity(parameter::ModelParameter) = parameter.name

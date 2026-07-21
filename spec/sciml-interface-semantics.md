@@ -204,6 +204,22 @@ Backend capabilities and identities use typed open dispatch rather than symbols 
 enum. CPU, Metal, and ROCm remain the qualified production set until explicitly revised. Exact
 checkpoints record stable package, backend, device, and runtime identity.
 
+The `backend` keyword is reserved for computation. Output destination and retention use the
+separate `storage` keyword and typed policies such as `MemoryStorage`, `ZarrStorage`, and
+`HDF5Storage`:
+
+```julia
+solve(
+    prob,
+    alg;
+    backend = MetalBackend(),
+    storage = MemoryStorage(),
+)
+```
+
+Historical output types named `MemoryBackend`, `ZarrBackend`, or `HDF5Backend` are not part of the
+final API. Storage selection never selects execution hardware or scientific dynamics.
+
 ## PottsIntegrator
 
 `init` returns a mutable `PottsIntegrator` owning:
@@ -354,7 +370,7 @@ Saving does not require every full state to be copied to host memory. A policy M
 - Keep qualified device snapshots
 - Transfer full or selected state
 - Save only scientific observables
-- Stream frames to an output backend
+- Stream frames to an output storage policy
 - Use out-of-core storage
 
 The solution reports what was retained and where. Saved entries are immutable snapshots or stable
@@ -379,6 +395,22 @@ applicable:
 - Reproducibility and model provenance
 - Storage metadata
 
+Saved scientific quantities are requested with typed observable handles, not strings:
+
+```julia
+sol = solve(
+    prob,
+    alg;
+    saveat = 10,
+    observables = (volume, cell_type, boundary_measure),
+)
+```
+
+An observable requested before execution may be maintained or evaluated efficiently at declared
+observation boundaries. Applicable SciML symbolic indexing such as `sol[volume]` retrieves the
+saved series. An unknown or unsaved observable is a structured error and does not initiate hidden
+computation, transfer, or synchronization.
+
 When it subtypes `AbstractTimeseriesSolution`, it implements that collection contract rather than
 using the name only for branding. `sol[j]` is the `j`th saved entry and `sol.t[j]` its MCS.
 `sol(t)` performs exact saved-MCS lookup; an unavailable MCS throws `UnsavedTimeError`. `sol[t]`
@@ -393,6 +425,86 @@ Every completed solution has a meaningful return code. It does not remain at `Re
 - Normal completion: `ReturnCode.Success`
 - Deliberate user termination: `ReturnCode.Terminated`
 - Safety limit reached: `ReturnCode.MaxIters`
+
+### Identity-aware cell series
+
+Per-cell saved values use a ragged identity-aware `CellSeries`. Each entry is a `CellValues`
+collection keyed by stable cell identity including generation, never by a reusable dense storage
+slot. Cells may appear and disappear between frames. An absent lifetime is not filled with zero, and
+slot reuse cannot splice unrelated biological cells into one trajectory. Lineage metadata supports
+explicit parent, daughter, ancestor, and descendant analysis where it was requested or retained.
+
+### Typed reduction observables
+
+Population summaries are immutable observable expressions, for example:
+
+```julia
+mean(volume; over = Tumor)
+count(cells(Tumor))
+sum(contact_measure; between = (Tumor, Stroma))
+```
+
+Construction does not compute the reduction. Its population selection, uniqueness, weighting,
+empty behavior, metric, and accumulator policy are semantic data. When requested during a GPU
+solve, a qualified reduction remains device resident and transfers only its declared small result
+at the observation boundary.
+
+### Tables and materialization
+
+`observation_table(sol, observables...)` returns a Tables.jl-compatible long-form view. Per-cell
+rows include applicable MCS, stable cell identity, generation, cell type, and requested values.
+Potts.jl does not require DataFrames, CSV, Arrow, or a plotting package; their normal Tables.jl
+interfaces consume the view. A unit-bearing solution view adds calibrated columns and metadata
+without dropping original MCS or lattice quantities.
+
+Analysis never hides transfer of GPU-resident scientific data. Full cell tables, ownership arrays,
+or device-resident series require an explicit materialization operation such as
+`materialize(values, CPU())`. Post-hoc derivation from retained snapshots uses an explicit
+`observe(sol, observable; backend)` operation that reports whether values were already available,
+recomputed, transferred, or synchronized. Display, symbolic indexing, and metadata queries do not
+materialize a GPU trajectory.
+
+### Optional physical-unit view
+
+Model authoring, normalized IR, execution state, and kernels use plain numerical values under the
+accepted numerical policy. Unitful integration is a solution-side Julia package extension and is
+not a CorePotts execution dependency.
+
+```julia
+scale = PhysicalScale(
+    lattice_spacing = (0.5u"μm", 0.5u"μm"),
+    mcs_duration = 2u"s",
+)
+
+physical_sol = with_units(sol, scale)
+```
+
+`PhysicalScale` is immutable. Spacing may be anisotropic and must match the solution dimension. No
+length, time, energy, concentration, or other scale is inferred. `mcs_duration` is explicitly an
+empirical user-supplied calibration rather than an intrinsic interpretation of MCS. Calibration
+method, citation, and notes MAY be attached as analysis provenance.
+
+`with_units` returns a lazy immutable `UnitfulSolutionView` sharing its parent solution. It does not
+copy snapshots, alter stored values, synchronize a device, rerun execution, or change the parent
+solution fingerprint. `parent(view)` returns the original solution, `mcs(view)` returns its integer
+MCS axis, and `view.t` returns the calibrated physical axis when a time calibration exists.
+
+An exact lookup by unitful physical time MAY convert through the declared calibration and then use
+the existing exact saved-MCS lookup. It never introduces dense, nearest, or between-MCS
+interpolation.
+
+Units attach only to observables with enough semantic information for a valid conversion.
+Coordinates use declared lattice spacing; 2D area and 3D volume use the applicable spacing product;
+concentration and other dimensions require their own declared scale. Owner labels, raw site counts,
+and raw contact-edge counts remain dimensionless. A boundary value converts to physical length or
+area only through its declared normalized or physical metric estimator. Missing conversion meaning
+is a structured error rather than a guessed unit.
+
+Post-hoc calibration produces a separate analysis-provenance layer containing the parent solution
+fingerprint, physical scale, calibration method or citation, relevant extension versions, and
+derived-observable definitions. Several calibrated views may coexist for one solution. Paper-facing
+exports retain both original MCS/lattice quantities and calibrated quantities so they cannot be
+confused with execution inputs.
 
 `SciMLBase.successful_retcode(sol)` works through the standard trait. `Success` and deliberate
 `Terminated` are successful outcomes.
@@ -552,6 +664,11 @@ algorithms.
 
 Ordinary observation functions receive scientific state or snapshot interfaces rather than raw
 backend arrays. Explicit expert operations MAY request backend storage.
+
+Observation requests and their results use typed scientific handles. Strings may label output
+columns or plots but are not model-state identifiers. Per-cell results preserve semantic identity
+and generation across lifecycle changes rather than exposing dense slot indices as biological
+identity.
 
 Observation requests declare whether they require device reduction, host materialization, full
 state, or only cached metadata. The compiler can then report transfers and synchronization before

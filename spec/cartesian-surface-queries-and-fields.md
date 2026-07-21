@@ -209,9 +209,9 @@ The word area appears only when the returned metric is a physical area.
 ### Distinct-Owner Queries
 
 `neighbor_cells(a, F)` denotes the set of distinct neighboring finite-cell identities reached by the
-query relation. Contact multiplicity does not duplicate an identity. Ordering at the public host API
-is canonical by stable cell identity; device reductions need not materialize a set if they produce
-the same result.
+query relation. Contact multiplicity does not duplicate an identity. Its ordinary query form makes
+no semantic ordering promise. An explicitly ordered host query MAY return canonical stable-identity
+order; device reductions need not materialize a set if they produce the same scientific result.
 
 `neighbor_cell_count` is the cardinality of that set. `neighbor_property_sum` reads each matching
 finite cell once and sums its property once. `neighbor_property_mean` uses the same distinct set.
@@ -228,8 +228,11 @@ the same integer.
 
 ### Empty and Snapshot Behavior
 
-Counts and sums over an empty set return their additive zero. Host-side mean returns `missing` for an
-empty set. Device rules using a mean MUST supply an explicit `empty=` value or fail compilation.
+Counts and sums over an empty set return their additive zero. `any` returns `false` and `all` returns
+`true`. Mean, minimum, and maximum produce a semantic error for an empty set unless the query supplies
+an explicit empty policy. Host and device meanings are identical; a dynamically discovered device
+failure uses the accepted transactional device-error mechanism rather than returning `missing`,
+synchronizing silently, or partially committing a rule.
 
 All queries in one rule-evaluation phase observe the same lattice ownership and property snapshot.
 Writes from that phase become visible only at the next declared phase. Query cache construction is a
@@ -239,6 +242,17 @@ Integer counts and canonical identity results are exact and deterministic. Float
 the numerical-backend contract and expose their determinism or conformance level.
 
 ## Spatial Fields
+
+### Explicit Sampling Location
+
+A field sample always names its spatial argument. Level 1 may use callable field values such as
+`field(site)` and `field(center(cell))`, reductions such as `mean(field, sites(cell))`, and an
+explicit differential operator such as `gradient(field, center(cell))` when supported by the field
+descriptor. Calling `field(cell)` does not silently select a center value, site average, centroid
+interpolation, membrane value, or another aggregate.
+
+Proposal-local coupling laws independently declare their donor/recipient, source/destination, or
+other sampling locations. Cell-level sampling syntax never changes the accepted chemotaxis law.
 
 ### Field Identity
 

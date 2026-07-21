@@ -27,6 +27,10 @@
     args = (domain, relation, CellOwner(1), AnyFiniteCell(), types)
     @test neighbor_cells(state, args...) == CellID[CellID(2), CellID(3)]
     @test neighbor_cell_count(state, args...) == 2
+    @test owners_are_neighbors(
+        state, domain, relation, CellOwner(1), CellOwner(2))
+    @test !owners_are_neighbors(
+        state, domain, relation, CellOwner(2), CellOwner(3))
     @test neighbor_property_sum(state, CellPropertyRef(:signal), args...) == 50.0f0
     @test neighbor_property_mean(state, CellPropertyRef(:signal), args...) == 25.0f0
     @test neighbor_property_mean(state, CellPropertyRef(:signal), domain, relation,
