@@ -2455,8 +2455,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         scale = profile,
         dimensions = length(migration_shape),
         requires_lifecycle_observation = false,
-        model_builder = () -> references.chemotaxis_model(
-            migration_shape; profile = profile_name, target_volume),
+        model_builder = () -> references.chemotaxis_model(; target_volume),
         problem_builder = () -> references.chemotaxis_problem(
             migration_shape; profile = profile_name, target_volume,
             capacity = 4, tspan = (0, horizon), seed),

@@ -96,6 +96,47 @@ end
 """Explicitly report that a rule performs no write for one owner."""
 struct NoChange <: AbstractRuleExpression end
 
+abstract type AbstractDrawDistribution end
+
+struct Bernoulli{P <: AbstractRuleExpression} <: AbstractDrawDistribution
+    probability::P
+end
+Bernoulli(probability) = Bernoulli(_rule_expression(probability))
+
+struct Uniform{L <: AbstractRuleExpression, U <: AbstractRuleExpression} <:
+        AbstractDrawDistribution
+    lower::L
+    upper::U
+end
+Uniform(lower, upper) = Uniform(_rule_expression(lower), _rule_expression(upper))
+
+struct Normal{M <: AbstractRuleExpression, S <: AbstractRuleExpression} <:
+        AbstractDrawDistribution
+    mean::M
+    standard_deviation::S
+end
+Normal(mean, standard_deviation) =
+    Normal(_rule_expression(mean), _rule_expression(standard_deviation))
+
+struct UnitVector <: AbstractDrawDistribution
+    dimensions::UInt8
+    function UnitVector(dimensions::Integer)
+        dimensions in (2, 3) || throw(ArgumentError(
+            "unit-vector draws support two or three dimensions"))
+        return new(UInt8(dimensions))
+    end
+end
+
+"""Declarative addressed random draw; constructing it consumes no random state."""
+struct RandomDraw{D <: AbstractDrawDistribution} <: AbstractRuleExpression
+    distribution::D
+    label::Union{Nothing, Symbol}
+end
+
+function draw(distribution::AbstractDrawDistribution; label::Union{Nothing, Symbol} = nothing)
+    return RandomDraw(distribution, label)
+end
+
 _rule_expression(value::AbstractRuleExpression) = value
 _rule_expression(value) = RuleLiteral(value)
 
@@ -300,6 +341,8 @@ function evaluate(expression::ConditionalExpression, values)
         evaluate(expression.if_true, values) : evaluate(expression.if_false, values)
 end
 evaluate(::NoChange, values) = NoChange()
+evaluate(::RandomDraw, values) = throw(ArgumentError(
+    "reference evaluation of a RandomDraw requires an explicit addressed draw provider"))
 evaluate(rule::Union{Rule, TriggerRule}, values) = evaluate(rule.expression, values)
 
 _expression_reads(::RuleLiteral) = ()
@@ -313,12 +356,34 @@ _expression_reads(expression::ConditionalExpression) = Tuple(unique(identity
     for branch in (expression.condition, expression.if_true, expression.if_false)
     for identity in _expression_reads(branch)))
 _expression_reads(::NoChange) = ()
+_distribution_expressions(distribution::Bernoulli) = (distribution.probability,)
+_distribution_expressions(distribution::Uniform) =
+    (distribution.lower, distribution.upper)
+_distribution_expressions(distribution::Normal) =
+    (distribution.mean, distribution.standard_deviation)
+_distribution_expressions(::UnitVector) = ()
+_expression_reads(expression::RandomDraw) = Tuple(unique(identity
+    for parameter in _distribution_expressions(expression.distribution)
+    for identity in _expression_reads(parameter)))
 
 _normalize_rule_expression(expression::RuleLiteral{<:AbstractFloat}, ::Type{T}) where {T} =
     RuleLiteral(T(expression.value))
 _normalize_rule_expression(expression::RuleLiteral, ::Type) = expression
 _normalize_rule_expression(expression::Union{OwnerReference, PropertyRead,
     CellParameterRead, ModelParameterRead, NoChange}, ::Type) = expression
+function _normalize_rule_expression(expression::RandomDraw, type::Type)
+    distribution = _normalize_distribution(expression.distribution, type)
+    return RandomDraw(distribution, expression.label)
+end
+_normalize_distribution(distribution::Bernoulli, type::Type) =
+    Bernoulli(_normalize_rule_expression(distribution.probability, type))
+_normalize_distribution(distribution::Uniform, type::Type) = Uniform(
+    _normalize_rule_expression(distribution.lower, type),
+    _normalize_rule_expression(distribution.upper, type))
+_normalize_distribution(distribution::Normal, type::Type) = Normal(
+    _normalize_rule_expression(distribution.mean, type),
+    _normalize_rule_expression(distribution.standard_deviation, type))
+_normalize_distribution(distribution::UnitVector, ::Type) = distribution
 function _normalize_rule_expression(expression::ScalarCall, type::Type)
     arguments = map(argument -> _normalize_rule_expression(argument, type),
         expression.arguments)
@@ -344,6 +409,8 @@ function _canonical_write(io::IO, operation::AbstractScalarOperation)
     return _canonical_close(io)
 end
 _canonical_write(io::IO, expression::AbstractRuleExpression) = _canonical_fields(io, expression)
+_canonical_write(io::IO, distribution::AbstractDrawDistribution) =
+    _canonical_fields(io, distribution)
 function _canonical_write(io::IO, rule::Rule)
     _canonical_open(io, rule)
     _canonical_write(io, rule.name)
@@ -381,12 +448,51 @@ function _validate_declaration(rule::Rule, context::_ValidationContext)
                 identity = rule.name, related = (identity,), source = rule.source,
                 correction = "declare a compatible typed property reference")))
     end
+    diagnostics = (diagnostics..., _random_draw_diagnostics(rule)...)
     _qualified_rule_increment(rule, context) ||
         (diagnostics = (diagnostics..., Diagnostic(
         :error, :unqualified_rule_lowering,
         "this rule is valid Level 1 syntax but has no qualified runtime lowering yet";
         identity = rule.name, source = rule.source,
         correction = "the current executable slice supports `property(cell) = property(cell) + literal`"),))
+    return diagnostics
+end
+
+_random_draws(::Any) = ()
+_random_draws(draw::RandomDraw) = (draw,)
+_random_draws(expression::ScalarCall) = Tuple(draw for argument in expression.arguments
+    for draw in _random_draws(argument))
+_random_draws(expression::ConditionalExpression) = Tuple(draw
+    for branch in (expression.condition, expression.if_true, expression.if_false)
+    for draw in _random_draws(branch))
+
+function _random_draw_diagnostics(rule::Rule)
+    draws = _random_draws(rule.expression)
+    diagnostics = ()
+    labels = Tuple(draw.label for draw in draws if draw.label !== nothing)
+    length(unique(labels)) == length(labels) || (diagnostics = (diagnostics...,
+        Diagnostic(:error, :duplicate_random_draw_label,
+            "random draw labels must be unique within one rule";
+            identity = rule.name, related = labels, source = rule.source,
+            correction = "give every addressed draw a distinct stable label"),))
+    count(draw -> draw.label === nothing, draws) <= 1 ||
+        (diagnostics = (diagnostics..., Diagnostic(:error,
+            :ambiguous_unlabelled_random_draw,
+            "more than one unlabelled draw has no edit-stable semantic identity";
+            identity = rule.name, source = rule.source,
+            correction = "supply a distinct `label` for each draw"),))
+    for draw in draws
+        distribution = draw.distribution
+        if distribution isa Bernoulli && distribution.probability isa RuleLiteral
+            probability = distribution.probability.value
+            probability isa Real && 0 <= probability <= 1 ||
+                (diagnostics = (diagnostics..., Diagnostic(:error,
+                    :invalid_distribution_parameter,
+                    "Bernoulli probability must lie in the closed interval [0, 1]";
+                    identity = rule.name, related = (probability,), source = rule.source,
+                    correction = "use a probability between zero and one"),))
+        end
+    end
     return diagnostics
 end
 
@@ -404,6 +510,8 @@ end
 function _qualified_rule_increment(rule::Rule, context::_ValidationContext)
     increment = _rule_increment_expression(rule)
     increment isa RuleLiteral && return increment.value isa Real
+    increment isa RandomDraw{<:Bernoulli} &&
+        increment.distribution.probability isa RuleLiteral && return true
     identity = increment isa CellParameterRead ? increment.parameter :
         increment isa ModelParameterRead ? increment.parameter : nothing
     identity === nothing && return false
@@ -431,6 +539,16 @@ function _lower_component(rule::Rule, context::_LoweringContext)
         update = PropertyUpdate(rule.target, rule.cell_types...;
             name = rule.name.name, namespace = rule.name.namespace,
             role = :value, amount = increment.value, schedule = CorePotts.EveryMCS())
+        return _lower_component(update, context)
+    elseif increment isa RandomDraw{<:Bernoulli} &&
+            increment.distribution.probability isa RuleLiteral
+        probability = increment.distribution.probability.value
+        label = something(increment.label, :draw)
+        operation = _semantic_rng_code(rule.name, label, UInt16(0x03ff))
+        trigger = CorePotts.BernoulliCellTrigger(probability, operation)
+        update = PropertyUpdate(rule.target, rule.cell_types...;
+            name = rule.name.name, namespace = rule.name.namespace,
+            role = :value, amount = 1, schedule = CorePotts.EveryMCS(), trigger)
         return _lower_component(update, context)
     elseif increment isa ModelParameterRead
         parameter = only(component for component in context.declarations
@@ -484,6 +602,19 @@ _scope_rule_expression(expression::CellParameterRead, mapping) =
     CellParameterRead(_mapped_identity(mapping, expression.parameter), expression.owner)
 _scope_rule_expression(expression::ModelParameterRead, mapping) =
     ModelParameterRead(_mapped_identity(mapping, expression.parameter))
+function _scope_rule_expression(expression::RandomDraw, mapping)
+    return RandomDraw(_scope_distribution(expression.distribution, mapping),
+        expression.label)
+end
+_scope_distribution(distribution::Bernoulli, mapping) =
+    Bernoulli(_scope_rule_expression(distribution.probability, mapping))
+_scope_distribution(distribution::Uniform, mapping) = Uniform(
+    _scope_rule_expression(distribution.lower, mapping),
+    _scope_rule_expression(distribution.upper, mapping))
+_scope_distribution(distribution::Normal, mapping) = Normal(
+    _scope_rule_expression(distribution.mean, mapping),
+    _scope_rule_expression(distribution.standard_deviation, mapping))
+_scope_distribution(distribution::UnitVector, mapping) = distribution
 function _scope_rule_expression(expression::ScalarCall, mapping)
     return ScalarCall(expression.operation,
         map(argument -> _scope_rule_expression(argument, mapping), expression.arguments))
@@ -607,6 +738,39 @@ const _RULE_OPERATIONS = Dict{Symbol, DataType}(
     :tan => TanOperation, :ifelse => IfElseOperation,
 )
 
+const _DRAW_DISTRIBUTIONS = Dict{Symbol, Type}(
+    :Bernoulli => Bernoulli, :Uniform => Uniform,
+    :Normal => Normal, :UnitVector => UnitVector)
+
+function _macro_draw(expression::Expr, owner::Symbol)
+    arguments = collect(@view expression.args[2:end])
+    parameters = !isempty(arguments) && first(arguments) isa Expr &&
+        first(arguments).head === :parameters ? popfirst!(arguments) : nothing
+    length(arguments) == 1 || throw(ArgumentError(
+        "`draw` requires exactly one registered distribution descriptor"))
+    distribution = _macro_rule_expression(only(arguments), owner)
+    label = :(nothing)
+    if parameters !== nothing
+        length(parameters.args) == 1 || throw(ArgumentError(
+            "`draw` accepts only the `label` keyword"))
+        keyword = only(parameters.args)
+        keyword isa Expr && keyword.head === :kw && keyword.args[1] === :label ||
+            throw(ArgumentError("`draw` accepts only the `label` keyword"))
+        value = keyword.args[2]
+        value isa QuoteNode && value.value isa Symbol || throw(ArgumentError(
+            "a draw label must be a literal Symbol"))
+        label = QuoteNode(value.value)
+    end
+    return :($(GlobalRef(@__MODULE__, :draw))($distribution; label = $label))
+end
+
+function _macro_distribution(expression::Expr, owner::Symbol)
+    constructor = _DRAW_DISTRIBUTIONS[first(expression.args)]
+    arguments = map(value -> _macro_rule_expression(value, owner),
+        @view(expression.args[2:end]))
+    return :($constructor($(arguments...)))
+end
+
 function _macro_rule_expression(expression, owner::Symbol)
     expression isa LineNumberNode && return nothing
     expression isa QuoteNode && return _macro_rule_expression(expression.value, owner)
@@ -643,6 +807,9 @@ function _macro_rule_expression(expression, owner::Symbol)
 
     function_name = first(expression.args)
     arguments = @view expression.args[2:end]
+    function_name === :draw && return _macro_draw(expression, owner)
+    function_name isa Symbol && haskey(_DRAW_DISTRIBUTIONS, function_name) &&
+        return _macro_distribution(expression, owner)
     function_name === :NoChange && isempty(arguments) &&
         return :($(GlobalRef(@__MODULE__, :NoChange))())
     if function_name isa Symbol && haskey(_RULE_OPERATIONS, function_name)

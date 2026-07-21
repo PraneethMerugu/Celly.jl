@@ -17,6 +17,9 @@ include("normalization.jl")
 include("lowering.jl")
 include("level1.jl")
 include("level1_rules.jl")
+include("level1_fields.jl")
+include("level1_observables.jl")
+include("level1_units.jl")
 
 export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
 export Binding, BindingTable, PairIdentity, PairwiseLaw
@@ -49,6 +52,7 @@ export SemanticManifest
 export AbstractLevel1Declaration, Volume, Surface
 export FluctuatingVolumePressure, FluctuatingSurfaceTension
 export AcceptanceTemperature, IndependentNoise
+export RandomOrientationSplit, MinorAxisSplit, MajorAxisSplit, VectorSplit
 export AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue
 export Layout, Place, LabelledCells
 export CartesianDomain, PeriodicBoundary, ClosedBoundary, FixedExterior, AxisBoundary
@@ -56,7 +60,17 @@ export PottsProblem
 export Phase, AbstractRuleExpression, RuleLiteral, OwnerReference, PropertyRead
 export CellParameterRead, ModelParameterRead
 export ScalarCall, ConditionalExpression, NoChange, Rule, RuleGroup, TriggerRule
+export AbstractDrawDistribution, Bernoulli, Uniform, Normal, UnitVector
+export RandomDraw, draw
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
+export AbstractFieldPlacement, CellCentered
+export AbstractFieldBoundary, NoFlux, PeriodicField
+export AbstractFieldInterpolation, Multilinear, Field
+export AbstractScientificObservable, CellVolume, CellTypeObservable
+export CellBoundaryMeasure, CellPropertyValues, ObservationSet
+export CellValue, CellValues, CellFrame, CellSeries
+export observe, observation_policy, observation_table
+export PhysicalScale, UnitfulSolutionView, with_units, mcs
 
 end

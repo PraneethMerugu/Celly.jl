@@ -226,6 +226,11 @@ end
 
 _validate_declaration(::PrescribedField, context::_ValidationContext) = ()
 
+_is_field_declaration(::Any) = false
+_is_field_declaration(::PrescribedField) = true
+_field_declaration_dimension(field::PrescribedField) = ndims(field.values)
+_field_declaration_values(field::PrescribedField) = field.values
+
 function _validate_declaration(component::Chemotaxis, context::_ValidationContext)
     diagnostics = ()
     field_index = findfirst(value -> semantic_identity(value) == component.field,
@@ -235,21 +240,23 @@ function _validate_declaration(component::Chemotaxis, context::_ValidationContex
             "chemotaxis references an undeclared prescribed field";
             identity = component.name, related = (component.field,),
             correction = "add the PrescribedField declaration or correct the field name"))
-    elseif !(context.components[field_index] isa PrescribedField)
+    elseif !_is_field_declaration(context.components[field_index])
         diagnostics = (diagnostics..., Diagnostic(:error, :invalid_chemotaxis_field,
             "chemotaxis field reference resolves to a non-field declaration";
             identity = component.name, related = (component.field,),
-            correction = "reference a PrescribedField declaration"))
+            correction = "reference a Field or PrescribedField declaration"))
     else
         field = context.components[field_index]
-        ndims(field.values) == component.dimensions ||
+        field_dimensions = _field_declaration_dimension(field)
+        (field_dimensions === nothing || component.dimensions == 0 ||
+            field_dimensions == component.dimensions) ||
             (diagnostics = (diagnostics..., Diagnostic(:error,
                 :chemotaxis_field_dimension_mismatch,
                 "chemotaxis dimensionality does not match its prescribed field";
                 identity = component.name, related = (component.field,
-                    Int(component.dimensions), ndims(field.values)),
+                    Int(component.dimensions), field_dimensions),
                 correction = "reconstruct the chemotaxis declaration from this field"),))
-        for value in field.values
+        for value in _field_declaration_values(field)
             try
                 CorePotts.field_response(component.response, value)
             catch error
@@ -1072,6 +1079,7 @@ end
 
 function _declaration_report(component::Chemotaxis)
     field = component.field
+    dimensions = component.dimensions == 0 ? (2, 3) : (Int(component.dimensions),)
     return DeclarationReport(component.name, :drive,
         (field, Tuple(entry.key for entry in component.sensitivity)...),
         (Symbol(_property_prefix(component.name), "__sensitivity"),),
@@ -1080,7 +1088,7 @@ function _declaration_report(component::Chemotaxis)
             sensitivity = Tuple((cell_type = semantic_identity(entry.key),
                 value = entry.value) for entry in component.sensitivity),
             response = component.response, mode = component.mode),
-        CorePotts.ScientificCapabilities(dimensions = (Int(component.dimensions),)))
+        CorePotts.ScientificCapabilities(; dimensions))
 end
 
 _invariant_semantics(::UnboundedProperty) = (kind = :unbounded,)

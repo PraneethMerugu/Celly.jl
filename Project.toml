@@ -15,14 +15,22 @@ CorePotts = {path = "lib/CorePotts"}
 CorePotts = "0.1"
 KernelAbstractions = "0.9.42"
 SciMLBase = "3"
+Unitful = "1"
 julia = "1.12.6"
+
+[weakdeps]
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[extensions]
+PottsToolkitUnitfulExt = "Unitful"
 
 [extras]
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [targets]
-test = ["KernelAbstractions", "Test"]
+test = ["KernelAbstractions", "Test", "Unitful"]
 
 [workspace]
 projects = ["integration", "lib/CorePotts", "lib/MakiePotts", "lib/NeuralPotts"]

@@ -19,11 +19,10 @@ using SciMLBase
 
     profile_fingerprints = PottsToolkit.SemanticFingerprint[]
     for profile in (:linear, :half_normal, :exponential)
-        model = PottsToolkit.ReferenceModels.chemotaxis_model(
-            (16, 16); profile, target_volume = 12)
+        model = PottsToolkit.ReferenceModels.chemotaxis_model(target_volume = 12)
         push!(profile_fingerprints, PottsToolkit.semantic_fingerprint(model))
         report = PottsToolkit.explain(model)
-        @test any(declaration -> declaration.kind === :prescribed_field,
+        @test any(declaration -> declaration.kind === :field,
             report.declarations)
         chemotaxis = PottsToolkit.ReferenceModels.chemotaxis_problem(
             (16, 16); profile, target_volume = 12,
@@ -32,7 +31,7 @@ using SciMLBase
             CorePotts.SequentialCPM(temperature = 2.0f0)).retcode ==
             SciMLBase.ReturnCode.Success
     end
-    @test length(unique(profile_fingerprints)) == 3
+    @test length(unique(profile_fingerprints)) == 1
 
     droplet_2d = PottsToolkit.ReferenceModels.droplet_problem(
         (16, 16); target_volume = 32, tspan = (0, 1), seed = 0x203)

@@ -456,6 +456,8 @@ function _requires_unwrapped_moments(lowered::_LoweredComponents)
     end
 end
 
+_observable_symbol(component) = nothing
+
 """
     lower(model; dimensions, spacing)
 
@@ -492,8 +494,10 @@ function lower(model::PottsModel; dimensions::Integer,
         CorePotts.BoundaryEdgeCount(), surface_relation)
     moment_tracker = _requires_unwrapped_moments(lowered) ?
         CorePotts.UnwrappedMomentTracker(connectivity_relation; number_type = T) : nothing
+    observables = Tuple(symbol for component in normalized.components
+        for symbol in (_observable_symbol(component),) if symbol !== nothing)
     core_model = CorePotts.PottsModel(proposal_relation, tracker; components,
-        moment_tracker, lifecycle_events = lowered.lifecycle)
+        moment_tracker, lifecycle_events = lowered.lifecycle, observables)
     schema = CorePotts.merge_property_schemas(lowered.schemas...)
     cell_type_ids = _id_table(normalized.cell_types, CorePotts.CellTypeID)
     medium_ids = _id_table(normalized.media, CorePotts.MediumID)

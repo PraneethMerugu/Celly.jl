@@ -69,7 +69,8 @@ struct Chemotaxis{T <: AbstractFloat, R <: CorePotts.AbstractFieldResponse,
     mode::M
 end
 
-function Chemotaxis(field, pairs::Pair...; name::Symbol = :chemotaxis,
+function _chemotaxis(field_identity::SemanticName, dimensions::Integer,
+        pairs::Tuple; name::Symbol = :chemotaxis,
         namespace::Namespace = Namespace(),
         response::CorePotts.AbstractFieldResponse = CorePotts.LinearResponse(),
         mode::CorePotts.AbstractChemotaxisMode = CorePotts.ExtensionChemotaxis())
@@ -82,8 +83,12 @@ function Chemotaxis(field, pairs::Pair...; name::Symbol = :chemotaxis,
     all(entry -> isfinite(entry.value), entries) || throw(ArgumentError(
         "chemotaxis sensitivities must be finite"))
     return Chemotaxis{T, typeof(response), typeof(mode)}(
-        SemanticName(name; namespace), semantic_identity(field), UInt8(ndims(field.values)),
+        SemanticName(name; namespace), field_identity, UInt8(dimensions),
         BindingTable{CellType, T}(entries), response, mode)
+end
+
+function Chemotaxis(field::PrescribedField, pairs::Pair...; kwargs...)
+    return _chemotaxis(semantic_identity(field), ndims(field.values), Tuple(pairs); kwargs...)
 end
 
 semantic_identity(component::Chemotaxis) = component.name

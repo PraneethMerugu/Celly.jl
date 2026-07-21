@@ -42,6 +42,20 @@ AcceptanceTemperature() = CorePotts.AlgorithmTemperatureNoise()
 """Use a fixed mechanical noise scale independent of the acceptance-law temperature."""
 IndependentNoise(value::Real) = CorePotts.FixedMechanicalNoise(value)
 
+"""Binary split along a uniformly addressed random orientation."""
+function RandomOrientationSplit(; label::Symbol = :division_orientation)
+    operation = _semantic_rng_code(
+        SemanticName(:random_orientation_split), label, UInt16(0x03ff))
+    return CorePotts.RandomOrientationDivision(operation)
+end
+
+"""Binary split normal to the current major axis."""
+MinorAxisSplit() = CorePotts.MinorAxisDivision()
+"""Binary split normal to the current minor axis."""
+MajorAxisSplit() = CorePotts.MajorAxisDivision()
+"""Binary split by an explicit normal vector."""
+VectorSplit(normal) = CorePotts.VectorDivision(normal)
+
 for wrapper in (:Volume, :Surface, :FluctuatingVolumePressure,
         :FluctuatingSurfaceTension)
     @eval begin
@@ -122,9 +136,10 @@ function PottsProblem(model::PottsModel, domain::CorePotts.CartesianDomain,
         layout::Layout; capacity::Integer, tspan = (0, 1), seed::Integer = 0,
         fields = (), overlap_policy::CorePotts.AbstractInitialOverlapPolicy =
             CorePotts.RejectInitialOverlap())
-    isempty(fields) || throw(ArgumentError(
-        "problem-level field binding is not available until the field declaration slice"))
-    return problem(model, domain, layout.entries...;
+    realized_model = any(declaration -> declaration isa Field,
+        model.declarations) ? _realize_problem_fields(model, domain, fields) : model
+    isempty(fields) || realized_model !== model || throw(ArgumentError(
+        "problem field bindings were supplied but the model declares no reusable Field"))
+    return problem(realized_model, domain, layout.entries...;
         capacity, tspan, seed, overlap_policy)
 end
-

@@ -1,4 +1,5 @@
 using KernelAbstractions
+using Unitful
 
 @testset "Level 1 declarations and problem construction" begin
     medium = PottsToolkit.Medium(:extracellular)
@@ -96,6 +97,101 @@ using KernelAbstractions
     @test_throws ArgumentError PottsToolkit.Layout(:not_a_layout)
 end
 
+@testset "Level 1 scientific observations" begin
+    medium = PottsToolkit.Medium(:observation_medium)
+    cell = PottsToolkit.CellType(:observed_cell)
+    age = PottsToolkit.CellProperty(:observed_age, cell; initial = 2.0f0,
+        division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    volume_component = PottsToolkit.Volume(cell => (target = 1, strength = 1))
+    volumes = PottsToolkit.CellVolume()
+    cell_types = PottsToolkit.CellTypeObservable()
+    boundaries = PottsToolkit.CellBoundaryMeasure()
+    ages = PottsToolkit.CellPropertyValues(age; name = :age)
+    set = PottsToolkit.ObservationSet(volumes, cell_types, boundaries, ages)
+    model = PottsToolkit.PottsModel(medium, cell, age, volume_component,
+        volumes, cell_types, boundaries, ages)
+
+    mask = falses(3, 3)
+    mask[2, 2] = true
+    problem = PottsToolkit.PottsProblem(
+        model, PottsToolkit.CartesianDomain((3, 3)),
+        PottsToolkit.Layout(PottsToolkit.Place(cell, mask; identity = 1));
+        capacity = 2, tspan = (0, 1), seed = 3)
+    @test Set(CorePotts.observable_symbols(problem.model)) ==
+          Set((:volume, :cell_type, :boundary_measure, :age))
+    solution = CorePotts.solve(problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = PottsToolkit.observation_policy(set))
+    volume_series = PottsToolkit.observe(solution, volumes)
+    @test length(volume_series) == length(solution.t)
+    @test only(volume_series.frames[1].values).value == 1
+    @test length(solution[CorePotts.PottsObservableHandle(:age)]) ==
+          length(solution.t)
+    table = PottsToolkit.observation_table(solution, volumes, ages)
+    @test !isempty(table)
+    @test all(row -> hasproperty(row, :mcs) && hasproperty(row, :generation) &&
+        hasproperty(row, :volume) && hasproperty(row, :age), table)
+
+    host_solution = CorePotts.solve(problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    @test length(PottsToolkit.observe(host_solution, boundaries)) ==
+          length(host_solution.t)
+
+    model_fingerprint = PottsToolkit.semantic_fingerprint(model)
+    scale = PottsToolkit.PhysicalScale(
+        lattice_spacing = (0.5 * Unitful.μm, 0.5 * Unitful.μm),
+        mcs_duration = 2 * Unitful.s,
+        method = "explicit test calibration")
+    physical = PottsToolkit.with_units(host_solution, scale)
+    @test parent(physical) === host_solution
+    @test PottsToolkit.mcs(physical) == host_solution.t
+    @test physical.t == host_solution.t .* (2 * Unitful.s)
+    physical_volumes = PottsToolkit.observe(physical, volumes)
+    @test Unitful.dimension(only(physical_volumes.frames[1].values).value) ==
+          Unitful.dimension(Unitful.μm^2)
+    physical_table = PottsToolkit.observation_table(physical, volumes)
+    @test hasproperty(first(physical_table), :physical_time)
+    @test PottsToolkit.semantic_fingerprint(model) == model_fingerprint
+end
+
+@testset "Level 1 reusable field binding" begin
+    medium = PottsToolkit.Medium(:field_medium)
+    cell = PottsToolkit.CellType(:chemotactic_cell)
+    volume = PottsToolkit.Volume(cell => (target = 4, strength = 2))
+    chemo = PottsToolkit.Field(:chemo;
+        placement = PottsToolkit.CellCentered(),
+        boundary = PottsToolkit.NoFlux(),
+        interpolation = PottsToolkit.Multilinear())
+    drive = PottsToolkit.Chemotaxis(chemo, cell => 2.0)
+    model = PottsToolkit.PottsModel(medium, cell, volume, chemo, drive)
+
+    @test Base.isvalid(model)
+    fingerprint = PottsToolkit.semantic_fingerprint(model)
+    @test fingerprint == PottsToolkit.semantic_fingerprint(model)
+
+    mask = falses(4, 4)
+    mask[2:3, 2:3] .= true
+    domain = PottsToolkit.CartesianDomain((4, 4))
+    layout = PottsToolkit.Layout(PottsToolkit.Place(cell, mask; identity = 1))
+    profile = map(site -> Float32(site[1] / 4), CartesianIndices((4, 4)))
+    problem = PottsToolkit.PottsProblem(model, domain, layout;
+        fields = (chemo => profile,), capacity = 2, tspan = (0, 1), seed = 4)
+    @test problem isa CorePotts.PottsProblem
+    realized = CorePotts.realize_components(
+        problem.model, CorePotts.default_parameters(problem.model))
+    @test length(realized.drives) == 1
+    @test CorePotts.solve(problem,
+        CorePotts.SequentialCPM(temperature = 1.0f0)).retcode ==
+        SciMLBase.ReturnCode.Success
+    @test_throws ArgumentError PottsToolkit.PottsProblem(
+        model, domain, layout; capacity = 2)
+    @test_throws ArgumentError PottsToolkit.PottsProblem(
+        PottsToolkit.PottsModel(medium, cell, volume), domain, layout;
+        fields = (chemo => profile,), capacity = 2)
+end
+
 @testset "Level 1 phases, closed rules, and triggers" begin
     cell_type = PottsToolkit.CellType(:rule_cell)
     medium = PottsToolkit.Medium(:rule_medium)
@@ -152,6 +248,40 @@ end
         PottsToolkit.lower(parameter_model; dimensions = 2).core_model)) == 2
     @test PottsToolkit.evaluate(typed_growth,
         (age = 2.0, growth_rate = 0.5)) == 2.5
+
+    stochastic = PottsToolkit.@rule phase = growth_phase age(cell) =
+        age(cell) + draw(Bernoulli(1.0); label = :aging_draw)
+    @test stochastic.expression.arguments[2] isa PottsToolkit.RandomDraw
+    stochastic_model = PottsToolkit.PottsModel(
+        medium, cell_type, age, stochastic)
+    @test Base.isvalid(stochastic_model)
+    stochastic_problem = PottsToolkit.PottsProblem(
+        stochastic_model, PottsToolkit.CartesianDomain((3, 3)),
+        PottsToolkit.Layout(PottsToolkit.Place(
+            cell_type, trues(3, 3); identity = 1));
+        capacity = 1, tspan = (0, 1), seed = 9)
+    stochastic_solution = CorePotts.solve(stochastic_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    @test CorePotts.property_value(stochastic_solution.u[end].state,
+        :age, CorePotts.CellID(1)) == 1.0f0
+
+    duplicate_draws = PottsToolkit.@rule phase = growth_phase age(cell) =
+        age(cell) + draw(Bernoulli(0.5); label = :same) +
+        draw(Bernoulli(0.5); label = :same)
+    duplicate_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, duplicate_draws))
+    @test any(diagnostic -> diagnostic.code === :duplicate_random_draw_label &&
+        diagnostic.source isa PottsToolkit.SourceLocation, duplicate_report)
+
+    invalid_draw = PottsToolkit.@rule phase = growth_phase age(cell) =
+        age(cell) + draw(Bernoulli(1.5); label = :invalid_probability)
+    invalid_draw_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, age, invalid_draw))
+    @test any(diagnostic -> diagnostic.code === :invalid_distribution_parameter,
+        invalid_draw_report)
+    @test PottsToolkit.draw(PottsToolkit.UnitVector(2);
+        label = :polarity) isa PottsToolkit.RandomDraw
 
     bounded = PottsToolkit.@rule phase = growth_phase target(cell) =
         if age(cell) >= 5
