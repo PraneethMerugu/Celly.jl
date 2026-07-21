@@ -71,6 +71,7 @@ export AbstractDrawDistribution, Bernoulli, Uniform, Normal, UnitVector
 export RandomDraw, draw
 export Contacting, AbstractQueryOwnerFilter, AnyFiniteCell, CellTypeFilter
 export SpatialQueryExpression, contact_edge_count, contact_measure, boundary_site_count
+export neighbor_cell_count, neighbor_property_sum, neighbor_property_mean
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
 export AbstractFieldPlacement, CellCentered

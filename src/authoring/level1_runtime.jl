@@ -23,6 +23,11 @@ struct _CompiledSpatialQueryExpression{O <: AbstractSpatialQueryOperation,
     medium_types::M
 end
 
+struct _CompiledNeighborPropertySumOperation{Key} <: AbstractSpatialQueryOperation end
+struct _CompiledNeighborPropertyMeanOperation{Key, T} <: AbstractSpatialQueryOperation
+    empty::T
+end
+
 struct _ExactRuleOutput{T} end
 
 struct _CompiledRuleAssignment{Key, E <: AbstractRuleExpression, S <: Tuple, P}
@@ -93,8 +98,21 @@ function _compile_rule_expression(expression::SpatialQueryExpression, rule,
         CorePotts.MediumID(index) =>
             CorePotts.CellTypeID(length(context.cell_types) + index)
         for index in eachindex(context.media)))
-    return _CompiledSpatialQueryExpression(expression.operation,
+    operation = _compile_query_operation(expression.operation, context)
+    return _CompiledSpatialQueryExpression(operation,
         context.query_relation, filter, medium_types)
+end
+
+
+_compile_query_operation(operation::AbstractSpatialQueryOperation, context) = operation
+function _compile_query_operation(operation::NeighborPropertySumOperation, context)
+    key = Symbol(_property_prefix(operation.property))
+    return _CompiledNeighborPropertySumOperation{key}()
+end
+function _compile_query_operation(operation::NeighborPropertyMeanOperation, context)
+    key = Symbol(_property_prefix(operation.property))
+    return _CompiledNeighborPropertyMeanOperation{key, typeof(operation.empty)}(
+        operation.empty)
 end
 
 function _compile_rule_expression(expression::PropertyRead, rule, context)
@@ -272,6 +290,68 @@ end
         state, cell, mcs, rng, seed, event_id)
     return CorePotts.boundary_site_count(state, state.domain, expression.relation,
         CorePotts.compiled_cell_owner(cell), expression.filter, expression.medium_types)
+end
+
+@inline _compiled_query_filter_matches(::CorePotts.AnyFiniteCell,
+    state, cell) = true
+@inline function _compiled_query_filter_matches(filter::CorePotts.CellTypeFilter,
+        state, cell)
+    return @inbounds state.core.cell_types[cell] == CorePotts.value(filter.id)
+end
+
+@inline function _compiled_neighbor_matches(expression::_CompiledSpatialQueryExpression,
+        state, cell, other)
+    other == cell && return false
+    @inbounds state.core.active[other] != 0 || return false
+    _compiled_query_filter_matches(expression.filter, state, other) || return false
+    return CorePotts.owners_are_neighbors(state, state.domain, expression.relation,
+        CorePotts.compiled_cell_owner(cell), CorePotts.compiled_cell_owner(other))
+end
+
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{NeighborCellCountOperation},
+        state, cell, mcs, rng, seed, event_id)
+    result = Int64(0)
+    for other in 1:length(state.core.active)
+        _compiled_neighbor_matches(expression, state, cell, other) && (result += 1)
+    end
+    return result
+end
+
+@inline _compiled_neighbor_property_values(
+    ::_CompiledNeighborPropertySumOperation{Key}, state) where {Key} =
+    getproperty(state.core.properties, Key)
+@inline _compiled_neighbor_property_values(
+    ::_CompiledNeighborPropertyMeanOperation{Key}, state) where {Key} =
+    getproperty(state.core.properties, Key)
+
+@inline function _compiled_neighbor_property_sum_count(
+        expression::_CompiledSpatialQueryExpression{O}, state, cell) where {
+        O <: Union{_CompiledNeighborPropertySumOperation,
+            _CompiledNeighborPropertyMeanOperation}}
+    values = _compiled_neighbor_property_values(expression.operation, state)
+    result = zero(@inbounds(values[cell]))
+    count = Int64(0)
+    for other in 1:length(state.core.active)
+        _compiled_neighbor_matches(expression, state, cell, other) || continue
+        result += @inbounds values[other]
+        count += 1
+    end
+    return result, count
+end
+
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{<:_CompiledNeighborPropertySumOperation},
+        state, cell, mcs, rng, seed, event_id)
+    result, _ = _compiled_neighbor_property_sum_count(expression, state, cell)
+    return result
+end
+
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{<:_CompiledNeighborPropertyMeanOperation},
+        state, cell, mcs, rng, seed, event_id)
+    result, count = _compiled_neighbor_property_sum_count(expression, state, cell)
+    return count == 0 ? expression.operation.empty : result / count
 end
 
 @inline function _compiled_draw_address(state, cell, mcs, event_id, operation)

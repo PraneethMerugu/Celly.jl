@@ -503,6 +503,18 @@ end
     boundary_sites = PottsToolkit.CellProperty(:boundary_sites, cell_type;
         initial = Int64(0), division = CorePotts.CloneOnDivision(),
         transition = CorePotts.PreserveOnTransition())
+    neighbor_count = PottsToolkit.CellProperty(:neighbor_count, cell_type;
+        initial = Int64(0), division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    neighbor_signal = PottsToolkit.CellProperty(:neighbor_signal, cell_type;
+        initial = 5.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    neighbor_sum = PottsToolkit.CellProperty(:neighbor_sum, cell_type;
+        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    neighbor_mean = PottsToolkit.CellProperty(:neighbor_mean, cell_type;
+        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
     contact_rules = PottsToolkit.@rules phase = growth_phase begin
         contact_edges(cell) = contact_edge_count(
             cell, Contacting(), AnyFiniteCell())
@@ -510,10 +522,16 @@ end
             cell, Contacting(), CellTypeFilter(cell_type))
         boundary_sites(cell) = boundary_site_count(
             cell, Contacting(), AnyFiniteCell())
+        neighbor_count(cell) = neighbor_cell_count(
+            cell, Contacting(), AnyFiniteCell())
+        neighbor_sum(cell) = neighbor_property_sum(
+            neighbor_signal, cell, Contacting(), AnyFiniteCell())
+        neighbor_mean(cell) = neighbor_property_mean(
+            neighbor_signal, cell, Contacting(), AnyFiniteCell(); empty = 0.0f0)
     end
     query_model = PottsToolkit.PottsModel(
         medium, cell_type, contact_edges, contact_weight, boundary_sites,
-        contact_rules)
+        neighbor_count, neighbor_signal, neighbor_sum, neighbor_mean, contact_rules)
     query_labels = UInt64[
         1 1 2 2
         1 1 2 2
@@ -546,11 +564,45 @@ end
         expected_boundary_sites = CorePotts.boundary_site_count(
             query_state, query_domain, query_relation, owner,
             CorePotts.AnyFiniteCell(), query_medium_types)
+        expected_neighbor_count = CorePotts.neighbor_cell_count(
+            query_state, query_domain, query_relation, owner,
+            CorePotts.AnyFiniteCell(), query_medium_types)
+        expected_neighbor_sum = CorePotts.neighbor_property_sum(
+            query_state, CorePotts.CellPropertyRef(:neighbor_signal),
+            query_domain, query_relation, owner,
+            CorePotts.AnyFiniteCell(), query_medium_types)
+        expected_neighbor_mean = CorePotts.neighbor_property_mean(
+            query_state, CorePotts.CellPropertyRef(:neighbor_signal),
+            query_domain, query_relation, owner,
+            CorePotts.AnyFiniteCell(), query_medium_types; empty = 0.0f0)
         @test CorePotts.property_value(query_state, :contact_edges, id) == expected_edges
         @test CorePotts.property_value(query_state, :contact_weight, id) == expected_measure
         @test CorePotts.property_value(query_state, :boundary_sites, id) ==
             expected_boundary_sites
+        @test CorePotts.property_value(query_state, :neighbor_count, id) ==
+            expected_neighbor_count == 1
+        @test CorePotts.property_value(query_state, :neighbor_sum, id) ==
+            expected_neighbor_sum == 5.0f0
+        @test CorePotts.property_value(query_state, :neighbor_mean, id) ==
+            expected_neighbor_mean == 5.0f0
     end
+
+    owner_reference = PottsToolkit.OwnerReference(:cell)
+    @test_throws UndefKeywordError PottsToolkit.neighbor_property_mean(
+        neighbor_signal, owner_reference, PottsToolkit.Contacting(),
+        PottsToolkit.AnyFiniteCell())
+    other_type = PottsToolkit.CellType(:query_other_type)
+    scoped_signal = PottsToolkit.CellProperty(:scoped_signal, cell_type;
+        initial = 1.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    unsafe_sum = PottsToolkit.Rule(neighbor_sum, :cell,
+        PottsToolkit.neighbor_property_sum(scoped_signal, owner_reference,
+            PottsToolkit.Contacting(), PottsToolkit.AnyFiniteCell());
+        phase = growth_phase, name = :unsafe_neighbor_sum)
+    unsafe_query_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell_type, other_type, scoped_signal, neighbor_sum, unsafe_sum))
+    @test any(diagnostic -> diagnostic.code === :query_property_scope_mismatch,
+        unsafe_query_report)
 
     unordered_phase = PottsToolkit.Phase(:unordered)
     unordered_rule = PottsToolkit.@rule phase = unordered_phase target(cell) = age(cell) + 2

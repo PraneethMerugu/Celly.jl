@@ -242,7 +242,7 @@ export AbstractFieldBoundary, PeriodicFieldBoundary, ZeroNeumannFieldBoundary,
 export AbstractOwnerFilter, AnyFiniteCell, CellIdentityFilter, CellTypeFilter,
        MediumDomainFilter, AnyMediumDomain, contact_edge_count, contact_measure,
        boundary_site_count, global_interface_measure, neighbor_cells,
-       compiled_cell_owner,
+       compiled_cell_owner, owners_are_neighbors,
        DistinctNeighborWorkspace, neighbor_cells!, neighbor_cell_count,
        neighbor_property_sum, neighbor_property_mean, PreserveConnectedCells,
        ConnectivityWorkspace, validate_workspace

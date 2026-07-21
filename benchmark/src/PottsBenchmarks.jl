@@ -2388,6 +2388,18 @@ function qualify_phase11_backend(name::String)
         phase11_exact_widen = PottsToolkit.CellProperty(:phase11_exact_widen, cell;
             initial = Int64(0), division = CloneOnDivision(),
             transition = PreserveOnTransition())
+        phase11_neighbor_count = PottsToolkit.CellProperty(:phase11_neighbor_count, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_signal = PottsToolkit.CellProperty(:phase11_neighbor_signal, cell;
+            initial = 5.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_sum = PottsToolkit.CellProperty(:phase11_neighbor_sum, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_neighbor_mean = PottsToolkit.CellProperty(:phase11_neighbor_mean, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
         phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
         first_phase = PottsToolkit.Phase(:phase11_first)
         second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
@@ -2409,15 +2421,25 @@ function qualify_phase11_backend(name::String)
         exact_widen_rule = PottsToolkit.Rule(
             phase11_exact_widen, :owner, PottsToolkit.RuleLiteral(Int32(7));
             phase = first_phase)
+        neighbor_count_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_count(owner) =
+            neighbor_cell_count(owner, Contacting(), AnyFiniteCell())
+        neighbor_sum_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_sum(owner) =
+            neighbor_property_sum(
+                phase11_neighbor_signal, owner, Contacting(), AnyFiniteCell())
+        neighbor_mean_rule = PottsToolkit.@rule phase = first_phase phase11_neighbor_mean(owner) =
+            neighbor_property_mean(phase11_neighbor_signal, owner,
+                Contacting(), AnyFiniteCell(); empty = 0.0f0)
         dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
             clamp(phase11_age(owner) + 2, 0, 100)
         model = PottsToolkit.PottsModel(
             medium, cell, phase11_age, phase11_target, phase11_uniform,
             phase11_normal, phase11_direction, phase11_edges,
             phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
-            phase11_rate,
+            phase11_neighbor_count, phase11_neighbor_signal, phase11_neighbor_sum,
+            phase11_neighbor_mean, phase11_rate,
             aging, uniform_rule, normal_rule, direction_rule, edge_rule,
-            boundary_site_rule, contact_measure_rule, exact_widen_rule, dependent)
+            boundary_site_rule, contact_measure_rule, exact_widen_rule,
+            neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule, dependent)
         shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
         labels = fill(UInt64(1), shape)
         for site in CartesianIndices(labels)
@@ -2457,6 +2479,12 @@ function qualify_phase11_backend(name::String)
             "$name Phase 11 $N-D ordered phase did not observe the prior phase commit")
         property_value(snapshot, :phase11_exact_widen, CellID(1)) == Int64(7) || error(
             "$name Phase 11 $N-D exact integer widening produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_count, CellID(1)) == Int64(1) || error(
+            "$name Phase 11 $N-D distinct-neighbor count produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_sum, CellID(1)) == 5.0f0 || error(
+            "$name Phase 11 $N-D distinct-neighbor property sum produced the wrong value")
+        property_value(snapshot, :phase11_neighbor_mean, CellID(1)) == 5.0f0 || error(
+            "$name Phase 11 $N-D distinct-neighbor property mean produced the wrong value")
         uniform_value = property_value(snapshot, :phase11_uniform, CellID(1))
         0.0f0 < uniform_value < 1.0f0 || error(
             "$name Phase 11 $N-D Uniform rule violated its open interval")
@@ -2491,6 +2519,7 @@ function qualify_phase11_backend(name::String)
             "addressed_draw_value" => 1.0,
             "cell_parameter_value" => 0.5,
             "exact_output_conversion" => true,
+            "exact_distinct_neighbor_queries" => true,
             "uniform_open_interval" => true,
             "normal_finite" => true,
             "unit_vector_norm" => sum(abs2, direction_value),
