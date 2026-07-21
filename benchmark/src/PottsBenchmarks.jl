@@ -28,6 +28,10 @@ CorePotts.scientific_access(::Phase10QualificationEnergy) = SnapshotScientificAc
 CorePotts.component_semantic_data(component::Phase10QualificationEnergy) =
     (value = component.value,)
 
+# A downstream package's polished Level 1 constructor is ordinary Julia. The returned component
+# enters PottsToolkit through CorePotts's public scientific protocol and needs no central registry.
+Phase11ExtensionEnergy(value::Real) = Phase10QualificationEnergy(Float32(value))
+
 const SCHEMA_VERSION = "1.0.0"
 const PHASE10_SCHEMA_VERSION = "2.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
@@ -2415,6 +2419,7 @@ function qualify_phase11_backend(name::String)
                 exports = (phase11_role_chemotaxis,)),
             phase11_cell_role => cell, phase11_field_role => phase11_field)
         phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
+        phase11_extension = Phase11ExtensionEnergy(0.0f0)
         first_phase = PottsToolkit.Phase(:phase11_first)
         second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
         aging = PottsToolkit.@rule phase = first_phase phase11_age(owner) =
@@ -2451,6 +2456,7 @@ function qualify_phase11_backend(name::String)
             phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
             phase11_neighbor_count, phase11_neighbor_signal, phase11_neighbor_sum,
             phase11_neighbor_mean, phase11_field, phase11_coupling, phase11_rate,
+            phase11_extension,
             aging, uniform_rule, normal_rule, direction_rule, edge_rule,
             boundary_site_rule, contact_measure_rule, exact_widen_rule,
             neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule, dependent)
@@ -2537,6 +2543,7 @@ function qualify_phase11_backend(name::String)
             "exact_distinct_neighbor_queries" => true,
             "level1_nearest_fixed_field" => true,
             "typed_fragment_roles" => true,
+            "downstream_custom_physics" => true,
             "uniform_open_interval" => true,
             "normal_finite" => true,
             "unit_vector_norm" => sum(abs2, direction_value),
