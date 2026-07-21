@@ -32,8 +32,12 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   AcceptanceTemperature, IndependentNoise,
                   RandomOrientationSplit, MinorAxisSplit, MajorAxisSplit, VectorSplit,
                   AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue,
-                  Layout, Place, LabelledCells, CartesianDomain, PeriodicBoundary,
-                  ClosedBoundary, FixedExterior, AxisBoundary, PottsProblem,
+                  Layout, Place, LabelledCells, AbstractProceduralLayout,
+                  UniformSiteSeedLayout, SequentialRejectionLayout,
+                  UniformSiteSeeds, SequentialRejectionPlacement,
+                  CartesianDomain, PeriodicBoundary,
+                  ClosedBoundary, FixedExterior, AxisBoundary, LatticeBall, LatticeBox,
+                  PottsProblem,
                   Phase, AbstractRuleExpression, RuleLiteral, OwnerReference,
                   PropertyRead, CellParameterRead, ModelParameterRead,
                   ScalarCall, ConditionalExpression, NoChange,
@@ -80,7 +84,10 @@ export AcceptanceTemperature, IndependentNoise
 export RandomOrientationSplit, MinorAxisSplit, MajorAxisSplit, VectorSplit
 export AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue
 export Layout, Place, LabelledCells
+export AbstractProceduralLayout, UniformSiteSeedLayout, SequentialRejectionLayout
+export UniformSiteSeeds, SequentialRejectionPlacement
 export CartesianDomain, PeriodicBoundary, ClosedBoundary, FixedExterior, AxisBoundary
+export LatticeBall, LatticeBox
 export PottsProblem
 export Phase, AbstractRuleExpression, RuleLiteral, OwnerReference, PropertyRead
 export CellParameterRead, ModelParameterRead

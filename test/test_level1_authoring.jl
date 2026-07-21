@@ -97,6 +97,87 @@ using Unitful
     @test_throws ArgumentError PottsToolkit.Layout(:not_a_layout)
 end
 
+@testset "Level 1 addressed procedural layouts" begin
+    medium = PottsToolkit.Medium(:layout_medium)
+    cell = PottsToolkit.CellType(:layout_cell)
+    model = PottsToolkit.PottsModel(
+        medium, cell, PottsToolkit.Volume(cell => (target = 1, strength = 1)))
+    domain = PottsToolkit.CartesianDomain((5, 5))
+
+    seeds = PottsToolkit.UniformSiteSeeds(cell, 4;
+        name = :initial_population, first_identity = 10)
+    layout = PottsToolkit.Layout(seeds)
+    seeded_a = PottsToolkit.PottsProblem(model, domain, layout;
+        capacity = 4, tspan = (0, 1), seed = 0x1234)
+    seeded_b = PottsToolkit.PottsProblem(model, domain, layout;
+        capacity = 4, tspan = (0, 1), seed = 0x1234)
+    seeded_c = PottsToolkit.PottsProblem(model, domain, layout;
+        capacity = 4, tspan = (0, 1), seed = 0x1235)
+    @test CorePotts.lattice_storage(seeded_a.u0) ==
+          CorePotts.lattice_storage(seeded_b.u0)
+    @test CorePotts.lattice_storage(seeded_a.u0) !=
+          CorePotts.lattice_storage(seeded_c.u0)
+    @test length(CorePotts.active_cell_ids(seeded_a.u0)) == 4
+    @test all(id -> CorePotts.finite_volume(seeded_a.u0, id) == 1,
+        CorePotts.active_cell_ids(seeded_a.u0))
+
+    rejection = PottsToolkit.SequentialRejectionPlacement(
+        cell, 3, PottsToolkit.LatticeBall(0.0f0);
+        name = :bounded_population, first_identity = 20, attempt_limit = 256)
+    rejected_a = PottsToolkit.PottsProblem(model, domain,
+        PottsToolkit.Layout(rejection);
+        capacity = 3, tspan = (0, 1), seed = 99)
+    rejected_b = PottsToolkit.PottsProblem(model, domain,
+        PottsToolkit.Layout(rejection);
+        capacity = 3, tspan = (0, 1), seed = 99)
+    @test CorePotts.lattice_storage(rejected_a.u0) ==
+          CorePotts.lattice_storage(rejected_b.u0)
+    @test length(CorePotts.active_cell_ids(rejected_a.u0)) == 3
+    @test all(id -> CorePotts.finite_volume(rejected_a.u0, id) == 1,
+        CorePotts.active_cell_ids(rejected_a.u0))
+
+    one_center = falses(5, 5)
+    one_center[3, 3] = true
+    impossible = PottsToolkit.SequentialRejectionPlacement(
+        cell, 2, PottsToolkit.LatticeBall(0.0f0);
+        name = :impossible_population, eligible_centers = one_center,
+        attempt_limit = 2)
+    @test_throws CorePotts.InitialPlacementError PottsToolkit.PottsProblem(
+        model, domain, PottsToolkit.Layout(impossible);
+        capacity = 2, tspan = (0, 1), seed = 1)
+
+    too_many = PottsToolkit.UniformSiteSeeds(cell, 26; name = :too_many)
+    invalid = PottsToolkit.validate_problem(model, (5, 5), too_many;
+        capacity = 2)
+    @test any(item -> item.code === :insufficient_layout_eligibility, invalid)
+    @test any(item -> item.code === :initial_capacity_exceeded, invalid)
+
+    explicit = PottsToolkit.Place(cell, trues(5, 5); identity = 11)
+    duplicate = PottsToolkit.validate_problem(model, (5, 5), seeds, explicit;
+        capacity = 5)
+    @test any(item -> item.code === :duplicate_provisional_cell_id, duplicate)
+
+    duplicate_name = PottsToolkit.UniformSiteSeeds(cell, 1;
+        name = :initial_population, first_identity = 30)
+    duplicate_identity = PottsToolkit.validate_problem(
+        model, (5, 5), seeds, duplicate_name; capacity = 5)
+    @test any(item -> item.code === :duplicate_layout_identity, duplicate_identity)
+
+    forced_collision = PottsToolkit.UniformSiteSeedLayout(
+        PottsToolkit.SemanticName(:forced_collision), cell, UInt32(1), UInt64(40),
+        nothing, seeds.operation, Int32(0))
+    collision = PottsToolkit.validate_problem(
+        model, (5, 5), seeds, forced_collision; capacity = 5)
+    @test any(item -> item.code === :layout_rng_identity_collision, collision)
+
+    wrong_box = PottsToolkit.SequentialRejectionPlacement(
+        cell, 1, PottsToolkit.LatticeBox((0, 0, 0));
+        name = :wrong_box, attempt_limit = 1)
+    wrong_box_report = PottsToolkit.validate_problem(
+        model, (5, 5), wrong_box; capacity = 1)
+    @test any(item -> item.code === :layout_dimension_mismatch, wrong_box_report)
+end
+
 @testset "Level 1 scientific observations" begin
     medium = PottsToolkit.Medium(:observation_medium)
     cell = PottsToolkit.CellType(:observed_cell)

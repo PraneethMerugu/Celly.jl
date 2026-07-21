@@ -528,7 +528,8 @@ function _property_overrides(lowered::LoweredModel, cell_type::CellType,
     return NamedTuple{all_keys}(all_values)
 end
 
-function _lower_layout(lowered::LoweredModel, layout::CellLayout, dimensions::Integer)
+function _lower_layout(lowered::LoweredModel, layout::CellLayout, shape::Tuple)
+    dimensions = length(shape)
     haskey(lowered.cell_type_ids, layout.cell_type) || throw(ArgumentError(
         "initial layout references undeclared cell type $(layout.cell_type)"))
     ndims(layout.mask) == dimensions || throw(ArgumentError(
@@ -543,7 +544,8 @@ function _lower_layout(lowered::LoweredModel, layout::CellLayout, dimensions::In
 end
 
 function _lower_layout(lowered::LoweredModel, layout::CellLabelLayout,
-        dimensions::Integer)
+        shape::Tuple)
+    dimensions = length(shape)
     ndims(layout.labels) == dimensions || throw(ArgumentError(
         "dense cell-label dimensionality does not match the problem"))
     declarations = Pair{UInt64, CorePotts.CellTypeID}[]
@@ -556,7 +558,8 @@ function _lower_layout(lowered::LoweredModel, layout::CellLabelLayout,
         layout.labels, declarations; priority = layout.priority),)
 end
 
-function _lower_layout(lowered::LoweredModel, layout::MediumLayout, dimensions::Integer)
+function _lower_layout(lowered::LoweredModel, layout::MediumLayout, shape::Tuple)
+    dimensions = length(shape)
     haskey(lowered.medium_ids, layout.medium) || throw(ArgumentError(
         "initial layout references undeclared medium $(layout.medium)"))
     ndims(layout.mask) == dimensions || throw(ArgumentError(
@@ -565,10 +568,43 @@ function _lower_layout(lowered::LoweredModel, layout::MediumLayout, dimensions::
         layout.mask; priority = layout.priority),)
 end
 
-function _lower_layout_tuple(lowered::LoweredModel, layouts::Tuple, dimensions::Integer)
+function _procedural_declarations(lowered::LoweredModel,
+        layout::AbstractProceduralLayout)
+    type_id = lowered.cell_type_ids[layout.cell_type]
+    return Pair{UInt64, CorePotts.CellTypeID}[
+        (layout.first_identity + UInt64(index - 1)) => type_id
+        for index in 1:Int(layout.count)]
+end
+
+function _procedural_mask(mask, shape::Tuple)
+    mask === nothing && return trues(shape)
+    return mask
+end
+
+function _lower_layout(lowered::LoweredModel, layout::UniformSiteSeedLayout,
+        shape::Tuple)
+    declarations = _procedural_declarations(lowered, layout)
+    eligible = _procedural_mask(layout.eligible, shape)
+    return (CorePotts.UniformSiteSeeds(declarations, eligible;
+        operation = layout.operation, priority = layout.priority),)
+end
+
+function _lower_layout(lowered::LoweredModel, layout::SequentialRejectionLayout,
+        shape::Tuple)
+    dimensions = length(shape)
+    declarations = _procedural_declarations(lowered, layout)
+    eligible = _procedural_mask(layout.eligible_centers, shape)
+    periodic = isempty(layout.periodic) ? ntuple(_ -> false, dimensions) : layout.periodic
+    return (CorePotts.SequentialRejectionPlacement(
+        declarations, layout.shape, eligible; periodic,
+        attempt_limit = layout.attempt_limit, operation = layout.operation,
+        priority = layout.priority),)
+end
+
+function _lower_layout_tuple(lowered::LoweredModel, layouts::Tuple, shape::Tuple)
     isempty(layouts) && return ()
-    return (_lower_layout(lowered, first(layouts), dimensions)...,
-        _lower_layout_tuple(lowered, Base.tail(layouts), dimensions)...)
+    return (_lower_layout(lowered, first(layouts), shape)...,
+        _lower_layout_tuple(lowered, Base.tail(layouts), shape)...)
 end
 
 function _layout_diagnostics(layout::CellLayout, shape::Tuple,
@@ -624,15 +660,112 @@ function _layout_diagnostics(layout::CellLabelLayout, shape::Tuple,
     return diagnostics
 end
 
+function _layout_diagnostics(layout::AbstractProceduralLayout, shape::Tuple,
+        cells::Tuple, media::Tuple)
+    diagnostics = ()
+    layout.cell_type in cells || (diagnostics = (diagnostics..., Diagnostic(
+        :error, :undeclared_layout_cell_type,
+        "procedural layout references an undeclared cell type";
+        stage = :problem, identity = semantic_identity(layout.cell_type),
+        correction = "declare the cell type or correct the layout"),))
+    mask = layout isa UniformSiteSeedLayout ? layout.eligible : layout.eligible_centers
+    mask === nothing || size(mask) == shape || (diagnostics = (diagnostics...,
+        Diagnostic(:error, :layout_shape_mismatch,
+            "procedural layout eligibility shape does not match the problem lattice";
+            stage = :problem, identity = layout.name,
+            related = (size(mask), shape),
+            correction = "provide a Boolean mask with exactly the problem shape"),))
+    if layout isa UniformSiteSeedLayout &&
+            (mask === nothing || size(mask) == shape)
+        eligible_count = mask === nothing ? prod(shape) : count(mask)
+        Int(layout.count) <= eligible_count || (diagnostics = (diagnostics...,
+            Diagnostic(:error, :insufficient_layout_eligibility,
+                "uniform site seeding requests more cells than eligible lattice sites";
+                stage = :problem, identity = layout.name,
+                related = (Int(layout.count), eligible_count),
+                correction = "reduce the seed count or enlarge the eligible region"),))
+    end
+    if layout isa SequentialRejectionLayout
+        isempty(layout.periodic) || length(layout.periodic) == length(shape) ||
+            (diagnostics = (diagnostics..., Diagnostic(:error,
+                :layout_dimension_mismatch,
+                "sequential-rejection periodicity must have one value per dimension";
+                stage = :problem, identity = layout.name,
+                related = layout.periodic,
+                correction = "provide one periodic Boolean per lattice axis"),))
+        layout.shape isa CorePotts.LatticeBox &&
+            length(layout.shape.half_widths) != length(shape) &&
+            (diagnostics = (diagnostics..., Diagnostic(:error,
+                :layout_dimension_mismatch,
+                "sequential-rejection box shape dimensionality must match the lattice";
+                stage = :problem, identity = layout.name,
+                related = (length(layout.shape.half_widths), length(shape)),
+                correction = "provide one box half-width per lattice axis"),))
+    end
+    return diagnostics
+end
+
 _layout_diagnostics(layout, shape::Tuple, cells::Tuple, media::Tuple) = (Diagnostic(
     :error, :unsupported_initial_layout,
     "initial layouts must implement the PottsToolkit CellLayout or MediumLayout protocol";
     stage = :problem,
     correction = "use CellLayout/MediumLayout or add a public lowering method"),)
 
-_cell_layout_ids(layout) = ()
-_cell_layout_ids(layout::CellLayout) = (layout.provisional_id,)
-_cell_layout_ids(layout::CellLabelLayout) = Tuple(first.(layout.cell_types))
+_cell_layout_count(layout) = UInt64(0)
+_cell_layout_count(layout::CellLayout) = UInt64(1)
+_cell_layout_count(layout::CellLabelLayout) = UInt64(length(layout.cell_types))
+_cell_layout_count(layout::AbstractProceduralLayout) = UInt64(layout.count)
+
+_cell_layout_id_ranges(layout) = ()
+_cell_layout_id_ranges(layout::CellLayout) =
+    ((layout.provisional_id, layout.provisional_id),)
+_cell_layout_id_ranges(layout::CellLabelLayout) =
+    Tuple((first(pair), first(pair)) for pair in layout.cell_types)
+_cell_layout_id_ranges(layout::AbstractProceduralLayout) = ((layout.first_identity,
+    layout.first_identity + UInt64(layout.count) - UInt64(1)),)
+
+function _duplicate_provisional_identity(layouts)
+    ranges = [(first(range), last(range)) for layout in layouts
+        for range in _cell_layout_id_ranges(layout)]
+    sort!(ranges; by = first)
+    isempty(ranges) && return nothing
+    previous = first(ranges)
+    for current in Iterators.drop(ranges, 1)
+        first(current) <= last(previous) && return (previous, current)
+        last(current) > last(previous) && (previous = current)
+    end
+    return nothing
+end
+
+function _procedural_layout_identity_diagnostics(layouts)
+    diagnostics = ()
+    identities = Dict{SemanticName, AbstractProceduralLayout}()
+    operations = Dict{UInt16, AbstractProceduralLayout}()
+    for layout in layouts
+        layout isa AbstractProceduralLayout || continue
+        if haskey(identities, layout.name)
+            diagnostics = (diagnostics..., Diagnostic(:error,
+                :duplicate_layout_identity,
+                "procedural layouts must have distinct semantic identities";
+                stage = :problem, identity = layout.name,
+                correction = "give each procedural layout a unique name and namespace"),)
+        else
+            identities[layout.name] = layout
+        end
+        if haskey(operations, layout.operation) &&
+                operations[layout.operation].name != layout.name
+            diagnostics = (diagnostics..., Diagnostic(:error,
+                :layout_rng_identity_collision,
+                "procedural layout RNG identities collide in the v1 operation domain";
+                stage = :problem, identity = layout.name,
+                related = (operations[layout.operation].name, layout.operation),
+                correction = "rename or re-namespace one layout so its RNG identity is unique"),)
+        else
+            operations[layout.operation] = layout
+        end
+    end
+    return diagnostics
+end
 
 """Validate model-instance facts without compiling a backend or allocating device storage."""
 function validate_problem(model::PottsModel, shape::Tuple, layouts...;
@@ -651,10 +784,10 @@ function validate_problem(model::PottsModel, shape::Tuple, layouts...;
             "every lattice extent must be a positive integer";
             stage = :problem, related = shape,
             correction = "replace zero, negative, or non-integer extents"),))
-    capacity > 0 || (diagnostics = (diagnostics..., Diagnostic(
-        :error, :invalid_cell_capacity, "cell capacity must be positive";
+    0 < capacity <= typemax(UInt32) || (diagnostics = (diagnostics..., Diagnostic(
+        :error, :invalid_cell_capacity, "cell capacity must be positive and fit UInt32";
         stage = :problem, related = (capacity,),
-        correction = "choose a positive fixed maximum cell count"),))
+        correction = "choose a fixed maximum cell count in 1:typemax(UInt32)"),))
     0 <= seed <= typemax(UInt64) || (diagnostics = (diagnostics..., Diagnostic(
         :error, :invalid_seed, "problem seed must fit UInt64";
         stage = :problem, related = (seed,),
@@ -685,17 +818,20 @@ function validate_problem(model::PottsModel, shape::Tuple, layouts...;
                 layout, shape, normalized.cell_types, normalized.media)...)
         end
     end
-    provisional_ids = Tuple(id for layout in layouts for id in _cell_layout_ids(layout))
-    length(unique(provisional_ids)) == length(provisional_ids) ||
+    diagnostics = (diagnostics..., _procedural_layout_identity_diagnostics(layouts)...)
+    duplicate_ids = _duplicate_provisional_identity(layouts)
+    duplicate_ids === nothing ||
         (diagnostics = (diagnostics..., Diagnostic(
             :error, :duplicate_provisional_cell_id,
             "initial cell layouts must use distinct provisional identities";
-            stage = :problem, related = provisional_ids,
+            stage = :problem, related = duplicate_ids,
             correction = "assign one unique positive provisional ID per initial cell"),))
-    length(provisional_ids) <= capacity || (diagnostics = (diagnostics..., Diagnostic(
+    initial_count = sum((BigInt(_cell_layout_count(layout)) for layout in layouts);
+        init = BigInt(0))
+    initial_count <= capacity || (diagnostics = (diagnostics..., Diagnostic(
         :error, :initial_capacity_exceeded,
         "the number of initial cells exceeds fixed cell capacity";
-        stage = :problem, related = (length(provisional_ids), capacity),
+        stage = :problem, related = (initial_count, capacity),
         correction = "increase capacity or reduce the initial cell count"),))
     return ValidationReport(diagnostics)
 end
@@ -716,7 +852,7 @@ function _problem(model::PottsModel, domain::CorePotts.CartesianDomain{N}, layou
         capacity, tspan, seed, spacing)
     isvalid(report) || throw(ProblemValidationError(report))
     lowered = lower(model; dimensions = N, spacing)
-    realized_layouts = _lower_layout_tuple(lowered, Tuple(layouts), N)
+    realized_layouts = _lower_layout_tuple(lowered, Tuple(layouts), shape)
     medium_ids = Tuple(entry.value for entry in lowered.medium_ids)
     initialized = CorePotts.finalize_initial_state(shape, realized_layouts...;
         capacity = CorePotts.CellCapacity(capacity), medium_domains = medium_ids,

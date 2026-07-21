@@ -98,9 +98,9 @@ struct Layout{E <: Tuple}
 end
 
 function Layout(entries...)
-    all(entry -> entry isa Union{CellLayout, CellLabelLayout, MediumLayout}, entries) ||
-        throw(ArgumentError(
-            "layout entries must be CellLayout, CellLabelLayout, or MediumLayout values"))
+    all(entry -> entry isa Union{CellLayout, CellLabelLayout, MediumLayout,
+        AbstractProceduralLayout}, entries) || throw(ArgumentError(
+        "layout entries must be explicit, labelled, medium, or procedural layout values"))
     return Layout(Tuple(entries))
 end
 
@@ -129,6 +129,8 @@ const PeriodicBoundary = CorePotts.PeriodicBoundary
 const ClosedBoundary = CorePotts.ClosedBoundary
 const FixedExterior = CorePotts.FixedExterior
 const AxisBoundary = CorePotts.AxisBoundary
+const LatticeBall = CorePotts.LatticeBall
+const LatticeBox = CorePotts.LatticeBox
 
 """
     PottsProblem(model, domain, layout; capacity, tspan, seed, ...)

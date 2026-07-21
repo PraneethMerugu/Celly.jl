@@ -15,6 +15,7 @@ include("lifecycle.jl")
 include("reports.jl")
 include("models.jl")
 include("normalization.jl")
+include("procedural_layouts.jl")
 include("lowering.jl")
 include("level1.jl")
 include("level1_rules.jl")
@@ -58,7 +59,10 @@ export AcceptanceTemperature, IndependentNoise
 export RandomOrientationSplit, MinorAxisSplit, MajorAxisSplit, VectorSplit
 export AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue
 export Layout, Place, LabelledCells
+export AbstractProceduralLayout, UniformSiteSeedLayout, SequentialRejectionLayout
+export UniformSiteSeeds, SequentialRejectionPlacement
 export CartesianDomain, PeriodicBoundary, ClosedBoundary, FixedExterior, AxisBoundary
+export LatticeBall, LatticeBox
 export PottsProblem
 export Phase, AbstractRuleExpression, RuleLiteral, OwnerReference, PropertyRead
 export CellParameterRead, ModelParameterRead
