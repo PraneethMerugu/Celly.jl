@@ -24,12 +24,12 @@ applicable execution evidence exist. Passing an older Level 2 test does not comp
 
 | Contract area | Required public spelling | Required evidence | Status |
 |---|---|---|---|
-| Phases | `Phase(:name; after=...)` | DAG, unordered-writer conflict, display and fingerprint tests | simultaneous phase snapshots and ordered commits execute in one isbits program; CPU and real Metal 2D/3D gates green, ROCm CI pending |
+| Phases | `Phase(:name; after=...)` | DAG, unordered-writer conflict, display and fingerprint tests | each phase uses global evaluate/commit launches over reusable backend buffers; simultaneous snapshots and ordered commits are CPU/real-Metal green in 2D/3D, ROCm CI pending |
 | Rules | programmatic `Rule`/`RuleGroup`; `@rule`, `@rules` | closed parser, hygiene/source locations, macro/programmatic equality | thin macros, typed IR, source capture, equality, collective lowering, and GPU execution implemented for the current scalar/draw subset; queries remain |
 | Rule expressions | accepted scalar Julia subset and `NoChange()` | parser allow/deny inventory, host reference evaluator, conversions | arithmetic/conditional subset, explicit no-change, arity validation, host evaluator, and device execution implemented; conversion/domain inventory remains |
 | Triggers | programmatic `TriggerRule`; `@trigger` | purity/read-set/source diagnostics and lifecycle lowering | typed trigger and property-threshold lifecycle lowering implemented; full predicate set pending |
 | Draws | `draw`, `RandomDraw`, stable labels | unique semantic addresses, duplicates rejected, no authoring-time RNG | Bernoulli/Uniform/Normal/2D-3D unit-vector device lowering implemented; duplicate labels, literal domains, and compiled-operation collisions rejected; one permanent CPU/real-Metal 2D/3D gate executes all four families, ROCm pending |
-| Queries | typed relations and lazy `neighbors`, `contacts`, `sites`, `boundary_sites` | result-domain, empty-policy, reduction and backend fixtures | pending |
+| Queries | typed relations and lazy `neighbors`, `contacts`, `sites`, `boundary_sites` | result-domain, empty-policy, reduction and backend fixtures | typed `Contacting`, `AnyFiniteCell`, and `CellTypeFilter` plus exact edge-count/contact-measure/boundary-site scalar queries implemented and oracle-checked on CPU/real Metal in 2D/3D; distinct-owner reductions, lazy collections, and optimized derived buffers pending |
 | Field sampling | explicit site/center/gradient sampling | implicit cell sampling rejection and interpolation fixtures | pending |
 | Schedules | `EveryMCS`, `AtMCS`, `BetweenMCS` | positive integer-MCS validation and open-protocol lowering | final Toolkit spelling implemented over Core open schedule protocol |
 | Lifecycle | `PropertyUpdate`, `Transition`, `Division`, `ShrinkDeath`, `ImmediateDeath` | trigger/schedule/effect inspection and transaction execution | typed Level 2 implementations exist; Level 1 triggers/phases pending |
@@ -53,7 +53,7 @@ applicable execution evidence exist. Passing an older Level 2 test does not comp
 |---|---|---|
 | Five paper models have natural Level 1 spellings | chemotaxis, differential adhesion, monolayer growth, angiogenesis, fluctuation scripts and tests | all five reference builders migrated and execute on CPU; documentation and GPU evidence pending |
 | Equivalent Level 1/2 meaning | fingerprint fixtures for every stable Level 1 family | pending |
-| CPU, Metal, and ROCm complete paths | CI jobs plus backend qualification scripts | permanent Phase 11 rule qualification is green on CPU and real Metal in 2D/3D with zero warm-step sync/transfer/allocation; ROCm CI pending |
+| CPU, Metal, and ROCm complete paths | CI jobs plus backend qualification scripts | permanent Phase 11 rule/query qualification is green on CPU and real Metal in 2D/3D with zero warm-step sync/transfer/allocation; ROCm CI pending |
 | Custom physics remains first class | direct Level 3 component and Level 2/Level 1 registration fixtures | Level 2/3 fixture exists; Level 1 registration pending |
 | Stable-component DSL coverage is at least 95% | generated inventory with justified exclusions | pending |
 | No legacy or duplicate modeling path | containment script, source/test/docs search, deleted inventory | Phase 10 Toolkit compiler absent; frozen Core consumers remain |

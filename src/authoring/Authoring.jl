@@ -18,6 +18,7 @@ include("normalization.jl")
 include("lowering.jl")
 include("level1.jl")
 include("level1_rules.jl")
+include("level1_queries.jl")
 include("level1_runtime.jl")
 include("level1_fields.jl")
 include("level1_observables.jl")
@@ -64,6 +65,8 @@ export CellParameterRead, ModelParameterRead
 export ScalarCall, ConditionalExpression, NoChange, Rule, RuleGroup, TriggerRule
 export AbstractDrawDistribution, Bernoulli, Uniform, Normal, UnitVector
 export RandomDraw, draw
+export Contacting, AbstractQueryOwnerFilter, AnyFiniteCell, CellTypeFilter
+export SpatialQueryExpression, contact_edge_count, contact_measure, boundary_site_count
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
 export AbstractFieldPlacement, CellCentered

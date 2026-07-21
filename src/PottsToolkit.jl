@@ -39,6 +39,9 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   ScalarCall, ConditionalExpression, NoChange,
                   AbstractDrawDistribution, Bernoulli, Uniform, Normal, UnitVector,
                   RandomDraw, draw,
+                  Contacting, AbstractQueryOwnerFilter, AnyFiniteCell, CellTypeFilter,
+                  SpatialQueryExpression, contact_edge_count, contact_measure,
+                  boundary_site_count,
                   Rule, RuleGroup, TriggerRule, EveryMCS, AtMCS, BetweenMCS,
                   evaluate, @rule, @rules, @trigger,
                   AbstractFieldPlacement, CellCentered, AbstractFieldBoundary,
@@ -84,6 +87,8 @@ export CellParameterRead, ModelParameterRead
 export ScalarCall, ConditionalExpression, NoChange, Rule, RuleGroup, TriggerRule
 export AbstractDrawDistribution, Bernoulli, Uniform, Normal, UnitVector
 export RandomDraw, draw
+export Contacting, AbstractQueryOwnerFilter, AnyFiniteCell, CellTypeFilter
+export SpatialQueryExpression, contact_edge_count, contact_measure, boundary_site_count
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
 export AbstractFieldPlacement, CellCentered

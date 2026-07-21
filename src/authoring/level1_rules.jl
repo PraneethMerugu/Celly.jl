@@ -460,6 +460,7 @@ function _validate_declaration(rule::Rule, context::_ValidationContext)
         end
     end
     return (diagnostics..., _rule_expression_diagnostics(rule)...,
+        _query_diagnostics(rule, context)...,
         _random_draw_diagnostics(rule)...)
 end
 
@@ -913,6 +914,8 @@ function _macro_rule_expression(expression, owner::Symbol)
     function_name = first(expression.args)
     arguments = @view expression.args[2:end]
     function_name === :draw && return _macro_draw(expression, owner)
+    function_name isa Symbol && function_name in _SPATIAL_QUERY_FUNCTIONS &&
+        return _macro_spatial_query(expression, owner)
     function_name isa Symbol && haskey(_DRAW_DISTRIBUTIONS, function_name) &&
         return _macro_distribution(expression, owner)
     function_name === :NoChange && isempty(arguments) &&

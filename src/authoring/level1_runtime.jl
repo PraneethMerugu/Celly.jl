@@ -14,6 +14,15 @@ end
 
 struct _CompiledUnitVector{N, T <: AbstractFloat} <: AbstractDrawDistribution end
 
+struct _CompiledSpatialQueryExpression{O <: AbstractSpatialQueryOperation,
+        R, F <: CorePotts.AbstractOwnerFilter, M <: CorePotts.MediumTypeTable} <:
+        AbstractRuleExpression
+    operation::O
+    relation::R
+    filter::F
+    medium_types::M
+end
+
 struct _CompiledRuleAssignment{Key, E <: AbstractRuleExpression, S <: Tuple}
     expression::E
     cell_type_ids::S
@@ -33,12 +42,6 @@ next phase.
 struct _CompiledRuleProgram{P <: Tuple} <: CorePotts.AbstractLifecycleEffect
     phases::P
     event_id::UInt16
-end
-
-struct _CompiledRuleOutput{A, T}
-    assignment::A
-    value::T
-    applies::Bool
 end
 
 function _compiled_parameter_values(parameter::CellParameter,
@@ -71,6 +74,25 @@ end
 _compile_rule_expression(expression::RuleLiteral, rule, context) = expression
 _compile_rule_expression(expression::OwnerReference, rule, context) = expression
 _compile_rule_expression(expression::NoChange, rule, context) = expression
+
+_compile_query_filter(::AnyFiniteCell, context) = CorePotts.AnyFiniteCell()
+function _compile_query_filter(filter::CellTypeFilter, context)
+    cell_type = only(value for value in context.cell_types
+        if semantic_identity(value) == filter.cell_type)
+    return CorePotts.CellTypeFilter(CorePotts.CellTypeID(
+        _biological_index(context, cell_type)))
+end
+
+function _compile_rule_expression(expression::SpatialQueryExpression, rule,
+        context::_LoweringContext)
+    filter = _compile_query_filter(expression.filter, context)
+    medium_types = CorePotts.MediumTypeTable(Tuple(
+        CorePotts.MediumID(index) =>
+            CorePotts.CellTypeID(length(context.cell_types) + index)
+        for index in eachindex(context.media)))
+    return _CompiledSpatialQueryExpression(expression.operation,
+        context.query_relation, filter, medium_types)
+end
 
 function _compile_rule_expression(expression::PropertyRead, rule, context)
     key = Symbol(_property_prefix(expression.property))
@@ -225,6 +247,27 @@ end
             expression.if_false, state, cell, mcs, rng, seed, event_id)
 end
 
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{ContactEdgeCountOperation},
+        state, cell, mcs, rng, seed, event_id)
+    return CorePotts.contact_edge_count(state, state.domain, expression.relation,
+        CorePotts.compiled_cell_owner(cell), expression.filter, expression.medium_types)
+end
+
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{ContactMeasureOperation},
+        state, cell, mcs, rng, seed, event_id)
+    return CorePotts.contact_measure(state, state.domain, expression.relation,
+        CorePotts.compiled_cell_owner(cell), expression.filter, expression.medium_types)
+end
+
+@inline function _compiled_rule_evaluate(
+        expression::_CompiledSpatialQueryExpression{BoundarySiteCountOperation},
+        state, cell, mcs, rng, seed, event_id)
+    return CorePotts.boundary_site_count(state, state.domain, expression.relation,
+        CorePotts.compiled_cell_owner(cell), expression.filter, expression.medium_types)
+end
+
 @inline function _compiled_draw_address(state, cell, mcs, event_id, operation)
     generation = @inbounds state.core.generations[cell]
     return CorePotts.compiled_lifecycle_rng_address(
@@ -291,7 +334,7 @@ end
 @inline _coerce_compiled_rule_output(::NoChange, current) = current
 @inline _coerce_compiled_rule_output(value, current) = convert(typeof(current), value)
 
-@inline function _compiled_rule_output(assignment::_CompiledRuleAssignment{Key},
+@inline function _compiled_rule_value(assignment::_CompiledRuleAssignment{Key},
         state, cell, mcs, rng, seed, event_id) where {Key}
     cell_type = @inbounds state.core.cell_types[cell]
     applies = cell_type in assignment.cell_type_ids
@@ -300,56 +343,75 @@ end
     if applies
         value = _compiled_rule_evaluate(
             assignment.expression, state, cell, mcs, rng, seed, event_id)
-        return _CompiledRuleOutput(
-            assignment, _coerce_compiled_rule_output(value, current), true)
+        return _coerce_compiled_rule_output(value, current)
     end
-    return _CompiledRuleOutput(assignment, current, false)
-end
-
-@inline _compiled_rule_outputs(::Tuple{}, state, cell, mcs, rng, seed, event_id) = ()
-@inline function _compiled_rule_outputs(assignments::Tuple, state, cell,
-        mcs, rng, seed, event_id)
-    output = _compiled_rule_output(
-        first(assignments), state, cell, mcs, rng, seed, event_id)
-    return (output, _compiled_rule_outputs(Base.tail(assignments), state,
-        cell, mcs, rng, seed, event_id)...)
-end
-
-@inline _commit_compiled_rule_outputs!(::Tuple{}, state, cell) = nothing
-@inline function _commit_compiled_rule_outputs!(outputs::Tuple, state, cell)
-    output = first(outputs)
-    _commit_compiled_rule_output!(output, state, cell)
-    _commit_compiled_rule_outputs!(Base.tail(outputs), state, cell)
-    return nothing
-end
-
-@inline function _commit_compiled_rule_output!(output::_CompiledRuleOutput{A},
-        state, cell) where {Key, A <: _CompiledRuleAssignment{Key}}
-    if output.applies
-        values = getproperty(state.core.properties, Key)
-        @inbounds values[cell] = output.value
-    end
-    return nothing
-end
-
-@inline _run_compiled_rule_phases!(::Tuple{}, state, cell, mcs,
-    rng, seed, event_id) = nothing
-@inline function _run_compiled_rule_phases!(phases::Tuple, state, cell,
-        mcs, rng, seed, event_id)
-    outputs = _compiled_rule_outputs(first(phases).assignments,
-        state, cell, mcs, rng, seed, event_id)
-    _commit_compiled_rule_outputs!(outputs, state, cell)
-    _run_compiled_rule_phases!(Base.tail(phases),
-        state, cell, mcs, rng, seed, event_id)
-    return nothing
+    return current
 end
 
 CorePotts.compiled_effect_category(::_CompiledRuleProgram) =
-    CorePotts.CompiledPropertyEffect()
+    CorePotts.CompiledStagedPropertyEffect()
+CorePotts.compiled_effect_stages(effect::_CompiledRuleProgram) = effect.phases
 
-@inline function CorePotts.compiled_apply_effect!(effect::_CompiledRuleProgram,
+function _compiled_rule_assignment_workspace(
+        ::_CompiledRuleAssignment{Key}, state) where {Key}
+    values = getproperty(state.potts.storage.properties, Key)
+    return similar(values)
+end
+
+function CorePotts.compiled_effect_workspace(effect::_CompiledRuleProgram,
+        state, plan)
+    stages = map(effect.phases) do phase
+        map(assignment -> _compiled_rule_assignment_workspace(assignment, state),
+            phase.assignments)
+    end
+    return CorePotts.CompiledStagedEffectWorkspace(stages)
+end
+
+@inline _evaluate_compiled_rule_stage!(::Tuple{}, ::Tuple{}, state, cell, mcs,
+    rng, seed, event_id) = nothing
+@inline function _evaluate_compiled_rule_stage!(assignments::Tuple,
+        workspace::Tuple, state, cell, mcs, rng, seed, event_id)
+    value = _compiled_rule_value(
+        first(assignments), state, cell, mcs, rng, seed, event_id)
+    @inbounds first(workspace)[cell] = value
+    _evaluate_compiled_rule_stage!(Base.tail(assignments), Base.tail(workspace),
+        state, cell, mcs, rng, seed, event_id)
+    return nothing
+end
+
+@inline _commit_compiled_rule_stage!(::Tuple{}, ::Tuple{}, state, cell) = nothing
+@inline function _commit_compiled_rule_stage!(assignments::Tuple,
+        workspace::Tuple, state, cell)
+    assignment = first(assignments)
+    _commit_compiled_rule_stage_assignment!(
+        assignment, first(workspace), state, cell)
+    _commit_compiled_rule_stage!(Base.tail(assignments), Base.tail(workspace),
+        state, cell)
+    return nothing
+end
+
+@inline function _commit_compiled_rule_stage_assignment!(
+        assignment::_CompiledRuleAssignment{Key}, workspace,
+        state, cell) where {Key}
+    cell_type = @inbounds state.core.cell_types[cell]
+    if cell_type in assignment.cell_type_ids
+        values = getproperty(state.core.properties, Key)
+        @inbounds values[cell] = workspace[cell]
+    end
+    return nothing
+end
+
+@inline function CorePotts.compiled_evaluate_effect_stage!(
+        effect::_CompiledRuleProgram, stage::_CompiledRulePhase, workspace::Tuple,
         state, cell, properties, mcs, rng, seed)
-    _run_compiled_rule_phases!(effect.phases, state, cell, mcs, rng, seed,
-        effect.event_id)
+    _evaluate_compiled_rule_stage!(stage.assignments, workspace,
+        state, cell, mcs, rng, seed, effect.event_id)
+    return nothing
+end
+
+@inline function CorePotts.compiled_commit_effect_stage!(
+        effect::_CompiledRuleProgram, stage::_CompiledRulePhase, workspace::Tuple,
+        state, cell, properties, mcs, rng, seed)
+    _commit_compiled_rule_stage!(stage.assignments, workspace, state, cell)
     return nothing
 end

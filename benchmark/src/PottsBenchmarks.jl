@@ -2375,6 +2375,16 @@ function qualify_phase11_backend(name::String)
         phase11_direction = PottsToolkit.CellProperty(:phase11_direction, cell;
             initial = zero(SVector{N, Float32}), division = CloneOnDivision(),
             transition = PreserveOnTransition())
+        phase11_edges = PottsToolkit.CellProperty(:phase11_edges, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_boundary_sites = PottsToolkit.CellProperty(:phase11_boundary_sites, cell;
+            initial = Int64(0), division = CloneOnDivision(),
+            transition = PreserveOnTransition())
+        phase11_contact_measure = PottsToolkit.CellProperty(
+            :phase11_contact_measure, cell;
+            initial = 0.0f0, division = CloneOnDivision(),
+            transition = PreserveOnTransition())
         phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
         first_phase = PottsToolkit.Phase(:phase11_first)
         second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
@@ -2387,18 +2397,31 @@ function qualify_phase11_backend(name::String)
             draw(Normal(0.0, 1.0); label = :normal)
         direction_rule = PottsToolkit.@rule phase = first_phase phase11_direction(owner) =
             draw(UnitVector($N); label = :direction)
+        edge_rule = PottsToolkit.@rule phase = first_phase phase11_edges(owner) =
+            contact_edge_count(owner, Contacting(), AnyFiniteCell())
+        boundary_site_rule = PottsToolkit.@rule phase = first_phase phase11_boundary_sites(owner) =
+            boundary_site_count(owner, Contacting(), AnyFiniteCell())
+        contact_measure_rule = PottsToolkit.@rule phase = first_phase phase11_contact_measure(owner) =
+            contact_measure(owner, Contacting(), CellTypeFilter(cell))
         dependent = PottsToolkit.@rule phase = second_phase phase11_target(owner) =
             clamp(phase11_age(owner) + 2, 0, 100)
         model = PottsToolkit.PottsModel(
             medium, cell, phase11_age, phase11_target, phase11_uniform,
-            phase11_normal, phase11_direction, phase11_rate, aging,
-            uniform_rule, normal_rule, direction_rule, dependent)
+            phase11_normal, phase11_direction, phase11_edges,
+            phase11_boundary_sites, phase11_contact_measure, phase11_rate,
+            aging, uniform_rule, normal_rule, direction_rule, edge_rule,
+            boundary_site_rule, contact_measure_rule, dependent)
         shape = ntuple(_ -> N == 2 ? 6 : 4, Val(N))
+        labels = fill(UInt64(1), shape)
+        for site in CartesianIndices(labels)
+            site[1] > shape[1] ÷ 2 && (labels[site] = UInt64(2))
+        end
+        domain = PottsToolkit.CartesianDomain(shape)
         problem = PottsToolkit.PottsProblem(
-            model, PottsToolkit.CartesianDomain(shape),
-            PottsToolkit.Layout(PottsToolkit.Place(
-                cell, trues(shape); identity = 1));
-            capacity = 1, tspan = (0, 2), seed = 0x7068617365311000 + N)
+            model, domain,
+            PottsToolkit.Layout(PottsToolkit.LabelledCells(
+                labels, (1 => cell, 2 => cell)));
+            capacity = 2, tspan = (0, 2), seed = 0x7068617365311000 + N)
         algorithm = CheckerboardSweepCPM(temperature = 0.0f0)
         integrator = init(problem, algorithm;
             backend, adaptor, verbose = false,
@@ -2434,6 +2457,26 @@ function qualify_phase11_backend(name::String)
         direction_value = property_value(snapshot, :phase11_direction, CellID(1))
         isapprox(sum(abs2, direction_value), 1.0f0; atol = 8eps(Float32)) || error(
             "$name Phase 11 $N-D unit-vector rule produced a non-unit vector")
+        query_relation = first_shell_relation(
+            SpatialQueryRole(), Val(N); spacing = domain.spacing)
+        medium_types = MediumTypeTable(MediumID(1) => CellTypeID(2))
+        for id in (CellID(1), CellID(2))
+            owner = CellOwner(id)
+            expected_edges = contact_edge_count(snapshot, domain, query_relation,
+                owner, CorePotts.AnyFiniteCell(), medium_types)
+            expected_boundary_sites = boundary_site_count(snapshot, domain,
+                query_relation, owner, CorePotts.AnyFiniteCell(), medium_types)
+            expected_measure = contact_measure(snapshot, domain, query_relation,
+                owner, CorePotts.CellTypeFilter(CellTypeID(1)), medium_types)
+            property_value(snapshot, :phase11_edges, id) == expected_edges || error(
+                "$name Phase 11 $N-D contact-edge query differs from the oracle")
+            property_value(snapshot, :phase11_boundary_sites, id) ==
+                expected_boundary_sites || error(
+                "$name Phase 11 $N-D boundary-site query differs from the oracle")
+            property_value(snapshot, :phase11_contact_measure, id) ==
+                expected_measure || error(
+                "$name Phase 11 $N-D contact-measure query differs from the oracle")
+        end
         profiles["$(N)d"] = Dict(
             "ordered_phase_value" => 3.5,
             "addressed_draw_value" => 1.0,
@@ -2441,6 +2484,7 @@ function qualify_phase11_backend(name::String)
             "uniform_open_interval" => true,
             "normal_finite" => true,
             "unit_vector_norm" => sum(abs2, direction_value),
+            "exact_spatial_queries" => true,
             "warm_mcs_launches" => launch_delta,
             "warm_mcs_host_synchronizations" => synchronization_delta,
             "warm_mcs_device_to_host_transfers" => transfer_delta,

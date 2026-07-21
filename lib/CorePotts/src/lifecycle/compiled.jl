@@ -25,13 +25,14 @@ struct CompiledLifecycleDescriptor{E <: Tuple, R <: AbstractLifecycleConflictRes
     requires_observation::Bool
 end
 
-struct CompiledLifecycleWorkspace{D, W, V, C, F, R}
+struct CompiledLifecycleWorkspace{D, W, V, C, F, R, E}
     decisions::D
     winners::W
     division_valid::V
     child_ids::C
     failure::F
     report::R
+    effect_workspaces::E
 end
 
 struct CompiledLifecycle{D <: CompiledLifecycleDescriptor,
@@ -47,7 +48,8 @@ function Adapt.adapt_structure(to, workspace::CompiledLifecycleWorkspace)
         Adapt.adapt(to, workspace.division_valid),
         Adapt.adapt(to, workspace.child_ids),
         Adapt.adapt(to, workspace.failure),
-        Adapt.adapt(to, workspace.report))
+        Adapt.adapt(to, workspace.report),
+        Adapt.adapt(to, workspace.effect_workspaces))
 end
 
 Adapt.adapt_structure(to, lifecycle::CompiledLifecycle) =
@@ -55,6 +57,8 @@ Adapt.adapt_structure(to, lifecycle::CompiledLifecycle) =
 
 abstract type AbstractCompiledEffectCategory end
 struct CompiledPropertyEffect <: AbstractCompiledEffectCategory end
+"""Property effect evaluated into reusable staging storage before a separate commit launch."""
+struct CompiledStagedPropertyEffect <: AbstractCompiledEffectCategory end
 struct CompiledTransitionEffect <: AbstractCompiledEffectCategory end
 struct CompiledDivisionEffect <: AbstractCompiledEffectCategory end
 struct CompiledDeathEffect <: AbstractCompiledEffectCategory end
@@ -65,6 +69,31 @@ compiled_effect_category(::InitiateShrinkDeath) = CompiledPropertyEffect()
 compiled_effect_category(::TransitionCell) = CompiledTransitionEffect()
 compiled_effect_category(::DivideCell) = CompiledDivisionEffect()
 compiled_effect_category(::RemoveCellImmediately) = CompiledDeathEffect()
+
+"""No reusable storage is required by an ordinary compiled lifecycle effect."""
+struct NoCompiledEffectWorkspace end
+
+"""Reusable per-stage storage owned by one open compiled lifecycle effect."""
+struct CompiledStagedEffectWorkspace{S <: Tuple}
+    stages::S
+end
+
+Adapt.adapt_structure(to, workspace::CompiledStagedEffectWorkspace) =
+    CompiledStagedEffectWorkspace(Adapt.adapt(to, workspace.stages))
+
+compiled_effect_workspace(effect, state, plan) = NoCompiledEffectWorkspace()
+compiled_effect_workspace_bytes(::NoCompiledEffectWorkspace) = 0
+compiled_effect_workspace_bytes(array::AbstractArray) = _array_bytes(array)
+compiled_effect_workspace_bytes(values::Tuple) =
+    sum(compiled_effect_workspace_bytes, values; init = 0)
+compiled_effect_workspace_bytes(workspace::CompiledStagedEffectWorkspace) =
+    compiled_effect_workspace_bytes(workspace.stages)
+compiled_effect_stages(effect) = ()
+compiled_effect_stage_workspaces(::NoCompiledEffectWorkspace) = ()
+compiled_effect_stage_workspaces(workspace::CompiledStagedEffectWorkspace) = workspace.stages
+compiled_prepare_effect_stage!(plan, effect, stage, workspace, state, mcs) = nothing
+function compiled_evaluate_effect_stage! end
+function compiled_commit_effect_stage! end
 
 function _canonical_lifecycle_events(events)
     values = collect(events)
@@ -147,16 +176,26 @@ function compile_lifecycle(events, state::CompiledScientificState,
         record_allocation!(plan, plan.backend isa KernelAbstractions.CPU ? :host : :device,
             _array_bytes(array))
     end
+    effect_workspaces = map(canonical) do event
+        workspace = compiled_effect_workspace(event.effect, state, plan)
+        bytes = compiled_effect_workspace_bytes(workspace)
+        bytes >= 0 || throw(ArgumentError(
+            "compiled effect workspace byte count must be non-negative"))
+        bytes > 0 && record_allocation!(plan,
+            plan.backend isa KernelAbstractions.CPU ? :host : :device, bytes)
+        workspace
+    end
     return CompiledLifecycle(descriptor,
         CompiledLifecycleWorkspace(decisions, winners, division_valid, child_ids,
-            failure, report))
+            failure, report, effect_workspaces))
 end
 
 compiled_lifecycle_bytes(::NoCompiledLifecycle) = 0
 compiled_lifecycle_bytes(lifecycle::CompiledLifecycle) = sum(_array_bytes, (
     lifecycle.workspace.decisions, lifecycle.workspace.winners,
     lifecycle.workspace.division_valid, lifecycle.workspace.child_ids,
-    lifecycle.workspace.failure, lifecycle.workspace.report))
+    lifecycle.workspace.failure, lifecycle.workspace.report)) +
+    sum(compiled_effect_workspace_bytes, lifecycle.workspace.effect_workspaces)
 
 @inline compiled_schedule_due(::EveryMCS, mcs::UInt64) = true
 @inline compiled_schedule_due(schedule::OnceAtMCS, mcs::UInt64) = mcs == UInt64(schedule.mcs)
@@ -744,6 +783,30 @@ end
     end
 end
 
+@kernel function _compiled_staged_effect_evaluate_kernel!(event, event_index,
+        lifecycle_workspace, effect_workspace, stage, state, properties, mcs, rng, seed)
+    cell = @index(Global, Linear)
+    capacity = length(state.core.active)
+    if cell <= capacity && _compiled_transaction_open(lifecycle_workspace) &&
+            _compiled_event_selected(
+                lifecycle_workspace, event_index, capacity, cell, event)
+        compiled_evaluate_effect_stage!(event.effect, stage, effect_workspace,
+            state, cell, properties, mcs, rng, seed)
+    end
+end
+
+@kernel function _compiled_staged_effect_commit_kernel!(event, event_index,
+        lifecycle_workspace, effect_workspace, stage, state, properties, mcs, rng, seed)
+    cell = @index(Global, Linear)
+    capacity = length(state.core.active)
+    if cell <= capacity && _compiled_transaction_open(lifecycle_workspace) &&
+            _compiled_event_selected(
+                lifecycle_workspace, event_index, capacity, cell, event)
+        compiled_commit_effect_stage!(event.effect, stage, effect_workspace,
+            state, cell, properties, mcs, rng, seed)
+    end
+end
+
 function _commit_compiled_division_event!(event, event_index, workspace, state,
         properties, mcs, rng, seed, parent)
     capacity = length(state.core.active)
@@ -922,53 +985,91 @@ function _launch_compiled_division_validation!(plan, events::Tuple, event_index,
 end
 
 function _launch_compiled_effect!(plan, ::CompiledPropertyEffect, event, event_index,
-        workspace, state, properties, mcs, rng, seed)
+        workspace, effect_workspace, state, properties, mcs, rng, seed)
     kernel = _compiled_effect_kernel!(plan.backend, plan.block_size)
     launch!(plan, kernel, event, event_index, workspace, state, properties, mcs, rng,
         seed; ndrange = length(state.core.active))
 end
+_launch_compiled_effect_stages!(plan, effect, ::Tuple{}, ::Tuple{}, event,
+    event_index, lifecycle_workspace, state, properties, mcs, rng, seed) = nothing
+function _launch_compiled_effect_stages!(plan, effect, stages::Tuple,
+        effect_workspaces::Tuple, event, event_index, lifecycle_workspace,
+        state, properties, mcs, rng, seed)
+    stage = first(stages)
+    effect_workspace = first(effect_workspaces)
+    compiled_prepare_effect_stage!(
+        plan, effect, stage, effect_workspace, state, mcs)
+    evaluate_kernel = _compiled_staged_effect_evaluate_kernel!(
+        plan.backend, plan.block_size)
+    launch!(plan, evaluate_kernel, event, event_index, lifecycle_workspace,
+        effect_workspace, stage, state, properties, mcs, rng, seed;
+        ndrange = length(state.core.active))
+    commit_kernel = _compiled_staged_effect_commit_kernel!(
+        plan.backend, plan.block_size)
+    launch!(plan, commit_kernel, event, event_index, lifecycle_workspace,
+        effect_workspace, stage, state, properties, mcs, rng, seed;
+        ndrange = length(state.core.active))
+    _launch_compiled_effect_stages!(plan, effect, Base.tail(stages),
+        Base.tail(effect_workspaces), event, event_index, lifecycle_workspace,
+        state, properties, mcs, rng, seed)
+    return nothing
+end
+
+function _launch_compiled_effect!(plan, ::CompiledStagedPropertyEffect, event,
+        event_index, workspace, effect_workspace, state, properties, mcs, rng, seed)
+    stages = compiled_effect_stages(event.effect)
+    stage_workspaces = compiled_effect_stage_workspaces(effect_workspace)
+    length(stages) == length(stage_workspaces) || throw(ArgumentError(
+        "compiled staged effect workspace does not match its stages"))
+    _launch_compiled_effect_stages!(plan, event.effect, stages, stage_workspaces,
+        event, event_index, workspace, state, properties, mcs, rng, seed)
+    return nothing
+end
+
 function _launch_compiled_effect!(plan, ::CompiledTransitionEffect, event, event_index,
-        workspace, state, properties, mcs, rng, seed)
+        workspace, effect_workspace, state, properties, mcs, rng, seed)
     kernel = _compiled_effect_kernel!(plan.backend, plan.block_size)
     launch!(plan, kernel, event, event_index, workspace, state, properties, mcs, rng,
         seed; ndrange = length(state.core.active))
 end
 function _launch_compiled_effect!(plan, ::CompiledDivisionEffect, event, event_index,
-        workspace, state, properties, mcs, rng, seed)
+        workspace, effect_workspace, state, properties, mcs, rng, seed)
     kernel = _compiled_division_commit_kernel!(plan.backend, plan.block_size)
     launch!(plan, kernel, event, event_index, workspace, state, properties, mcs, rng,
         seed; ndrange = length(state.core.active))
 end
 function _launch_compiled_effect!(plan, ::CompiledDeathEffect, event, event_index,
-        workspace, state, properties, mcs, rng, seed)
+        workspace, effect_workspace, state, properties, mcs, rng, seed)
     kernel = _compiled_death_commit_kernel!(plan.backend, plan.block_size)
     launch!(plan, kernel, event, event_index, workspace, state, properties;
         ndrange = length(state.core.active))
 end
 function _launch_compiled_effect!(plan, ::CompiledCustomEffect, event, event_index,
-        workspace, state, properties, mcs, rng, seed)
+        workspace, effect_workspace, state, properties, mcs, rng, seed)
     kernel = _compiled_effect_kernel!(plan.backend, plan.block_size)
     launch!(plan, kernel, event, event_index, workspace, state, properties, mcs, rng,
         seed; ndrange = length(state.core.active))
 end
 
-_launch_compiled_effects!(plan, ::Tuple{}, event_index, workspace, state,
-    properties, mcs, rng, seed, phase) = nothing
+_launch_compiled_effects!(plan, ::Tuple{}, ::Tuple{}, event_index, workspace,
+    state, properties, mcs, rng, seed, phase) = nothing
 compiled_effect_phase(::CompiledPropertyEffect) = UInt8(1)
+compiled_effect_phase(::CompiledStagedPropertyEffect) = UInt8(1)
 compiled_effect_phase(::CompiledCustomEffect) = UInt8(1)
 compiled_effect_phase(::CompiledTransitionEffect) = UInt8(2)
 compiled_effect_phase(::CompiledDivisionEffect) = UInt8(3)
 compiled_effect_phase(::CompiledDeathEffect) = UInt8(4)
-function _launch_compiled_effects!(plan, events::Tuple, event_index, workspace, state,
-        properties, mcs, rng, seed, phase)
+function _launch_compiled_effects!(plan, events::Tuple, effect_workspaces::Tuple,
+        event_index, workspace, state, properties, mcs, rng, seed, phase)
     event = first(events)
+    effect_workspace = first(effect_workspaces)
     category = compiled_effect_category(event.effect)
     if compiled_effect_phase(category) == phase
         _launch_compiled_effect!(plan, category, event, event_index, workspace,
-            state, properties, mcs, rng, seed)
+            effect_workspace, state, properties, mcs, rng, seed)
     end
-    _launch_compiled_effects!(plan, Base.tail(events), event_index + 1, workspace,
-        state, properties, mcs, rng, seed, phase)
+    _launch_compiled_effects!(plan, Base.tail(events), Base.tail(effect_workspaces),
+        event_index + 1, workspace, state, properties, mcs, rng, seed, phase)
     return nothing
 end
 
@@ -1027,7 +1128,8 @@ function run_compiled_lifecycle!(integrator, lifecycle::CompiledLifecycle, mcs)
     reusable = _compiled_reusable_boundary_kernel!(plan.backend, 1)
     launch!(plan, reusable, workspace, state; ndrange = 1)
     for phase in UInt8(1):UInt8(4)
-        _launch_compiled_effects!(plan, descriptor.events, 1, workspace, state,
+        _launch_compiled_effects!(plan, descriptor.events,
+            workspace.effect_workspaces, 1, workspace, state,
             descriptor.properties, mcs, integrator.rng, integrator.seed, phase)
     end
     rebuild = _compiled_tracker_rebuild_kernel!(plan.backend, 1)

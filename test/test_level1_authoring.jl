@@ -394,6 +394,64 @@ end
     @test CorePotts.property_value(ordered_state,
         :target, CorePotts.CellID(1)) == 3.0f0
 
+    contact_edges = PottsToolkit.CellProperty(:contact_edges, cell_type;
+        initial = Int64(0), division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    contact_weight = PottsToolkit.CellProperty(:contact_weight, cell_type;
+        initial = 0.0f0, division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    boundary_sites = PottsToolkit.CellProperty(:boundary_sites, cell_type;
+        initial = Int64(0), division = CorePotts.CloneOnDivision(),
+        transition = CorePotts.PreserveOnTransition())
+    contact_rules = PottsToolkit.@rules phase = growth_phase begin
+        contact_edges(cell) = contact_edge_count(
+            cell, Contacting(), AnyFiniteCell())
+        contact_weight(cell) = contact_measure(
+            cell, Contacting(), CellTypeFilter(cell_type))
+        boundary_sites(cell) = boundary_site_count(
+            cell, Contacting(), AnyFiniteCell())
+    end
+    query_model = PottsToolkit.PottsModel(
+        medium, cell_type, contact_edges, contact_weight, boundary_sites,
+        contact_rules)
+    query_labels = UInt64[
+        1 1 2 2
+        1 1 2 2
+        0 0 0 0
+        0 0 0 0
+    ]
+    query_domain = PottsToolkit.CartesianDomain((4, 4); boundaries = (
+        PottsToolkit.AxisBoundary(PottsToolkit.ClosedBoundary()),
+        PottsToolkit.AxisBoundary(PottsToolkit.ClosedBoundary())))
+    query_problem = PottsToolkit.PottsProblem(
+        query_model, query_domain,
+        PottsToolkit.Layout(PottsToolkit.LabelledCells(
+            query_labels, (1 => cell_type, 2 => cell_type)));
+        capacity = 2, tspan = (0, 1), seed = 3)
+    query_solution = CorePotts.solve(query_problem,
+        CorePotts.SequentialCPM(temperature = 0.0f0);
+        snapshot_policy = CorePotts.HostSnapshotPolicy())
+    query_state = query_solution.u[end].state
+    query_relation = CorePotts.first_shell_relation(
+        CorePotts.SpatialQueryRole(), Val(2); spacing = query_domain.spacing)
+    query_medium_types = CorePotts.MediumTypeTable(
+        CorePotts.MediumID(1) => CorePotts.CellTypeID(2))
+    for id in (CorePotts.CellID(1), CorePotts.CellID(2))
+        owner = CorePotts.CellOwner(id)
+        expected_edges = CorePotts.contact_edge_count(query_state, query_domain,
+            query_relation, owner, CorePotts.AnyFiniteCell(), query_medium_types)
+        expected_measure = CorePotts.contact_measure(query_state, query_domain,
+            query_relation, owner, CorePotts.CellTypeFilter(CorePotts.CellTypeID(1)),
+            query_medium_types)
+        expected_boundary_sites = CorePotts.boundary_site_count(
+            query_state, query_domain, query_relation, owner,
+            CorePotts.AnyFiniteCell(), query_medium_types)
+        @test CorePotts.property_value(query_state, :contact_edges, id) == expected_edges
+        @test CorePotts.property_value(query_state, :contact_weight, id) == expected_measure
+        @test CorePotts.property_value(query_state, :boundary_sites, id) ==
+            expected_boundary_sites
+    end
+
     unordered_phase = PottsToolkit.Phase(:unordered)
     unordered_rule = PottsToolkit.@rule phase = unordered_phase target(cell) = age(cell) + 2
     unordered_report = PottsToolkit.validate(PottsToolkit.PottsModel(

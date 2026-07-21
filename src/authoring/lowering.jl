@@ -89,13 +89,14 @@ function Base.show(io::IO, lowered::LoweredModel)
         length(lowered.normalized.components), " components)")
 end
 
-struct _LoweringContext{T, C, M, D, R, S, K}
+struct _LoweringContext{T, C, M, D, R, S, K, Q}
     cell_types::C
     media::M
     declarations::D
     contact_relation::R
     surface_relation::S
     connectivity_relation::K
+    query_relation::Q
 end
 
 struct _LoweredComponents{E <: Tuple, D <: Tuple, C <: Tuple, K <: Tuple, M <: Tuple,
@@ -480,11 +481,13 @@ function lower(model::PottsModel; dimensions::Integer,
         CorePotts.SurfaceRole(), Val(dimensions); spacing = typed_spacing)
     connectivity_relation = CorePotts.first_shell_relation(
         CorePotts.ConnectivityRole(), Val(dimensions); spacing = typed_spacing)
+    query_relation = CorePotts.first_shell_relation(
+        CorePotts.SpatialQueryRole(), Val(dimensions); spacing = typed_spacing)
     context = _LoweringContext{T, typeof(normalized.cell_types),
         typeof(normalized.media), typeof(normalized.components), typeof(contact_relation),
-        typeof(surface_relation), typeof(connectivity_relation)}(
+        typeof(surface_relation), typeof(connectivity_relation), typeof(query_relation)}(
         normalized.cell_types, normalized.media, normalized.components,
-        contact_relation, surface_relation, connectivity_relation)
+        contact_relation, surface_relation, connectivity_relation, query_relation)
     lowered = _lower_components(normalized.components, context)
     rule_lifecycle = _lower_rule_program(normalized.components, context)
     components = CorePotts.ScientificComponentSet(

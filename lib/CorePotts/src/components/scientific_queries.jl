@@ -26,6 +26,10 @@ struct AnyMediumDomain <: AbstractOwnerFilter end
 _query_sites(domain::CartesianDomain) = findall(vec(domain.mutable_mask))
 _query_sites(domain::CompiledCartesianDomain) = domain.storage.mutable_sites
 
+"""Device-safe finite-cell owner construction after compiled capacity validation."""
+@inline compiled_cell_owner(cell::Integer) =
+    _owner_ref_unchecked(_CELL_OWNER_TAG, Base.unsafe_trunc(UInt32, cell))
+
 function contact_edge_count(
         state, domain, relation::StaticCartesianRelation{<:SpatialQueryRole},
         owner::OwnerRef, filter::AbstractOwnerFilter, medium_types::MediumTypeTable)
