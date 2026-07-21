@@ -21,6 +21,11 @@ on:
         required: true
         default: '1'
         options: ['1', '3', '5']
+      subject_ref:
+        description: Immutable commit SHA to measure (defaults to the workflow commit)
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -46,6 +51,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete benchmark provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -69,7 +78,7 @@ jobs:
         run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
@@ -85,6 +94,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete benchmark provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -106,7 +119,7 @@ jobs:
         run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
@@ -124,6 +137,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete benchmark provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -152,7 +169,7 @@ jobs:
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/cold_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
@@ -170,6 +187,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete benchmark provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
@@ -196,6 +217,6 @@ jobs:
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/cold_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
+          name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
