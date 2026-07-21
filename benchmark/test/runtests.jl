@@ -56,6 +56,38 @@ function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
     )
 end
 
+function synthetic_cold_record(process_id; scale = 1.0, hardware_id = "cpu-arm64-reference")
+    metrics = Dict(key => scale * (index / 10) for (index, key) in enumerate((
+        "backend_import_seconds", "package_import_seconds", "model_construction_seconds",
+        "normalization_seconds", "lowering_seconds", "problem_construction_seconds",
+        "initialization_seconds", "first_mcs_seconds")))
+    return Dict(
+        "schema_version" => PHASE12_SCHEMA_VERSION,
+        "record_kind" => "phase12-cold-run",
+        "comparison_identity" => Dict(
+            "contract_version" => PHASE12_CONTRACT_VERSION,
+            "cold_workload_version" => "differential-adhesion-1.0.0",
+            "cold_harness_tree_sha256" => "cold-harness",
+            "backend" => "cpu",
+            "hardware_id" => hardware_id,
+            "julia_version" => "1.12.6",
+            "architecture" => "aarch64",
+            "os" => "Darwin",
+            "julia_threads" => 1,
+            "precision" => "Float32",
+            "algorithm" => "SequentialCPM",
+        ),
+        "run" => Dict("process_id" => process_id),
+        "provenance" => Dict(
+            "implementation_commit" => "baseline-implementation",
+            "implementation_tree_sha256" => "tree",
+            "harness_commit" => "harness",
+            "git_dirty" => false,
+        ),
+        "metrics" => metrics,
+    )
+end
+
 @testset "Phase 12 comparison contract" begin
     baseline = [synthetic_record("baseline-$index"; steady = 1 + 0.01index)
                 for index in 1:3]
@@ -146,4 +178,28 @@ end
     @test result["algorithm_geometric_mean_steady_seconds_ratios"]["LotteryCPM"] > 1
 
     @test_throws ArgumentError aggregate_records(baseline[1:2])
+end
+
+@testset "Phase 12 cold comparison contract" begin
+    baseline = [synthetic_cold_record("baseline-cold-$index") for index in 1:3]
+    faster = [synthetic_cold_record("faster-cold-$index"; scale = 0.9) for index in 1:3]
+    result = compare_cold_record_groups(baseline, faster)
+    @test result["comparable"]
+    @test result["passed"]
+    @test all(<(1), values(result["metric_ratios"]))
+
+    slower = [synthetic_cold_record("slower-cold-$index"; scale = 1.2) for index in 1:3]
+    result = compare_cold_record_groups(baseline, slower)
+    @test result["comparable"]
+    @test !result["passed"]
+
+    other_host = [synthetic_cold_record("other-cold-$index";
+                      hardware_id = "other-host") for index in 1:3]
+    result = compare_cold_record_groups(baseline, other_host)
+    @test !result["comparable"]
+    @test any(contains("hardware_id"), result["issues"])
+
+    result = compare_cold_record_groups(baseline[1:2], faster)
+    @test !result["comparable"]
+    @test any(contains("at least 3"), result["issues"])
 end

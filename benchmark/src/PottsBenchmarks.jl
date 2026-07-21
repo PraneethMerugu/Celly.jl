@@ -3202,6 +3202,7 @@ function phase12_result(name::String, profile::String, device::String;
             "actual_proposal_counters" => true,
             "fresh_process_record" => true,
             "cold_tiers_require_separate_subprocess_records" => true,
+            "first_mcs_field_is_order_dependent_diagnostic" => true,
             "diagnostic_observations_excluded_from_warm_timing" => true,
             "declared_lifecycle_safety_observations_retained_in_warm_timing" => true,
             "gpu_timing_is_backend_synchronized" => true,

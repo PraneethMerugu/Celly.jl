@@ -14,8 +14,11 @@ versions, backend, authoritative hardware identity, Julia version, architecture,
 Julia thread count, precision, profile, tuning policy, workload inventory, algorithm, semantic model
 fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE`, not a ratio.
 
-The comparison independently gates steady MCS time, first-MCS time, backend-resident memory, and warm
-residency counters. A faster steady result cannot compensate for a failed first-use, memory,
+The warm comparison independently gates steady MCS time, backend-resident memory, and warm residency
+counters. Its per-workload `first_mcs_seconds` is explicitly an order-dependent diagnostic and is not
+a cold gate. Fresh-process `phase12-cold-run` records independently gate backend import, package
+import, authoring stages, initialization, and first synchronized MCS for each algorithm. A faster
+steady result cannot compensate for a failed cold, memory,
 allocation, transfer, or synchronization gate. Each scientific algorithm has its own steady-time
 geometric mean evaluated in ratio space; scientifically different algorithms never share an
 unlabeled mean. Every algorithm mean must not regress. The default per-workload regression and memory

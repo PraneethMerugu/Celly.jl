@@ -6,6 +6,7 @@ using TOML
 export PHASE12_SCHEMA_VERSION, PHASE12_CONTRACT_VERSION
 export load_record, validate_record, compatibility_issues
 export aggregate_records, compare_record_groups, print_comparison
+export load_cold_record, validate_cold_record, compare_cold_record_groups
 
 const PHASE12_SCHEMA_VERSION = "3.0.0"
 const PHASE12_CONTRACT_VERSION = "1.0.0"
@@ -48,6 +49,31 @@ const ZERO_WARM_METRICS = (
     "host_allocations",
     "device_allocations",
     "host_to_device_transfers",
+)
+
+const COLD_IDENTITY_KEYS = (
+    "contract_version",
+    "cold_workload_version",
+    "cold_harness_tree_sha256",
+    "backend",
+    "hardware_id",
+    "julia_version",
+    "architecture",
+    "os",
+    "julia_threads",
+    "precision",
+    "algorithm",
+)
+
+const COLD_METRIC_KEYS = (
+    "backend_import_seconds",
+    "package_import_seconds",
+    "model_construction_seconds",
+    "normalization_seconds",
+    "lowering_seconds",
+    "problem_construction_seconds",
+    "initialization_seconds",
+    "first_mcs_seconds",
 )
 
 function load_record(path::AbstractString)
@@ -277,7 +303,6 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
         memory_ratio = _ratio(after["median_backend_resident_bytes"],
             before["median_backend_resident_bytes"])
         workload_passed = steady_ratio <= 1 + regression_threshold &&
-                          first_ratio <= 1 + regression_threshold &&
                           memory_ratio <= 1 + memory_threshold
         passed &= workload_passed
         algorithm = before["algorithm"]
@@ -286,7 +311,7 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
             "passed" => workload_passed,
             "steady_seconds_ratio" => steady_ratio,
             "steady_throughput_ratio" => inv(steady_ratio),
-            "first_mcs_seconds_ratio" => first_ratio,
+            "order_dependent_first_mcs_seconds_ratio_diagnostic" => first_ratio,
             "backend_resident_bytes_ratio" => memory_ratio,
         )
     end
@@ -325,14 +350,15 @@ function print_comparison(io::IO, comparison::AbstractDict)
             comparison["algorithm_geometric_mean_steady_seconds_ratios"][algorithm];
             digits = 6))
     end
-    println(io, "| Workload | Steady time | Throughput | First MCS | Memory | Gate |")
+    println(io, "| Workload | Steady time | Throughput | First MCS diagnostic | Memory | Gate |")
     println(io, "|---|---:|---:|---:|---:|---:|")
     for name in sort!(collect(keys(comparison["workloads"])))
         result = comparison["workloads"][name]
         println(io, "| ", name, " | ",
             round(result["steady_seconds_ratio"]; digits = 6), " | ",
             round(result["steady_throughput_ratio"]; digits = 6), " | ",
-            round(result["first_mcs_seconds_ratio"]; digits = 6), " | ",
+            round(result["order_dependent_first_mcs_seconds_ratio_diagnostic"];
+                digits = 6), " | ",
             round(result["backend_resident_bytes_ratio"]; digits = 6), " | ",
             result["passed"] ? "pass" : "fail", " |")
     end
@@ -343,5 +369,102 @@ function print_comparison(io::IO, comparison::AbstractDict)
 end
 
 print_comparison(comparison::AbstractDict) = print_comparison(stdout, comparison)
+
+function validate_cold_record(record::AbstractDict)
+    issues = String[]
+    get(record, "schema_version", nothing) == PHASE12_SCHEMA_VERSION || push!(issues,
+        "schema_version must be $PHASE12_SCHEMA_VERSION")
+    get(record, "record_kind", nothing) == "phase12-cold-run" || push!(issues,
+        "record_kind must be phase12-cold-run")
+    identity = _table(record, "comparison_identity", issues, "cold record")
+    for key in COLD_IDENTITY_KEYS
+        haskey(identity, key) || push!(issues, "comparison_identity is missing `$key`")
+    end
+    get(identity, "contract_version", nothing) == PHASE12_CONTRACT_VERSION || push!(issues,
+        "contract_version must be $PHASE12_CONTRACT_VERSION")
+    run = _table(record, "run", issues, "cold record")
+    haskey(run, "process_id") || push!(issues, "run is missing `process_id`")
+    provenance = _table(record, "provenance", issues, "cold record")
+    for key in ("implementation_commit", "implementation_tree_sha256", "harness_commit",
+            "git_dirty")
+        haskey(provenance, key) || push!(issues, "provenance is missing `$key`")
+    end
+    get(provenance, "git_dirty", true) === false || push!(issues,
+        "authoritative Phase 12 cold records require a clean worktree")
+    metrics = _table(record, "metrics", issues, "cold record")
+    for key in COLD_METRIC_KEYS
+        haskey(metrics, key) || push!(issues, "cold metrics are missing `$key`")
+        haskey(metrics, key) && !_finite_nonnegative(metrics[key]) && push!(issues,
+            "cold metric `$key` must be finite and non-negative")
+    end
+    return issues
+end
+
+function load_cold_record(path::AbstractString)
+    record = TOML.parsefile(path)
+    issues = validate_cold_record(record)
+    isempty(issues) || throw(ArgumentError(
+        "invalid Phase 12 cold record $(abspath(path)):\n- " * join(issues, "\n- ")))
+    return record
+end
+
+function _cold_group_issues(records, label)
+    issues = String[]
+    isempty(records) && return ["$label cold group is empty"]
+    for (index, record) in pairs(records)
+        append!(issues,
+            ("$label cold record $index: $issue" for issue in validate_cold_record(record)))
+    end
+    isempty(issues) || return issues
+    first_record = first(records)
+    process_ids = String[]
+    for (index, record) in pairs(records)
+        append!(issues, ("$label cold record $index: $issue" for issue in _identity_issues(
+            first_record["comparison_identity"], record["comparison_identity"],
+            COLD_IDENTITY_KEYS, "cold comparison identity")))
+        push!(process_ids, string(record["run"]["process_id"]))
+    end
+    length(unique(process_ids)) == length(process_ids) || push!(issues,
+        "$label cold group contains repeated process_id values")
+    return unique!(issues)
+end
+
+function compare_cold_record_groups(baseline::AbstractVector, candidate::AbstractVector;
+        minimum_processes::Int = 3, regression_threshold::Real = 0.05)
+    0 <= regression_threshold < 1 || throw(ArgumentError(
+        "regression_threshold must lie in [0, 1)"))
+    issues = vcat(_cold_group_issues(baseline, "baseline"),
+        _cold_group_issues(candidate, "candidate"))
+    if isempty(issues) && !isempty(baseline) && !isempty(candidate)
+        append!(issues, _identity_issues(
+            first(baseline)["comparison_identity"], first(candidate)["comparison_identity"],
+            COLD_IDENTITY_KEYS, "cold comparison identity"))
+    end
+    length(baseline) >= minimum_processes || push!(issues,
+        "baseline requires at least $minimum_processes independent cold processes")
+    length(candidate) >= minimum_processes || push!(issues,
+        "candidate requires at least $minimum_processes independent cold processes")
+    isempty(issues) || return Dict(
+        "comparable" => false, "passed" => false, "issues" => unique!(issues))
+    ratios = Dict{String, Float64}()
+    passed = true
+    for key in COLD_METRIC_KEYS
+        before = median(Float64(record["metrics"][key]) for record in baseline)
+        after = median(Float64(record["metrics"][key]) for record in candidate)
+        ratio = _ratio(after, before)
+        ratios[key] = ratio
+        passed &= ratio <= 1 + regression_threshold
+    end
+    return Dict(
+        "schema_version" => PHASE12_SCHEMA_VERSION,
+        "contract_version" => PHASE12_CONTRACT_VERSION,
+        "comparable" => true,
+        "passed" => passed,
+        "regression_threshold" => Float64(regression_threshold),
+        "metric_ratios" => ratios,
+        "baseline_processes" => length(baseline),
+        "candidate_processes" => length(candidate),
+    )
+end
 
 end

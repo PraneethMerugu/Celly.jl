@@ -72,6 +72,15 @@ julia --project=benchmark benchmark/compare.jl \
 Smoke diagnostics may explicitly pass `--minimum-processes=1`; such output is not regression or
 paper evidence.
 
+Cold latency is measured in independent fresh processes and never inferred from the order-dependent
+first workload in a warm matrix. The cold workload uses the same conservative differential-adhesion
+model for all four compatible algorithms:
+
+```sh
+julia --project=benchmark benchmark/cold_repeat.jl \
+  --backend=cpu --repetitions=3
+```
+
 Every matrix now writes a versioned `phase10-reference-suite` TOML record in addition to the
 historical baselines. That record covers all five mandatory reference families, separates Level 2
 host stages from initialization and warm execution, and retains actual proposal accounting,
