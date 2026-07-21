@@ -19,7 +19,7 @@ precision in ("Float32", "Float64") || error(
     "Expected --precision=Float32 or Float64")
 backend != "cpu" && precision != "Float32" && error(
     "GPU Float64 performance is optional and not qualified in Phase 12")
-repetitions in (1, 3, 5) || error("Phase 12 repetitions must be 1, 3, or 5")
+repetitions in (1, 2, 3, 5) || error("Phase 12 repetitions must be 1, 2, 3, or 5")
 
 worker = joinpath(@__DIR__, "performance_worker.jl")
 project = Base.active_project()
