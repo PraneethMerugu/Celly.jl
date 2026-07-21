@@ -1,5 +1,7 @@
 module PottsBenchmarks
 
+include("Phase12Comparison.jl")
+
 using Adapt
 using BenchmarkTools
 using CorePotts
@@ -34,6 +36,7 @@ Phase11ExtensionEnergy(value::Real) = Phase10QualificationEnergy(Float32(value))
 
 const SCHEMA_VERSION = "1.0.0"
 const PHASE10_SCHEMA_VERSION = "2.1.0"
+const PHASE12_WORKLOAD_SET_VERSION = "paper-core-1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
@@ -3056,6 +3059,97 @@ function write_phase10_result(result)
     return path
 end
 
+function _phase12_workloads(reference_performance)
+    workloads = deepcopy(reference_performance["workloads"])
+    timed_mcs = reference_performance["samples"] * reference_performance["steps_per_sample"]
+    for workload in values(workloads)
+        workload["reusable_semantic_fingerprint"] = workload["semantic_fingerprint"]
+        workload["semantic_fingerprint"] = workload["problem_bound_semantic_fingerprint"]
+        workload["timed_mcs"] = timed_mcs
+    end
+    return workloads
+end
+
+function _phase12_process_id()
+    return get(ENV, "POTTS_BENCHMARK_PROCESS_ID",
+        string(Dates.format(now(UTC), dateformat"yyyymmddTHHMMSS.sss"), "-", getpid()))
+end
+
+function _phase12_tuning_policy()
+    policy = get(ENV, "POTTS_BENCHMARK_TUNING_POLICY", "conservative")
+    policy in ("conservative", "tuned") || throw(ArgumentError(
+        "POTTS_BENCHMARK_TUNING_POLICY must be conservative or tuned"))
+    return policy
+end
+
+"""Build one fresh-process Phase 12 performance record from qualified measurements."""
+function phase12_result(name::String, profile::String, device::String;
+        qualification, direct_comparison, reference_performance, checkpoint_performance)
+    provenance_data = provenance(name, device)
+    return Dict(
+        "schema_version" => Phase12Comparison.PHASE12_SCHEMA_VERSION,
+        "record_kind" => "phase12-performance-run",
+        "recorded_at_utc" => string(now(UTC)),
+        "comparison_identity" => Dict(
+            "contract_version" => Phase12Comparison.PHASE12_CONTRACT_VERSION,
+            "workload_set_version" => PHASE12_WORKLOAD_SET_VERSION,
+            "harness_tree_sha256" => provenance_data["harness_tree_sha256"],
+            "backend" => name,
+            "hardware_id" => provenance_data["hardware_id"],
+            "julia_version" => string(VERSION),
+            "architecture" => string(Sys.ARCH),
+            "os" => string(Sys.KERNEL),
+            "julia_threads" => Threads.nthreads(),
+            "precision" => "Float32",
+            "profile" => profile,
+            "tuning_policy" => _phase12_tuning_policy(),
+        ),
+        "run" => Dict(
+            "process_id" => _phase12_process_id(),
+            "independence_unit" => "fresh Julia process",
+            "samples_per_workload" => reference_performance["samples"],
+            "steps_per_sample" => reference_performance["steps_per_sample"],
+            "warmup_steps" => reference_performance["warmup_steps"],
+        ),
+        "provenance" => provenance_data,
+        "workloads" => _phase12_workloads(reference_performance),
+        "qualification" => qualification,
+        "direct_corepotts_comparison" => direct_comparison,
+        "checkpoint_performance" => checkpoint_performance,
+        "kernel_resource_evidence" => reference_performance["kernel_resource_evidence"],
+        "measurement_contract" => Dict(
+            "public_time_unit" => "MCS",
+            "actual_proposal_counters" => true,
+            "fresh_process_record" => true,
+            "cold_tiers_require_separate_subprocess_records" => true,
+            "diagnostic_observations_excluded_from_warm_timing" => true,
+            "declared_lifecycle_safety_observations_retained_in_warm_timing" => true,
+            "gpu_timing_is_backend_synchronized" => true,
+            "state_evolves_across_steady_samples" => true,
+            "regression_threshold_fraction" => 0.05,
+            "memory_threshold_fraction" => 0.05,
+        ),
+    )
+end
+
+function write_phase12_result(result)
+    issues = Phase12Comparison.validate_record(result)
+    isempty(issues) || error("refusing to write invalid Phase 12 result:\n- " *
+                             join(issues, "\n- "))
+    provenance_data = result["provenance"]
+    backend = result["comparison_identity"]["backend"]
+    profile = result["comparison_identity"]["profile"]
+    timestamp = Dates.format(now(UTC), dateformat"yyyymmddTHHMMSS")
+    directory = joinpath(RESULTS_ROOT, provenance_data["subject_id"], backend)
+    mkpath(directory)
+    path = joinpath(directory,
+        "$(timestamp)-phase12-performance-$(profile)-$(result["run"]["process_id"]).toml")
+    open(path, "w") do io
+        TOML.print(io, result; sorted = true)
+    end
+    return path
+end
+
 function _timed_scientific_steps!(integrator, steps::Int)
     KernelAbstractions.synchronize(integrator.plan.backend)
     elapsed = @elapsed begin
@@ -3382,6 +3476,49 @@ function source_tree_checksum()
     return bytes2hex(sha256(bytes))
 end
 
+function benchmark_harness_files()
+    roots = [
+        joinpath(REPOSITORY_ROOT, "benchmark", "Project.toml"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "Manifest.toml"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "matrix.jl"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "run.jl"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "src"),
+    ]
+    files = String[]
+    for root in roots
+        if isfile(root)
+            push!(files, root)
+        elseif isdir(root)
+            for (directory, _, names) in walkdir(root), name in names
+                endswith(name, ".jl") && push!(files, joinpath(directory, name))
+            end
+        end
+    end
+    return sort!(files)
+end
+
+function file_set_checksum(files)
+    bytes = UInt8[]
+    for file in files
+        append!(bytes, codeunits(relpath(file, REPOSITORY_ROOT)))
+        append!(bytes, read(file))
+    end
+    return bytes2hex(sha256(bytes))
+end
+
+function _cpu_model()
+    models = unique(info.model for info in Sys.cpu_info())
+    return isempty(models) ? "unknown" : join(models, "; ")
+end
+
+function _hardware_id(backend, device, cpu_model)
+    explicit = get(ENV, "POTTS_BENCHMARK_HARDWARE_ID", "")
+    isempty(explicit) || return explicit
+    identity = join((backend, device, string(Sys.KERNEL), string(Sys.ARCH), cpu_model,
+        string(Sys.CPU_THREADS)), "\0")
+    return "derived-" * first(bytes2hex(sha256(codeunits(identity))), 16)
+end
+
 function command_output(command; default = "unknown")
     try
         return strip(read(command, String))
@@ -3392,21 +3529,34 @@ end
 
 function provenance(backend::String, device::String)
     commit = command_output(`git -C $REPOSITORY_ROOT rev-parse HEAD`)
+    implementation_commit = command_output(`git -C $REPOSITORY_ROOT log -1 --format=%H -- Project.toml src ext lib test integration`)
     dirty_status = command_output(`git -C $REPOSITORY_ROOT status --short`; default = "")
     source_checksum = source_tree_checksum()
+    harness_checksum = file_set_checksum(benchmark_harness_files())
+    cpu_model = _cpu_model()
     return Dict(
         "git_commit" => commit,
+        "harness_commit" => commit,
+        "implementation_commit" => implementation_commit,
         "git_dirty" => !isempty(dirty_status),
         "source_tree_sha256" => source_checksum,
+        "implementation_tree_sha256" => source_checksum,
+        "harness_tree_sha256" => harness_checksum,
         "baseline_id" => string(first(commit, min(12, length(commit))), "-",
             first(source_checksum, 12)),
+        "subject_id" => string(first(implementation_commit,
+            min(12, length(implementation_commit))), "-", first(source_checksum, 12)),
         "julia_version" => string(VERSION),
         "os" => string(Sys.KERNEL),
         "architecture" => string(Sys.ARCH),
+        "cpu_model" => cpu_model,
         "cpu_threads" => Sys.CPU_THREADS,
         "julia_threads" => Threads.nthreads(),
         "backend" => backend,
         "device" => device,
+        "hardware_id" => _hardware_id(backend, device, cpu_model),
+        "power_mode" => get(ENV, "POTTS_BENCHMARK_POWER_MODE", "unreported"),
+        "thermal_state" => get(ENV, "POTTS_BENCHMARK_THERMAL_STATE", "unreported"),
         "kernel_intrinsics_source" => "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git",
         "kernel_intrinsics_commit" => "b3a02b6e80f0839082a02f1838af7e10e992062c"
     )

@@ -61,6 +61,14 @@ phase10_record = PottsBenchmarks.phase10_result(
     checkpoint_performance = phase8_performance)
 phase10_path = PottsBenchmarks.write_phase10_result(phase10_record)
 println("PHASE10_RESULT=", phase10_path)
+phase12_record = PottsBenchmarks.phase12_result(
+    backend, profile, phase10_device;
+    qualification = phase10_qualification,
+    direct_comparison = phase10_performance,
+    reference_performance = phase10_reference_performance,
+    checkpoint_performance = phase8_performance)
+phase12_path = PottsBenchmarks.write_phase12_result(phase12_record)
+println("PHASE12_RESULT=", phase12_path)
 phase9_performance = PottsBenchmarks.measure_phase9_backend(backend)
 println("PHASE9_PERFORMANCE=", phase9_performance)
 
