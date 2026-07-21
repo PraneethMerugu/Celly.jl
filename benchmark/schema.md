@@ -2,7 +2,7 @@
 
 ## Phase 10 reference-suite schema
 
-Schema version: `2.0.0`
+Schema version: `2.1.0`
 
 Each `phase10-reference-suite` TOML record is a self-contained artifact containing:
 
@@ -10,8 +10,9 @@ Each `phase10-reference-suite` TOML record is a self-contained artifact containi
   KernelIntrinsics provenance;
 - CPU/Metal/ROCm qualification for the Level 2 replacement slice and every mandatory reference
   workload;
-- separate model construction, normalization, lowering, problem construction, initialization,
-  first-MCS, and synchronized warm-MCS timings;
+- separate reusable-model construction and normalization, problem-field binding, bound-model
+  normalization, lowering, problem construction, initialization, first-MCS, and synchronized
+  warm-MCS timings;
 - raw and summary MCS/s samples plus actual scheduler, activated-attempt, realized-proposal, and
   accepted-copy throughput from `ScientificMCSReport`;
 - host allocations, device allocations, launches, transfers, engine synchronization, explicit
@@ -30,6 +31,12 @@ timed region. Diagnostic report and snapshot observations are measured separatel
 execution. A lifecycle capacity-failure observation is part of the monolayer step itself, so its
 declared synchronization and GPU transfer remain inside the timed region and are reported rather
 than hidden.
+
+Version `2.1.0` adds an explicit problem-binding stage to every reference workload. Workloads with
+reusable `Field` declarations record distinct reusable and problem-bound semantic fingerprints;
+workloads without problem-owned bindings use an identity stage and must retain the same fingerprint.
+This keeps prescribed field values in the problem while allowing lowering performance to be measured
+against the exact realized model that enters execution.
 
 ## Historical pre-refactor baseline schema
 

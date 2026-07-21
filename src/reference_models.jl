@@ -62,6 +62,12 @@ function chemotaxis_model(;
     return PottsModel(medium, cell, volume, adhesion, field, drive)
 end
 
+function _chemotaxis_field_binding(model::PottsModel,
+        shape::NTuple{N, <:Integer}, profile::Symbol) where {N}
+    field = only(value for value in model.declarations if value isa Field)
+    return field => _gradient_values(shape, profile)
+end
+
 """Construct an executable fixed-gradient chemotaxis reference problem."""
 function chemotaxis_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
         profile::Symbol = :linear, target_volume::Real = 32,
@@ -69,11 +75,11 @@ function chemotaxis_problem(shape::NTuple{N, <:Integer} = ntuple(_ -> 48, 2);
         kwargs...) where {N}
     model = chemotaxis_model(; target_volume, kwargs...)
     cell = only(value for value in model.declarations if value isa CellType)
-    field = only(value for value in model.declarations if value isa Field)
     layout = Layout(Place(cell, _ball_mask(shape, target_volume); identity = 1))
     domain = CartesianDomain(shape)
     return PottsProblem(model, domain, layout;
-        fields = (field => _gradient_values(shape, profile),), capacity, tspan, seed)
+        fields = (_chemotaxis_field_binding(model, shape, profile),),
+        capacity, tspan, seed)
 end
 
 single_cell_biased_migration_problem(args...; kwargs...) =

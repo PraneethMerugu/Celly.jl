@@ -33,7 +33,7 @@ CorePotts.component_semantic_data(component::Phase10QualificationEnergy) =
 Phase11ExtensionEnergy(value::Real) = Phase10QualificationEnergy(Float32(value))
 
 const SCHEMA_VERSION = "1.0.0"
-const PHASE10_SCHEMA_VERSION = "2.0.0"
+const PHASE10_SCHEMA_VERSION = "2.1.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
@@ -2682,13 +2682,30 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         throw(ArgumentError("Phase 10 profile must be smoke or full"))
     end
 
-    chemotaxis_spec(label, family, profile_name, seed) = (
-        label = label,
-        family = family,
+    measurement_spec(; label, family, dimensions, requires_lifecycle_observation,
+        model_builder, problem_builder, problem_binding_required = false,
+        problem_binding_builder = identity) = (
+        label,
+        family,
         scale = profile,
-        dimensions = length(migration_shape),
+        dimensions,
+        requires_lifecycle_observation,
+        problem_binding_required,
+        model_builder,
+        problem_binding_builder,
+        problem_builder,
+    )
+
+    chemotaxis_spec(label, family, profile_name, seed) = measurement_spec(;
+        label, family, dimensions = length(migration_shape),
         requires_lifecycle_observation = false,
+        problem_binding_required = true,
         model_builder = () -> references.chemotaxis_model(; target_volume),
+        problem_binding_builder = model ->
+            PottsToolkit.Authoring._realize_problem_fields(model,
+                PottsToolkit.CartesianDomain(migration_shape),
+                (references._chemotaxis_field_binding(
+                    model, migration_shape, profile_name),)),
         problem_builder = () -> references.chemotaxis_problem(
             migration_shape; profile = profile_name, target_volume,
             capacity = 4, tspan = (0, horizon), seed),
@@ -2702,10 +2719,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             :half_normal, 0x7068617365313103),
         chemotaxis_spec("chemotaxis_exponential", "prescribed_gradient_chemotaxis",
             :exponential, 0x7068617365313104),
-        (
+        measurement_spec(;
             label = "monolayer_growth",
             family = "monolayer_growth",
-            scale = profile,
             dimensions = length(migration_shape),
             requires_lifecycle_observation = true,
             model_builder = () -> references.monolayer_growth_model(
@@ -2715,10 +2731,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 16 : 128,
                 tspan = (0, horizon), seed = 0x7068617365313105),
         ),
-        (
+        measurement_spec(;
             label = "differential_adhesion",
             family = "differential_adhesion_sorting",
-            scale = profile,
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.differential_adhesion_model(
@@ -2729,10 +2744,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 8 : 64,
                 tspan = (0, horizon), seed = 0x7068617365313106),
         ),
-        (
+        measurement_spec(;
             label = "angiogenesis_2d",
             family = "elongation_driven_angiogenesis",
-            scale = profile,
             dimensions = length(angiogenesis_2d_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.elongation_driven_angiogenesis_model(
@@ -2745,10 +2759,9 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 capacity = profile == "smoke" ? 8 : 64,
                 tspan = (0, horizon), seed = 0x7068617365313107),
         ),
-        (
+        measurement_spec(;
             label = "angiogenesis_3d",
             family = "elongation_driven_angiogenesis",
-            scale = profile,
             dimensions = length(angiogenesis_3d_shape),
             requires_lifecycle_observation = false,
             model_builder = () -> references.elongation_driven_angiogenesis_model(
@@ -2847,8 +2860,14 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         model = model_timing.value
         normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
         normalized = normalization_timing.value
+        problem_binding_timing = @timed spec.problem_binding_builder(model)
+        problem_bound_model = problem_binding_timing.value
+        bound_normalization_timing =
+            @timed PottsToolkit.Authoring.normalize(problem_bound_model)
+        bound_normalized = bound_normalization_timing.value
         dimensions = spec.dimensions
-        lowering_timing = @timed PottsToolkit.Authoring.lower(model; dimensions)
+        lowering_timing =
+            @timed PottsToolkit.Authoring.lower(problem_bound_model; dimensions)
         lowered = lowering_timing.value
         problem_timing = @timed spec.problem_builder()
         problem = problem_timing.value
@@ -2914,8 +2933,13 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "$name $(spec.label) realized proposals exceed activated attempts")
         report.accepted_copies <= report.realized_proposals || error(
             "$name $(spec.label) accepted copies exceed realized proposals")
-        normalized.fingerprint.digest == lowered.normalized.fingerprint.digest || error(
-            "$name $(spec.label) lowering changed the semantic fingerprint")
+        bound_normalized.fingerprint.digest ==
+            lowered.normalized.fingerprint.digest || error(
+                "$name $(spec.label) lowering changed the semantic fingerprint")
+        binding_changed_fingerprint = normalized.fingerprint.digest !=
+                                      bound_normalized.fingerprint.digest
+        binding_changed_fingerprint == spec.problem_binding_required || error(
+            "$name $(spec.label) problem-binding fingerprint contract was violated")
         if profile == "smoke"
             n_cells(snapshot) >= n_cells(problem.u0) || error(
                 "$name $(spec.label) lost a finite cell in the timing smoke fixture")
@@ -2930,11 +2954,19 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "final_cells" => n_cells(snapshot),
             "algorithm" => string(nameof(typeof(algorithm))),
             "semantic_fingerprint" => normalized.fingerprint.digest,
+            "problem_bound_semantic_fingerprint" =>
+                bound_normalized.fingerprint.digest,
             "lowered_semantic_fingerprint" => lowered.normalized.fingerprint.digest,
+            "problem_binding_required" => spec.problem_binding_required,
+            "problem_binding_changed_fingerprint" => binding_changed_fingerprint,
             "model_construction_seconds" => model_timing.time,
             "model_construction_host_bytes" => model_timing.bytes,
             "normalization_seconds" => normalization_timing.time,
             "normalization_host_bytes" => normalization_timing.bytes,
+            "problem_binding_seconds" => problem_binding_timing.time,
+            "problem_binding_host_bytes" => problem_binding_timing.bytes,
+            "problem_bound_normalization_seconds" => bound_normalization_timing.time,
+            "problem_bound_normalization_host_bytes" => bound_normalization_timing.bytes,
             "lowering_seconds" => lowering_timing.time,
             "lowering_host_bytes" => lowering_timing.bytes,
             "problem_construction_seconds" => problem_timing.time,
