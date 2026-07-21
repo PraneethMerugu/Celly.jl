@@ -2400,6 +2400,13 @@ function qualify_phase11_backend(name::String)
         phase11_neighbor_mean = PottsToolkit.CellProperty(:phase11_neighbor_mean, cell;
             initial = 0.0f0, division = CloneOnDivision(),
             transition = PreserveOnTransition())
+        phase11_field = PottsToolkit.Field(:phase11_field;
+            boundary = PottsToolkit.FixedValue(0.0f0),
+            interpolation = PottsToolkit.Nearest())
+        phase11_chemotaxis = PottsToolkit.Chemotaxis(
+            phase11_field, cell => 0.0f0;
+            response = PottsToolkit.MichaelisMentenResponse(1.0f0),
+            mode = PottsToolkit.RetractionChemotaxis())
         phase11_rate = PottsToolkit.CellParameter(:phase11_rate, cell => 0.5f0)
         first_phase = PottsToolkit.Phase(:phase11_first)
         second_phase = PottsToolkit.Phase(:phase11_second; after = first_phase)
@@ -2436,7 +2443,7 @@ function qualify_phase11_backend(name::String)
             phase11_normal, phase11_direction, phase11_edges,
             phase11_boundary_sites, phase11_contact_measure, phase11_exact_widen,
             phase11_neighbor_count, phase11_neighbor_signal, phase11_neighbor_sum,
-            phase11_neighbor_mean, phase11_rate,
+            phase11_neighbor_mean, phase11_field, phase11_chemotaxis, phase11_rate,
             aging, uniform_rule, normal_rule, direction_rule, edge_rule,
             boundary_site_rule, contact_measure_rule, exact_widen_rule,
             neighbor_count_rule, neighbor_sum_rule, neighbor_mean_rule, dependent)
@@ -2450,8 +2457,9 @@ function qualify_phase11_backend(name::String)
             model, domain,
             PottsToolkit.Layout(PottsToolkit.LabelledCells(
                 labels, (1 => cell, 2 => cell)));
+            fields = (phase11_field => fill(1.0f0, shape),),
             capacity = 2, tspan = (0, 2), seed = 0x7068617365311000 + N)
-        algorithm = CheckerboardSweepCPM(temperature = 0.0f0)
+        algorithm = CheckerboardSweepCPM(temperature = 1.0f0)
         integrator = init(problem, algorithm;
             backend, adaptor, verbose = false,
             save_start = false, save_end = false)
@@ -2520,6 +2528,7 @@ function qualify_phase11_backend(name::String)
             "cell_parameter_value" => 0.5,
             "exact_output_conversion" => true,
             "exact_distinct_neighbor_queries" => true,
+            "level1_nearest_fixed_field" => true,
             "uniform_open_interval" => true,
             "normal_finite" => true,
             "unit_vector_norm" => sum(abs2, direction_value),

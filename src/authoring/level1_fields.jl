@@ -7,10 +7,22 @@ abstract type AbstractFieldBoundary end
 struct NoFlux <: AbstractFieldBoundary end
 """Periodic field boundary, independent of ownership-domain boundaries."""
 struct PeriodicField <: AbstractFieldBoundary end
+"""Fixed scalar field value on the selected boundary face or axis."""
+struct FixedValue{T <: AbstractFloat} <: AbstractFieldBoundary
+    value::T
+end
+function FixedValue(value::Real)
+    converted = float(value)
+    isfinite(converted) || throw(ArgumentError(
+        "a fixed field-boundary value must be finite"))
+    return FixedValue(converted)
+end
 
 abstract type AbstractFieldInterpolation end
 """Multilinear interpolation on the declared Cartesian field geometry."""
 struct Multilinear <: AbstractFieldInterpolation end
+"""Nearest-sample interpolation on the declared Cartesian field geometry."""
+struct Nearest <: AbstractFieldInterpolation end
 
 """Reusable field meaning whose concrete values are bound by a `PottsProblem`."""
 struct Field{P <: AbstractFieldPlacement, B, I <: AbstractFieldInterpolation}
@@ -35,7 +47,22 @@ semantic_identity(field::Field) = field.name
 _is_field_declaration(::Field) = true
 _field_declaration_dimension(::Field) = nothing
 _field_declaration_values(::Field) = ()
-_validate_declaration(::Field, context::_ValidationContext) = ()
+_fixed_field_boundaries(boundary::FixedValue) = (boundary,)
+_fixed_field_boundaries(boundaries::Tuple) = Tuple(boundary
+    for value in boundaries for boundary in _fixed_field_boundaries(value))
+_fixed_field_boundaries(boundary) = ()
+
+function _validate_declaration(field::Field, context::_ValidationContext)
+    T = _context_real_type(context)
+    unsafe = Tuple(typeof(boundary.value) for boundary in
+        _fixed_field_boundaries(field.boundary)
+        if !_exact_automatic_conversion(typeof(boundary.value), T))
+    isempty(unsafe) && return ()
+    return (Diagnostic(:error, :unsafe_field_boundary_conversion,
+        "fixed field-boundary values require an unsafe conversion to model precision";
+        identity = field.name, related = (unsafe..., T),
+        correction = "spell the boundary value in the model numerical type"),)
+end
 _normalize_component(field::Field, ::Type) = field
 _canonical_write(io::IO, field::Field) = _canonical_fields(io, field)
 _canonical_write(io::IO, value::Union{AbstractFieldPlacement,
@@ -59,23 +86,27 @@ function Chemotaxis(field::Field, pairs::Pair...; kwargs...)
     return _chemotaxis(semantic_identity(field), 0, Tuple(pairs); kwargs...)
 end
 
-function _core_field_boundary(::NoFlux)
+function _core_field_boundary(::NoFlux, ::Type)
     return CorePotts.AxisFieldBoundary(CorePotts.ZeroNeumannFieldBoundary())
 end
-function _core_field_boundary(::PeriodicField)
+function _core_field_boundary(::PeriodicField, ::Type)
     return CorePotts.AxisFieldBoundary(CorePotts.PeriodicFieldBoundary())
+end
+function _core_field_boundary(boundary::FixedValue, ::Type{T}) where {T}
+    return CorePotts.AxisFieldBoundary(CorePotts.DirichletFieldBoundary(T(boundary.value)))
 end
 
 _core_field_interpolation(::Multilinear) =
     CorePotts.MultilinearFieldInterpolation()
+_core_field_interpolation(::Nearest) = CorePotts.NearestFieldInterpolation()
 
-function _realized_field_boundaries(field::Field, ::Val{N}) where {N}
+function _realized_field_boundaries(field::Field, ::Val{N}, ::Type{T}) where {N, T}
     if field.boundary isa Tuple
         length(field.boundary) == N || throw(ArgumentError(
             "field boundary tuple must contain one value per problem axis"))
-        return ntuple(axis -> _core_field_boundary(field.boundary[axis]), Val(N))
+        return ntuple(axis -> _core_field_boundary(field.boundary[axis], T), Val(N))
     end
-    return ntuple(_ -> _core_field_boundary(field.boundary), Val(N))
+    return ntuple(_ -> _core_field_boundary(field.boundary, T), Val(N))
 end
 
 function _realize_field(field::Field, values::AbstractArray{<:Real, N},
@@ -86,9 +117,10 @@ function _realize_field(field::Field, values::AbstractArray{<:Real, N},
         "problem-bound fields must have a positive extent on every axis"))
     spacing = ntuple(axis ->
         domain.spacing[axis] * domain.dims[axis] / size(values, axis), Val(N))
+    T = promote_type(eltype(values), eltype(domain.spacing))
     return PrescribedField(field.name.name, values;
         namespace = field.name.namespace, spacing,
-        boundaries = _realized_field_boundaries(field, Val(N)),
+        boundaries = _realized_field_boundaries(field, Val(N), T),
         interpolation = _core_field_interpolation(field.interpolation))
 end
 

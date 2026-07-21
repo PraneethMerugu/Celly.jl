@@ -271,6 +271,30 @@ end
     @test_throws ArgumentError PottsToolkit.PottsProblem(
         PottsToolkit.PottsModel(medium, cell, volume), domain, layout;
         fields = (chemo => profile,), capacity = 2)
+
+    nearest = PottsToolkit.Field(:nearest_chemo;
+        boundary = (PottsToolkit.FixedValue(0.0f0), PottsToolkit.PeriodicField()),
+        interpolation = PottsToolkit.Nearest())
+    nearest_drive = PottsToolkit.Chemotaxis(nearest, cell => 1.0f0;
+        response = PottsToolkit.MichaelisMentenResponse(1.0f0),
+        mode = PottsToolkit.RetractionChemotaxis())
+    nearest_model = PottsToolkit.PottsModel(
+        medium, cell, volume, nearest, nearest_drive)
+    nearest_problem = PottsToolkit.PottsProblem(nearest_model, domain, layout;
+        fields = (nearest => profile,), capacity = 2, tspan = (0, 1), seed = 5)
+    nearest_components = CorePotts.realize_components(
+        nearest_problem.model, CorePotts.default_parameters(nearest_problem.model))
+    @test only(nearest_components.drives).field.interpolation isa
+          CorePotts.NearestFieldInterpolation
+    unsafe_boundary = PottsToolkit.Field(:unsafe_boundary;
+        boundary = PottsToolkit.FixedValue(0.0))
+    unsafe_boundary_report = PottsToolkit.validate(PottsToolkit.PottsModel(
+        medium, cell, volume, unsafe_boundary))
+    @test any(item -> item.code === :unsafe_field_boundary_conversion,
+        unsafe_boundary_report)
+    @test PottsToolkit.SequentialCPM === CorePotts.SequentialCPM
+    @test PottsToolkit.CheckerboardSweepCPM === CorePotts.CheckerboardSweepCPM
+    @test PottsToolkit.LotteryCPM === CorePotts.LotteryCPM
 end
 
 @testset "Level 1 phases, closed rules, and triggers" begin

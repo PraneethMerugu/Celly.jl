@@ -22,6 +22,7 @@ include("level1_rules.jl")
 include("level1_queries.jl")
 include("level1_runtime.jl")
 include("level1_fields.jl")
+include("level1_core_api.jl")
 include("level1_observables.jl")
 include("level1_units.jl")
 
@@ -75,8 +76,12 @@ export neighbor_cell_count, neighbor_property_sum, neighbor_property_mean
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
 export AbstractFieldPlacement, CellCentered
-export AbstractFieldBoundary, NoFlux, PeriodicField
-export AbstractFieldInterpolation, Multilinear, Field
+export AbstractFieldBoundary, NoFlux, PeriodicField, FixedValue
+export AbstractFieldInterpolation, Multilinear, Nearest, Field
+export LinearResponse, MichaelisMentenResponse, SaturationLinearResponse
+export ExtensionChemotaxis, RetractionChemotaxis, ReciprocalChemotaxis
+export PositiveYield, PropertyAtLeast
+export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM
 export AbstractScientificObservable, CellVolume, CellTypeObservable
 export CellBoundaryMeasure, CellPropertyValues, ObservationSet
 export CellValue, CellValues, CellFrame, CellSeries

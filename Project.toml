@@ -29,10 +29,11 @@ PottsToolkitUnitfulExt = "Unitful"
 [extras]
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [targets]
-test = ["KernelAbstractions", "Test", "Unitful"]
+test = ["KernelAbstractions", "Test", "TOML", "Unitful"]
 
 [workspace]
 projects = ["integration", "lib/CorePotts", "lib/MakiePotts", "lib/NeuralPotts"]

@@ -50,7 +50,12 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   Rule, RuleGroup, TriggerRule, EveryMCS, AtMCS, BetweenMCS,
                   evaluate, @rule, @rules, @trigger,
                   AbstractFieldPlacement, CellCentered, AbstractFieldBoundary,
-                  NoFlux, PeriodicField, AbstractFieldInterpolation, Multilinear, Field,
+                  NoFlux, PeriodicField, FixedValue, AbstractFieldInterpolation,
+                  Multilinear, Nearest, Field,
+                  LinearResponse, MichaelisMentenResponse, SaturationLinearResponse,
+                  ExtensionChemotaxis, RetractionChemotaxis, ReciprocalChemotaxis,
+                  PositiveYield, PropertyAtLeast,
+                  SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM,
                   AbstractScientificObservable, CellVolume, CellTypeObservable,
                   CellBoundaryMeasure, CellPropertyValues, ObservationSet,
                   CellValue, CellValues, CellFrame, CellSeries,
@@ -101,8 +106,12 @@ export neighbor_cell_count, neighbor_property_sum, neighbor_property_mean
 export EveryMCS, AtMCS, BetweenMCS, evaluate
 export @rule, @rules, @trigger
 export AbstractFieldPlacement, CellCentered
-export AbstractFieldBoundary, NoFlux, PeriodicField
-export AbstractFieldInterpolation, Multilinear, Field
+export AbstractFieldBoundary, NoFlux, PeriodicField, FixedValue
+export AbstractFieldInterpolation, Multilinear, Nearest, Field
+export LinearResponse, MichaelisMentenResponse, SaturationLinearResponse
+export ExtensionChemotaxis, RetractionChemotaxis, ReciprocalChemotaxis
+export PositiveYield, PropertyAtLeast
+export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM
 export AbstractScientificObservable, CellVolume, CellTypeObservable
 export CellBoundaryMeasure, CellPropertyValues, ObservationSet
 export CellValue, CellValues, CellFrame, CellSeries
