@@ -15,6 +15,16 @@ function directory_bytes(root)
     return bytes
 end
 
+function link_offline_sources!(isolated_depot)
+    for entry in ("packages", "artifacts", "registries", "clones", "dev")
+        source = findfirst(path -> isdir(joinpath(path, entry)), Base.DEPOT_PATH)
+        source === nothing && continue
+        symlink(joinpath(Base.DEPOT_PATH[source], entry), joinpath(isolated_depot, entry);
+            dir_target = true)
+    end
+    return isolated_depot
+end
+
 backend_name = option("backend", "cpu")
 backend_name in ("cpu", "metal", "amdgpu") || error(
     "Phase 12 precompile measurement requires cpu, metal, or amdgpu")
@@ -24,26 +34,27 @@ base_project = joinpath(@__DIR__, "Project.toml")
 backend_project = backend_name == "metal" ?
     joinpath(@__DIR__, "backends", "metal", "Project.toml") :
     joinpath(@__DIR__, "backends", "amdgpu", "Project.toml")
-separator = Sys.iswindows() ? ';' : ':'
 
-isolated_cache_bytes = Int64(0)
-base_precompile_seconds = 0.0
-backend_precompile_seconds = 0.0
-mktempdir() do isolated_depot
-    stacked_depot = join((isolated_depot, Base.DEPOT_PATH...), separator)
+base_precompile_seconds, backend_precompile_seconds, isolated_cache_bytes =
+        mktempdir() do isolated_depot
+    link_offline_sources!(isolated_depot)
     common_environment = (
-        "JULIA_DEPOT_PATH" => stacked_depot,
+        "JULIA_DEPOT_PATH" => isolated_depot,
         "JULIA_PKG_OFFLINE" => "true",
         "JULIA_PKG_PRECOMPILE_AUTO" => "0",
     )
     base_command = `$(Base.julia_cmd()) --project=$base_project --startup-file=no -e 'using Pkg; Pkg.precompile(; strict=true)'`
-    base_precompile_seconds = @elapsed run(addenv(base_command, common_environment...))
+    base_seconds = @elapsed run(addenv(base_command, common_environment...))
+    backend_seconds = 0.0
     if backend_name != "cpu"
         backend_command = `$(Base.julia_cmd()) --project=$backend_project --startup-file=no -e 'using Pkg; Pkg.precompile(; strict=true)'`
-        backend_precompile_seconds = @elapsed run(addenv(
+        backend_seconds = @elapsed run(addenv(
             backend_command, common_environment...))
     end
-    isolated_cache_bytes = directory_bytes(isolated_depot)
+    compiled_directory = joinpath(isolated_depot, "compiled")
+    cache_bytes = isdir(compiled_directory) ?
+        directory_bytes(compiled_directory) : Int64(0)
+    return base_seconds, backend_seconds, cache_bytes
 end
 
 # Provenance and serialization occur only after isolated precompilation has completed.

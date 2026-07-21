@@ -458,6 +458,12 @@ function validate_precompile_record(record::AbstractDict)
         haskey(metrics, key) && !_finite_nonnegative(metrics[key]) && push!(issues,
             "precompile metric `$key` must be finite and non-negative")
     end
+    get(metrics, "base_environment_precompile_seconds", 0) > 0 || push!(issues,
+        "base_environment_precompile_seconds must be positive for a fresh depot")
+    get(metrics, "total_precompile_seconds", 0) > 0 || push!(issues,
+        "total_precompile_seconds must be positive for a fresh depot")
+    get(metrics, "isolated_depot_bytes", 0) > 0 || push!(issues,
+        "isolated_depot_bytes must be positive for a fresh compiled cache")
     return issues
 end
 

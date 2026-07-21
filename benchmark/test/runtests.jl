@@ -254,6 +254,14 @@ end
     delete!(missing["metrics"], "isolated_depot_bytes")
     @test any(contains("isolated_depot_bytes"), validate_precompile_record(missing))
 
+    reused = deepcopy(record)
+    reused["metrics"]["base_environment_precompile_seconds"] = 0.0
+    reused["metrics"]["total_precompile_seconds"] = 0.0
+    reused["metrics"]["isolated_depot_bytes"] = 0
+    reused_issues = validate_precompile_record(reused)
+    @test any(contains("fresh depot"), reused_issues)
+    @test any(contains("fresh compiled cache"), reused_issues)
+
     baseline = [synthetic_precompile_record("baseline-precompile-$index") for index in 1:3]
     faster = deepcopy(baseline)
     for (index, candidate) in pairs(faster)
