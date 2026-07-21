@@ -44,9 +44,10 @@ JULIA_LOAD_PATH="benchmark/backends/metal:benchmark:@stdlib" \
 GPU samples synchronize the active KernelAbstractions backend inside the timed region. A GPU timing
 without this synchronization is invalid.
 
-Run a repeatable smoke or full matrix locally with `benchmark/matrix.jl`, or dispatch the
-`Benchmarks` GitHub workflow and download its machine-readable artifact. GPU jobs run only on
-explicitly enabled, trusted, backend-labeled self-hosted runners.
+Run the historical all-in-one qualification matrix locally with `benchmark/matrix.jl`. Phase 12
+performance decisions use the lean `benchmark/performance_worker.jl` through `repeat.jl`, or the
+`Benchmarks` GitHub workflow, so unrelated historical suites do not heat the runner or consume the
+timing window. GPU jobs run only on explicitly enabled, trusted, backend-labeled self-hosted runners.
 
 Launch independent fresh Julia processes with `benchmark/repeat.jl`. One process is diagnostic,
 three full processes are the minimum regression evidence, and five full processes qualify a paper
@@ -56,6 +57,11 @@ candidate:
 julia --project=benchmark benchmark/repeat.jl \
   --backend=cpu --profile=full --repetitions=3
 ```
+
+`full` retains the five-family small/medium latency and regression matrix. `throughput` uses the same
+scientific families and algorithm compatibility rules on 256² and 64³ lattices so GPU throughput is
+not inferred from launch-dominated toy domains. They are separate comparison identities and neither
+profile may compensate for a regression in the other.
 
 Phase 12 comparisons consume repeated fresh-process schema `3.0.0` records. The comparator refuses
 different hardware, precision, algorithm, model fingerprint, workload shape, or measurement-contract
@@ -92,6 +98,13 @@ the resulting cache size:
 julia --project=benchmark benchmark/precompile_repeat.jl \
   --backend=cpu --repetitions=3
 ```
+
+Backend-native profiling is a separate workflow because resource evidence is not portable across
+GPU families. `profile_metal.jl` captures GPUCompiler device code plus Metal's integrated
+chronological host/device trace. `profile_amdgpu.jl` captures GPUCompiler GCN and is run under
+`rocprofv3 --hip-trace --hsa-trace --kernel-trace`. Both cover the four scientific algorithms on
+the same differential-adhesion fixture and retain unavailable resource fields as unavailable rather
+than estimating register pressure from occupancy.
 
 Every matrix now writes a versioned `phase10-reference-suite` TOML record in addition to the
 historical baselines. That record covers all five mandatory reference families, separates Level 2

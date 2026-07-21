@@ -2671,6 +2671,10 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         angiogenesis_2d_cells = 3
         angiogenesis_3d_cells = 2
         angiogenesis_3d_target = 32
+        growth_capacity = 16
+        sorting_capacity = 8
+        angiogenesis_2d_capacity = 8
+        angiogenesis_3d_capacity = 4
     elseif profile == "full"
         migration_shape = (48, 48)
         sorting_shape = (32, 32)
@@ -2681,8 +2685,26 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         angiogenesis_2d_cells = 12
         angiogenesis_3d_cells = 8
         angiogenesis_3d_target = 64
+        growth_capacity = 128
+        sorting_capacity = 64
+        angiogenesis_2d_capacity = 64
+        angiogenesis_3d_capacity = 32
+    elseif profile == "throughput"
+        migration_shape = (256, 256)
+        sorting_shape = (256, 256)
+        angiogenesis_2d_shape = (256, 256)
+        angiogenesis_3d_shape = (64, 64, 64)
+        target_volume = 32
+        sorting_cells = 16
+        angiogenesis_2d_cells = 16
+        angiogenesis_3d_cells = 8
+        angiogenesis_3d_target = 64
+        growth_capacity = 128
+        sorting_capacity = 64
+        angiogenesis_2d_capacity = 64
+        angiogenesis_3d_capacity = 32
     else
-        throw(ArgumentError("Phase 10 profile must be smoke or full"))
+        throw(ArgumentError("Phase 12 profile must be smoke, full, or throughput"))
     end
 
     measurement_spec(; label, family, dimensions, requires_lifecycle_observation,
@@ -2736,7 +2758,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 target_volume = 8, division_target = 16),
             problem_builder = () -> references.monolayer_growth_problem(
                 migration_shape; target_volume = 8, division_target = 16,
-                capacity = profile == "smoke" ? 16 : 128,
+                capacity = growth_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313105),
         ),
         measurement_spec(;
@@ -2751,7 +2773,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             problem_builder = () -> references.differential_adhesion_problem(
                 sorting_shape; cells_per_population = sorting_cells,
                 target_volume = profile == "smoke" ? 16 : 20,
-                capacity = profile == "smoke" ? 8 : 64,
+                capacity = sorting_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313106),
         ),
         measurement_spec(;
@@ -2767,7 +2789,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 angiogenesis_2d_shape; cells = angiogenesis_2d_cells,
                 target_volume = 16,
                 target_elongation = profile == "smoke" ? 1.5 : 3,
-                capacity = profile == "smoke" ? 8 : 64,
+                capacity = angiogenesis_2d_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313107),
         ),
         measurement_spec(;
@@ -2783,7 +2805,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 angiogenesis_3d_shape; cells = angiogenesis_3d_cells,
                 target_volume = angiogenesis_3d_target,
                 target_elongation = profile == "smoke" ? 1.5 : 3,
-                capacity = profile == "smoke" ? 4 : 32,
+                capacity = angiogenesis_3d_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313108),
         ),
     )
@@ -3559,7 +3581,7 @@ end
 
 function benchmark_harness_files()
     roots = [
-        joinpath(REPOSITORY_ROOT, "benchmark", "matrix.jl"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "performance_worker.jl"),
         joinpath(REPOSITORY_ROOT, "benchmark", "src"),
     ]
     files = String[]

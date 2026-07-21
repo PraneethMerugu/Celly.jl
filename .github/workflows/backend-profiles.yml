@@ -1,0 +1,111 @@
+name: Backend profiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Native profiler target
+        type: choice
+        required: true
+        options: [metal, amdgpu]
+      subject_ref:
+        description: Immutable commit SHA to profile (defaults to the workflow commit)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-profile-${{ inputs.backend }}
+  cancel-in-progress: false
+
+env:
+  JULIA_VERSION: 1.12.6
+  JULIA_NUM_PRECOMPILE_TASKS: 2
+
+jobs:
+  metal:
+    name: Metal native profile
+    if: inputs.backend == 'metal' && vars.METAL_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, metal]
+    timeout-minutes: 45
+    env:
+      JULIA_LOAD_PATH: "benchmark/backends/metal:benchmark:@stdlib"
+      POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
+      POTTS_BENCHMARK_POWER_MODE: ac-power
+    defaults:
+      run:
+        working-directory: _ci/source
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete profile provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+          arch: aarch64
+          force-arch: true
+      - name: Instantiate Metal profile environment
+        env:
+          JULIA_LOAD_PATH: "@:@stdlib"
+        run: |
+          julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Capture Metal device code and chronological profile
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/profile_metal.jl
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-profile-metal-${{ inputs.subject_ref || github.sha }}
+          path: _ci/source/benchmark/results/
+          if-no-files-found: error
+
+  rocm:
+    name: ROCm native profile
+    if: inputs.backend == 'amdgpu' && vars.ROCM_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, rocm]
+    timeout-minutes: 45
+    env:
+      JULIA_LOAD_PATH: "benchmark/backends/amdgpu:benchmark:@stdlib"
+      POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
+      POTTS_BENCHMARK_POWER_MODE: ac-power
+    defaults:
+      run:
+        working-directory: _ci/source
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: _ci/source
+          ref: ${{ inputs.subject_ref || github.sha }}
+          fetch-depth: 0
+      - name: Verify complete profile provenance
+        run: test "$(git rev-parse --is-shallow-repository)" = "false"
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - name: Instantiate ROCm profile environment
+        env:
+          JULIA_LOAD_PATH: "@:@stdlib"
+        run: |
+          julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Require the authoritative ROCm profiler
+        run: command -v rocprofv3
+      - name: Capture ROCm GCN and Perfetto profile
+        run: |
+          mkdir -p benchmark/results/rocprof
+          ENABLE_JITPROFILING=1 POTTS_ROCPROF_TRACE_STATUS=captured rocprofv3 \
+            --output-directory benchmark/results/rocprof --output-format pftrace \
+            --hip-trace --hsa-trace --kernel-trace -- \
+            julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/profile_amdgpu.jl
+          find benchmark/results/rocprof -type f -name '*.pftrace' -size +0 -print -quit | grep .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-profile-rocm-${{ inputs.subject_ref || github.sha }}
+          path: _ci/source/benchmark/results/
+          if-no-files-found: error
