@@ -16,7 +16,8 @@ fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE
 
 The warm comparison independently gates steady MCS time, backend-resident memory, and warm residency
 counters. Its per-workload `first_mcs_seconds` is explicitly an order-dependent diagnostic and is not
-a cold gate. Fresh-process `phase12-cold-run` records independently gate backend import, package
+a cold gate. Fresh-depot `phase12-precompile-run` records measure offline base/backend precompilation
+and resulting cache bytes. Fresh-process `phase12-cold-run` records independently gate backend import, package
 import, authoring stages, initialization, and first synchronized MCS for each algorithm. A faster
 steady result cannot compensate for a failed cold, memory,
 allocation, transfer, or synchronization gate. Each scientific algorithm has its own steady-time

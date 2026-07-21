@@ -57,6 +57,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Measure offline CPU precompilation
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
@@ -89,6 +94,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Measure offline CPU precompilation
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
@@ -130,6 +140,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Measure offline Metal precompilation
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/precompile_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
       - name: Run independent Metal cold processes
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
@@ -169,6 +184,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Measure offline ROCm precompilation
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/precompile_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent ROCm cold processes
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1

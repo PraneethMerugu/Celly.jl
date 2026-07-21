@@ -7,6 +7,8 @@ export PHASE12_SCHEMA_VERSION, PHASE12_CONTRACT_VERSION
 export load_record, validate_record, compatibility_issues
 export aggregate_records, compare_record_groups, print_comparison
 export load_cold_record, validate_cold_record, compare_cold_record_groups
+export load_precompile_record, validate_precompile_record
+export compare_precompile_record_groups
 
 const PHASE12_SCHEMA_VERSION = "3.0.0"
 const PHASE12_CONTRACT_VERSION = "1.0.0"
@@ -74,6 +76,25 @@ const COLD_METRIC_KEYS = (
     "problem_construction_seconds",
     "initialization_seconds",
     "first_mcs_seconds",
+)
+
+const PRECOMPILE_IDENTITY_KEYS = (
+    "contract_version",
+    "precompile_workload_version",
+    "precompile_harness_tree_sha256",
+    "backend",
+    "hardware_id",
+    "julia_version",
+    "architecture",
+    "os",
+    "julia_threads",
+)
+
+const PRECOMPILE_METRIC_KEYS = (
+    "base_environment_precompile_seconds",
+    "backend_environment_precompile_seconds",
+    "total_precompile_seconds",
+    "isolated_depot_bytes",
 )
 
 function load_record(path::AbstractString)
@@ -406,6 +427,112 @@ function load_cold_record(path::AbstractString)
     isempty(issues) || throw(ArgumentError(
         "invalid Phase 12 cold record $(abspath(path)):\n- " * join(issues, "\n- ")))
     return record
+end
+
+function validate_precompile_record(record::AbstractDict)
+    issues = String[]
+    get(record, "schema_version", nothing) == PHASE12_SCHEMA_VERSION || push!(issues,
+        "schema_version must be $PHASE12_SCHEMA_VERSION")
+    get(record, "record_kind", nothing) == "phase12-precompile-run" || push!(issues,
+        "record_kind must be phase12-precompile-run")
+    identity = _table(record, "comparison_identity", issues, "precompile record")
+    for key in PRECOMPILE_IDENTITY_KEYS
+        haskey(identity, key) || push!(issues, "comparison_identity is missing `$key`")
+    end
+    get(identity, "contract_version", nothing) == PHASE12_CONTRACT_VERSION || push!(issues,
+        "contract_version must be $PHASE12_CONTRACT_VERSION")
+    run = _table(record, "run", issues, "precompile record")
+    haskey(run, "process_id") || push!(issues, "run is missing `process_id`")
+    get(run, "network_policy", nothing) == "offline" || push!(issues,
+        "precompile run must declare offline network policy")
+    provenance = _table(record, "provenance", issues, "precompile record")
+    for key in ("implementation_commit", "implementation_tree_sha256", "harness_commit",
+            "git_dirty")
+        haskey(provenance, key) || push!(issues, "provenance is missing `$key`")
+    end
+    get(provenance, "git_dirty", true) === false || push!(issues,
+        "authoritative Phase 12 precompile records require a clean worktree")
+    metrics = _table(record, "metrics", issues, "precompile record")
+    for key in PRECOMPILE_METRIC_KEYS
+        haskey(metrics, key) || push!(issues, "precompile metrics are missing `$key`")
+        haskey(metrics, key) && !_finite_nonnegative(metrics[key]) && push!(issues,
+            "precompile metric `$key` must be finite and non-negative")
+    end
+    return issues
+end
+
+function load_precompile_record(path::AbstractString)
+    record = TOML.parsefile(path)
+    issues = validate_precompile_record(record)
+    isempty(issues) || throw(ArgumentError(
+        "invalid Phase 12 precompile record $(abspath(path)):\n- " *
+        join(issues, "\n- ")))
+    return record
+end
+
+function _precompile_group_issues(records, label)
+    issues = String[]
+    isempty(records) && return ["$label precompile group is empty"]
+    for (index, record) in pairs(records)
+        append!(issues, ("$label precompile record $index: $issue" for issue in
+            validate_precompile_record(record)))
+    end
+    isempty(issues) || return issues
+    first_record = first(records)
+    process_ids = String[]
+    for (index, record) in pairs(records)
+        append!(issues, ("$label precompile record $index: $issue" for issue in
+            _identity_issues(first_record["comparison_identity"],
+                record["comparison_identity"], PRECOMPILE_IDENTITY_KEYS,
+                "precompile comparison identity")))
+        push!(process_ids, string(record["run"]["process_id"]))
+    end
+    length(unique(process_ids)) == length(process_ids) || push!(issues,
+        "$label precompile group contains repeated process_id values")
+    return unique!(issues)
+end
+
+function compare_precompile_record_groups(baseline::AbstractVector,
+        candidate::AbstractVector; minimum_processes::Int = 3,
+        regression_threshold::Real = 0.05, cache_threshold::Real = 0.05)
+    0 <= regression_threshold < 1 || throw(ArgumentError(
+        "regression_threshold must lie in [0, 1)"))
+    0 <= cache_threshold < 1 || throw(ArgumentError(
+        "cache_threshold must lie in [0, 1)"))
+    issues = vcat(_precompile_group_issues(baseline, "baseline"),
+        _precompile_group_issues(candidate, "candidate"))
+    if isempty(issues) && !isempty(baseline) && !isempty(candidate)
+        append!(issues, _identity_issues(
+            first(baseline)["comparison_identity"], first(candidate)["comparison_identity"],
+            PRECOMPILE_IDENTITY_KEYS, "precompile comparison identity"))
+    end
+    length(baseline) >= minimum_processes || push!(issues,
+        "baseline requires at least $minimum_processes independent precompile processes")
+    length(candidate) >= minimum_processes || push!(issues,
+        "candidate requires at least $minimum_processes independent precompile processes")
+    isempty(issues) || return Dict(
+        "comparable" => false, "passed" => false, "issues" => unique!(issues))
+    ratios = Dict{String, Float64}()
+    passed = true
+    for key in PRECOMPILE_METRIC_KEYS
+        before = median(Float64(record["metrics"][key]) for record in baseline)
+        after = median(Float64(record["metrics"][key]) for record in candidate)
+        ratio = _ratio(after, before)
+        ratios[key] = ratio
+        threshold = key == "isolated_depot_bytes" ? cache_threshold : regression_threshold
+        passed &= ratio <= 1 + threshold
+    end
+    return Dict(
+        "schema_version" => PHASE12_SCHEMA_VERSION,
+        "contract_version" => PHASE12_CONTRACT_VERSION,
+        "comparable" => true,
+        "passed" => passed,
+        "regression_threshold" => Float64(regression_threshold),
+        "cache_threshold" => Float64(cache_threshold),
+        "metric_ratios" => ratios,
+        "baseline_processes" => length(baseline),
+        "candidate_processes" => length(candidate),
+    )
 end
 
 function _cold_group_issues(records, label)

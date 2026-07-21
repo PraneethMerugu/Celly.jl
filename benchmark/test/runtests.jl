@@ -88,6 +88,40 @@ function synthetic_cold_record(process_id; scale = 1.0, hardware_id = "cpu-arm64
     )
 end
 
+function synthetic_precompile_record(process_id)
+    return Dict(
+        "schema_version" => PHASE12_SCHEMA_VERSION,
+        "record_kind" => "phase12-precompile-run",
+        "comparison_identity" => Dict(
+            "contract_version" => PHASE12_CONTRACT_VERSION,
+            "precompile_workload_version" => "isolated-environment-1.0.0",
+            "precompile_harness_tree_sha256" => "precompile-harness",
+            "backend" => "cpu",
+            "hardware_id" => "cpu-arm64-reference",
+            "julia_version" => "1.12.6",
+            "architecture" => "aarch64",
+            "os" => "Darwin",
+            "julia_threads" => 1,
+        ),
+        "run" => Dict(
+            "process_id" => process_id,
+            "network_policy" => "offline",
+        ),
+        "provenance" => Dict(
+            "implementation_commit" => "baseline-implementation",
+            "implementation_tree_sha256" => "tree",
+            "harness_commit" => "harness",
+            "git_dirty" => false,
+        ),
+        "metrics" => Dict(
+            "base_environment_precompile_seconds" => 10.0,
+            "backend_environment_precompile_seconds" => 0.0,
+            "total_precompile_seconds" => 10.0,
+            "isolated_depot_bytes" => 1000,
+        ),
+    )
+end
+
 @testset "Phase 12 comparison contract" begin
     baseline = [synthetic_record("baseline-$index"; steady = 1 + 0.01index)
                 for index in 1:3]
@@ -202,4 +236,41 @@ end
     result = compare_cold_record_groups(baseline[1:2], faster)
     @test !result["comparable"]
     @test any(contains("at least 3"), result["issues"])
+end
+
+@testset "Phase 12 precompile record contract" begin
+    record = synthetic_precompile_record("precompile-1")
+    @test isempty(validate_precompile_record(record))
+
+    online = deepcopy(record)
+    online["run"]["network_policy"] = "allow"
+    @test any(contains("offline"), validate_precompile_record(online))
+
+    dirty = deepcopy(record)
+    dirty["provenance"]["git_dirty"] = true
+    @test any(contains("clean worktree"), validate_precompile_record(dirty))
+
+    missing = deepcopy(record)
+    delete!(missing["metrics"], "isolated_depot_bytes")
+    @test any(contains("isolated_depot_bytes"), validate_precompile_record(missing))
+
+    baseline = [synthetic_precompile_record("baseline-precompile-$index") for index in 1:3]
+    faster = deepcopy(baseline)
+    for (index, candidate) in pairs(faster)
+        candidate["run"]["process_id"] = "candidate-precompile-$index"
+        for key in keys(candidate["metrics"])
+            candidate["metrics"][key] *= 0.9
+        end
+    end
+    comparison = compare_precompile_record_groups(baseline, faster)
+    @test comparison["comparable"]
+    @test comparison["passed"]
+
+    larger = deepcopy(faster)
+    for candidate in larger
+        candidate["metrics"]["isolated_depot_bytes"] = 1200
+    end
+    comparison = compare_precompile_record_groups(baseline, larger)
+    @test comparison["comparable"]
+    @test !comparison["passed"]
 end

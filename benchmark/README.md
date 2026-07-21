@@ -69,6 +69,9 @@ julia --project=benchmark benchmark/compare.jl \
   --candidate=candidate-run-3.toml --output=comparison.toml
 ```
 
+Use `--kind=cold` for algorithm-specific fresh-process records and `--kind=precompile` for
+fresh-depot tier-1 records. `warm` is the default.
+
 Smoke diagnostics may explicitly pass `--minimum-processes=1`; such output is not regression or
 paper evidence.
 
@@ -78,6 +81,15 @@ model for all four compatible algorithms:
 
 ```sh
 julia --project=benchmark benchmark/cold_repeat.jl \
+  --backend=cpu --repetitions=3
+```
+
+Tier-1 precompilation is measured offline in a fresh writable depot stacked over the already
+instantiated runner depot. This excludes package downloads while retaining both elapsed time and
+the resulting cache size:
+
+```sh
+julia --project=benchmark benchmark/precompile_repeat.jl \
   --backend=cpu --repetitions=3
 ```
 
