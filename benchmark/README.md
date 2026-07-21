@@ -48,6 +48,21 @@ Run a repeatable smoke or full matrix locally with `benchmark/matrix.jl`, or dis
 `Benchmarks` GitHub workflow and download its machine-readable artifact. GPU jobs run only on
 explicitly enabled, trusted, backend-labeled self-hosted runners.
 
+Phase 12 comparisons consume repeated fresh-process schema `3.0.0` records. The comparator refuses
+different hardware, precision, algorithm, model fingerprint, workload shape, or measurement-contract
+versions before calculating a performance ratio:
+
+```sh
+julia --project=benchmark benchmark/compare.jl \
+  --baseline=baseline-run-1.toml --baseline=baseline-run-2.toml \
+  --baseline=baseline-run-3.toml \
+  --candidate=candidate-run-1.toml --candidate=candidate-run-2.toml \
+  --candidate=candidate-run-3.toml --output=comparison.toml
+```
+
+Smoke diagnostics may explicitly pass `--minimum-processes=1`; such output is not regression or
+paper evidence.
+
 Every matrix now writes a versioned `phase10-reference-suite` TOML record in addition to the
 historical baselines. That record covers all five mandatory reference families, separates Level 2
 host stages from initialization and warm execution, and retains actual proposal accounting,

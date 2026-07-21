@@ -113,6 +113,10 @@ The focused Phase 12 interview owns only choices that measurements cannot make:
 Workgroup sizes, layouts, kernel fusion, primitive choice, and intrinsic use are not interview
 preferences. End-to-end profiles and backend evidence decide them.
 
+Accepted decisions are recorded in the
+[Phase 12 quantitative contract](phase-12-performance-contract.md). Once accepted there, an item is
+not reopened merely because an optimization would be easier under a weaker rule.
+
 ## Entry gate
 
 Phase 12 implementation begins with the accompanying chunk plan. Performance-changing work remains

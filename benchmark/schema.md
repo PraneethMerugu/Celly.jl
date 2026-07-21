@@ -1,5 +1,28 @@
 # Benchmark Result Schemas
 
+## Phase 12 performance schema
+
+Schema version: `3.0.0`
+
+Each `phase12-performance-run` record represents one fresh process. Three independent full records
+per baseline or candidate are required for an engineering regression decision, and five are required
+for a paper candidate. Samples within one process remain nested in that process and are not treated
+as independent process repetitions.
+
+Before comparing numbers, the comparator requires equality of the benchmark-contract and workload-set
+versions, backend, authoritative hardware identity, Julia version, architecture, operating system,
+Julia thread count, precision, profile, tuning policy, workload inventory, algorithm, semantic model
+fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE`, not a ratio.
+
+The comparison independently gates steady MCS time, first-MCS time, backend-resident memory, and warm
+residency counters. A faster steady result cannot compensate for a failed first-use, memory,
+allocation, transfer, or synchronization gate. The core steady-time geometric mean is evaluated in
+ratio space and must not regress. The default per-workload regression and memory threshold is 5%.
+
+Implementation provenance is distinct from harness provenance. Benchmark-only changes may improve
+measurement without pretending that the scientific implementation changed. Historical schema
+`2.1.0` remains readable evidence and is never rewritten as schema `3.0.0`.
+
 ## Phase 10 reference-suite schema
 
 Schema version: `2.1.0`
