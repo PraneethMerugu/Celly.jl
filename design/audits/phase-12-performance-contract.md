@@ -52,6 +52,11 @@ No performance trade can excuse changed scientific behavior, backend fallback, u
 allocation, transfer, or host synchronization. No accepted justification changes the meaning of a
 metric or makes scientifically incomparable records comparable.
 
+Accepted exceptions are enumerated in the machine-readable
+[`phase-12-accepted-regressions.toml`](phase-12-accepted-regressions.toml) ledger. An unlisted
+regression is not accepted, and each ledger entry must preserve the raw failing comparison rather
+than weakening a threshold.
+
 ## Accepted hardware and measurement policy
 
 ### 6. Authoritative CPU systems
