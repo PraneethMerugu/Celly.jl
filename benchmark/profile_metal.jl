@@ -41,8 +41,13 @@ for algorithm_name in Phase12BackendProfile.PROFILE_ALGORITHMS
         show(io, MIME"text/plain"(), profile_result)
         println(io)
     end
+    device_operation_count = sum(length, profile_result.device.ops; init = 0)
     profiles[algorithm_name] = Dict(
         "code" => Phase12BackendProfile.code_summary(code_directory),
+        "chronological_trace_enabled" => profile_result.trace,
+        "device_command_buffer_count" => length(profile_result.device.name),
+        "device_operation_count" => device_operation_count,
+        "host_trace_call_count" => length(profile_result.host_trace.name),
         "profile_text" => relpath(profile_path, directory),
         "profile_text_bytes" => filesize(profile_path),
         "profiled_mcs" => 5,

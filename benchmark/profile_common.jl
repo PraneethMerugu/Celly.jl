@@ -126,6 +126,16 @@ function write_record(directory::String, backend_name::String, provenance,
             "$algorithm_name did not execute the declared profile horizon")
         profile["profiled_wall_seconds"] > 0 || error(
             "$algorithm_name profile timing is not positive")
+        if haskey(profile, "chronological_trace_enabled")
+            profile["chronological_trace_enabled"] || error(
+                "$algorithm_name did not enable chronological trace capture")
+            profile["device_command_buffer_count"] > 0 || error(
+                "$algorithm_name chronological trace recorded no device command buffers")
+            profile["device_operation_count"] > 0 || error(
+                "$algorithm_name chronological trace recorded no GPU operations")
+            profile["profile_text_bytes"] > 0 || error(
+                "$algorithm_name chronological trace artifact is empty")
+        end
     end
     record = Dict(
         "schema_version" => PROFILE_SCHEMA_VERSION,
