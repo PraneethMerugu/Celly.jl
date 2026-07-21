@@ -21,6 +21,18 @@ on:
         required: true
         default: '1'
         options: ['1', '3', '5']
+      precision:
+        description: Numerical precision (Float64 is CPU-only in Phase 12)
+        type: choice
+        required: true
+        default: Float32
+        options: [Float32, Float64]
+      cpu_threads:
+        description: Julia threads on CPU (GPU jobs require 1)
+        type: choice
+        required: true
+        default: '1'
+        options: ['1', '2', '4', '8', physical]
       subject_ref:
         description: Immutable commit SHA to measure (defaults to the workflow commit)
         type: string
@@ -35,7 +47,7 @@ concurrency:
   # without letting a different profile or subject evict a pending run. GitHub
   # retains only one pending member of a concurrency group even when
   # cancel-in-progress is false.
-  group: benchmark-${{ inputs.backend }}-${{ inputs.profile }}-${{ inputs.subject_ref || github.sha }}
+  group: benchmark-${{ inputs.backend }}-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}-${{ inputs.subject_ref || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -44,7 +56,7 @@ env:
 
 jobs:
   cpu-arm64:
-    name: CPU ARM64 / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
+    name: CPU ARM64 / ${{ inputs.profile }} / ${{ inputs.precision }} / ${{ inputs.cpu_threads }} threads / ${{ inputs.repetitions }} processes
     if: inputs.backend == 'cpu-arm64' && vars.METAL_RUNNER_ENABLED == 'true'
     runs-on: [self-hosted, metal]
     timeout-minutes: 90
@@ -64,32 +76,43 @@ jobs:
           version: ${{ env.JULIA_VERSION }}
           arch: aarch64
           force-arch: true
+      - name: Configure fixed ARM64 physical-core count
+        shell: bash
+        run: |
+          physical="$(sysctl -n hw.physicalcpu)"
+          requested="${{ inputs.cpu_threads }}"
+          threads="$requested"
+          if [[ "$requested" == "physical" ]]; then threads="$physical"; fi
+          if (( threads < 1 || threads > physical )); then
+            echo "requested $threads Julia threads on a $physical-core host" >&2
+            exit 1
+          fi
+          echo "JULIA_NUM_THREADS=$threads" >> "$GITHUB_ENV"
+          echo "POTTS_BENCHMARK_CPU_AFFINITY=fixed-$threads-of-$physical-physical-cores; scheduler-managed on Darwin" >> "$GITHUB_ENV"
+          echo "POTTS_BENCHMARK_HARDWARE_ID=metal-runner-cpu-arm64-v1-$threads-physical-threads" >> "$GITHUB_ENV"
       - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent CPU processes
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --precision=${{ inputs.precision }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline CPU precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.precision == 'Float32' && inputs.profile != 'throughput'
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.precision == 'Float32' && inputs.profile != 'throughput'
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
+          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}threads-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
   cpu-x86_64:
-    name: CPU x86_64 / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
+    name: CPU x86_64 / ${{ inputs.profile }} / ${{ inputs.precision }} / ${{ inputs.cpu_threads }} threads / ${{ inputs.repetitions }} processes
     if: inputs.backend == 'cpu-x86_64' && vars.ROCM_RUNNER_ENABLED == 'true'
     runs-on: [self-hosted, rocm]
     timeout-minutes: 90
@@ -107,27 +130,42 @@ jobs:
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
-      - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Configure pinned x86_64 physical cores
+        shell: bash
+        run: |
+          mapfile -t physical_cpus < <(lscpu -p=CPU,CORE,SOCKET | awk -F, '!/^#/ && !seen[$2 FS $3]++ {print $1}')
+          physical="${#physical_cpus[@]}"
+          requested="${{ inputs.cpu_threads }}"
+          threads="$requested"
+          if [[ "$requested" == "physical" ]]; then threads="$physical"; fi
+          if (( threads < 1 || threads > physical )); then
+            echo "requested $threads Julia threads on a $physical-core host" >&2
+            exit 1
+          fi
+          selected=("${physical_cpus[@]:0:threads}")
+          cpuset="$(IFS=,; echo "${selected[*]}")"
+          echo "JULIA_NUM_THREADS=$threads" >> "$GITHUB_ENV"
+          echo "POTTS_BENCHMARK_CPUSET=$cpuset" >> "$GITHUB_ENV"
+          echo "POTTS_BENCHMARK_CPU_AFFINITY=taskset-one-logical-cpu-per-physical-core:$cpuset" >> "$GITHUB_ENV"
+          echo "POTTS_BENCHMARK_HARDWARE_ID=rocm-runner-cpu-x86_64-v1-$threads-pinned-physical-threads" >> "$GITHUB_ENV"
+      - run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent CPU processes
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --precision=${{ inputs.precision }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline CPU precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.precision == 'Float32' && inputs.profile != 'throughput'
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
+        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.precision == 'Float32' && inputs.profile != 'throughput'
         env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
+        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
+          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}threads-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
           path: _ci/source/benchmark/results/
           if-no-files-found: error
 
@@ -147,6 +185,8 @@ jobs:
           path: _ci/source
           ref: ${{ inputs.subject_ref || github.sha }}
           fetch-depth: 0
+      - name: Validate GPU benchmark policy
+        run: test "${{ inputs.precision }}" = "Float32" && test "${{ inputs.cpu_threads }}" = "1"
       - name: Verify complete benchmark provenance
         run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
@@ -164,7 +204,7 @@ jobs:
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --precision=Float32 --repetitions=${{ inputs.repetitions }}
       - name: Measure offline Metal precompilation
         if: inputs.profile != 'throughput'
         env:
@@ -199,6 +239,8 @@ jobs:
           path: _ci/source
           ref: ${{ inputs.subject_ref || github.sha }}
           fetch-depth: 0
+      - name: Validate GPU benchmark policy
+        run: test "${{ inputs.precision }}" = "Float32" && test "${{ inputs.cpu_threads }}" = "1"
       - name: Verify complete benchmark provenance
         run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
@@ -214,7 +256,7 @@ jobs:
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --precision=Float32 --repetitions=${{ inputs.repetitions }}
       - name: Measure offline ROCm precompilation
         if: inputs.profile != 'throughput'
         env:

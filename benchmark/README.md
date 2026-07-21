@@ -67,6 +67,11 @@ Phase 12 comparisons consume repeated fresh-process schema `3.0.0` records. The 
 different hardware, precision, algorithm, model fingerprint, workload shape, or measurement-contract
 versions before calculating a performance ratio:
 
+CPU workflow records distinguish `Float32` and `Float64` and accept `1`, `2`, `4`, `8`, or all
+physical cores. The Linux runner pins one logical CPU per physical core with `taskset`; the ARM64
+Darwin runner records a fixed thread count and its scheduler-managed affinity limitation. GPU
+performance qualification remains `Float32` with one Julia host thread.
+
 ```sh
 julia --project=benchmark benchmark/compare.jl \
   --baseline=baseline-run-1.toml --baseline=baseline-run-2.toml \
