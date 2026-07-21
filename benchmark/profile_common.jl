@@ -76,6 +76,14 @@ function _native_metadata(path::String)
     return metadata
 end
 
+function _native_compilation_jobs(path::String)
+    jobs = count(line -> startswith(line, "// CompilerJob"), eachline(path))
+    # The full `@device_code` dumper writes one native file per compilation job
+    # without a header. Native-only reflection writes every captured job to one
+    # aggregate file and prefixes each section with `// CompilerJob`.
+    return jobs == 0 && filesize(path) > 0 ? 1 : jobs
+end
+
 function code_summary(directory::String)
     files = sort!(String[joinpath(root, name)
         for (root, _, names) in walkdir(directory) for name in names])
@@ -93,6 +101,8 @@ function code_summary(directory::String)
         "file_count" => length(files),
         "total_bytes" => sum(filesize, files; init = 0),
         "native_file_count" => length(native_files),
+        "native_compilation_job_count" =>
+            sum(_native_compilation_jobs, native_files; init = 0),
         "native_code_bytes" => sum(filesize, native_files; init = 0),
         "native_files" => native,
     )
@@ -108,6 +118,8 @@ function write_record(directory::String, backend_name::String, provenance,
         code["file_count"] > 0 || error("$algorithm_name produced no device code")
         code["native_file_count"] > 0 || error(
             "$algorithm_name produced no backend-native code")
+        code["native_compilation_job_count"] > 0 || error(
+            "$algorithm_name produced no backend-native compilation jobs")
         code["native_code_bytes"] > 0 || error(
             "$algorithm_name backend-native code is empty")
         profile["profiled_mcs"] == 5 || error(

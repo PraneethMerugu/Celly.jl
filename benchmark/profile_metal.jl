@@ -17,13 +17,19 @@ for algorithm_name in Phase12BackendProfile.PROFILE_ALGORITHMS
     integrator = Phase12BackendProfile.prepare_integrator(
         backend_name, backend, algorithm_name)
     code_directory = joinpath(directory, algorithm_name, "device-code")
-    # Compile the KernelAbstractions launches before asking GPUCompiler to
-    # reflect them. Reflecting the entire cold high-level step can encounter
-    # transient LLVM address-space mismatches even though the kernels execute
-    # correctly; the captured step below still exercises every resident kernel.
+    # Compile and execute the ordinary KernelAbstractions path before reflection.
+    # The umbrella `@device_code` dumper also asks GPUCompiler for unoptimized
+    # LLVM, whose Metal address-space representation is not verifier-clean on
+    # Julia 1.12.6 even though the optimized native kernels execute correctly.
+    # Native-only AIR reflection captures every compilation job needed by the
+    # resident step without requesting that irrelevant intermediate form.
     Phase12BackendProfile.synchronized_steps!(integrator, 1)
-    Metal.@device_code dir=code_directory begin
-        Phase12BackendProfile.synchronized_steps!(integrator, 1)
+    mkpath(code_directory)
+    native_path = joinpath(code_directory, "captured-kernels.asm")
+    open(native_path, "w") do io
+        Metal.@device_code_air io=io dump_module=true raw=true begin
+            Phase12BackendProfile.synchronized_steps!(integrator, 1)
+        end
     end
     profiled_seconds = Ref(0.0)
     profile_result = Metal.@profile trace=true begin
