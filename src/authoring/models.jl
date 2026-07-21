@@ -7,21 +7,72 @@ struct ModelFragment
 end
 
 _fragment_reference(identity::SemanticName) = identity
+_fragment_reference(role::AbstractFragmentRole) = role
 _fragment_reference(value) = semantic_identity(value)
+_fragment_export(identity::SemanticName) = identity
+_fragment_export(value) = semantic_identity(value)
 
 function ModelFragment(name::Symbol, declarations...; namespace::Namespace = Namespace(),
-        requirements = (), exports = ())
-    normalized_requirements = Tuple(_fragment_reference(value) for value in requirements)
-    normalized_exports = Tuple(_fragment_reference(value) for value in exports)
-    length(unique(normalized_requirements)) == length(normalized_requirements) ||
+        requires = (), requirements = nothing, exports = ())
+    requirements === nothing || isempty(requires) || throw(ArgumentError(
+        "use either `requires` or `requirements`, not both"))
+    requested = requirements === nothing ? requires : requirements
+    normalized_requirements = Tuple(_fragment_reference(value) for value in requested)
+    normalized_exports = Tuple(_fragment_export(value) for value in exports)
+    requirement_identities = Tuple(semantic_identity(value)
+        for value in normalized_requirements)
+    length(unique(requirement_identities)) == length(requirement_identities) ||
         throw(ArgumentError("fragment requirements must be unique"))
     length(unique(normalized_exports)) == length(normalized_exports) ||
         throw(ArgumentError("fragment exports must be unique"))
+    role_identities = Tuple(semantic_identity(value) for value in normalized_requirements
+        if value isa AbstractFragmentRole)
+    declaration_identities = Tuple(semantic_identity(value) for value in declarations)
+    isempty(intersect(Set(role_identities), Set(declaration_identities))) ||
+        throw(ArgumentError(
+            "fragment role identities must be distinct from direct declaration identities"))
     return ModelFragment(SemanticName(name; namespace), Tuple(declarations),
         normalized_requirements, normalized_exports)
 end
 
 semantic_identity(fragment::ModelFragment) = fragment.name
+
+_role_accepts(::CellRole, value) = value isa CellType
+_role_accepts(::FieldRole, value) = _is_field_declaration(value)
+_role_expected(::CellRole) = "CellType"
+_role_expected(::FieldRole) = "Field or PrescribedField"
+
+"""
+    bind(fragment, role => value...)
+
+Return an immutable fragment with the supplied typed requirements substituted. Partial binding is
+allowed for inspection; composing a fragment with unresolved roles produces structured validation
+diagnostics and cannot construct a problem.
+"""
+function bind(fragment::ModelFragment, pairs::Pair...)
+    roles = Tuple(requirement for requirement in fragment.requirements
+        if requirement isa AbstractFragmentRole)
+    supplied = Tuple(first(pair) for pair in pairs)
+    all(value -> value isa AbstractFragmentRole, supplied) || throw(ArgumentError(
+        "fragment bindings must use CellRole or FieldRole keys"))
+    length(unique(supplied)) == length(supplied) || throw(ArgumentError(
+        "each fragment role may be bound at most once"))
+    all(role -> role in roles, supplied) || throw(ArgumentError(
+        "a binding key is not a requirement of this fragment"))
+    for pair in pairs
+        role, value = pair
+        _role_accepts(role, value) || throw(ArgumentError(
+            "$(role) requires $(_role_expected(role)), not $(typeof(value))"))
+    end
+    mapping = Tuple(semantic_identity(first(pair)) => semantic_identity(last(pair))
+        for pair in pairs)
+    declarations = Tuple(_scope_declaration(declaration, fragment, mapping)
+        for declaration in fragment.declarations)
+    remaining = Tuple(requirement for requirement in fragment.requirements
+        if !(requirement isa AbstractFragmentRole && requirement in supplied))
+    exports = Tuple(_mapped_identity(mapping, exported) for exported in fragment.exports)
+    return ModelFragment(fragment.name, declarations, remaining, exports)
+end
 
 function _prepend_namespace(prefix::Namespace, identity::SemanticName)
     return SemanticName(Namespace((prefix.parts..., identity.namespace.parts...)), identity.name)
@@ -215,7 +266,8 @@ end
 
 function _scope_declaration(child::ModelFragment, fragment::ModelFragment, mapping)
     name = _mapped_identity(mapping, child.name)
-    requirements = Tuple(_mapped_identity(mapping, value) for value in child.requirements)
+    requirements = Tuple(value isa AbstractFragmentRole ? value :
+        _mapped_identity(mapping, value) for value in child.requirements)
     return ModelFragment(name, child.declarations, requirements, child.exports)
 end
 

@@ -377,11 +377,19 @@ function _fragment_diagnostics(fragment::ModelFragment, declared::Tuple)
             correction = "remove the export or add a declaration with that identity"),))
     end
     for requirement in fragment.requirements
-        requirement in declared || (diagnostics = (diagnostics..., Diagnostic(
-            :error, :unsatisfied_fragment_requirement,
-            "fragment requirement is not provided by the composed model";
-            identity = fragment.name, related = (requirement,), fragment = fragment.name,
-            correction = "compose a provider for the required identity"),))
+        if requirement isa AbstractFragmentRole
+            diagnostics = (diagnostics..., Diagnostic(
+                :error, :unresolved_fragment_role,
+                "fragment has an unbound typed requirement";
+                identity = fragment.name, related = (requirement,), fragment = fragment.name,
+                correction = "bind the role explicitly before constructing a problem"))
+        elseif requirement ∉ declared
+            diagnostics = (diagnostics..., Diagnostic(
+                :error, :unsatisfied_fragment_requirement,
+                "fragment requirement is not provided by the composed model";
+                identity = fragment.name, related = (requirement,), fragment = fragment.name,
+                correction = "compose a provider for the required identity"))
+        end
     end
     for declaration in _scoped_fragment_declarations(fragment)
         declaration isa ModelFragment || continue

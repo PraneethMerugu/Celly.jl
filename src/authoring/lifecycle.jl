@@ -1,11 +1,14 @@
 function _lifecycle_scope(cell_types::Tuple)
     isempty(cell_types) && throw(ArgumentError(
         "a lifecycle declaration must target at least one cell type"))
-    return Tuple(sort!(unique!(collect(cell_types)); by = _identity_text))
+    all(_is_cell_reference, cell_types) || throw(ArgumentError(
+        "lifecycle declarations must target CellType or CellRole values"))
+    return Tuple(sort!(unique!(collect(_cell_reference.(cell_types)));
+        by = _identity_text))
 end
 
 """Convenience spelling for deterministic finite-cell target-volume growth."""
-Growth(source, cell_types::CellType...; rate::Real,
+Growth(source, cell_types...; rate::Real,
         name::Symbol = :growth, namespace::Namespace = Namespace(), kwargs...) =
     PropertyUpdate(source, cell_types...; name, namespace,
         role = :target, amount = rate, kwargs...)
@@ -21,15 +24,17 @@ struct Transition{S <: CorePotts.AbstractMCSSchedule,
     priority::Int32
 end
 
-function Transition(cell_types::CellType...; destination::CellType,
+function Transition(cell_types...; destination,
         name::Symbol = :transition, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
         trigger = CorePotts.AlwaysLifecycleTrigger(),
         priority::Integer = 0)
     typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
         "lifecycle priority must fit Int32"))
+    _is_cell_reference(destination) || throw(ArgumentError(
+        "transition destinations must be a CellType or CellRole"))
     return Transition(SemanticName(name; namespace), _lifecycle_scope(cell_types),
-        destination, schedule, _lifecycle_trigger(trigger), Int32(priority))
+        _cell_reference(destination), schedule, _lifecycle_trigger(trigger), Int32(priority))
 end
 
 semantic_identity(rule::Transition) = rule.name
@@ -46,7 +51,7 @@ struct Division{S <: CorePotts.AbstractMCSSchedule,
     priority::Int32
 end
 
-function Division(cell_types::CellType...;
+function Division(cell_types...;
         geometry::CorePotts.AbstractDivisionGeometry,
         name::Symbol = :division, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
@@ -72,7 +77,7 @@ struct ShrinkDeath{T <: AbstractFloat, S <: CorePotts.AbstractMCSSchedule,
     priority::Int32
 end
 
-function ShrinkDeath(source, cell_types::CellType...; decrement::Real,
+function ShrinkDeath(source, cell_types...; decrement::Real,
         name::Symbol = :shrink_death, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
         trigger = CorePotts.AlwaysLifecycleTrigger(),
@@ -102,7 +107,7 @@ struct ImmediateDeath{S <: CorePotts.AbstractMCSSchedule,
 end
 
 
-function ImmediateDeath(cell_types::CellType...; medium::Medium,
+function ImmediateDeath(cell_types...; medium::Medium,
         name::Symbol = :immediate_death, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
         trigger = CorePotts.AlwaysLifecycleTrigger(),

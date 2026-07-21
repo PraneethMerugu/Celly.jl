@@ -27,6 +27,7 @@ include("level1_observables.jl")
 include("level1_units.jl")
 
 export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
+export AbstractFragmentRole, CellRole, FieldRole
 export Binding, BindingTable, PairIdentity, PairwiseLaw
 export AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval
 export PropertyVisibility, PublicProperty, PrivateProperty
@@ -42,7 +43,7 @@ export PrescribedField, Chemotaxis
 export PropertyUpdate, StochasticPropertyUpdate
 export Growth, Transition, Division, ShrinkDeath, ImmediateDeath
 export NamedCoreComponent
-export ModelFragment, PottsModel, NormalizedModel
+export ModelFragment, bind, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance
 export dependencies
 export CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem, validate_problem

@@ -60,6 +60,34 @@ function Base.show(io::IO, name::SemanticName)
 end
 
 abstract type AbstractBiologicalType end
+abstract type AbstractFragmentRole end
+
+"""Typed finite-cell requirement used by a reusable `ModelFragment`."""
+struct CellRole <: AbstractFragmentRole
+    identity::SemanticName
+end
+
+CellRole(name::Symbol; namespace::Namespace = Namespace()) =
+    CellRole(SemanticName(name; namespace))
+
+"""Typed field requirement used by a reusable `ModelFragment`."""
+struct FieldRole <: AbstractFragmentRole
+    identity::SemanticName
+end
+
+FieldRole(name::Symbol; namespace::Namespace = Namespace()) =
+    FieldRole(SemanticName(name; namespace))
+
+const FragmentRole = Union{CellRole, FieldRole}
+
+semantic_identity(role::FragmentRole) = role.identity
+_identity_text(role::FragmentRole) = _identity_text(role.identity)
+Base.:(==)(left::T, right::T) where {T <: FragmentRole} =
+    left.identity == right.identity
+Base.hash(role::CellRole, seed::UInt) = hash((:cell_role, role.identity), seed)
+Base.hash(role::FieldRole, seed::UInt) = hash((:field_role, role.identity), seed)
+Base.show(io::IO, role::CellRole) = print(io, "CellRole(", repr(role.identity.name), ')')
+Base.show(io::IO, role::FieldRole) = print(io, "FieldRole(", repr(role.identity.name), ')')
 
 """A named finite-cell category. It is never a runtime cell-type index."""
 struct CellType <: AbstractBiologicalType
@@ -79,6 +107,10 @@ Medium(name::Symbol; namespace::Namespace = Namespace()) =
 
 semantic_identity(value::Union{CellType, Medium}) = value.identity
 _identity_text(value::Union{CellType, Medium}) = _identity_text(semantic_identity(value))
+
+_cell_reference(value::CellType) = value
+_cell_reference(role::CellRole) = CellType(role.identity)
+_is_cell_reference(value) = value isa Union{CellType, CellRole}
 
 Base.:(==)(left::CellType, right::CellType) = left.identity == right.identity
 Base.:(==)(left::Medium, right::Medium) = left.identity == right.identity

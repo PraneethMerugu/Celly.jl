@@ -6,6 +6,7 @@ include("authoring/Authoring.jl")
 include("reference_models.jl")
 
 using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Medium,
+                  AbstractFragmentRole, CellRole, FieldRole,
                   Binding, BindingTable, PairIdentity, PairwiseLaw,
                   AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval,
                   PropertyVisibility, PublicProperty, PrivateProperty,
@@ -18,7 +19,7 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   Adhesion, PreserveConnectivity, PrescribedField, Chemotaxis,
                   PropertyUpdate, StochasticPropertyUpdate, Growth, Transition,
                   Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent,
-                  ModelFragment, PottsModel, NormalizedModel, add, remove, replace,
+                  ModelFragment, bind, PottsModel, NormalizedModel, add, remove, replace,
                   compose, normalize, validate, explain, provenance, dependencies,
                   CellLayout, CellLabelLayout, MediumLayout, LoweredModel, lower, problem,
                   validate_problem, backend_report, semantic_identity,
@@ -64,6 +65,7 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
 
 export Authoring, ReferenceModels
 export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
+export AbstractFragmentRole, CellRole, FieldRole
 export Binding, BindingTable, PairIdentity, PairwiseLaw
 export AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval
 export PropertyVisibility, PublicProperty, PrivateProperty
@@ -76,7 +78,7 @@ export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint
 export Adhesion, PreserveConnectivity, PrescribedField, Chemotaxis
 export PropertyUpdate, StochasticPropertyUpdate, Growth, Transition
 export Division, ShrinkDeath, ImmediateDeath, NamedCoreComponent
-export ModelFragment, PottsModel, NormalizedModel
+export ModelFragment, bind, PottsModel, NormalizedModel
 export add, remove, replace, compose, normalize, validate, explain, provenance, dependencies
 export CellLayout, CellLabelLayout, MediumLayout, LoweredModel
 export lower, problem, validate_problem, backend_report

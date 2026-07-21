@@ -6,5 +6,6 @@ using CorePotts
     include("test_level2_authoring.jl")
     include("test_level1_authoring.jl")
     include("test_phase11_equivalence.jl")
+    include("test_phase11_fragments.jl")
     include("test_phase11_inventory.jl")
 end

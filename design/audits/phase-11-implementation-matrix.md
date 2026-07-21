@@ -10,7 +10,7 @@ applicable execution evidence exist. Passing an older Level 2 test does not comp
 
 | Contract area | Required public spelling | Required evidence | Status |
 |---|---|---|---|
-| Biological identities | `CellType`, `Medium`, typed roles | constructor, namespace, role-binding, collision, display tests | Cell/medium implemented at Level 2; roles pending |
+| Biological identities | `CellType`, `Medium`, typed roles | constructor, namespace, role-binding, collision, display tests | cell/medium plus open `AbstractFragmentRole` with built-in `CellRole` and `FieldRole`; category and identity-collision fixtures are green |
 | State and data ownership | `CellProperty`, `CellParameter`, `ModelParameter` | ownership/type/lifecycle validation and callable-reference tests | immutable parameter reads lower into the typed rule program; missing per-cell-type bindings are rejected before execution |
 | Exact mechanics | `Volume`, `Surface`, `Elongation`, `Adhesion`, `PreserveConnectivity` | Level 1/2 fingerprint equality plus CPU/Metal/ROCm execution | final volume/surface and pair-law spelling implemented; distinct Level 1/2 spellings have equal-fingerprint fixtures; backend matrix pending |
 | Stateful mechanics | `FluctuatingVolumePressure`, `FluctuatingSurfaceTension`, explicit noise | exact names, initialization/division policies, backend execution | final wrappers and mandatory explicit noise implemented; both wrappers have equal-fingerprint Level 2 fixtures; backend matrix pending |
@@ -18,7 +18,7 @@ applicable execution evidence exist. Passing an older Level 2 test does not comp
 | Geometry | `CartesianDomain`, typed boundaries and spacing | 2D/3D construction, mixed-boundary and invalid-geometry diagnostics | final vocabulary implemented; Level 1 defaults to portable `Float32` spacing while preserving explicitly requested wider precision |
 | Layout | `Layout`, `Place`, masks/labels/shapes, `UniformSiteSeeds`, `SequentialRejectionPlacement` | overlap policy, deterministic seed, capacity and device-residency reports | explicit masks/labels and addressed uniform/rejection procedural layouts implemented; deterministic replay, bounded failure, capacity/eligibility, provisional-ID, semantic-name, RNG-operation, and dimensional diagnostics are green; initialization remains intentionally host-finalized and produces the one backend-portable CorePotts state |
 | Model/problem | flat immutable `PottsModel`; direct `PottsProblem` constructor | immutable revision, `remake`, fixed capacity/seed, no runtime wrapper | final direct constructor and problem-owned field binding implemented; returns CorePotts problem directly |
-| Composition | `ModelFragment`, roles, explicit binding, `add/remove/replace/compose` | namespace, dependency, conflict, unresolved-role tests | fragments/revision implemented; roles pending |
+| Composition | `ModelFragment`, roles, explicit binding, `add/remove/replace/compose` | namespace, dependency, conflict, unresolved-role tests | immutable typed `bind(fragment, role => value)` substitutes through mechanics, properties, parameters, fields, and lifecycle declarations; partial/unbound roles remain inspectable but reject runnable models; explicit-model fingerprint plus CPU/real-Metal 2D/3D execution fixtures are green with zero warm-step sync/transfer/allocation |
 
 ## Rules, lifecycle, and queries
 
