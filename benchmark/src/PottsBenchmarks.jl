@@ -3559,10 +3559,7 @@ end
 
 function benchmark_harness_files()
     roots = [
-        joinpath(REPOSITORY_ROOT, "benchmark", "Project.toml"),
-        joinpath(REPOSITORY_ROOT, "benchmark", "Manifest.toml"),
         joinpath(REPOSITORY_ROOT, "benchmark", "matrix.jl"),
-        joinpath(REPOSITORY_ROOT, "benchmark", "run.jl"),
         joinpath(REPOSITORY_ROOT, "benchmark", "src"),
     ]
     files = String[]
@@ -3573,6 +3570,18 @@ function benchmark_harness_files()
             for (directory, _, names) in walkdir(root), name in names
                 endswith(name, ".jl") && push!(files, joinpath(directory, name))
             end
+        end
+    end
+    return sort!(files)
+end
+
+function benchmark_environment_files()
+    roots = [joinpath(REPOSITORY_ROOT, "benchmark")]
+    files = String[]
+    for root in roots
+        for (directory, _, names) in walkdir(root), name in names
+            name in ("Project.toml", "Manifest.toml") &&
+                push!(files, joinpath(directory, name))
         end
     end
     return sort!(files)
@@ -3614,6 +3623,7 @@ function provenance(backend::String, device::String)
     dirty_status = command_output(`git -C $REPOSITORY_ROOT status --short`; default = "")
     source_checksum = source_tree_checksum()
     harness_checksum = file_set_checksum(benchmark_harness_files())
+    environment_checksum = file_set_checksum(benchmark_environment_files())
     cpu_model = _cpu_model()
     return Dict(
         "git_commit" => commit,
@@ -3623,6 +3633,7 @@ function provenance(backend::String, device::String)
         "source_tree_sha256" => source_checksum,
         "implementation_tree_sha256" => source_checksum,
         "harness_tree_sha256" => harness_checksum,
+        "benchmark_environment_sha256" => environment_checksum,
         "baseline_id" => string(first(commit, min(12, length(commit))), "-",
             first(source_checksum, 12)),
         "subject_id" => string(first(implementation_commit,

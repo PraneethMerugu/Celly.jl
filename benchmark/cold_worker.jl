@@ -76,8 +76,6 @@ using TOML
 
 provenance = PottsBenchmarks.provenance(backend_name, string(backend))
 cold_harness_files = [
-    joinpath(@__DIR__, "Project.toml"),
-    joinpath(@__DIR__, "Manifest.toml"),
     joinpath(@__DIR__, "cold_worker.jl"),
 ]
 cold_harness_checksum = PottsBenchmarks.file_set_checksum(cold_harness_files)

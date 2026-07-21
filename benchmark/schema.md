@@ -28,6 +28,12 @@ Implementation provenance is distinct from harness provenance. Benchmark-only ch
 measurement without pretending that the scientific implementation changed. Historical schema
 `2.1.0` remains readable evidence and is never rewritten as schema `3.0.0`.
 
+The warm and cold harness identities hash measurement code, not dependency lockfiles. Exact
+benchmark `Project.toml` and `Manifest.toml` contents are retained separately as
+`benchmark_environment_sha256` provenance. This permits a dependency or precompilation optimization
+to be measured as part of the candidate implementation without pretending that the timing procedure
+changed; reviewers can still detect and audit every environment difference.
+
 ## Phase 10 reference-suite schema
 
 Schema version: `2.1.0`

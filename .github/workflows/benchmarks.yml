@@ -57,6 +57,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Run independent CPU cold processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
@@ -84,6 +89,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Run independent CPU cold processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
@@ -120,6 +130,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Run independent Metal cold processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/cold_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
@@ -154,6 +169,11 @@ jobs:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
+      - name: Run independent ROCm cold processes
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/cold_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ github.sha }}
