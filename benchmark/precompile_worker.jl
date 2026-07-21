@@ -40,6 +40,7 @@ base_precompile_seconds, backend_precompile_seconds, isolated_cache_bytes =
     link_offline_sources!(isolated_depot)
     common_environment = (
         "JULIA_DEPOT_PATH" => isolated_depot,
+        "JULIA_LOAD_PATH" => "@:@stdlib",
         "JULIA_PKG_OFFLINE" => "true",
         "JULIA_PKG_PRECOMPILE_AUTO" => "0",
     )
