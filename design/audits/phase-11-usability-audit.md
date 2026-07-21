@@ -1,8 +1,8 @@
 # Phase 11 complete-script usability audit
 
-Status: Local candidate pass; authoritative backend CI pending
+Status: Complete; exact-head CPU/Metal/ROCm CI pass
 
-Date: 2026-07-20
+Date: 2026-07-21
 
 ## Scope
 
@@ -37,11 +37,11 @@ routes rather than receiving a premature biological name.
 
 | Family | Natural Level 1 construction | Runtime evidence | Finding |
 |---|---|---|---|
-| Biased migration and three chemotaxis profiles | reusable `Field`, explicit problem binding, `Volume`, `Adhesion`, `Chemotaxis`, `Layout` | CPU and real Metal | pass |
-| Differential adhesion | two `CellType`s, complete symmetric `PairwiseLaw`, labelled deterministic seed | CPU and real Metal | pass |
-| Monolayer growth | `Growth`, typed division geometry and threshold, explicit capacity | CPU and real Metal, one declared division-observation boundary | pass |
-| Elongation-driven angiogenesis | exact `Elongation`, optional `PreserveConnectivity`, 2D/3D labelled seeds | CPU and real Metal in 2D/3D | pass |
-| Single-cell fluctuation | explicit stateful mechanical family and explicit noise policy | CPU and real Metal | pass |
+| Biased migration and three chemotaxis profiles | reusable `Field`, explicit problem binding, `Volume`, `Adhesion`, `Chemotaxis`, `Layout` | CPU, real Metal, real ROCm | pass |
+| Differential adhesion | two `CellType`s, complete symmetric `PairwiseLaw`, labelled deterministic seed | CPU, real Metal, real ROCm | pass |
+| Monolayer growth | `Growth`, typed division geometry and threshold, explicit capacity | CPU/Metal/ROCm, one declared division-observation boundary | pass |
+| Elongation-driven angiogenesis | exact `Elongation`, optional `PreserveConnectivity`, 2D/3D labelled seeds | CPU/Metal/ROCm in 2D/3D | pass |
+| Single-cell fluctuation | explicit stateful mechanical family and explicit noise policy | CPU, real Metal, real ROCm | pass |
 
 Ordinary warm MCS paths introduce zero host synchronization, zero device-to-host transfer, and zero
 device allocation. Workloads that must observe division success retain exactly one declared host
@@ -55,9 +55,11 @@ observation boundary. This is an explicit lifecycle contract, not hidden fallbac
 - Macro expansion is tested to perform no lowering, compilation, backend selection, synchronization,
   or simulation execution.
 - The complete paper-scope scalar operation inventory compiles and executes in the permanent 2D/3D
-  CPU/Metal rule qualification with zero warm host synchronization, transfer, or device allocation.
+  CPU/Metal/ROCm rule qualification with zero warm host synchronization, transfer, or device
+  allocation.
 - Downstream custom physics uses ordinary CorePotts subtyping and public methods, composes through
-  an ordinary Level 1 constructor, and executes on CPU and real Metal without a central type switch.
+  an ordinary Level 1 constructor, and executes on CPU, real Metal, and real ROCm without a central
+  type switch.
 - Typed fragment roles are reusable and resolve before lowering; no mutable global registry exists.
 
 ## Deliberately deferred additions
@@ -69,5 +71,5 @@ not ship provisional implementations merely to mark them present. They can be ad
 with CPU/GPU conformance evidence without changing the current architecture.
 
 Final quantitative regression budgets, export/version freeze, and tutorial/documentation migration
-remain the explicit responsibilities of Phases 12, 13, and 14. The Phase 11 branch must still pass
-authoritative CPU, Metal, and ROCm CI before its completion record can be marked final.
+remain the explicit responsibilities of Phases 12, 13, and 14. Exact-head authoritative CPU,
+Metal, and ROCm CI is recorded in the Phase 11 completion audit.

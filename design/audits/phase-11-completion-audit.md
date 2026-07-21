@@ -1,27 +1,26 @@
 # Phase 11 PottsToolkit Level 1 DSL completion audit
 
-Status: Local candidate complete; authoritative protected CPU/Metal/ROCm CI pending
+Status: Complete; exact-head protected CPU/Metal/ROCm CI green
 
-Date: 2026-07-20
+Date: 2026-07-21
 
-Implementation evidence head: `5667a58`
+Implementation evidence head: `1d850f2b7064b367b5f206451a0c9f00d5490ea8`
 
 ## Verdict
 
-The Phase 11 paper-scope implementation is locally complete. PottsToolkit now supplies one
+The Phase 11 paper-scope implementation is complete. PottsToolkit now supplies one
 Julia-first Level 1 authoring surface over the sole immutable Level 2 semantic path and the sole
 CorePotts/SciML runtime. The implementation meets the roadmap exit gate without restoring the
 historical compiler, creating a runtime wrapper, or pulling additive future language features into
 the refactor.
 
-Phase 11 is a completion candidate rather than an authoritative completion until the exact branch
-head passes protected CPU, real-Metal, and real-ROCm CI. Quantitative performance qualification,
-final API/version freeze, and manual tutorial/documentation migration remain owned by Phases 12,
-13, and 14.
+The exact implementation head passes protected package, integration, documentation, x86_64 CPU,
+ARM64 CPU, real-Metal, and real-ROCm CI. Quantitative performance qualification, final API/version
+freeze, and manual tutorial/documentation migration remain owned by Phases 12, 13, and 14.
 
 ## Exit-gate evidence
 
-| Phase 11 requirement | Evidence | Candidate result |
+| Phase 11 requirement | Evidence | Result |
 |---|---|---|
 | Thin hygienic macros over programmatic builders | `@rule`, `@rules`, `@trigger`, typed expression nodes, macro/programmatic fingerprint fixture | pass |
 | Closed Julia-first rule subset | allow/deny scalar parser inventory, exact output typing, typed draws and queries | pass for paper scope |
@@ -30,8 +29,8 @@ final API/version freeze, and manual tutorial/documentation migration remain own
 | Final paper-scope model spelling | immutable identities, properties, parameters, fields, layouts, fragments/roles, models, problems, rules, observables, reports, and solution-side units | pass |
 | At least 95% stable-component spelling | machine-readable inventory: 72/73 | 98.63%, pass |
 | Level 1/2 semantic equivalence | exact/stateful mechanics and growth fingerprints; field-bound public semantic data; exact policy and algorithm aliases | pass |
-| Five paper reference families | chemotaxis, differential adhesion, monolayer growth, 2D/3D angiogenesis, fluctuation | CPU and real Metal pass |
-| Downstream custom physics | zero-Core-edit energy subtype and ordinary Level 1 constructor, no registry or central type switch | CPU/real Metal 2D/3D pass |
+| Five paper reference families | chemotaxis, differential adhesion, monolayer growth, 2D/3D angiogenesis, fluctuation | CPU, real Metal, and real ROCm pass |
+| Downstream custom physics | zero-Core-edit energy subtype and ordinary Level 1 constructor, no registry or central type switch | CPU/Metal/ROCm 2D/3D pass |
 | No duplicate or legacy modeling path | hard legacy-containment script and frozen historical inventories | pass |
 | Complete-script usability | [Phase 11 usability audit](phase-11-usability-audit.md) | pass for all five families |
 
@@ -54,6 +53,27 @@ All commands used Julia 1.12.6.
 | Structure and Julia-target check | pass |
 | Hard legacy containment | pass |
 | Documentation generator | completes; historical tutorial execution warnings remain assigned to Phase 14 |
+
+## Authoritative CI verification
+
+Draft [PR #11](https://github.com/PraneethMerugu/Potts.jl/pull/11) verifies branch head
+`1d850f2b7064b367b5f206451a0c9f00d5490ea8`. GitHub checked the corresponding synthetic PR merge
+revision `aa219a7a4174e266c6915b4c489df30920e64414`; both identifiers are retained in the uploaded
+artifact provenance, with no dirty worktree or post-hoc artifact edit.
+
+| Protected workflow | Run | Result |
+|---|---|---:|
+| Documentation | [29803609628](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29803609628) | pass |
+| Packages, four integration shards, structure, legacy containment, x86_64 CPU, ARM64 CPU, required aggregate | [29803609629](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29803609629) | pass |
+| Real Metal and real ROCm GPU validation plus artifact upload | [29803609678](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29803609678) | pass |
+
+The GPU run emitted schema `2.1.0` reference-suite artifacts from both backends. That schema records
+reusable-model normalization, explicit problem-field binding, bound-model normalization, and
+lowering separately. All four chemotaxis workloads prove that binding changes the fingerprint and
+that lowering preserves the bound fingerprint; non-field workloads prove the identity-binding path.
+Both uploaded TOML records were downloaded and parsed independently: each contains eight workloads,
+four required-and-changed binding records, four identity-and-unchanged records, and exact equality
+between every problem-bound and lowered fingerprint.
 
 The permanent Phase 11 backend workload executes the complete paper-scope scalar operation
 inventory, all four addressed draw families, exact output widening, ordered and simultaneous rules,
@@ -91,9 +111,7 @@ export, extension point, diagnostic, display, and contract version. Phase 14 mus
 the historical tutorials and documentation; the current generator deliberately reports their old
 API usage rather than reintroducing compatibility aliases.
 
-## Final closure action
+## Closure
 
-Publish this branch and require the protected CPU/package, Metal, ROCm, integration, structure,
-legacy-containment, and documentation workflows on one exact head. After those checks pass, record
-the workflow run and exact commit here, change the roadmap status from `Candidate` to `Complete`,
-and merge before beginning Phase 12.
+Phase 11 is complete on the exact PR head above. PR #11 remains the reviewed integration vehicle;
+merge it before beginning Phase 12 so performance work starts from the protected completion head.
