@@ -11,6 +11,7 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   PropertyVisibility, PublicProperty, PrivateProperty,
                   PropertyPersistence, CheckpointedProperty, EphemeralProperty,
                   PropertyOptionality, RequiredProperty, OptionalProperty, CellProperty,
+                  CellParameter, ModelParameter,
                   VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint,
                   ElongationParameters, Elongation,
                   BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint,
@@ -25,7 +26,18 @@ using .Authoring: Namespace, SemanticName, AbstractBiologicalType, CellType, Med
                   SourceLocation, Diagnostic, ValidationReport, ModelValidationError,
                   ProblemValidationError, ModelReport, DeclarationReport, DependencyEdge,
                   DependencyReport, ProvenanceEntry, SemanticFingerprint,
-                  ExecutionFingerprint, SemanticManifest
+                  ExecutionFingerprint, SemanticManifest,
+                  AbstractLevel1Declaration, Volume, Surface,
+                  FluctuatingVolumePressure, FluctuatingSurfaceTension,
+                  AcceptanceTemperature, IndependentNoise,
+                  AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue,
+                  Layout, Place, LabelledCells, CartesianDomain, PeriodicBoundary,
+                  ClosedBoundary, FixedExterior, AxisBoundary, PottsProblem,
+                  Phase, AbstractRuleExpression, RuleLiteral, OwnerReference,
+                  PropertyRead, CellParameterRead, ModelParameterRead,
+                  ScalarCall, ConditionalExpression, NoChange,
+                  Rule, RuleGroup, TriggerRule, EveryMCS, AtMCS, BetweenMCS,
+                  evaluate, @rule, @rules, @trigger
 
 export Authoring, ReferenceModels
 export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
@@ -34,6 +46,7 @@ export AbstractPropertyInvariant, UnboundedProperty, ClosedPropertyInterval
 export PropertyVisibility, PublicProperty, PrivateProperty
 export PropertyPersistence, CheckpointedProperty, EphemeralProperty
 export PropertyOptionality, RequiredProperty, OptionalProperty, CellProperty
+export CellParameter, ModelParameter
 export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
 export ElongationParameters, Elongation
 export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint
@@ -48,5 +61,17 @@ export semantic_identity, semantic_fingerprint, execution_fingerprint, semantic_
 export SourceLocation, Diagnostic, ValidationReport, ModelValidationError, ProblemValidationError
 export ModelReport, DeclarationReport, DependencyEdge, DependencyReport, ProvenanceEntry
 export SemanticFingerprint, ExecutionFingerprint, SemanticManifest
+export AbstractLevel1Declaration, Volume, Surface
+export FluctuatingVolumePressure, FluctuatingSurfaceTension
+export AcceptanceTemperature, IndependentNoise
+export AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue
+export Layout, Place, LabelledCells
+export CartesianDomain, PeriodicBoundary, ClosedBoundary, FixedExterior, AxisBoundary
+export PottsProblem
+export Phase, AbstractRuleExpression, RuleLiteral, OwnerReference, PropertyRead
+export CellParameterRead, ModelParameterRead
+export ScalarCall, ConditionalExpression, NoChange, Rule, RuleGroup, TriggerRule
+export EveryMCS, AtMCS, BetweenMCS, evaluate
+export @rule, @rules, @trigger
 
 end

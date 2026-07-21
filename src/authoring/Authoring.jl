@@ -15,6 +15,8 @@ include("reports.jl")
 include("models.jl")
 include("normalization.jl")
 include("lowering.jl")
+include("level1.jl")
+include("level1_rules.jl")
 
 export Namespace, SemanticName, AbstractBiologicalType, CellType, Medium
 export Binding, BindingTable, PairIdentity, PairwiseLaw
@@ -23,6 +25,7 @@ export PropertyVisibility, PublicProperty, PrivateProperty
 export PropertyPersistence, CheckpointedProperty, EphemeralProperty
 export PropertyOptionality, RequiredProperty, OptionalProperty
 export CellProperty
+export CellParameter, ModelParameter
 export VolumeParameters, VolumeConstraint, FluctuatingVolumeConstraint
 export ElongationParameters, Elongation
 export BoundaryParameters, BoundaryConstraint, FluctuatingBoundaryConstraint, Adhesion
@@ -43,5 +46,17 @@ export ProblemValidationError, ModelReport
 export DeclarationReport, DependencyEdge, DependencyReport, ProvenanceEntry
 export SemanticFingerprint, ExecutionFingerprint
 export SemanticManifest
+export AbstractLevel1Declaration, Volume, Surface
+export FluctuatingVolumePressure, FluctuatingSurfaceTension
+export AcceptanceTemperature, IndependentNoise
+export AbstractMissingPairPolicy, RejectMissingPairs, DefaultPairValue
+export Layout, Place, LabelledCells
+export CartesianDomain, PeriodicBoundary, ClosedBoundary, FixedExterior, AxisBoundary
+export PottsProblem
+export Phase, AbstractRuleExpression, RuleLiteral, OwnerReference, PropertyRead
+export CellParameterRead, ModelParameterRead
+export ScalarCall, ConditionalExpression, NoChange, Rule, RuleGroup, TriggerRule
+export EveryMCS, AtMCS, BetweenMCS, evaluate
+export @rule, @rules, @trigger
 
 end

@@ -24,12 +24,12 @@ end
 function Transition(cell_types::CellType...; destination::CellType,
         name::Symbol = :transition, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger(),
+        trigger = CorePotts.AlwaysLifecycleTrigger(),
         priority::Integer = 0)
     typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
         "lifecycle priority must fit Int32"))
     return Transition(SemanticName(name; namespace), _lifecycle_scope(cell_types),
-        destination, schedule, trigger, Int32(priority))
+        destination, schedule, _lifecycle_trigger(trigger), Int32(priority))
 end
 
 semantic_identity(rule::Transition) = rule.name
@@ -50,12 +50,12 @@ function Division(cell_types::CellType...;
         geometry::CorePotts.AbstractDivisionGeometry,
         name::Symbol = :division, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger(),
+        trigger = CorePotts.AlwaysLifecycleTrigger(),
         priority::Integer = 0)
     typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
         "lifecycle priority must fit Int32"))
     return Division(SemanticName(name; namespace), _lifecycle_scope(cell_types),
-        geometry, schedule, trigger, Int32(priority))
+        geometry, schedule, _lifecycle_trigger(trigger), Int32(priority))
 end
 
 semantic_identity(rule::Division) = rule.name
@@ -75,7 +75,7 @@ end
 function ShrinkDeath(source, cell_types::CellType...; decrement::Real,
         name::Symbol = :shrink_death, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger(),
+        trigger = CorePotts.AlwaysLifecycleTrigger(),
         priority::Integer = 0)
     T = float(typeof(decrement))
     amount = T(decrement)
@@ -84,7 +84,8 @@ function ShrinkDeath(source, cell_types::CellType...; decrement::Real,
     typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
         "lifecycle priority must fit Int32"))
     return ShrinkDeath(SemanticName(name; namespace), semantic_identity(source),
-        _lifecycle_scope(cell_types), amount, schedule, trigger, Int32(priority))
+        _lifecycle_scope(cell_types), amount, schedule, _lifecycle_trigger(trigger),
+        Int32(priority))
 end
 
 semantic_identity(rule::ShrinkDeath) = rule.name
@@ -104,12 +105,13 @@ end
 function ImmediateDeath(cell_types::CellType...; medium::Medium,
         name::Symbol = :immediate_death, namespace::Namespace = Namespace(),
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger(),
+        trigger = CorePotts.AlwaysLifecycleTrigger(),
         priority::Integer = 0)
     typemin(Int32) <= priority <= typemax(Int32) || throw(ArgumentError(
         "lifecycle priority must fit Int32"))
     return ImmediateDeath(SemanticName(name; namespace),
-        _lifecycle_scope(cell_types), medium, schedule, trigger, Int32(priority))
+        _lifecycle_scope(cell_types), medium, schedule, _lifecycle_trigger(trigger),
+        Int32(priority))
 end
 
 semantic_identity(rule::ImmediateDeath) = rule.name

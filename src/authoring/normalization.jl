@@ -429,6 +429,7 @@ function _diagnose_model(model::PottsModel)
     end
     diagnostics = (diagnostics...,
         _composition_diagnostics(model, declarations, components)...)
+    diagnostics = (diagnostics..., _phase_diagnostics(components)...)
     lifecycle_ids = Tuple(filter(value -> !isnothing(value),
         map(_lifecycle_event_id, components)))
     for event_id in unique(lifecycle_ids)

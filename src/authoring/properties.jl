@@ -82,3 +82,47 @@ function CellProperty(name::Symbol, cell_types::CellType...;
 end
 
 semantic_identity(property::CellProperty) = property.name
+
+"""Immutable data selected by finite-cell type rather than stored once per cell."""
+struct CellParameter{T}
+    name::SemanticName
+    bindings::BindingTable{CellType, T}
+end
+
+function CellParameter(name::Symbol, pairs::Pair...;
+        namespace::Namespace = Namespace())
+    isempty(pairs) && throw(ArgumentError(
+        "a cell parameter must bind at least one cell type"))
+    all(pair -> first(pair) isa CellType && isbits(last(pair)), pairs) ||
+        throw(ArgumentError(
+            "cell parameters must use `CellType => immutable_isbits_value` bindings"))
+    values = last.(pairs)
+    T = all(value -> value isa Number, values) ?
+        promote_type(map(typeof, values)...) : typeof(first(values))
+    all(value -> value isa Number || typeof(value) === T, values) || throw(ArgumentError(
+        "non-numeric cell parameter bindings must share one concrete type"))
+    entries = Tuple(Binding{CellType, T}(first(pair), convert(T, last(pair)))
+        for pair in pairs)
+    return CellParameter(SemanticName(name; namespace),
+        BindingTable{CellType, T}(entries))
+end
+
+semantic_identity(parameter::CellParameter) = parameter.name
+
+"""Immutable model-global scientific data."""
+struct ModelParameter{T}
+    name::SemanticName
+    value::T
+
+    function ModelParameter(name::SemanticName, value::T) where {T}
+        isbitstype(T) || throw(ArgumentError(
+            "model parameter values must use an immutable isbits type"))
+        return new{T}(name, value)
+    end
+end
+
+
+ModelParameter(name::Symbol, value; namespace::Namespace = Namespace()) =
+    ModelParameter(SemanticName(name; namespace), value)
+
+semantic_identity(parameter::ModelParameter) = parameter.name

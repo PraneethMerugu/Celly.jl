@@ -697,12 +697,12 @@ end
 Construct the single public CorePotts/SciML `PottsProblem` from a Level 2 model and typed initial
 layouts. No PottsToolkit runtime wrapper is introduced.
 """
-function problem(model::PottsModel, shape::NTuple{N, <:Integer}, layouts...;
+function _problem(model::PottsModel, domain::CorePotts.CartesianDomain{N}, layouts...;
         capacity::Integer, tspan = (0, 1), seed::Integer = 0,
-        spacing = ntuple(_ -> one(CorePotts.real_type(model.numerics)), Val(N)),
-        boundaries = nothing, obstacles = (),
         overlap_policy::CorePotts.AbstractInitialOverlapPolicy =
             CorePotts.RejectInitialOverlap()) where {N}
+    shape = domain.dims
+    spacing = Tuple(domain.spacing)
     report = validate_problem(model, shape, layouts...;
         capacity, tspan, seed, spacing)
     isvalid(report) || throw(ProblemValidationError(report))
@@ -712,11 +712,29 @@ function problem(model::PottsModel, shape::NTuple{N, <:Integer}, layouts...;
     initialized = CorePotts.finalize_initial_state(shape, realized_layouts...;
         capacity = CorePotts.CellCapacity(capacity), medium_domains = medium_ids,
         property_schema = lowered.property_schema, overlap_policy, seed)
-    geometry = boundaries === nothing ?
+    return CorePotts.PottsProblem(lowered.core_model, CorePotts.logical_state(initialized),
+        domain, tspan; capacity = CorePotts.CellCapacity(capacity), seed)
+end
+
+function problem(model::PottsModel, shape::NTuple{N, <:Integer}, layouts...;
+        capacity::Integer, tspan = (0, 1), seed::Integer = 0,
+        spacing = ntuple(_ -> one(CorePotts.real_type(model.numerics)), Val(N)),
+        boundaries = nothing, obstacles = (),
+        overlap_policy::CorePotts.AbstractInitialOverlapPolicy =
+            CorePotts.RejectInitialOverlap()) where {N}
+    domain = boundaries === nothing ?
         CorePotts.CartesianDomain(shape; spacing, obstacles) :
         CorePotts.CartesianDomain(shape; spacing, boundaries, obstacles)
-    return CorePotts.PottsProblem(lowered.core_model, CorePotts.logical_state(initialized),
-        geometry, tspan; capacity = CorePotts.CellCapacity(capacity), seed)
+    return _problem(model, domain, layouts...;
+        capacity, tspan, seed, overlap_policy)
+end
+
+function problem(model::PottsModel, domain::CorePotts.CartesianDomain, layouts...;
+        capacity::Integer, tspan = (0, 1), seed::Integer = 0,
+        overlap_policy::CorePotts.AbstractInitialOverlapPolicy =
+            CorePotts.RejectInitialOverlap())
+    return _problem(model, domain, layouts...;
+        capacity, tspan, seed, overlap_policy)
 end
 
 """Return CorePotts's public, allocation-free host compatibility preflight report."""

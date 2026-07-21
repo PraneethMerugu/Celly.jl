@@ -39,6 +39,7 @@ struct SemanticName
 end
 
 SemanticName(name::Symbol; namespace::Namespace = Namespace()) = SemanticName(namespace, name)
+semantic_identity(name::SemanticName) = name
 
 function _identity_text(name::SemanticName)
     prefix = _identity_text(name.namespace)

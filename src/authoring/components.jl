@@ -269,12 +269,15 @@ struct PropertyUpdate{T, S, G}
     trigger::G
 end
 
+_lifecycle_trigger(trigger::CorePotts.AbstractLifecycleTrigger) = trigger
+_lifecycle_trigger(trigger) = throw(ArgumentError(
+    "$(typeof(trigger)) is not a supported lifecycle trigger"))
 
 function PropertyUpdate(source, cell_types::CellType...;
         name::Symbol = :property_update, namespace::Namespace = Namespace(),
         role::Symbol = :target, amount::Real,
         schedule::CorePotts.AbstractMCSSchedule = CorePotts.EveryMCS(),
-        trigger::CorePotts.AbstractLifecycleTrigger = CorePotts.AlwaysLifecycleTrigger())
+        trigger = CorePotts.AlwaysLifecycleTrigger())
     isempty(cell_types) && throw(ArgumentError(
         "a property update must target at least one cell type"))
     role in (:value, :target, :strength) || throw(ArgumentError(
@@ -282,9 +285,10 @@ function PropertyUpdate(source, cell_types::CellType...;
     T = float(typeof(amount))
     value = T(amount)
     isfinite(value) || throw(ArgumentError("a property update amount must be finite"))
+    resolved_trigger = _lifecycle_trigger(trigger)
     return PropertyUpdate(SemanticName(name; namespace), semantic_identity(source), role,
         Tuple(sort!(unique!(collect(cell_types)); by = _identity_text)), value,
-        schedule, trigger)
+        schedule, resolved_trigger)
 end
 
 
