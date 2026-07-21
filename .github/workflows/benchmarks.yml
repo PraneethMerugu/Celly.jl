@@ -14,7 +14,7 @@ on:
         type: choice
         required: true
         default: smoke
-        options: [smoke, full, throughput]
+        options: [smoke, full, throughput, native-profile]
       repetitions:
         description: Independent fresh Julia processes
         type: choice
@@ -62,18 +62,19 @@ jobs:
           force-arch: true
       - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent CPU processes
+        if: inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline CPU precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-cpu-arm64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
@@ -105,18 +106,19 @@ jobs:
           version: ${{ env.JULIA_VERSION }}
       - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent CPU processes
+        if: inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline CPU precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent CPU cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-cpu-x86_64-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
@@ -157,22 +159,29 @@ jobs:
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent Metal processes
+        if: inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline Metal precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/precompile_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
       - name: Run independent Metal cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/metal --startup-file=no benchmark/cold_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
+      - name: Capture Metal device code and chronological profile
+        if: inputs.profile == 'native-profile'
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/profile_metal.jl
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
@@ -207,22 +216,38 @@ jobs:
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Run independent ROCm processes
+        if: inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --repetitions=${{ inputs.repetitions }}
       - name: Measure offline ROCm precompilation
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/precompile_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
       - name: Run independent ROCm cold processes
-        if: inputs.profile != 'throughput'
+        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
         env:
           POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/cold_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
+      - name: Require the authoritative ROCm profiler
+        if: inputs.profile == 'native-profile'
+        run: command -v rocprofv3
+      - name: Capture ROCm GCN and Perfetto profile
+        if: inputs.profile == 'native-profile'
+        env:
+          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
+          POTTS_BENCHMARK_POWER_MODE: ac-power
+        run: |
+          mkdir -p benchmark/results/rocprof
+          ENABLE_JITPROFILING=1 POTTS_ROCPROF_TRACE_STATUS=captured rocprofv3 \
+            --output-directory benchmark/results/rocprof --output-format pftrace \
+            --hip-trace --hsa-trace --kernel-trace -- \
+            julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/profile_amdgpu.jl
+          find benchmark/results/rocprof -type f -name '*.pftrace' -size +0 -print -quit | grep .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
