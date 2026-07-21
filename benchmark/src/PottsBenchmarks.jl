@@ -2909,7 +2909,9 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         algorithm::AbstractPottsAlgorithm = SequentialCPM(temperature = 2.0f0),
         skip_incompatible::Bool = false,
         real_type::Type{<:AbstractFloat} = Float32)
-    samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) : (10, 5, 2)
+    samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) :
+                                     profile == "throughput" ? (10, 1, 2) :
+                                     (10, 5, 2)
     horizon = 1 + warmup_steps + samples * steps
     adaptor = _backend_adaptor(name)
     probe = _backend_array(name, zeros(UInt8, 1))

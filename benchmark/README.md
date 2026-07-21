@@ -61,7 +61,8 @@ julia --project=benchmark benchmark/repeat.jl \
 `full` retains the five-family small/medium latency and regression matrix. `throughput` uses the same
 scientific families and algorithm compatibility rules on 256² and 64³ lattices so GPU throughput is
 not inferred from launch-dominated toy domains. They are separate comparison identities and neither
-profile may compensate for a regression in the other.
+profile may compensate for a regression in the other. Throughput records use ten independently
+synchronized one-MCS samples per workload; the full profile uses five MCS per sample.
 
 Phase 12 comparisons consume repeated fresh-process schema `3.0.0` records. The comparator refuses
 different hardware, precision, algorithm, model fingerprint, workload shape, or measurement-contract

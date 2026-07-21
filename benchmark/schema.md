@@ -12,7 +12,8 @@ as independent process repetitions.
 The `full` profile is the required five-family latency/regression matrix. The separate `throughput`
 profile uses 256² and 64³ realized domains to exercise publication-scale parallel work. Profile is a
 comparison-identity field: latency and throughput results are never pooled or used to compensate for
-one another.
+one another. Each throughput process records ten independently synchronized one-MCS samples per
+workload; large-domain work is not multiplied by the full profile's five-MCS sampling block.
 
 Before comparing numbers, the comparator requires equality of the benchmark-contract and workload-set
 versions, backend, authoritative hardware identity, Julia version, architecture, operating system,
