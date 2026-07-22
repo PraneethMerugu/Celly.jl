@@ -87,6 +87,14 @@ fresh-depot tier-1 records. `warm` is the default.
 Smoke diagnostics may explicitly pass `--minimum-processes=1`; such output is not regression or
 paper evidence.
 
+Warm regression evidence is collected with the `Phase 12 paired benchmarks` workflow. It checks out
+the immutable baseline and candidate separately, then alternates them inside each fresh-process
+pair (`baseline/candidate`, `candidate/baseline`, ...). This counterbalances host-frequency and
+thermal drift without changing the fixed scientific seed or workload. The resulting process IDs
+carry the pair subject, index, and ordinal; only these paired warm records make a release verdict.
+Subject-only `Benchmarks` workflow records remain authoritative for the independent cold-start and
+offline-precompile tiers.
+
 Cold latency is measured in independent fresh processes and never inferred from the order-dependent
 first workload in a warm matrix. The cold workload uses the same conservative differential-adhesion
 model for all four compatible algorithms:

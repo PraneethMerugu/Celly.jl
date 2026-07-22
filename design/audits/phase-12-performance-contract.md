@@ -90,6 +90,12 @@ each with at least ten synchronized steady samples. Paper candidates require at 
 independent full runs. Baseline and candidate execute on the same runner in a close time window, and
 noisy-hardware failure requires confirmation rather than a single adverse observation.
 
+Release evidence uses a counterbalanced paired schedule: each fresh-process pair runs the immutable
+baseline and immutable candidate consecutively, and the first subject alternates by pair. The paired
+process identity records subject, pair index, and ordinal. Separate subject-only workflows remain
+useful for cold and precompile tiers, but their warm ratios are diagnostic when host drift can be
+observed; they cannot overrule balanced paired warm evidence.
+
 Raw samples and process-level summaries are retained. Combining many samples from one process does
 not misrepresent them as independent process repetitions.
 
