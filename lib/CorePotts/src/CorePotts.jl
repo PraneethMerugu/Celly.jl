@@ -47,6 +47,8 @@ include("components/scientific_mechanics.jl")
 include("lifecycle/compiled.jl")
 include("algorithms/sequential.jl")
 include("algorithms/checkerboard.jl")
+include("algorithms/tiled_checkerboard.jl")
+include("algorithms/tiled_checkerboard_device.jl")
 include("algorithms/lottery.jl")
 include("persistence/scientific.jl")
 include("reference/engine.jl")
@@ -202,6 +204,9 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticMod
        capabilities, component_supports_dimension, component_supports_backend,
        algorithm_component_compatibility,
        UnsupportedScientificAccess, SnapshotScientificAccess, scientific_access,
+       UnsupportedTiledScientificAccess, TiledReconciliationMode,
+       ExactAdditiveTiledReconciliation, BoundedStateTiledReconciliation,
+       TiledSnapshotAccess, tiled_scientific_access,
        energy_change, drive_log_bias, is_allowed, rebuild_tracker, event_effects,
        proposal_energy_change, proposal_drive_log_bias, proposal_constraint_allowed,
        proposal_modifier_contribution, proposal_mechanical_work, validate_proposal_component,
@@ -255,7 +260,11 @@ export ScientificComponentSet, NoConnectivityWorkspace, ScientificProposalContex
        ScientificCopyEvaluation, evaluate_copy, acceptance_inputs,
        scientific_components_report
 export AbstractSequentialCPMAlgorithm, SequentialCPM, SequentialEquilibrium,
-       CheckerboardSweepCPM, LotteryCPM,
+       CheckerboardSweepCPM, TiledCheckerboardCPM, TiledSharedMemoryMode,
+       TiledSharedMemoryAuto, TiledSharedMemoryRequired, TiledSharedMemoryDisabled,
+       TiledLayout, tiled_layout, tiled_color, tiled_tile_sites, tiled_color_order,
+       tiled_rng_address, tiled_reference_energy_change, TiledReferenceIntegrator,
+       init_tiled_reference, step_tiled_reference!, LotteryCPM,
        ScientificPottsIntegrator,
        ScientificMCSReport, init_scientific, initialize_scientific_algorithm,
        perform_scientific_mcs!, current_mcs_report
@@ -280,7 +289,7 @@ export AbstractRNGContract, Philox4x32x10V1, RNGStream, RNGEntityKind, RNGAddres
        ProposalDirectionStream, AcceptanceStream, LotteryActivationStream,
        LotteryPriorityStream, CheckerboardOrderStream, AuxiliaryEvolutionStream, RuleStream,
        CheckerboardPriorityStream,
-       AuxiliaryInitializationStream,
+       AuxiliaryInitializationStream, TiledOrderStream, TiledProposalStream,
        EventStream, DivisionOrientationStream, PropertyInheritanceStream,
        StochasticRoundingStream, TypeTransitionStream, EnsembleStream,
        GlobalEntity, SiteEntity, CellEntity, EnsembleEntity,

@@ -317,3 +317,11 @@ component_rng_streams(::FluctuatingVolumePressure) =
     (AuxiliaryInitializationStream, AuxiliaryEvolutionStream)
 scientific_access(component::FluctuatingSurfaceTension) =
     SnapshotScientificAccess((component.relation,); cell_wide = true)
+
+# Tile-local qualification is intentionally explicit. Unknown downstream components stay rejected
+# until they declare bounded halo, scratch, and reconciliation behavior through the open protocol.
+tiled_scientific_access(::QuadraticVolumeHamiltonian) =
+    TiledSnapshotAccess(; cell_wide = true, scratch_words = 2)
+tiled_scientific_access(component::UnorderedContactHamiltonian) =
+    TiledSnapshotAccess((component.relation,); dependency_radius = 1,
+        cell_wide = true, scratch_words = 2)

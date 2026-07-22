@@ -87,6 +87,13 @@ component_semantic_data(component::QuadraticVolumeHamiltonian) = (
     number_type = nameof(typeof(component).parameters[3]),
 )
 
+@inline function _quadratic_volume_owner_change(strength::T, target::T,
+        volume::V, change::V) where {T <: AbstractFloat, V <: Integer}
+    old = strength * (T(volume) - target)^2
+    updated = volume + change
+    return iszero(updated) ? -old : strength * (T(updated) - target)^2 - old
+end
+
 function global_energy(component::QuadraticVolumeHamiltonian, state::LogicalPottsState)
     targets = _property_column(state, _volume_target(component))
     strengths = _property_column(state, _volume_strength(component))
@@ -108,16 +115,14 @@ function energy_change(component::QuadraticVolumeHamiltonian, proposal::CopyProp
     if is_cell_owner(proposal.losing)
         index = Int(proposal.losing.value)
         volume = finite_volume(state, CellID(proposal.losing.value))
-        old = T(strengths[index]) * (T(volume) - T(targets[index]))^2
-        delta += volume == 1 ? -old :
-                 T(strengths[index]) * (T(volume - 1) - T(targets[index]))^2 - old
+        delta += _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, -one(volume))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         volume = finite_volume(state, CellID(proposal.gaining.value))
-        delta += T(strengths[index]) * (
-            (T(volume + 1) - T(targets[index]))^2 -
-            (T(volume) - T(targets[index]))^2)
+        delta += _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, one(volume))
     end
     return delta
 end

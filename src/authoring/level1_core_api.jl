@@ -37,4 +37,5 @@ const PreserveMechanicalInitialization = CorePotts.PreserveMechanicalInitializat
 const SequentialCPM = CorePotts.SequentialCPM
 const SequentialEquilibrium = CorePotts.SequentialEquilibrium
 const CheckerboardSweepCPM = CorePotts.CheckerboardSweepCPM
+const TiledCheckerboardCPM = CorePotts.TiledCheckerboardCPM
 const LotteryCPM = CorePotts.LotteryCPM

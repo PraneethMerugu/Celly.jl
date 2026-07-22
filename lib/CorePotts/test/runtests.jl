@@ -58,6 +58,7 @@ const TEST_ALGORITHMS = (
     include("test_scientific_mechanics.jl")
     include("test_sequential_algorithms.jl")
     include("test_checkerboard_algorithms.jl")
+    include("test_tiled_checkerboard.jl")
     include("test_lottery_algorithms.jl")
     include("test_scientific_device_path.jl")
 end

@@ -129,17 +129,14 @@ function energy_change(component::QuadraticVolumeHamiltonian, proposal::CopyProp
     if is_cell_owner(proposal.losing)
         index = Int(proposal.losing.value)
         volume = @inbounds state.trackers.finite_volumes[index]
-        old = @inbounds T(strengths[index]) * (T(volume) - T(targets[index]))^2
-        delta += volume == 1 ? -old :
-                 @inbounds(T(strengths[index]) *
-                           (T(volume - 1) - T(targets[index]))^2 - old)
+        delta += @inbounds _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, Int32(-1))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         volume = @inbounds state.trackers.finite_volumes[index]
-        delta += @inbounds T(strengths[index]) * (
-            (T(volume + 1) - T(targets[index]))^2 -
-            (T(volume) - T(targets[index]))^2)
+        delta += @inbounds _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, Int32(1))
     end
     return delta
 end
