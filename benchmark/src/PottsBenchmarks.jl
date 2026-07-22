@@ -2779,6 +2779,24 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 tspan = (0, horizon), seed = 0x7068617365313106),
         ),
         measurement_spec(;
+            label = "uniform_adhesion_tiled_baseline",
+            family = "tile_local_volume_adhesion",
+            dimensions = length(sorting_shape),
+            requires_lifecycle_observation = false,
+            compatible_algorithms = (:CheckerboardSweepCPM, :TiledCheckerboardCPM),
+            model_builder = () -> references.differential_adhesion_model(
+                target_volume = profile == "smoke" ? 16 : 20,
+                volume_strength = 20,
+                within_a = 2, within_b = 2, between = 2, medium_contact = 20),
+            problem_builder = () -> references.differential_adhesion_problem(
+                sorting_shape; cells_per_population = sorting_cells,
+                target_volume = profile == "smoke" ? 16 : 20,
+                capacity = sorting_capacity, volume_strength = 20,
+                within_a = 2, within_b = 2,
+                between = 2, medium_contact = 20,
+                tspan = (0, horizon), seed = 0x7068617365313156),
+        ),
+        measurement_spec(;
             label = "angiogenesis_2d",
             family = "elongation_driven_angiogenesis",
             dimensions = length(angiogenesis_2d_shape),
