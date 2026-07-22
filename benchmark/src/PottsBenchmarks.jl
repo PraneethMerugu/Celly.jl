@@ -2769,7 +2769,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
             compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
-                :CheckerboardSweepCPM, :LotteryCPM),
+                :CheckerboardSweepCPM, :TiledCheckerboardCPM, :LotteryCPM),
             model_builder = () -> references.differential_adhesion_model(
                 target_volume = profile == "smoke" ? 16 : 20),
             problem_builder = () -> references.differential_adhesion_problem(
@@ -2883,7 +2883,8 @@ end
 
 function _validate_reference_mcs_report(name, label, algorithm, report, sites)
     expected_sites = UInt64(sites)
-    if algorithm isa AbstractSequentialCPMAlgorithm || algorithm isa CheckerboardSweepCPM
+    if algorithm isa AbstractSequentialCPMAlgorithm ||
+       algorithm isa Union{CheckerboardSweepCPM, TiledCheckerboardCPM}
         report.scheduler_candidates == expected_sites || error(
             "$name $label $(nameof(typeof(algorithm))) scheduler budget differs from mutable sites")
         report.activated_attempts == expected_sites || error(
@@ -3111,6 +3112,7 @@ function measure_phase12_reference_backend(name::String; profile::String = "smok
         SequentialCPM(temperature = real_type(2)),
         SequentialEquilibrium(temperature = real_type(2)),
         CheckerboardSweepCPM(temperature = real_type(2)),
+        TiledCheckerboardCPM(temperature = real_type(2)),
         LotteryCPM(temperature = real_type(2)),
     )
     measurements = Dict{String, Any}()
