@@ -34,14 +34,15 @@ repetitions >= 4 || error(
 run_id = get(ENV, "GITHUB_RUN_ID", "local")
 run_attempt = get(ENV, "GITHUB_RUN_ATTEMPT", "1")
 pair_id = "$run_id-$run_attempt-$backend-$profile-$precision-paired"
+worker = abspath(joinpath(@__DIR__, "performance_worker.jl"))
+isfile(worker) || error("paired benchmark harness worker is missing: $worker")
 
 function worker_command(root)
     project = joinpath(root, "benchmark")
-    worker = joinpath(@__DIR__, "performance_worker.jl")
     command = `$(Base.julia_cmd()) --project=$project --startup-file=no $worker --backend=$backend --profile=$profile --precision=$precision`
     # Each subject loads its own path-pinned package implementation while both
     # subjects execute this one immutable harness checkout.
-    return Cmd(command; dir = root)
+    return command
 end
 
 function run_subject!(label, root, pair_index, ordinal)
