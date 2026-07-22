@@ -108,6 +108,9 @@ end
     launch!(plan, cpu_grained_kernel, cpu_grained_output, input;
         ndrange = length(input))
     @test cpu_grained_output == UInt32[2, 3, 4, 5]
+    @test CorePotts._use_cpu_auto_grain(1_024, 1)
+    @test !CorePotts._use_cpu_auto_grain(1_025, 1)
+    @test !CorePotts._use_cpu_auto_grain(1_024, 2)
     record_transfer!(plan, :host_to_device)
     record_transfer!(plan, :device_to_host)
     @test metrics.host_to_device_transfers == 1
