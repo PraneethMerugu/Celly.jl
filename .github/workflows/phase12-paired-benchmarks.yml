@@ -50,33 +50,10 @@ env:
 jobs:
   paired:
     name: ${{ inputs.backend }} / paired full / ${{ inputs.precision }} / ${{ inputs.cpu_threads }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - backend: cpu-arm64
-            runtime_backend: cpu
-            runner: '["self-hosted", "metal"]'
-            load_path: '@:@stdlib'
-          - backend: cpu-x86_64
-            runtime_backend: cpu
-            runner: '["self-hosted", "rocm"]'
-            load_path: '@:@stdlib'
-          - backend: metal
-            runtime_backend: metal
-            runner: '["self-hosted", "metal"]'
-            load_path: 'benchmark/backends/metal:benchmark:@stdlib'
-          - backend: amdgpu
-            runtime_backend: amdgpu
-            runner: '["self-hosted", "rocm"]'
-            load_path: 'benchmark/backends/amdgpu:benchmark:@stdlib'
-    if: inputs.backend == matrix.backend &&
-        ((matrix.backend != 'cpu-arm64' && matrix.backend != 'metal') || vars.METAL_RUNNER_ENABLED == 'true') &&
-        ((matrix.backend != 'cpu-x86_64' && matrix.backend != 'amdgpu') || vars.ROCM_RUNNER_ENABLED == 'true')
-    runs-on: ${{ fromJSON(matrix.runner) }}
+    if: (inputs.backend == 'cpu-arm64' || inputs.backend == 'metal') && vars.METAL_RUNNER_ENABLED == 'true' ||
+        (inputs.backend == 'cpu-x86_64' || inputs.backend == 'amdgpu') && vars.ROCM_RUNNER_ENABLED == 'true'
+    runs-on: ${{ (inputs.backend == 'cpu-arm64' || inputs.backend == 'metal') && fromJSON('["self-hosted", "metal"]') || fromJSON('["self-hosted", "rocm"]') }}
     timeout-minutes: 90
-    env:
-      JULIA_LOAD_PATH: ${{ matrix.load_path }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -103,18 +80,18 @@ jobs:
         with:
           version: ${{ env.JULIA_VERSION }}
       - name: Configure ARM64 Julia
-        if: matrix.backend == 'cpu-arm64' || matrix.backend == 'metal'
+        if: inputs.backend == 'cpu-arm64' || inputs.backend == 'metal'
         uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
           arch: aarch64
           force-arch: true
       - name: Configure CPU policy
-        if: matrix.backend == 'cpu-arm64' || matrix.backend == 'cpu-x86_64'
+        if: inputs.backend == 'cpu-arm64' || inputs.backend == 'cpu-x86_64'
         shell: bash
         run: |
           requested="${{ inputs.cpu_threads }}"
-          if [[ "${{ matrix.backend }}" == "cpu-arm64" ]]; then
+          if [[ "${{ inputs.backend }}" == "cpu-arm64" ]]; then
             physical="$(sysctl -n hw.physicalcpu)"
             threads="$requested"
             [[ "$requested" == "physical" ]] && threads="$physical"
@@ -136,12 +113,12 @@ jobs:
             echo "POTTS_BENCHMARK_HARDWARE_ID=rocm-runner-cpu-x86_64-v1-$threads-pinned-physical-threads" >> "$GITHUB_ENV"
           fi
       - name: Configure GPU policy
-        if: matrix.backend == 'metal' || matrix.backend == 'amdgpu'
+        if: inputs.backend == 'metal' || inputs.backend == 'amdgpu'
         shell: bash
         run: |
           test "${{ inputs.precision }}" = "Float32"
           test "${{ inputs.cpu_threads }}" = "1"
-          if [[ "${{ matrix.backend }}" == "metal" ]]; then
+          if [[ "${{ inputs.backend }}" == "metal" ]]; then
             echo "POTTS_BENCHMARK_HARDWARE_ID=metal-runner-gpu-v1" >> "$GITHUB_ENV"
           else
             echo "POTTS_BENCHMARK_HARDWARE_ID=rocm-runner-gpu-v1" >> "$GITHUB_ENV"
@@ -149,17 +126,17 @@ jobs:
       - name: Instantiate paired subjects
         shell: bash
         run: |
-          if [[ "${{ matrix.backend }}" == "cpu-x86_64" ]]; then
+          if [[ "${{ inputs.backend }}" == "cpu-x86_64" ]]; then
             taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=_ci/baseline/benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
             taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=_ci/candidate/benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           else
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/baseline/benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/candidate/benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           fi
-          if [[ "${{ matrix.backend }}" == "metal" ]]; then
+          if [[ "${{ inputs.backend }}" == "metal" ]]; then
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/baseline/benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/candidate/benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-          elif [[ "${{ matrix.backend }}" == "amdgpu" ]]; then
+          elif [[ "${{ inputs.backend }}" == "amdgpu" ]]; then
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/baseline/benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
             JULIA_LOAD_PATH="@:@stdlib" julia --project=_ci/candidate/benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           fi
@@ -168,11 +145,24 @@ jobs:
         env:
           POTTS_BENCHMARK_POWER_MODE: ac-power
         run: |
+          case "${{ inputs.backend }}" in
+            cpu-arm64|cpu-x86_64) runtime_backend=cpu ;;
+            metal) runtime_backend=metal ;;
+            amdgpu) runtime_backend=amdgpu ;;
+            *) exit 1 ;;
+          esac
+          if [[ "$runtime_backend" == "metal" ]]; then
+            export JULIA_LOAD_PATH="benchmark/backends/metal:benchmark:@stdlib"
+          elif [[ "$runtime_backend" == "amdgpu" ]]; then
+            export JULIA_LOAD_PATH="benchmark/backends/amdgpu:benchmark:@stdlib"
+          else
+            export JULIA_LOAD_PATH="@:@stdlib"
+          fi
           command=(julia --project=_ci/harness/benchmark --startup-file=no _ci/harness/benchmark/paired_repeat.jl
             --baseline-root=_ci/baseline --candidate-root=_ci/candidate
-            --backend=${{ matrix.runtime_backend }} --profile=full
+            --backend="$runtime_backend" --profile=full
             --precision=${{ inputs.precision }} --repetitions=${{ inputs.pairs }})
-          if [[ "${{ matrix.backend }}" == "cpu-x86_64" ]]; then
+          if [[ "${{ inputs.backend }}" == "cpu-x86_64" ]]; then
             taskset -c "$POTTS_BENCHMARK_CPUSET" "${command[@]}"
           else
             "${command[@]}"
