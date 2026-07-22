@@ -325,6 +325,11 @@ tiled_scientific_access(::QuadraticVolumeHamiltonian) =
 tiled_scientific_access(component::UnorderedContactHamiltonian) =
     TiledSnapshotAccess((component.relation,); dependency_radius = 1,
         cell_wide = true, scratch_words = 2)
+function tiled_scientific_access(component::QuadraticBoundaryHamiltonian)
+    component.metric isa BoundaryEdgeCount || return UnsupportedTiledScientificAccess()
+    return TiledSnapshotAccess((component.relation,); dependency_radius = 1,
+        cell_wide = true, scratch_words = 3)
+end
 tiled_scientific_access(::ExternalFieldOccupancyHamiltonian) =
     TiledSnapshotAccess(; cell_wide = true)
 tiled_scientific_access(::ChemotaxisDrive) =

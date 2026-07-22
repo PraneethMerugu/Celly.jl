@@ -157,18 +157,16 @@ function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyPr
     if is_cell_owner(proposal.losing)
         index = Int(proposal.losing.value)
         measure = @inbounds state.trackers.boundary_measures[index]
-        old = @inbounds T(strengths[index]) * (T(measure) - T(targets[index]))^2
         volume = @inbounds state.trackers.finite_volumes[index]
-        result += volume == 1 ? -old :
-                  @inbounds(T(strengths[index]) *
-                            (T(measure + changes.losing) - T(targets[index]))^2 - old)
+        result += @inbounds _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure), volume, T(changes.losing), Int32(-1))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         measure = @inbounds state.trackers.boundary_measures[index]
-        result += @inbounds T(strengths[index]) * (
-            (T(measure + changes.gaining) - T(targets[index]))^2 -
-            (T(measure) - T(targets[index]))^2)
+        volume = @inbounds state.trackers.finite_volumes[index]
+        result += @inbounds _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure), volume, T(changes.gaining), Int32(1))
     end
     return result
 end

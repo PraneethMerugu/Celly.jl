@@ -37,7 +37,8 @@ workgroup-local tile/halo cache on qualified GPU layouts and the device-global p
 fails during construction when the padded halo exceeds the configured workgroup capacity. It never
 falls back to host execution or silently changes algorithms.
 
-The current experimental qualification covers quadratic volume, unordered adhesion,
+The current experimental qualification covers quadratic volume, exact edge-count surface/perimeter,
+unordered adhesion,
 prescribed-field occupancy energy and chemotaxis, and `PositiveYield` in 2D and 3D through the
 resident device-global and workgroup-local paths. Components without `tiled_scientific_access` fail
 preflight. Hard constraints, moment-dependent physics, floating boundary trackers, and other

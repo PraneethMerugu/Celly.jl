@@ -537,6 +537,13 @@ function global_energy(component::QuadraticBoundaryHamiltonian, state::LogicalPo
     return result
 end
 
+@inline function _quadratic_boundary_owner_change(strength, target, measure,
+        volume, boundary_change, volume_change)
+    old = strength * (measure - target)^2
+    volume_change == -one(volume_change) && volume == one(volume) && return -old
+    return strength * (measure + boundary_change - target)^2 - old
+end
+
 function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyProposal,
         state::LogicalPottsState, domain::Union{CartesianDomain, CompiledCartesianDomain})
     targets = _property_column(state, _boundary_target(component))
@@ -549,18 +556,19 @@ function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyPr
         index = Int(proposal.losing.value)
         measure = boundary_measure(state, domain, component.relation,
             proposal.losing, component.metric)
-        old = T(strengths[index]) * (T(measure) - T(targets[index]))^2
-        result += finite_volume(state, CellID(proposal.losing.value)) == 1 ? -old :
-                  T(strengths[index]) *
-                  (T(measure + deltas.losing) - T(targets[index]))^2 - old
+        result += _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure),
+            finite_volume(state, CellID(proposal.losing.value)),
+            T(deltas.losing), Int32(-1))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         measure = boundary_measure(state, domain, component.relation,
             proposal.gaining, component.metric)
-        result += T(strengths[index]) * (
-            (T(measure + deltas.gaining) - T(targets[index]))^2 -
-            (T(measure) - T(targets[index]))^2)
+        result += _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure),
+            finite_volume(state, CellID(proposal.gaining.value)),
+            T(deltas.gaining), Int32(1))
     end
     return result
 end

@@ -284,6 +284,9 @@ tiled_reference_energy_change(component::AbstractEnergy, proposal::CopyProposal,
 tiled_reference_energy_change(component::UnorderedContactHamiltonian,
     proposal::CopyProposal, state::LogicalPottsState, domain::CartesianDomain) =
     energy_change(component, proposal, state, domain)
+tiled_reference_energy_change(component::QuadraticBoundaryHamiltonian,
+    proposal::CopyProposal, state::LogicalPottsState, domain::CartesianDomain) =
+    energy_change(component, proposal, state, domain)
 tiled_reference_energy_change(component::ExternalFieldOccupancyHamiltonian,
     proposal::CopyProposal, state::LogicalPottsState, domain::CartesianDomain) =
     energy_change(component, proposal, state, domain)

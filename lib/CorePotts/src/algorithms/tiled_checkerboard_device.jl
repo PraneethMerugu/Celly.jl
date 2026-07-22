@@ -11,6 +11,7 @@ struct TiledDeviceWorkspace{S, F, C, O, V, D, I, B, L, K}
     boundary_deltas::D
     scratch_ids::I
     scratch_deltas::D
+    scratch_boundary_deltas::D
     tile_counters::I
     layout::L
     kernels::K
@@ -98,6 +99,8 @@ function _allocate_tiled_device_workspace(
         prototype, UInt32, prod(layout.tile_grid) * scratch_stride))
     scratch_deltas = recorded(similar(
         prototype, Int32, prod(layout.tile_grid) * scratch_stride))
+    scratch_boundary_deltas = recorded(similar(
+        prototype, Int32, prod(layout.tile_grid) * scratch_stride))
     tile_counters = recorded(similar(
         prototype, UInt32, prod(layout.tile_grid) * 8))
     if !(plan.backend isa KernelAbstractions.CPU)
@@ -118,7 +121,8 @@ function _allocate_tiled_device_workspace(
     )
     return TiledDeviceWorkspace(tile_sites, tile_offsets, color_tiles, color_offsets,
         color_order, finite_snapshot, finite_deltas, boundary_snapshot,
-        boundary_deltas, scratch_ids, scratch_deltas, tile_counters, layout,
+        boundary_deltas, scratch_ids, scratch_deltas, scratch_boundary_deltas,
+        tile_counters, layout,
         kernels, UInt32(length(layout.color_offsets) - 1),
         UInt32(maximum_color_tiles), UInt32(maximum_tile_sites), UInt32(scratch_stride),
         UInt32(interval), UInt32(batches), UInt32(shared_halo_capacity),
@@ -136,15 +140,21 @@ function _validate_tiled_device_components(components, state, moment_tracker, al
     eltype(state.trackers.boundary_measures) <: Integer || throw(ArgumentError(
         "the resident tiled vertical slice requires an exact integer boundary tracker"))
     all(component -> component isa Union{QuadraticVolumeHamiltonian,
-            UnorderedContactHamiltonian, ExternalFieldOccupancyHamiltonian},
+            QuadraticBoundaryHamiltonian, UnorderedContactHamiltonian,
+            ExternalFieldOccupancyHamiltonian},
         components.energies) || throw(ArgumentError(
-        "the resident tiled path qualifies volume, adhesion, and prescribed-field energies"))
+        "the resident tiled path qualifies volume, boundary, adhesion, and prescribed-field energies"))
     all(component -> component isa ChemotaxisDrive, components.drives) ||
         throw(ArgumentError(
             "the resident tiled path qualifies prescribed-field chemotaxis drives"))
     all(component -> component isa PositiveYield,
         components.kinetic_modifiers) || throw(ArgumentError(
             "the resident tiled path qualifies PositiveYield kinetic modifiers"))
+    for component in components.energies
+        component isa QuadraticBoundaryHamiltonian || continue
+        component.tracker_identity == state.boundary_tracker.identity || throw(ArgumentError(
+            "tiled boundary component does not match the compiled boundary tracker"))
+    end
     accesses = map(tiled_scientific_access, (components.energies...,
         components.drives..., components.kinetic_modifiers...))
     all(access -> access isa TiledSnapshotAccess, accesses) || throw(ArgumentError(
@@ -235,11 +245,13 @@ end
     return nothing
 end
 
-struct TiledDeviceEnergyContext{S, V, I, D, L}
+struct TiledDeviceEnergyContext{S, V, B, I, D, L}
     state::S
     finite_snapshot::V
+    boundary_snapshot::B
     scratch_ids::I
     scratch_deltas::D
+    scratch_boundary_deltas::D
     scratch_start::UInt32
     scratch_count::UInt32
     local_ownership::L
@@ -259,13 +271,28 @@ end
     return Int32(0)
 end
 
-@inline function _tiled_add_scratch_delta!(ids, deltas, start::UInt32,
-        count::UInt32, capacity::UInt32, owner::UInt32, change::Int32)
+@inline function _tiled_scratch_boundary_delta(
+        context::TiledDeviceEnergyContext, owner::UInt32)
+    iszero(context.scratch_count) && return Int32(0)
+    for slot in UInt32(0):context.scratch_count-UInt32(1)
+        index = context.scratch_start + slot
+        @inbounds context.scratch_ids[Int(index)] == owner &&
+            return context.scratch_boundary_deltas[Int(index)]
+    end
+    return Int32(0)
+end
+
+@inline function _tiled_add_scratch_deltas!(ids, volume_deltas, boundary_deltas,
+        start::UInt32, count::UInt32, capacity::UInt32, owner::UInt32,
+        volume_change::Int32, boundary_change::Int32)
     if !iszero(count)
         for slot in UInt32(0):count-UInt32(1)
             index = start + slot
             if @inbounds(ids[Int(index)] == owner)
-                @inbounds deltas[Int(index)] += change
+                @inbounds begin
+                    volume_deltas[Int(index)] += volume_change
+                    boundary_deltas[Int(index)] += boundary_change
+                end
                 return count
             end
         end
@@ -274,7 +301,8 @@ end
     index = start + count
     @inbounds begin
         ids[Int(index)] = owner
-        deltas[Int(index)] = change
+        volume_deltas[Int(index)] = volume_change
+        boundary_deltas[Int(index)] = boundary_change
     end
     return count + UInt32(1)
 end
@@ -309,6 +337,37 @@ end
     proposal::CopyProposal, context::TiledDeviceEnergyContext) =
     _contact_energy_change(
         component, proposal, context.state, context.state.domain, context)
+@inline function tiled_device_energy_change(component::QuadraticBoundaryHamiltonian,
+        proposal::CopyProposal, context::TiledDeviceEnergyContext)
+    state = context.state
+    targets = _property_column(state, _boundary_target(component))
+    strengths = _property_column(state, _boundary_strength(component))
+    T = typeof(component).parameters[3]
+    changes = boundary_measure_change(
+        state, state.domain, component.relation, proposal, component.metric)
+    result = zero(T)
+    if is_cell_owner(proposal.losing)
+        owner = proposal.losing.value
+        index = Int(owner)
+        measure = @inbounds context.boundary_snapshot[index] +
+            _tiled_scratch_boundary_delta(context, owner)
+        volume = @inbounds context.finite_snapshot[index] +
+            _tiled_scratch_delta(context, owner)
+        result += @inbounds _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure), volume, T(changes.losing), Int32(-1))
+    end
+    if is_cell_owner(proposal.gaining)
+        owner = proposal.gaining.value
+        index = Int(owner)
+        measure = @inbounds context.boundary_snapshot[index] +
+            _tiled_scratch_boundary_delta(context, owner)
+        volume = @inbounds context.finite_snapshot[index] +
+            _tiled_scratch_delta(context, owner)
+        result += @inbounds _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure), volume, T(changes.gaining), Int32(1))
+    end
+    return result
+end
 @inline tiled_device_energy_change(component::ExternalFieldOccupancyHamiltonian,
     proposal::CopyProposal, context::TiledDeviceEnergyContext) =
     energy_change(component, proposal, context.state, context.state.domain)
@@ -397,9 +456,10 @@ end
 end
 
 @inline function _tiled_execute_tile_batch!(tile, tile_sites, tile_offsets,
-        finite_snapshot, finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
-        boundary_deltas, tile_counters, state, components, algorithm, relation, rng,
-        seed, mcs, subround, batch_start, interval, local_ownership)
+        finite_snapshot, finite_deltas, boundary_snapshot, scratch_ids,
+        scratch_deltas, scratch_boundary_deltas, scratch_stride, boundary_deltas,
+        tile_counters, state, components, algorithm, relation, rng, seed, mcs,
+        subround, batch_start, interval, local_ownership)
         first_site = @inbounds tile_offsets[Int(tile)]
         stop_site = @inbounds tile_offsets[Int(tile) + 1]
         site_count = stop_site - first_site
@@ -444,8 +504,10 @@ end
                     attempt.reverse_multiplicity)
                 transaction = _stage_copy_transaction_unchecked(
                     state, state.boundary_tracker, proposal; moment_tracker = nothing)
-                context = TiledDeviceEnergyContext(state, finite_snapshot, scratch_ids,
-                    scratch_deltas, scratch_start, scratch_count, local_ownership)
+                context = TiledDeviceEnergyContext(state, finite_snapshot,
+                    boundary_snapshot, scratch_ids, scratch_deltas,
+                    scratch_boundary_deltas, scratch_start, scratch_count,
+                    local_ownership)
                 T = typeof(algorithm.temperature)
                 delta_h = T(_tiled_device_energy(
                     components.energies, proposal, context, zero(T)))
@@ -465,28 +527,22 @@ end
                 if draw < probability
                     delta = transaction.trackers
                     if delta.losing_cell != 0
-                        scratch_count = _tiled_add_scratch_delta!(scratch_ids,
-                            scratch_deltas, scratch_start, scratch_count,
-                            scratch_stride, delta.losing_cell, Int32(-1))
+                        scratch_count = _tiled_add_scratch_deltas!(scratch_ids,
+                            scratch_deltas, scratch_boundary_deltas, scratch_start,
+                            scratch_count, scratch_stride, delta.losing_cell,
+                            Int32(-1), Int32(delta.losing_boundary))
                     else
                         Atomix.@atomic state.trackers.medium_volumes[
                             Int(delta.losing_medium)] -= Int32(1)
                     end
                     if delta.gaining_cell != 0
-                        scratch_count = _tiled_add_scratch_delta!(scratch_ids,
-                            scratch_deltas, scratch_start, scratch_count,
-                            scratch_stride, delta.gaining_cell, Int32(1))
+                        scratch_count = _tiled_add_scratch_deltas!(scratch_ids,
+                            scratch_deltas, scratch_boundary_deltas, scratch_start,
+                            scratch_count, scratch_stride, delta.gaining_cell,
+                            Int32(1), Int32(delta.gaining_boundary))
                     else
                         Atomix.@atomic state.trackers.medium_volumes[
                             Int(delta.gaining_medium)] += Int32(1)
-                    end
-                    if delta.losing_cell != 0
-                        Atomix.@atomic boundary_deltas[
-                            Int(delta.losing_cell)] += Int32(delta.losing_boundary)
-                    end
-                    if delta.gaining_cell != 0
-                        Atomix.@atomic boundary_deltas[
-                            Int(delta.gaining_cell)] += Int32(delta.gaining_boundary)
                     end
                     @inbounds begin
                         state.core.ownership.tags[Int(proposal.recipient)] =
@@ -506,7 +562,9 @@ end
                     index = scratch_start + slot
                     owner = @inbounds scratch_ids[Int(index)]
                     change = @inbounds scratch_deltas[Int(index)]
+                    boundary_change = @inbounds scratch_boundary_deltas[Int(index)]
                     Atomix.@atomic finite_deltas[Int(owner)] += change
+                    Atomix.@atomic boundary_deltas[Int(owner)] += boundary_change
                 end
             end
             counter_start = (tile - UInt32(1)) * UInt32(8)
@@ -524,10 +582,10 @@ end
 end
 
 @kernel function _tiled_execute_batch!(tile_sites, tile_offsets, color_tiles,
-        color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
-        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
-        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
-        batch_start, interval)
+        color_offsets, color_order, finite_snapshot, finite_deltas,
+        boundary_snapshot, scratch_ids, scratch_deltas, scratch_boundary_deltas,
+        scratch_stride, boundary_deltas, tile_counters, state, components,
+        algorithm, relation, rng, seed, mcs, ordinal, subround, batch_start, interval)
     local_tile = @index(Global, Linear)
     color = @inbounds color_order[Int(ordinal)]
     color_first = @inbounds color_offsets[Int(color)]
@@ -537,9 +595,10 @@ end
         color_index = color_first + Base.unsafe_trunc(UInt32, local_tile - 1)
         tile = @inbounds color_tiles[Int(color_index)]
         _tiled_execute_tile_batch!(tile, tile_sites, tile_offsets, finite_snapshot,
-            finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
-            boundary_deltas, tile_counters, state, components, algorithm, relation,
-            rng, seed, mcs, subround, batch_start, interval,
+            finite_deltas, boundary_snapshot, scratch_ids, scratch_deltas,
+            scratch_boundary_deltas, scratch_stride, boundary_deltas, tile_counters,
+            state, components, algorithm, relation, rng, seed, mcs, subround,
+            batch_start, interval,
             NoTiledLocalOwnership())
     end
 end
@@ -584,10 +643,11 @@ end
 end
 
 @kernel function _tiled_execute_shared_batch!(tile_sites, tile_offsets, color_tiles,
-        color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
-        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
-        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
-        batch_start, interval, dims, tile_grid, tile_size, periodic, halo)
+        color_offsets, color_order, finite_snapshot, finite_deltas,
+        boundary_snapshot, scratch_ids, scratch_deltas, scratch_boundary_deltas,
+        scratch_stride, boundary_deltas, tile_counters, state, components,
+        algorithm, relation, rng, seed, mcs, ordinal, subround, batch_start,
+        interval, dims, tile_grid, tile_size, periodic, halo)
     local_tile = @index(Group, Linear)
     lane = @index(Local, Linear)
     group_size = @uniform prod(@groupsize())
@@ -617,10 +677,11 @@ end
         tile_after_load = @inbounds color_tiles[Int(color_index_after_load)]
         local_ownership = TiledLocalOwnership(local_tags, local_ids, dims,
             tile_grid, tile_size, periodic, tile_after_load, UInt32(halo))
-        _tiled_execute_tile_batch!(tile_after_load, tile_sites, tile_offsets, finite_snapshot,
-            finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
-            boundary_deltas, tile_counters, state, components, algorithm, relation,
-            rng, seed, mcs, subround, batch_start, interval, local_ownership)
+        _tiled_execute_tile_batch!(tile_after_load, tile_sites, tile_offsets,
+            finite_snapshot, finite_deltas, boundary_snapshot, scratch_ids,
+            scratch_deltas, scratch_boundary_deltas, scratch_stride, boundary_deltas,
+            tile_counters, state, components, algorithm, relation, rng, seed, mcs,
+            subround, batch_start, interval, local_ownership)
     end
 end
 
@@ -646,15 +707,35 @@ end
 @kernel function _tiled_reduce_report!(report, tile_counters)
     index = @index(Global, Linear)
     if index == 1
-        totals = ntuple(_ -> UInt64(0), 8)
+        realized = UInt64(0)
+        same_owner = UInt64(0)
+        boundary = UInt64(0)
+        immutable = UInt64(0)
+        conflicts = UInt64(0)
+        constraint_rejections = UInt64(0)
+        acceptance_rejections = UInt64(0)
+        accepted = UInt64(0)
         tiles = length(tile_counters) ÷ 8
         for tile in 1:tiles
             start = (tile - 1) * 8
-            totals = ntuple(field -> totals[field] +
-                UInt64(@inbounds(tile_counters[start + field])), 8)
+            realized += UInt64(@inbounds tile_counters[start + 1])
+            same_owner += UInt64(@inbounds tile_counters[start + 2])
+            boundary += UInt64(@inbounds tile_counters[start + 3])
+            immutable += UInt64(@inbounds tile_counters[start + 4])
+            conflicts += UInt64(@inbounds tile_counters[start + 5])
+            constraint_rejections += UInt64(@inbounds tile_counters[start + 6])
+            acceptance_rejections += UInt64(@inbounds tile_counters[start + 7])
+            accepted += UInt64(@inbounds tile_counters[start + 8])
         end
-        @inbounds for field in 1:8
-            report[field + 4] = totals[field]
+        @inbounds begin
+            report[5] = realized
+            report[6] = same_owner
+            report[7] = boundary
+            report[8] = immutable
+            report[9] = conflicts
+            report[10] = constraint_rejections
+            report[11] = acceptance_rejections
+            report[12] = accepted
         end
     end
 end
@@ -691,7 +772,8 @@ function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
                     workspace.tile_offsets, workspace.color_tiles,
                     workspace.color_offsets, workspace.color_order,
                     workspace.finite_snapshot, workspace.finite_deltas,
-                    workspace.scratch_ids, workspace.scratch_deltas,
+                    workspace.boundary_snapshot, workspace.scratch_ids,
+                    workspace.scratch_deltas, workspace.scratch_boundary_deltas,
                     workspace.scratch_stride, workspace.boundary_deltas,
                     workspace.tile_counters, state, integrator.components,
                     integrator.algorithm, integrator.proposal_relation, integrator.rng,
@@ -705,7 +787,8 @@ function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
                     workspace.tile_offsets, workspace.color_tiles,
                     workspace.color_offsets, workspace.color_order,
                     workspace.finite_snapshot, workspace.finite_deltas,
-                    workspace.scratch_ids, workspace.scratch_deltas,
+                    workspace.boundary_snapshot, workspace.scratch_ids,
+                    workspace.scratch_deltas, workspace.scratch_boundary_deltas,
                     workspace.scratch_stride, workspace.boundary_deltas,
                     workspace.tile_counters, state, integrator.components,
                     integrator.algorithm, integrator.proposal_relation, integrator.rng,

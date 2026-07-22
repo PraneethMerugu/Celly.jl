@@ -174,6 +174,59 @@ end
         shared.state, fixture.tracker, logical_state(shared)))
 end
 
+@testset "Tiled quadratic boundary reconciliation" begin
+    dims = (6, 6)
+    volume = QuadraticVolumeHamiltonian(number_type = Float32)
+    surface_relation = first_shell_relation(SurfaceRole(), Val(2))
+    boundary = QuadraticBoundaryHamiltonian(
+        BoundaryEdgeCount(), surface_relation; number_type = Float32)
+    schema = merge_property_schemas(
+        required_properties(volume), required_properties(boundary))
+    owners = fill(MediumOwner(1), dims)
+    owners[1:2, 1:2] .= fill(CellOwner(1), 2, 2)
+    owners[5:6, 5:6] .= fill(CellOwner(2), 2, 2)
+    state = LogicalPottsState(owners, CellCapacity(2);
+        cell_types = Dict(CellID(1) => CellTypeID(2), CellID(2) => CellTypeID(2)),
+        medium_domains = [MediumID(1)], property_schema = schema)
+    property_values(state, :target_volume) .= 5.0f0
+    property_values(state, :volume_strength) .= 1.25f0
+    property_values(state, :target_boundary) .= 8
+    property_values(state, :boundary_strength) .= 0.75f0
+    domain = CartesianDomain(dims)
+    proposal_relation = first_shell_relation(ProposalRole(), Val(2))
+    contact_relation = first_shell_relation(ContactRole(), Val(2))
+    contact = UnorderedContactHamiltonian(Float32[0 3; 3 1],
+        MediumTypeTable(MediumID(1) => CellTypeID(1)), contact_relation)
+    tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
+    components = ScientificComponentSet(energies = (volume, contact, boundary))
+    disabled = TiledCheckerboardCPM(temperature = 5.0f0, tile_size = (2, 2),
+        switching_interval = 2, shared_memory = :disabled)
+    required = TiledCheckerboardCPM(temperature = 5.0f0, tile_size = (2, 2),
+        switching_interval = 2, shared_memory = :required)
+    resident = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(state), domain, tracker),
+        proposal_relation, components, disabled; seed = 0x12b0)
+    shared = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(state), domain, tracker),
+        proposal_relation, components, required; seed = 0x12b0)
+    reference = init_tiled_reference(CorePotts._copy_logical_state(state), domain,
+        proposal_relation, components, disabled; seed = 0x12b0)
+    CorePotts.SciMLBase.step!(resident, 4)
+    CorePotts.SciMLBase.step!(shared, 4)
+    for _ in 1:4
+        step_tiled_reference!(reference)
+    end
+    resident_snapshot = logical_state(resident)
+    @test current_mcs_report(resident) == current_mcs_report(shared) ==
+          current_mcs_report(reference)
+    @test lattice_storage(resident_snapshot) == lattice_storage(logical_state(shared)) ==
+          lattice_storage(logical_state(reference))
+    @test isempty(tracker_conformance_errors(resident.state, tracker, resident_snapshot))
+    @test isempty(tracker_conformance_errors(
+        shared.state, tracker, logical_state(shared)))
+    @test tiled_scientific_access(boundary) isa TiledSnapshotAccess
+end
+
 @testset "TiledCheckerboardCPM configuration and guarantees" begin
     algorithm = TiledCheckerboardCPM(temperature = 6.0f0, tile_size = (4, 3),
         switching_interval = 7, shared_memory = :required)
