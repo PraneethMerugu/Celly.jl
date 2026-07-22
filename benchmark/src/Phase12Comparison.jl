@@ -5,7 +5,7 @@ using TOML
 
 export PHASE12_SCHEMA_VERSION, PHASE12_CONTRACT_VERSION
 export load_record, validate_record, compatibility_issues
-export aggregate_records, compare_record_groups, print_comparison
+export aggregate_records, compare_record_groups, paired_evidence, print_comparison
 export load_cold_record, validate_cold_record, compare_cold_record_groups
 export load_precompile_record, validate_precompile_record
 export compare_precompile_record_groups
@@ -96,6 +96,9 @@ const PRECOMPILE_METRIC_KEYS = (
     "total_precompile_seconds",
     "isolated_depot_bytes",
 )
+
+const PAIRED_PROCESS_ID_PATTERN =
+    r"^(.*)-paired-(baseline|candidate)-pair([1-9][0-9]*)-ordinal([12])$"
 
 function load_record(path::AbstractString)
     record = TOML.parsefile(path)
@@ -222,6 +225,98 @@ function _group_issues(records::AbstractVector, label::String)
     return unique!(issues)
 end
 
+function _paired_process_metadata(record::AbstractDict)
+    process_id = string(record["run"]["process_id"])
+    matched = match(PAIRED_PROCESS_ID_PATTERN, process_id)
+    isnothing(matched) && return nothing
+    return (
+        run_id = matched.captures[1],
+        subject = matched.captures[2],
+        pair = parse(Int, matched.captures[3]),
+        ordinal = parse(Int, matched.captures[4]),
+    )
+end
+
+"""
+    paired_evidence(baseline, candidate)
+
+Validate and summarize an optional counterbalanced paired schedule.  Ordinary independent
+record groups remain valid; when every process id has the paired identity emitted by
+`paired_repeat.jl`, this reports pair-level candidate/baseline steady-time ratios without
+changing the release gate evaluated by `compare_record_groups`.
+"""
+function paired_evidence(baseline::AbstractVector, candidate::AbstractVector)
+    all_records = vcat(collect(baseline), collect(candidate))
+    metadata = _paired_process_metadata.(all_records)
+    all(isnothing, metadata) && return nothing
+    any(isnothing, metadata) && return Dict(
+        "comparable" => false,
+        "issues" => ["paired evidence mixes paired and unpaired process identities"],
+    )
+
+    entries = Dict{Int, Dict{String, Any}}()
+    issues = String[]
+    run_ids = String[]
+    for (expected_subject, records) in (("baseline", baseline), ("candidate", candidate))
+        for record in records
+            meta = _paired_process_metadata(record)::NamedTuple
+            push!(run_ids, meta.run_id)
+            process_id = record["run"]["process_id"]
+            meta.subject == expected_subject || push!(issues,
+                "paired process $process_id labels itself `$(meta.subject)` but belongs to `$expected_subject`")
+            pair = get!(entries, meta.pair, Dict{String, Any}())
+            haskey(pair, meta.subject) && push!(issues,
+                "paired schedule contains duplicate $(meta.subject) record for pair $(meta.pair)")
+            pair[meta.subject] = (record = record, ordinal = meta.ordinal)
+        end
+    end
+    length(unique(run_ids)) == 1 || push!(issues,
+        "paired records must share one run identity")
+
+    orders = String[]
+    for pair_index in sort!(collect(keys(entries)))
+        pair = entries[pair_index]
+        haskey(pair, "baseline") && haskey(pair, "candidate") || begin
+            push!(issues, "paired schedule is missing a subject for pair $pair_index")
+            continue
+        end
+        baseline_ordinal = pair["baseline"].ordinal
+        candidate_ordinal = pair["candidate"].ordinal
+        Set((baseline_ordinal, candidate_ordinal)) == Set((1, 2)) || push!(issues,
+            "paired schedule pair $pair_index must contain ordinals 1 and 2")
+        push!(orders, baseline_ordinal == 1 ? "baseline/candidate" : "candidate/baseline")
+    end
+    all(orders[index] != orders[index + 1] for index in 1:(length(orders) - 1)) ||
+        push!(issues, "paired schedule must alternate the first subject")
+    isempty(issues) || return Dict("comparable" => false, "issues" => unique!(issues))
+
+    pair_indices = sort!(collect(keys(entries)))
+    workload_ratios = Dict{String, Vector{Float64}}()
+    algorithm_ratios = Dict{String, Vector{Float64}}()
+    for pair_index in pair_indices
+        before = entries[pair_index]["baseline"].record
+        after = entries[pair_index]["candidate"].record
+        for name in sort!(collect(keys(before["workloads"])))
+            baseline_workload = before["workloads"][name]
+            candidate_workload = after["workloads"][name]
+            ratio = _ratio(candidate_workload["steady_median_seconds_per_mcs"],
+                baseline_workload["steady_median_seconds_per_mcs"])
+            push!(get!(workload_ratios, name, Float64[]), ratio)
+            push!(get!(algorithm_ratios, baseline_workload["algorithm"], Float64[]), ratio)
+        end
+    end
+    return Dict(
+        "comparable" => true,
+        "pairs" => length(pair_indices),
+        "orders" => orders,
+        "workload_steady_seconds_ratios" => workload_ratios,
+        "workload_geometric_mean_steady_seconds_ratios" => Dict(
+            name => exp(mean(log, ratios)) for (name, ratios) in workload_ratios),
+        "algorithm_geometric_mean_steady_seconds_ratios" => Dict(
+            name => exp(mean(log, ratios)) for (name, ratios) in algorithm_ratios),
+    )
+end
+
 _median_metric(records, workload, key) =
     median(Float64(record["workloads"][workload][key]) for record in records)
 
@@ -301,6 +396,8 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
     if isempty(issues) && !isempty(baseline) && !isempty(candidate)
         append!(issues, compatibility_issues(first(baseline), first(candidate)))
     end
+    paired = paired_evidence(baseline, candidate)
+    !isnothing(paired) && !paired["comparable"] && append!(issues, paired["issues"])
     length(baseline) >= minimum_processes || push!(issues,
         "baseline requires at least $minimum_processes independent processes")
     length(candidate) >= minimum_processes || push!(issues,
@@ -350,6 +447,7 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
         "algorithm_geometric_mean_steady_seconds_ratios" => algorithm_geometric_means,
         "geometric_mean_passed" => geometric_mean_passed,
         "residency_issues" => residency_issues,
+        "paired_evidence" => paired,
         "baseline" => baseline_aggregate,
         "candidate" => candidate_aggregate,
         "workloads" => comparisons,

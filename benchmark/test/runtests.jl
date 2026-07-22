@@ -211,6 +211,28 @@ end
     @test result["algorithm_geometric_mean_steady_seconds_ratios"]["SequentialCPM"] < 1
     @test result["algorithm_geometric_mean_steady_seconds_ratios"]["LotteryCPM"] > 1
 
+    paired_baseline = Any[]
+    paired_candidate = Any[]
+    for pair in 1:4
+        baseline_ordinal, candidate_ordinal = isodd(pair) ? (1, 2) : (2, 1)
+        push!(paired_baseline, synthetic_record(
+            "paired-run-paired-baseline-pair$pair-ordinal$baseline_ordinal";
+            steady = 1.0))
+        push!(paired_candidate, synthetic_record(
+            "paired-run-paired-candidate-pair$pair-ordinal$candidate_ordinal";
+            steady = 0.9))
+    end
+    result = compare_record_groups(paired_baseline, paired_candidate;
+        minimum_processes = 4)
+    @test result["passed"]
+    @test result["paired_evidence"]["comparable"]
+    @test result["paired_evidence"]["pairs"] == 4
+    @test result["paired_evidence"]["orders"] == [
+        "baseline/candidate", "candidate/baseline",
+        "baseline/candidate", "candidate/baseline"]
+    @test result["paired_evidence"][
+        "algorithm_geometric_mean_steady_seconds_ratios"]["SequentialCPM"] ≈ 0.9
+
     @test_throws ArgumentError aggregate_records(baseline[1:2])
 end
 
