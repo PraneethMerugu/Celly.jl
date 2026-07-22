@@ -3,34 +3,7 @@
 CairoMakie.activate!()</code></pre><h1 id="Out-of-Core-Saving-with-Zarr-and-HDF5"><a class="docs-heading-anchor" href="#Out-of-Core-Saving-with-Zarr-and-HDF5">Out-of-Core Saving with Zarr &amp; HDF5</a><a id="Out-of-Core-Saving-with-Zarr-and-HDF5-1"></a><a class="docs-heading-anchor-permalink" href="#Out-of-Core-Saving-with-Zarr-and-HDF5" title="Permalink"></a></h1><p>Long 2-D simulations and all 3-D simulations can easily produce hundreds of gigabytes of lattice data — far more than fits in RAM.  PottsToolkit solves this through <em>backend extensions</em>: instead of accumulating snapshots in a PottsSolution object, the solver streams each saved frame directly to disk. Two backends ship out of the box: <strong>ZarrBackend</strong> (chunked, compressed, cloud-friendly) and <strong>HDF5Backend</strong> (widely supported in the scientific Python/Julia ecosystem).</p><h2 id="Packages"><a class="docs-heading-anchor" href="#Packages">Packages</a><a id="Packages-1"></a><a class="docs-heading-anchor-permalink" href="#Packages" title="Permalink"></a></h2><p>Loading <code>Zarr</code> and <code>HDF5</code> activates the corresponding PottsToolkit package extensions that define the backend types.</p><pre><code class="language-julia hljs">using PottsToolkit
 using Zarr
 using HDF5
-using Statistics</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Precompiling packages...
-    600.5 ms  ✓ dlfcn_win32_jll
-    673.3 ms  ✓ MPIPreferences
-    700.7 ms  ✓ aws_c_common_jll
-    756.2 ms  ✓ libaec_jll
-    700.5 ms  ✓ s2n_tls_jll
-    595.4 ms  ✓ MicrosoftMPI_jll
-    755.2 ms  ✓ XML2_jll
-   1126.0 ms  ✓ MPItrampoline_jll
-    718.0 ms  ✓ aws_checksums_jll
-    718.4 ms  ✓ aws_c_cal_jll
-    724.5 ms  ✓ aws_c_compression_jll
-    724.0 ms  ✓ aws_c_sdkutils_jll
-    754.3 ms  ✓ Hwloc_jll
-    737.8 ms  ✓ aws_c_io_jll
-   1123.9 ms  ✓ OpenMPI_jll
-   1133.6 ms  ✓ MPIABI_jll
-    886.4 ms  ✓ MPICH_jll
-    766.3 ms  ✓ aws_c_http_jll
-    739.5 ms  ✓ aws_c_auth_jll
-   1119.8 ms  ✓ mpif_jll
-    758.4 ms  ✓ aws_c_s3_jll
-   1320.5 ms  ✓ HDF5_jll
-   7356.2 ms  ✓ HDF5
-  23 dependencies successfully precompiled in 17 seconds. 35 already precompiled.
-Precompiling packages...
-   1313.4 ms  ✓ CorePotts → CorePottsHDF5Ext
-  1 dependency successfully precompiled in 2 seconds. 141 already precompiled.</code></pre><h2 id="Model-definition-(shared)"><a class="docs-heading-anchor" href="#Model-definition-(shared)">Model definition (shared)</a><a id="Model-definition-(shared)-1"></a><a class="docs-heading-anchor-permalink" href="#Model-definition-(shared)" title="Permalink"></a></h2><p>We build a simple two-population sorting model that will be solved twice — once with each backend — so the results can be compared.</p><pre><code class="language- hljs">A = CellType(:A)
+using Statistics</code></pre><h2 id="Model-definition-(shared)"><a class="docs-heading-anchor" href="#Model-definition-(shared)">Model definition (shared)</a><a id="Model-definition-(shared)-1"></a><a class="docs-heading-anchor-permalink" href="#Model-definition-(shared)" title="Permalink"></a></h2><p>We build a simple two-population sorting model that will be solved twice — once with each backend — so the results can be compared.</p><pre><code class="language- hljs">A = CellType(:A)
 B = CellType(:B)
 Medium = CellType(:Medium, is_background = true)
 
@@ -76,4 +49,4 @@ record_potts(
     sol_zarr;
     framerate = 15,
     resolution = (800, 800)
-)</code></pre><video autoplay loop muted playsinline controls src="../cell_sorting_zarr.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../10_cell_elongation_polarity/">« 10: Elongation &amp; Polarity</a><a class="docs-footer-nextpage" href="../12_parameter_sweeps/">12: Parameter Sweeps »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 22 July 2026 22:59">Wednesday 22 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+)</code></pre><video autoplay loop muted playsinline controls src="../cell_sorting_zarr.mp4" width="100%"></video><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../10_cell_elongation_polarity/">« 10: Elongation &amp; Polarity</a><a class="docs-footer-nextpage" href="../12_parameter_sweeps/">12: Parameter Sweeps »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 22 July 2026 23:12">Wednesday 22 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
