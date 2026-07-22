@@ -646,6 +646,11 @@ Complete D6 and D7 before declaring the public API candidate.
 
 ## Phase 13: API Freeze and Full Conformance
 
+Phase 12.5 enters this phase with `TiledCheckerboardCPM` retained as an explicitly experimental
+research algorithm. Phase 13 must keep it out of automatic selection, the stable performance
+surface, and paper claims. Its current name and configuration are not frozen as stable API; any
+future promotion requires a new scientific, portability, and performance qualification decision.
+
 ### Deliverables
 
 - Review every export, extension point, constructor, report, display, and error type.
@@ -693,6 +698,10 @@ compatibility shims remain unnecessary.
   wherever results could otherwise be misinterpreted.
 
 ## Phase 15: Paper and Release Qualification
+
+The Phase 12.5 tiled engine is excluded from fastest-engine and production-backend claims. Phase 15
+may report its negative/experimental result or reproduce its research measurements, but must not
+use it as release evidence without a separately accepted promotion gate.
 
 ### Deliverables
 

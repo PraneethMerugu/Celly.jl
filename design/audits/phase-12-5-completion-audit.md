@@ -1,6 +1,6 @@
 # Phase 12.5 completion audit
 
-Status: In progress; no disposition recorded
+Status: Experimental disposition recorded; exact-revision closure checks pending
 
 Date: 2026-07-22
 
@@ -15,17 +15,37 @@ resulting branch is merged.
 
 Evidence statuses used below are `proved`, `contradicted`, `incomplete`, and `missing`.
 
+## Owner disposition
+
+The recorded disposition is **experimental**. On 2026-07-22 the owner authorized proceeding toward
+closure after reviewing the current architecture and negative performance evidence. The retained
+algorithm is a research surface for tiled semantics, portable workgroup-local storage, and future
+architecture experiments. It is not release-eligible, is never selected automatically, and is not
+part of the stable performance or paper-claim surface.
+
+This disposition follows from four independent boundaries:
+
+1. CPU measurements materially regress the ordinary checkerboard engine, and ROCm smoke evidence
+   does not show an end-to-end benefit.
+2. The exact snapshot/reconciliation schedule has repeated global kernel boundaries; the local
+   kernel cooperatively loads the halo but deliberately executes ordered proposals in one lane.
+3. Directional motility, Act-like state, applicable HST state, and custom optimized component
+   evidence remain unqualified.
+4. The registered closure ensembles and paper-scale repeated GPU performance matrix have not run.
+   Therefore no statistical-equivalence, 2x speedup, fastest-engine, or production-readiness claim
+   can be made.
+
 ## Chunk audit
 
 | Chunk | Requirement | Current evidence | Status |
 |---|---|---|---|
 | 12.5A | Published assumptions and matched baselines | `phase-12-5-sultan-assumption-ledger.md` separates published facts, reconstruction choices, and unavailable details. Differential- and uniform-adhesion fixtures are in the backend matrix. | incomplete: publication-scale CPU/Metal/ROCm raw baselines are not yet archived |
 | 12.5B | Executable semantics independent of optimization | Versioned algorithm identity, topology-derived coloring, semantic RNG addresses, logical reference, exact report partition, replay, observation invariance, and registered statistical design are tested. | proved for the implemented component set on CPU |
-| 12.5C | Resident 2D volume/adhesion with shared and global storage | Device-global and cooperative `@localmem` paths share the ordered tile proposal core. CPU tests require exact lattice, tracker, and report identity with the logical reference. | incomplete: real Metal/ROCm exact-revision execution is running |
+| 12.5C | Resident 2D volume/adhesion with shared and global storage | Device-global and cooperative `@localmem` paths share the ordered tile proposal core. CPU tests require exact lattice, tracker, and report identity with the logical reference. The corrected reducer and workgroup-local path passed the full ROCm smoke matrix in run `29960853761`. | incomplete: the concurrent Metal job lost runner communication and produced no result |
 | 12.5D | Open physics and 3D | Qualified: volume, exact edge-count surface/perimeter, adhesion, prescribed-field occupancy energy, chemotaxis, `PositiveYield`, and 2D/3D global/local storage. Unsupported access fails at construction. | incomplete: directional motility, Act-like state, applicable HST state, and downstream custom-component optimization evidence are absent |
-| 12.5E | At least two representative GPU workloads improve by 2x | CPU 256² ablation measured Checkerboard at about 2.22 ms/MCS, tiled global at 8.67 ms/MCS, and tiled local at 9.34 ms/MCS. CPU is not the GPU gate. | missing: no passing real-GPU tiled performance record yet |
+| 12.5E | At least two representative GPU workloads improve by 2x | CPU 256² ablation measured Checkerboard at about 2.22 ms/MCS, tiled global at 8.67 ms/MCS, and tiled local at 9.34 ms/MCS. ROCm run `29960853761` selected `workgroup_local` with zero warm device allocation or host synchronization, but at the 24² smoke scale tiled was 20.60 ms/MCS versus Checkerboard 9.95 ms/MCS for differential adhesion and 21.06 ms/MCS versus 0.114 ms/MCS for uniform adhesion. | contradicted at smoke scale; paper-scale repeated performance gate remains missing |
 | 12.5F | Registered scientific and Sultan comparison battery | Seed sets, observables, exact gates, and equivalence margins are registered before closure runs. | missing: the registered ensembles and external reconstruction measurements have not run |
-| 12.5G | Toolkit, docs, disposition, protected revision, merge | Ordinary Toolkit `solve` coverage passes; experimental documentation explains semantics, controls, provenance, and failures. PR #15 is open. | incomplete: audit/disposition/protected checks/merge remain |
+| 12.5G | Toolkit, docs, disposition, protected revision, merge | Ordinary Toolkit `solve` coverage passes; experimental documentation explains semantics, controls, provenance, failures, and nonclaims. The owner disposition is experimental and Phase 13/15 guidance excludes stable or paper claims. PR #15 is open. | incomplete: protected exact-revision checks and merge remain |
 
 ## Exact implementation evidence retained so far
 
@@ -33,6 +53,10 @@ Evidence statuses used below are `proved`, `contradicted`, `incomplete`, and `mi
 - Portable fields/reconciliation checkpoint: `ed09db6691aa834c0f91acc85ecc4fc8d89ed1e4`.
 - Cooperative local-memory checkpoint: `aa39f626cf79b041dcdcbf775046ebc1971f275c`.
 - Surface/reducer checkpoint: `48e998c9f3d45172a3779321501d2bb3146fd341`.
+- ROCm run `29960853761`, job `89061287751`, passed on the exact source tree for the surface/reducer
+  checkpoint. Its retained artifact is
+  `gpu-smoke-rocm-ed1115d2fc28ef826f1cb58b36c277f690d4e4fe`; the `ed1115d2...` identity is the
+  GitHub pull-request merge revision, while the job metadata records head SHA `48e998c...`.
 - Current local CorePotts suite: 3,132 passed and one pre-existing broken test.
 - Current focused tiled suite: 137 passed, including logical/global/local equality for surface
   reconciliation.
@@ -51,14 +75,21 @@ Evidence statuses used below are `proved`, `contradicted`, `incomplete`, and `mi
    hardware, and timing identities and makes no cross-hardware fastest claim.
 4. No GPU ≥2x gate, statistical-equivalence gate, or release-eligible disposition is currently
    proved.
+5. Metal job `89061287742` is not negative device evidence. Its sole GitHub annotation says the
+   self-hosted runner lost communication with the service; no failed kernel or test log was
+   produced.
+
+## Retained surface and nonclaims
+
+- `TiledCheckerboardCPM` remains explicitly selected and documented as experimental.
+- `shared_memory = :auto`, `:required`, and `:disabled` remain available for research ablation.
+- Unsupported physics continues to fail during construction rather than disappearing in a kernel.
+- No automatic GPU policy may select the tiled engine.
+- No stable API, detailed-balance, statistical-equivalence, 2x speedup, Sultan reproduction,
+  production-backend, or fastest-engine claim is retained.
 
 ## Closure actions still required
 
 1. Obtain passing exact-revision Metal and ROCm execution plus raw tiled/checkerboard measurements.
-2. Decide from those profiles whether further workgroup/intrinsic optimization is justified or the
-   performance gate is contradicted.
-3. Run the registered exact/statistical battery at the tier required by the retained disposition.
-4. Resolve every missing initial-physics item or record it as a failed release gate in an explicit
-   experimental/reject disposition.
-5. Update Phase 13 entry guidance, make documentation match the disposition, pass protected checks,
-   merge PR #15, and replace this status with final retained evidence.
+2. Run the protected CPU, documentation, and repository checks on that same revision.
+3. Merge PR #15 and replace this pending status with the final revision and check identities.

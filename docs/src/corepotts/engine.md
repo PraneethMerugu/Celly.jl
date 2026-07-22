@@ -11,7 +11,7 @@ alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 sol = solve(prob, alg; saveat = 10)
 ```
 
-## TiledCheckerboardCPM *(Phase 12.5 experimental candidate)*
+## TiledCheckerboardCPM *(experimental research algorithm)*
 
 ```julia
 alg = TiledCheckerboardCPM(
@@ -45,9 +45,18 @@ preflight. Hard constraints, moment-dependent physics, floating boundary tracker
 unqualified component families are rejected rather than omitted. Use
 `backend_report(prob, alg, backend)` before allocating a long run.
 
-This algorithm does not claim detailed balance or trajectory identity with `SequentialCPM` or
-`CheckerboardSweepCPM`. CPU resident execution is tested against its own logical reference; Metal
-and ROCm require invariant, replay, and statistical qualification.
+Phase 12.5 did not promote this algorithm to the stable or automatically selected GPU path. Its
+exact snapshot/reconciliation schedule requires many device-wide kernel boundaries, and the
+cooperative local-memory kernel uses the workgroup to load a halo before one lane executes the
+tile's ordered proposals. The retained CPU and ROCm measurements did not establish the required
+end-to-end speedup over `CheckerboardSweepCPM`. Select it only for research on tiled update
+semantics, local-memory experiments, or reproduction of the Phase 12.5 evidence; use
+`CheckerboardSweepCPM` for supported production work.
+
+This algorithm does not claim detailed balance, statistical equivalence, or trajectory identity
+with `SequentialCPM` or `CheckerboardSweepCPM`. CPU resident execution is tested against its own
+logical reference. A passing backend smoke run establishes compilation, residency, accounting, and
+invariants only; it is not statistical or performance qualification.
 
 ---
 
