@@ -1,11 +1,29 @@
 using Test
+using TOML
 
 include(joinpath(@__DIR__, "..", "src", "Phase12Comparison.jl"))
 using .Phase12Comparison
+include(joinpath(@__DIR__, "..", "src", "Phase12PairedRunner.jl"))
+using .Phase12PairedRunner
+
+@testset "Phase 12 shared paired worker" begin
+    worker = joinpath("relative", "harness", "performance_worker.jl")
+    subject = joinpath("relative", "subject")
+    command = paired_worker_command(worker, subject;
+        backend = "cpu", profile = "full", precision = "Float32")
+    arguments = command.exec
+    @test abspath(worker) in arguments
+    @test "--project=$(abspath(joinpath(subject, "benchmark")))" in arguments
+    @test "--backend=cpu" in arguments
+    @test "--profile=full" in arguments
+    @test "--precision=Float32" in arguments
+    @test isempty(command.dir)
+end
 
 function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
         memory = 1000, backend = "cpu", hardware_id = "cpu-arm64-reference",
-        fingerprint = "model-fingerprint", device_allocations = 0)
+        fingerprint = "model-fingerprint", device_allocations = 0,
+        julia_threads = 1)
     return Dict(
         "schema_version" => PHASE12_SCHEMA_VERSION,
         "record_kind" => "phase12-performance-run",
@@ -18,7 +36,7 @@ function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
             "julia_version" => "1.12.6",
             "architecture" => "aarch64",
             "os" => "Darwin",
-            "julia_threads" => 1,
+            "julia_threads" => julia_threads,
             "precision" => "Float32",
             "profile" => "full",
             "tuning_policy" => "conservative",
@@ -40,6 +58,19 @@ function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
                 "sites" => 128^2,
                 "timed_mcs" => 10,
                 "declared_lifecycle_observation_per_mcs" => false,
+                "final_state_checksum" => "exact-final-state",
+                "final_cells" => 7,
+                "last_mcs_internal_rounds" => 1,
+                "last_mcs_scheduler_candidates" => 16,
+                "last_mcs_activated_attempts" => 16,
+                "last_mcs_realized_proposals" => 12,
+                "last_mcs_same_owner_no_ops" => 2,
+                "last_mcs_boundary_no_ops" => 1,
+                "last_mcs_immutable_recipient_no_ops" => 1,
+                "last_mcs_dynamic_conflicts" => 1,
+                "last_mcs_constraint_rejections" => 1,
+                "last_mcs_acceptance_rejections" => 3,
+                "last_mcs_accepted_copies" => 7,
                 "steady_median_seconds_per_mcs" => steady,
                 "first_mcs_seconds" => first_mcs,
                 "steady_median_host_allocated_bytes_per_mcs" => 0.0,
@@ -54,6 +85,45 @@ function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
             ),
         ),
     )
+end
+
+@testset "Phase 12 CPU scaling summary" begin
+    groups = Dict{Int, Vector{Any}}()
+    for threads in (1, 2, 4)
+        groups[threads] = Any[synthetic_record(
+            "scaling-$threads-$process";
+            steady = 1 / min(threads, 2),
+            julia_threads = threads,
+            hardware_id = "cpu-arm64-reference-$threads-physical-threads")
+            for process in 1:3]
+    end
+    result = summarize_cpu_scaling(groups)
+    @test result["comparable"]
+    @test result["thread_counts"] == [1, 2, 4]
+    @test result["exact_cross_thread_replay"]
+    @test result["replay_evidence"]["migration_2d"]["final_state_checksum"] ==
+          "exact-final-state"
+    @test result["scaling"]["2"]["algorithm_geometric_mean_speedups"][
+        "SequentialCPM"] ≈ 2
+    @test result["scaling"]["4"]["workloads"]["migration_2d"][
+        "parallel_efficiency"] ≈ 0.5
+
+    wrong_commit = deepcopy(groups)
+    wrong_commit[4][1]["provenance"]["implementation_commit"] = "other"
+    result = summarize_cpu_scaling(wrong_commit)
+    @test !result["comparable"]
+    @test any(contains("implementation commits"), result["issues"])
+
+    result = summarize_cpu_scaling(Dict(2 => groups[2]))
+    @test !result["comparable"]
+    @test any(contains("requires one thread"), result["issues"])
+
+    changed_replay = deepcopy(groups)
+    changed_replay[4][2]["workloads"]["migration_2d"]["final_state_checksum"] =
+        "different-final-state"
+    result = summarize_cpu_scaling(changed_replay)
+    @test !result["comparable"]
+    @test any(contains("changed replay evidence `final_state_checksum`"), result["issues"])
 end
 
 function synthetic_cold_record(process_id; scale = 1.0, hardware_id = "cpu-arm64-reference")
@@ -132,6 +202,10 @@ end
     @test result["comparable"]
     @test result["passed"]
     @test result["algorithm_geometric_mean_steady_seconds_ratios"]["SequentialCPM"] < 1
+    @test !result["paired_evidence"]["available"]
+    io = IOBuffer()
+    TOML.print(io, result; sorted = true)
+    @test !isempty(take!(io))
 
     regression = [synthetic_record("regression-$index"; steady = 1.2,
                       first_mcs = 2.0, memory = 1000)
@@ -225,6 +299,7 @@ end
     result = compare_record_groups(paired_baseline, paired_candidate;
         minimum_processes = 4)
     @test result["passed"]
+    @test result["paired_evidence"]["available"]
     @test result["paired_evidence"]["comparable"]
     @test result["paired_evidence"]["pairs"] == 4
     @test result["paired_evidence"]["orders"] == [

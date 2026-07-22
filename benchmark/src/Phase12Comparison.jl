@@ -6,6 +6,7 @@ using TOML
 export PHASE12_SCHEMA_VERSION, PHASE12_CONTRACT_VERSION
 export load_record, validate_record, compatibility_issues
 export aggregate_records, compare_record_groups, paired_evidence, print_comparison
+export summarize_cpu_scaling
 export load_cold_record, validate_cold_record, compare_cold_record_groups
 export load_precompile_record, validate_precompile_record
 export compare_precompile_record_groups
@@ -51,6 +52,22 @@ const ZERO_WARM_METRICS = (
     "host_allocations",
     "device_allocations",
     "host_to_device_transfers",
+)
+
+const CPU_REPLAY_EVIDENCE_KEYS = (
+    "final_state_checksum",
+    "final_cells",
+    "last_mcs_internal_rounds",
+    "last_mcs_scheduler_candidates",
+    "last_mcs_activated_attempts",
+    "last_mcs_realized_proposals",
+    "last_mcs_same_owner_no_ops",
+    "last_mcs_boundary_no_ops",
+    "last_mcs_immutable_recipient_no_ops",
+    "last_mcs_dynamic_conflicts",
+    "last_mcs_constraint_rejections",
+    "last_mcs_acceptance_rejections",
+    "last_mcs_accepted_copies",
 )
 
 const COLD_IDENTITY_KEYS = (
@@ -139,6 +156,8 @@ function validate_record(record::AbstractDict)
     end
     get(provenance, "git_dirty", true) === false || push!(issues,
         "authoritative Phase 12 records require a clean worktree")
+    get(provenance, "harness_git_dirty", false) === false || push!(issues,
+        "authoritative Phase 12 records require a clean harness worktree")
     workloads = _table(record, "workloads", issues, "record")
     isempty(workloads) && push!(issues, "record contains no workloads")
     for (name, workload) in workloads
@@ -354,6 +373,146 @@ function aggregate_records(records::AbstractVector; minimum_processes::Int = 3)
     )
 end
 
+function _cpu_system_id(hardware_id::AbstractString)
+    return replace(hardware_id,
+        r"-[1-9][0-9]*-(?:pinned-)?physical-threads$" => "")
+end
+
+function _cpu_replay_evidence(groups, threads)
+    issues = String[]
+    reference = nothing
+    evidence = Dict{String, Any}()
+    for thread_count in threads, (record_index, record) in pairs(groups[thread_count])
+        for name in sort!(collect(keys(record["workloads"])))
+            workload = record["workloads"][name]
+            for key in CPU_REPLAY_EVIDENCE_KEYS
+                haskey(workload, key) || push!(issues,
+                    "$thread_count-thread record $record_index workload `$name` is missing replay evidence `$key`")
+            end
+        end
+        isempty(issues) || continue
+        if isnothing(reference)
+            reference = record
+            for (name, workload) in record["workloads"]
+                evidence[name] = Dict(
+                    key => deepcopy(workload[key]) for key in CPU_REPLAY_EVIDENCE_KEYS)
+            end
+            continue
+        end
+        for name in keys(reference["workloads"]), key in CPU_REPLAY_EVIDENCE_KEYS
+            expected = reference["workloads"][name][key]
+            observed = record["workloads"][name][key]
+            isequal(expected, observed) || push!(issues,
+                "$thread_count-thread record $record_index workload `$name` changed replay evidence `$key`: $(repr(expected)) != $(repr(observed))")
+        end
+    end
+    return issues, evidence
+end
+
+"""Summarize separately qualified fixed-thread CPU groups as scaling evidence."""
+function summarize_cpu_scaling(groups::AbstractDict; minimum_processes::Int = 3)
+    minimum_processes > 0 || throw(ArgumentError("minimum_processes must be positive"))
+    threads = sort!(Int.(collect(keys(groups))))
+    isempty(threads) && return Dict(
+        "comparable" => false, "issues" => ["CPU scaling matrix is empty"])
+    first(threads) == 1 || return Dict(
+        "comparable" => false, "issues" => ["CPU scaling matrix requires one thread"])
+    all(>(0), threads) || return Dict(
+        "comparable" => false, "issues" => ["CPU thread counts must be positive"])
+
+    issues = String[]
+    aggregates = Dict{Int, Any}()
+    reference = nothing
+    comparison_keys = filter(
+        key -> !(key in ("hardware_id", "julia_threads")), COMPARISON_IDENTITY_KEYS)
+    for thread_count in threads
+        records = groups[thread_count]
+        append!(issues, ("$thread_count threads: $issue" for issue in
+            _group_issues(records, "$thread_count-thread group")))
+        length(records) >= minimum_processes || push!(issues,
+            "$thread_count-thread group requires at least $minimum_processes processes")
+        isempty(records) && continue
+        identity = first(records)["comparison_identity"]
+        get(identity, "backend", nothing) == "cpu" || push!(issues,
+            "$thread_count-thread group must use the CPU backend")
+        get(identity, "julia_threads", nothing) == thread_count || push!(issues,
+            "$thread_count-thread group identity does not match its thread count")
+        current = first(records)
+        if isnothing(reference)
+            reference = current
+        else
+            append!(issues, _identity_issues(
+                reference["comparison_identity"], current["comparison_identity"],
+                comparison_keys, "CPU scaling comparison identity"))
+            _cpu_system_id(reference["comparison_identity"]["hardware_id"]) ==
+                _cpu_system_id(current["comparison_identity"]["hardware_id"]) || push!(issues,
+                "CPU scaling groups use different hardware systems")
+            reference["provenance"]["implementation_commit"] ==
+                current["provenance"]["implementation_commit"] || push!(issues,
+                "CPU scaling groups use different implementation commits")
+            reference_names = sort!(collect(keys(reference["workloads"])))
+            current_names = sort!(collect(keys(current["workloads"])))
+            reference_names == current_names || push!(issues,
+                "CPU scaling groups use different workload sets")
+            for name in intersect(reference_names, current_names)
+                append!(issues, _identity_issues(
+                    reference["workloads"][name], current["workloads"][name],
+                    WORKLOAD_IDENTITY_KEYS, "CPU scaling workload `$name`"))
+            end
+        end
+    end
+    replay_issues, replay_evidence = _cpu_replay_evidence(groups, threads)
+    append!(issues, replay_issues)
+    isempty(issues) || return Dict(
+        "comparable" => false, "issues" => unique!(issues))
+
+    for thread_count in threads
+        aggregates[thread_count] = aggregate_records(
+            groups[thread_count]; minimum_processes)
+    end
+    baseline = aggregates[1]
+    summaries = Dict{String, Any}()
+    for thread_count in threads
+        aggregate = aggregates[thread_count]
+        workloads = Dict{String, Any}()
+        algorithm_speedups = Dict{String, Vector{Float64}}()
+        for name in sort!(collect(keys(baseline["workloads"])))
+            one_thread = baseline["workloads"][name]
+            threaded = aggregate["workloads"][name]
+            speedup = _ratio(one_thread["median_steady_seconds_per_mcs"],
+                threaded["median_steady_seconds_per_mcs"])
+            algorithm = one_thread["algorithm"]
+            push!(get!(algorithm_speedups, algorithm, Float64[]), speedup)
+            workloads[name] = Dict(
+                "algorithm" => algorithm,
+                "speedup_over_one_thread" => speedup,
+                "parallel_efficiency" => speedup / thread_count,
+            )
+        end
+        summaries[string(thread_count)] = Dict(
+            "threads" => thread_count,
+            "processes" => aggregate["processes"],
+            "workloads" => workloads,
+            "algorithm_geometric_mean_speedups" => Dict(
+                algorithm => exp(mean(log, speedups))
+                for (algorithm, speedups) in algorithm_speedups),
+        )
+    end
+    return Dict(
+        "schema_version" => PHASE12_SCHEMA_VERSION,
+        "contract_version" => PHASE12_CONTRACT_VERSION,
+        "record_kind" => "phase12-cpu-scaling-summary",
+        "comparable" => true,
+        "hardware_system_id" => _cpu_system_id(
+            reference["comparison_identity"]["hardware_id"]),
+        "implementation_commit" => reference["provenance"]["implementation_commit"],
+        "thread_counts" => threads,
+        "exact_cross_thread_replay" => true,
+        "replay_evidence" => replay_evidence,
+        "scaling" => summaries,
+    )
+end
+
 function _ratio(candidate, baseline)
     baseline == 0 && return candidate == 0 ? 1.0 : Inf
     return candidate / baseline
@@ -437,6 +596,8 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
         algorithm => exp(mean(log, ratios)) for (algorithm, ratios) in steady_ratios)
     geometric_mean_passed = all(<=(1), values(algorithm_geometric_means))
     passed &= geometric_mean_passed
+    paired_record = isnothing(paired) ? Dict("available" => false) :
+                    merge(Dict("available" => true), paired)
     return Dict(
         "schema_version" => PHASE12_SCHEMA_VERSION,
         "contract_version" => PHASE12_CONTRACT_VERSION,
@@ -447,7 +608,7 @@ function compare_record_groups(baseline::AbstractVector, candidate::AbstractVect
         "algorithm_geometric_mean_steady_seconds_ratios" => algorithm_geometric_means,
         "geometric_mean_passed" => geometric_mean_passed,
         "residency_issues" => residency_issues,
-        "paired_evidence" => paired,
+        "paired_evidence" => paired_record,
         "baseline" => baseline_aggregate,
         "candidate" => candidate_aggregate,
         "workloads" => comparisons,
