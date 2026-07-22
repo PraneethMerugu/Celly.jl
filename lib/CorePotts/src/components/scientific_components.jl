@@ -281,10 +281,14 @@ end
            _fixed_owner_unchecked(neighbor)
 end
 
+@inline _contact_neighbor_owner(::Nothing, state, neighbor::RealizedNeighbor) =
+    _realized_owner(state, neighbor)
+
 @inline _metric_edge_weight(::Nothing, relation, direction) = relation_weight(relation, direction)
 
-function energy_change(component::UnorderedContactHamiltonian, proposal::CopyProposal,
-        state, domain::Union{CartesianDomain, CompiledCartesianDomain})
+@inline function _contact_energy_change(component::UnorderedContactHamiltonian,
+        proposal::CopyProposal, state,
+        domain::Union{CartesianDomain, CompiledCartesianDomain}, owner_access)
     losing_type = owner_type(state, component.medium_types, proposal.losing)
     gaining_type = owner_type(state, component.medium_types, proposal.gaining)
     T = eltype(component.interactions)
@@ -292,7 +296,7 @@ function energy_change(component::UnorderedContactHamiltonian, proposal::CopyPro
     for direction in 1:direction_count(component.relation)
         neighbor = realize_neighbor(domain, component.relation, proposal.recipient, direction)
         neighbor.kind in (AbsentNeighbor, InvalidNeighbor) && continue
-        neighbor_owner = _realized_owner(state, neighbor)
+        neighbor_owner = _contact_neighbor_owner(owner_access, state, neighbor)
         neighbor_type = owner_type(state, component.medium_types, neighbor_owner)
         weight = T(relation_weight(component.relation, direction))
         proposal.losing != neighbor_owner &&
@@ -301,6 +305,11 @@ function energy_change(component::UnorderedContactHamiltonian, proposal::CopyPro
             (delta += weight * _contact_value(component, gaining_type, neighbor_type))
     end
     return delta
+end
+
+function energy_change(component::UnorderedContactHamiltonian, proposal::CopyProposal,
+        state, domain::Union{CartesianDomain, CompiledCartesianDomain})
+    return _contact_energy_change(component, proposal, state, domain, nothing)
 end
 
 function global_energy(component::UnorderedContactHamiltonian, state,

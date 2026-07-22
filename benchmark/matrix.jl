@@ -47,7 +47,7 @@ println("PHASE11_QUALIFICATION=", phase11_qualification)
 phase10_performance = PottsBenchmarks.measure_phase10_backend(backend)
 println("PHASE10_PERFORMANCE=", phase10_performance)
 phase10_reference_performance = PottsBenchmarks.measure_phase10_reference_backend(
-    backend; profile)
+    backend; profile, skip_incompatible = true)
 println("PHASE10_REFERENCE_PERFORMANCE=", Dict(
     "profile" => profile,
     "workloads" => sort!(collect(keys(phase10_reference_performance["workloads"]))),

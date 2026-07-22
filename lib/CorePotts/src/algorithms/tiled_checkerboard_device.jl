@@ -1,4 +1,4 @@
-"""Resident device-global workspace for the first qualified tiled execution path."""
+"""Resident workspace shared by device-global and cooperative local-memory tiled paths."""
 struct TiledDeviceWorkspace{S, F, C, O, V, D, I, B, L, K}
     tile_sites::S
     tile_offsets::F
@@ -20,6 +20,8 @@ struct TiledDeviceWorkspace{S, F, C, O, V, D, I, B, L, K}
     scratch_stride::UInt32
     switching_interval::UInt32
     batches_per_color::UInt32
+    shared_halo_capacity::UInt32
+    uses_shared_memory::Bool
 end
 
 function _allocate_tiled_device_workspace(
@@ -42,6 +44,18 @@ function _allocate_tiled_device_workspace(
         length(state.domain.descriptor.dims))
     layout = tiled_layout(algorithm, Tuple(Int.(state.domain.descriptor.dims));
         halo_radius = halo, periodic)
+    shared_halo_dims = ntuple(dimension ->
+        layout.tile_size[dimension] + 2 * layout.halo_radius,
+        length(layout.tile_size))
+    shared_halo_capacity = prod(shared_halo_dims)
+    shared_memory_eligible = shared_halo_capacity <= plan.block_size
+    algorithm.shared_memory === TiledSharedMemoryRequired &&
+        !shared_memory_eligible && throw(ArgumentError(
+            "shared_memory=:required needs $(shared_halo_capacity) work items for the " *
+            "tile halo, exceeding the configured block size $(plan.block_size)"))
+    uses_shared_memory = algorithm.shared_memory === TiledSharedMemoryRequired ||
+        (algorithm.shared_memory === TiledSharedMemoryAuto &&
+         !(plan.backend isa KernelAbstractions.CPU) && shared_memory_eligible)
 
     host_sites = UInt32[]
     host_tile_offsets = UInt32[1]
@@ -91,11 +105,13 @@ function _allocate_tiled_device_workspace(
     end
     cell_count = length(state.trackers.finite_volumes)
     prepare_size = max(cell_count, length(tile_counters), 1)
+    execute_kernel = uses_shared_memory ?
+        _tiled_execute_shared_batch!(plan.backend, shared_halo_capacity) :
+        _execution_kernel(plan, _tiled_execute_batch!, maximum_color_tiles)
     kernels = (
         prepare = _execution_kernel(plan, _tiled_prepare_mcs!, prepare_size),
         snapshot = _execution_kernel(plan, _tiled_snapshot_cells!, max(cell_count, 1)),
-        execute = _execution_kernel(
-            plan, _tiled_execute_batch!, maximum_color_tiles),
+        execute = execute_kernel,
         reconcile = _execution_kernel(
             plan, _tiled_reconcile_cells!, max(cell_count, 1)),
         report = _execution_kernel(plan, _tiled_reduce_report!, 1),
@@ -105,7 +121,8 @@ function _allocate_tiled_device_workspace(
         boundary_deltas, scratch_ids, scratch_deltas, tile_counters, layout,
         kernels, UInt32(length(layout.color_offsets) - 1),
         UInt32(maximum_color_tiles), UInt32(maximum_tile_sites), UInt32(scratch_stride),
-        UInt32(interval), UInt32(batches))
+        UInt32(interval), UInt32(batches), UInt32(shared_halo_capacity),
+        uses_shared_memory)
 end
 
 function _validate_tiled_device_components(components, state, moment_tracker, algorithm)
@@ -118,8 +135,6 @@ function _validate_tiled_device_components(components, state, moment_tracker, al
         "TiledCheckerboardCPM requires state compiled without moment storage"))
     eltype(state.trackers.boundary_measures) <: Integer || throw(ArgumentError(
         "the resident tiled vertical slice requires an exact integer boundary tracker"))
-    algorithm.shared_memory === TiledSharedMemoryRequired && throw(ArgumentError(
-        "shared_memory=:required is not qualified by the device-global vertical slice"))
     all(component -> component isa Union{QuadraticVolumeHamiltonian,
             UnorderedContactHamiltonian, ExternalFieldOccupancyHamiltonian},
         components.energies) || throw(ArgumentError(
@@ -161,14 +176,78 @@ function init_scientific(state::CompiledScientificState,
     return initialize_mechanics ? _initialize_mechanics!(integrator) : integrator
 end
 
-struct TiledDeviceEnergyContext{S, V, I, D}
+struct NoTiledLocalOwnership end
+
+struct TiledLocalOwnership{N, T, I}
+    tags::T
+    ids::I
+    dims::NTuple{N, Int}
+    tile_grid::NTuple{N, Int}
+    tile_size::NTuple{N, Int}
+    periodic::NTuple{N, Bool}
+    tile::UInt32
+    halo::UInt32
+end
+
+@inline function _tiled_local_slot(cache::TiledLocalOwnership{N}, site::Integer) where {N}
+    coordinates = _site_coordinates(site, cache.dims)
+    tile_coordinates = _site_coordinates(cache.tile, cache.tile_grid)
+    halo = Int32(cache.halo)
+    slot = Int32(1)
+    stride = Int32(1)
+    for dimension in 1:N
+        origin = tile_coordinates[dimension] * Int32(cache.tile_size[dimension])
+        delta = coordinates[dimension] - origin
+        if cache.periodic[dimension]
+            extent = Int32(cache.dims[dimension])
+            lower = -halo
+            upper = Int32(cache.tile_size[dimension] - 1) + halo
+            while delta < lower
+                delta += extent
+            end
+            while delta > upper
+                delta -= extent
+            end
+        end
+        slot += (delta + halo) * stride
+        stride *= Int32(cache.tile_size[dimension]) + Int32(2) * halo
+    end
+    return slot
+end
+
+@inline _tiled_contact_owner(::NoTiledLocalOwnership, state, neighbor) =
+    _realized_owner(state, neighbor)
+@inline function _tiled_contact_owner(
+        cache::TiledLocalOwnership, state, neighbor::RealizedNeighbor)
+    neighbor.kind === MutableNeighbor || return _fixed_owner_unchecked(neighbor)
+    slot = _tiled_local_slot(cache, neighbor.site)
+    return _owner_ref_unchecked(
+        @inbounds(cache.tags[Int(slot)]), @inbounds(cache.ids[Int(slot)]))
+end
+
+@inline _tiled_update_local!(::NoTiledLocalOwnership, site, owner) = nothing
+@inline function _tiled_update_local!(cache::TiledLocalOwnership, site, owner)
+    slot = _tiled_local_slot(cache, site)
+    @inbounds begin
+        cache.tags[Int(slot)] = owner.tag
+        cache.ids[Int(slot)] = owner.value
+    end
+    return nothing
+end
+
+struct TiledDeviceEnergyContext{S, V, I, D, L}
     state::S
     finite_snapshot::V
     scratch_ids::I
     scratch_deltas::D
     scratch_start::UInt32
     scratch_count::UInt32
+    local_ownership::L
 end
+
+@inline _contact_neighbor_owner(context::TiledDeviceEnergyContext, state,
+        neighbor::RealizedNeighbor) =
+    _tiled_contact_owner(context.local_ownership, state, neighbor)
 
 @inline function _tiled_scratch_delta(context::TiledDeviceEnergyContext, owner::UInt32)
     iszero(context.scratch_count) && return Int32(0)
@@ -228,7 +307,8 @@ end
 
 @inline tiled_device_energy_change(component::UnorderedContactHamiltonian,
     proposal::CopyProposal, context::TiledDeviceEnergyContext) =
-    energy_change(component, proposal, context.state, context.state.domain)
+    _contact_energy_change(
+        component, proposal, context.state, context.state.domain, context)
 @inline tiled_device_energy_change(component::ExternalFieldOccupancyHamiltonian,
     proposal::CopyProposal, context::TiledDeviceEnergyContext) =
     energy_change(component, proposal, context.state, context.state.domain)
@@ -316,19 +396,10 @@ end
     end
 end
 
-@kernel function _tiled_execute_batch!(tile_sites, tile_offsets, color_tiles,
-        color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
-        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
-        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
-        batch_start, interval)
-    local_tile = @index(Global, Linear)
-    color = @inbounds color_order[Int(ordinal)]
-    color_first = @inbounds color_offsets[Int(color)]
-    color_stop = @inbounds color_offsets[Int(color) + 1]
-    color_size = color_stop - color_first
-    if local_tile <= color_size
-        color_index = color_first + Base.unsafe_trunc(UInt32, local_tile - 1)
-        tile = @inbounds color_tiles[Int(color_index)]
+@inline function _tiled_execute_tile_batch!(tile, tile_sites, tile_offsets,
+        finite_snapshot, finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
+        boundary_deltas, tile_counters, state, components, algorithm, relation, rng,
+        seed, mcs, subround, batch_start, interval, local_ownership)
         first_site = @inbounds tile_offsets[Int(tile)]
         stop_site = @inbounds tile_offsets[Int(tile) + 1]
         site_count = stop_site - first_site
@@ -374,7 +445,7 @@ end
                 transaction = _stage_copy_transaction_unchecked(
                     state, state.boundary_tracker, proposal; moment_tracker = nothing)
                 context = TiledDeviceEnergyContext(state, finite_snapshot, scratch_ids,
-                    scratch_deltas, scratch_start, scratch_count)
+                    scratch_deltas, scratch_start, scratch_count, local_ownership)
                 T = typeof(algorithm.temperature)
                 delta_h = T(_tiled_device_energy(
                     components.energies, proposal, context, zero(T)))
@@ -423,6 +494,8 @@ end
                         state.core.ownership.ids[Int(proposal.recipient)] =
                             proposal.gaining.value
                     end
+                    _tiled_update_local!(
+                        local_ownership, proposal.recipient, proposal.gaining)
                     accepted += UInt32(1)
                 else
                     acceptance_rejections += UInt32(1)
@@ -448,6 +521,106 @@ end
                 tile_counters[Int(counter_start + UInt32(8))] += accepted
             end
         end
+end
+
+@kernel function _tiled_execute_batch!(tile_sites, tile_offsets, color_tiles,
+        color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
+        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
+        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
+        batch_start, interval)
+    local_tile = @index(Global, Linear)
+    color = @inbounds color_order[Int(ordinal)]
+    color_first = @inbounds color_offsets[Int(color)]
+    color_stop = @inbounds color_offsets[Int(color) + 1]
+    color_size = color_stop - color_first
+    if local_tile <= color_size
+        color_index = color_first + Base.unsafe_trunc(UInt32, local_tile - 1)
+        tile = @inbounds color_tiles[Int(color_index)]
+        _tiled_execute_tile_batch!(tile, tile_sites, tile_offsets, finite_snapshot,
+            finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
+            boundary_deltas, tile_counters, state, components, algorithm, relation,
+            rng, seed, mcs, subround, batch_start, interval,
+            NoTiledLocalOwnership())
+    end
+end
+
+@inline function _tiled_load_local_ownership!(local_tags, local_ids, lane,
+        state, dims::NTuple{N, Int}, tile_grid::NTuple{N, Int},
+        tile_size::NTuple{N, Int}, periodic::NTuple{N, Bool}, tile, halo) where {N}
+    halo_dims = ntuple(dimension -> tile_size[dimension] + 2 * Int(halo), Val(N))
+    local_coordinates = _site_coordinates(lane, halo_dims)
+    tile_coordinates = _site_coordinates(tile, tile_grid)
+    coordinates = SVector{N, Int32}(ntuple(_ -> Int32(0), Val(N)))
+    valid = true
+    for dimension in 1:N
+        coordinate = tile_coordinates[dimension] * Int32(tile_size[dimension]) +
+                     local_coordinates[dimension] - Int32(halo)
+        if periodic[dimension]
+            extent = Int32(dims[dimension])
+            while coordinate < Int32(0)
+                coordinate += extent
+            end
+            while coordinate >= extent
+                coordinate -= extent
+            end
+        else
+            valid &= Int32(0) <= coordinate < Int32(dims[dimension])
+        end
+        coordinates = setindex(coordinates, coordinate, dimension)
+    end
+    if valid
+        site = _linear_index(coordinates, dims)
+        @inbounds begin
+            local_tags[lane] = state.core.ownership.tags[Int(site)]
+            local_ids[lane] = state.core.ownership.ids[Int(site)]
+        end
+    else
+        @inbounds begin
+            local_tags[lane] = UInt8(0)
+            local_ids[lane] = UInt32(0)
+        end
+    end
+    return nothing
+end
+
+@kernel function _tiled_execute_shared_batch!(tile_sites, tile_offsets, color_tiles,
+        color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
+        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
+        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
+        batch_start, interval, dims, tile_grid, tile_size, periodic, halo)
+    local_tile = @index(Group, Linear)
+    lane = @index(Local, Linear)
+    group_size = @uniform prod(@groupsize())
+    local_tags = @localmem UInt8 (group_size,)
+    local_ids = @localmem UInt32 (group_size,)
+    color = @inbounds color_order[Int(ordinal)]
+    color_first = @inbounds color_offsets[Int(color)]
+    color_stop = @inbounds color_offsets[Int(color) + 1]
+    color_size = color_stop - color_first
+    tile = UInt32(1)
+    if local_tile <= color_size
+        color_index = color_first + Base.unsafe_trunc(UInt32, local_tile - 1)
+        tile = @inbounds color_tiles[Int(color_index)]
+    end
+    _tiled_load_local_ownership!(local_tags, local_ids, lane, state, dims,
+        tile_grid, tile_size, periodic, tile, halo)
+    @synchronize
+    lane_after_load = @index(Local, Linear)
+    local_tile_after_load = @index(Group, Linear)
+    color_after_load = @inbounds color_order[Int(ordinal)]
+    color_first_after_load = @inbounds color_offsets[Int(color_after_load)]
+    color_stop_after_load = @inbounds color_offsets[Int(color_after_load) + 1]
+    color_size_after_load = color_stop_after_load - color_first_after_load
+    if lane_after_load == 1 && local_tile_after_load <= color_size_after_load
+        color_index_after_load = color_first_after_load +
+            Base.unsafe_trunc(UInt32, local_tile_after_load - 1)
+        tile_after_load = @inbounds color_tiles[Int(color_index_after_load)]
+        local_ownership = TiledLocalOwnership(local_tags, local_ids, dims,
+            tile_grid, tile_size, periodic, tile_after_load, UInt32(halo))
+        _tiled_execute_tile_batch!(tile_after_load, tile_sites, tile_offsets, finite_snapshot,
+            finite_deltas, scratch_ids, scratch_deltas, scratch_stride,
+            boundary_deltas, tile_counters, state, components, algorithm, relation,
+            rng, seed, mcs, subround, batch_start, interval, local_ownership)
     end
 end
 
@@ -512,16 +685,34 @@ function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
                 workspace.boundary_deltas, integrator.state.trackers.boundary_measures;
                 ndrange = max(cell_count, 1))
             batch_start = (batch - UInt32(1)) * workspace.switching_interval + UInt32(1)
-            launch!(integrator.plan, kernels.execute, workspace.tile_sites,
-                workspace.tile_offsets, workspace.color_tiles, workspace.color_offsets,
-                workspace.color_order, workspace.finite_snapshot, workspace.finite_deltas,
-                workspace.scratch_ids, workspace.scratch_deltas,
-                workspace.scratch_stride, workspace.boundary_deltas,
-                workspace.tile_counters, state, integrator.components,
-                integrator.algorithm, integrator.proposal_relation, integrator.rng,
-                integrator.seed, next_mcs, ordinal, subround, batch_start,
-                workspace.switching_interval;
-                ndrange = Int(workspace.maximum_color_tiles))
+            if workspace.uses_shared_memory
+                layout = workspace.layout
+                launch!(integrator.plan, kernels.execute, workspace.tile_sites,
+                    workspace.tile_offsets, workspace.color_tiles,
+                    workspace.color_offsets, workspace.color_order,
+                    workspace.finite_snapshot, workspace.finite_deltas,
+                    workspace.scratch_ids, workspace.scratch_deltas,
+                    workspace.scratch_stride, workspace.boundary_deltas,
+                    workspace.tile_counters, state, integrator.components,
+                    integrator.algorithm, integrator.proposal_relation, integrator.rng,
+                    integrator.seed, next_mcs, ordinal, subround, batch_start,
+                    workspace.switching_interval, layout.dims, layout.tile_grid,
+                    layout.tile_size, layout.periodic, UInt32(layout.halo_radius);
+                    ndrange = Int(workspace.maximum_color_tiles *
+                                  workspace.shared_halo_capacity))
+            else
+                launch!(integrator.plan, kernels.execute, workspace.tile_sites,
+                    workspace.tile_offsets, workspace.color_tiles,
+                    workspace.color_offsets, workspace.color_order,
+                    workspace.finite_snapshot, workspace.finite_deltas,
+                    workspace.scratch_ids, workspace.scratch_deltas,
+                    workspace.scratch_stride, workspace.boundary_deltas,
+                    workspace.tile_counters, state, integrator.components,
+                    integrator.algorithm, integrator.proposal_relation, integrator.rng,
+                    integrator.seed, next_mcs, ordinal, subround, batch_start,
+                    workspace.switching_interval;
+                    ndrange = Int(workspace.maximum_color_tiles))
+            end
             launch!(integrator.plan, kernels.reconcile, state, workspace.finite_snapshot,
                 workspace.finite_deltas, workspace.boundary_snapshot,
                 workspace.boundary_deltas; ndrange = max(cell_count, 1))

@@ -87,10 +87,23 @@ end
     @test lattice_storage(first_snapshot) == lattice_storage(logical_state(reference))
     @test assert_valid_state(first_snapshot) === first_snapshot
     @test isempty(tracker_conformance_errors(first.state, fixture.tracker, first_snapshot))
+    shared_algorithm = TiledCheckerboardCPM(temperature = 5.0f0,
+        tile_size = (2, 2), switching_interval = 2, shared_memory = :required)
+    shared = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(fixture.state), fixture.domain,
+            fixture.tracker), fixture.proposal_relation, fixture.components,
+        shared_algorithm; seed = 0x12c5)
+    @test shared.algorithm_workspace.uses_shared_memory
+    @test shared.algorithm_workspace.shared_halo_capacity == UInt32(16)
+    @test CorePotts.SciMLBase.step!(shared, 3) === shared
+    @test current_mcs_report(shared) == report
+    @test lattice_storage(logical_state(shared)) == lattice_storage(first_snapshot)
+    @test isempty(tracker_conformance_errors(
+        shared.state, fixture.tracker, logical_state(shared)))
     @test_throws ArgumentError init_scientific(
         compile_scientific_state(fixture.state, fixture.domain, fixture.tracker),
         fixture.proposal_relation, fixture.components,
-        TiledCheckerboardCPM(shared_memory = :required))
+        TiledCheckerboardCPM(tile_size = (32, 32), shared_memory = :required))
 
     fixture3 = _tiled_reference_fixture(Float32, (4, 4, 4))
     algorithm3 = TiledCheckerboardCPM(temperature = 5.0f0,
@@ -108,6 +121,17 @@ end
     @test assert_valid_state(snapshot3) === snapshot3
     @test isempty(tracker_conformance_errors(
         resident3.state, fixture3.tracker, snapshot3))
+    shared3 = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(fixture3.state), fixture3.domain,
+            fixture3.tracker), fixture3.proposal_relation, fixture3.components,
+        TiledCheckerboardCPM(temperature = 5.0f0, tile_size = (2, 2, 2),
+            switching_interval = 2, shared_memory = :required); seed = 0x3125)
+    CorePotts.SciMLBase.step!(shared3)
+    @test shared3.algorithm_workspace.uses_shared_memory
+    @test current_mcs_report(shared3) == current_mcs_report(resident3)
+    @test lattice_storage(logical_state(shared3)) == lattice_storage(snapshot3)
+    @test isempty(tracker_conformance_errors(
+        shared3.state, fixture3.tracker, logical_state(shared3)))
 end
 
 @testset "Tiled prescribed-field energy and chemotaxis" begin
@@ -138,6 +162,16 @@ end
     @test current_mcs_report(resident) == current_mcs_report(reference)
     @test assert_valid_state(snapshot) === snapshot
     @test isempty(tracker_conformance_errors(resident.state, fixture.tracker, snapshot))
+    shared = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(fixture.state), fixture.domain,
+            fixture.tracker), fixture.proposal_relation, components,
+        TiledCheckerboardCPM(temperature = 5.0f0, tile_size = (2, 2),
+            switching_interval = 2, shared_memory = :required); seed = 0x125f)
+    CorePotts.SciMLBase.step!(shared, 3)
+    @test current_mcs_report(shared) == current_mcs_report(resident)
+    @test lattice_storage(logical_state(shared)) == lattice_storage(snapshot)
+    @test isempty(tracker_conformance_errors(
+        shared.state, fixture.tracker, logical_state(shared)))
 end
 
 @testset "TiledCheckerboardCPM configuration and guarantees" begin

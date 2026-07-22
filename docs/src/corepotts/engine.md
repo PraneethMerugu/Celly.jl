@@ -31,13 +31,16 @@ launch geometry do not change the stochastic schedule.
 
 Tile size and switching interval are scientifically visible algorithm configuration: changing them
 can change local waiting-time distributions. `nothing` selects the recorded dimension policy;
-explicit values are retained in provenance. `shared_memory = :required` fails during construction
-unless that path is qualified; it never falls back to host execution or silently changes algorithms.
+explicit values are retained in provenance. `shared_memory = :auto` uses the cooperative
+workgroup-local tile/halo cache on qualified GPU layouts and the device-global policy on CPU;
+`:disabled` always selects the device-global path. `:required` demands the local-memory path and
+fails during construction when the padded halo exceeds the configured workgroup capacity. It never
+falls back to host execution or silently changes algorithms.
 
 The current experimental qualification covers quadratic volume, unordered adhesion,
 prescribed-field occupancy energy and chemotaxis, and `PositiveYield` in 2D and 3D through the
-device-global resident path. Components without `tiled_scientific_access` fail preflight. Hard
-constraints, moment-dependent physics, floating boundary trackers, shared-memory tiles, and other
+resident device-global and workgroup-local paths. Components without `tiled_scientific_access` fail
+preflight. Hard constraints, moment-dependent physics, floating boundary trackers, and other
 unqualified component families are rejected rather than omitted. Use
 `backend_report(prob, alg, backend)` before allocating a long run.
 

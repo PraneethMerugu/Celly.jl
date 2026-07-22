@@ -3036,7 +3036,7 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             n_cells(snapshot) >= n_cells(problem.u0) || error(
                 "$name $(spec.label) lost a finite cell in the timing smoke fixture")
         end
-        workloads[spec.label] = Dict(
+        workload = Dict(
             "family" => spec.family,
             "scale" => spec.scale,
             "dimensions" => collect(size(lattice_storage(snapshot))),
@@ -3105,6 +3105,25 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
                 spec.requires_lifecycle_observation,
             "timed_regions_backend_synchronized" => true,
         )
+        if algorithm isa TiledCheckerboardCPM
+            workspace = integrator.inner.algorithm_workspace
+            workload["tiled_execution_configuration"] = Dict(
+                "requested_tile_size" => algorithm.tile_size === nothing ?
+                    "dimension_default" : collect(algorithm.tile_size),
+                "requested_switching_interval" =>
+                    algorithm.switching_interval === nothing ?
+                    "tile_site_default" : Int(algorithm.switching_interval),
+                "requested_shared_memory" => string(algorithm.shared_memory),
+                "resolved_tile_size" => collect(workspace.layout.tile_size),
+                "resolved_switching_interval" => Int(workspace.switching_interval),
+                "resolved_halo_radius" => workspace.layout.halo_radius,
+                "resolved_storage_policy" => workspace.uses_shared_memory ?
+                    "workgroup_local" : "device_global",
+                "shared_halo_capacity" => Int(workspace.shared_halo_capacity),
+                "configured_block_size" => integrator.inner.plan.block_size,
+            )
+        end
+        workloads[spec.label] = workload
     end
     return Dict(
         "profile" => profile,
