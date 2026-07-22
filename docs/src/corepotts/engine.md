@@ -1,6 +1,6 @@
 # [Monte Carlo Algorithms](@id corepotts-engine)
 
-CorePotts provides four Monte Carlo update algorithms. They all implement the same
+CorePotts provides several explicitly named Monte Carlo update algorithms. They implement related
 Metropolis-Hastings acceptance criterion (see [Concepts](@ref concepts)) but differ in
 *how* lattice-site copy attempts are parallelised.
 
@@ -10,6 +10,40 @@ An algorithm is selected when constructing the integrator:
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 sol = solve(prob, alg; saveat = 10)
 ```
+
+## TiledCheckerboardCPM *(Phase 12.5 experimental candidate)*
+
+```julia
+alg = TiledCheckerboardCPM(
+    temperature = 2.0f0,
+    tile_size = nothing,
+    switching_interval = nothing,
+    shared_memory = :auto,
+)
+sol = solve(prob, alg)
+```
+
+`TiledCheckerboardCPM` activates nonconflicting rectangular tiles, executes proposals sequentially
+inside each tile, and reconciles exact additive cell statistics between deterministic subrounds.
+One public step always activates exactly one proposal per mutable lattice site in total. Counter RNG
+addresses contain the MCS, subround, tile, local proposal, and draw purpose, so observation and GPU
+launch geometry do not change the stochastic schedule.
+
+Tile size and switching interval are scientifically visible algorithm configuration: changing them
+can change local waiting-time distributions. `nothing` selects the recorded dimension policy;
+explicit values are retained in provenance. `shared_memory = :required` fails during construction
+unless that path is qualified; it never falls back to host execution or silently changes algorithms.
+
+The current experimental qualification covers quadratic volume, unordered adhesion,
+prescribed-field occupancy energy and chemotaxis, and `PositiveYield` in 2D and 3D through the
+device-global resident path. Components without `tiled_scientific_access` fail preflight. Hard
+constraints, moment-dependent physics, floating boundary trackers, shared-memory tiles, and other
+unqualified component families are rejected rather than omitted. Use
+`backend_report(prob, alg, backend)` before allocating a long run.
+
+This algorithm does not claim detailed balance or trajectory identity with `SequentialCPM` or
+`CheckerboardSweepCPM`. CPU resident execution is tested against its own logical reference; Metal
+and ROCm require invariant, replay, and statistical qualification.
 
 ---
 

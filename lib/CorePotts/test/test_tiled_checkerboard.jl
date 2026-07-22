@@ -48,6 +48,10 @@ end
         fixture.components, algorithm; seed = 0x12c5)
     second = init_scientific(second_state, fixture.proposal_relation,
         fixture.components, algorithm; seed = 0x12c5)
+    observed = init_scientific(compile_scientific_state(
+            CorePotts._copy_logical_state(fixture.state), fixture.domain,
+            fixture.tracker), fixture.proposal_relation, fixture.components,
+        algorithm; seed = 0x12c5)
     reference = init_tiled_reference(CorePotts._copy_logical_state(fixture.state),
         fixture.domain, fixture.proposal_relation, fixture.components, algorithm;
         seed = 0x12c5)
@@ -55,6 +59,10 @@ end
 
     @test CorePotts.SciMLBase.step!(first, 3) === first
     @test CorePotts.SciMLBase.step!(second, 3) === second
+    for _ in 1:3
+        CorePotts.SciMLBase.step!(observed)
+        current_mcs_report(observed)
+    end
     for _ in 1:3
         step_tiled_reference!(reference)
     end
@@ -75,6 +83,7 @@ end
     first_snapshot = logical_state(first)
     second_snapshot = logical_state(second)
     @test lattice_storage(first_snapshot) == lattice_storage(second_snapshot)
+    @test lattice_storage(first_snapshot) == lattice_storage(logical_state(observed))
     @test lattice_storage(first_snapshot) == lattice_storage(logical_state(reference))
     @test assert_valid_state(first_snapshot) === first_snapshot
     @test isempty(tracker_conformance_errors(first.state, fixture.tracker, first_snapshot))
@@ -99,6 +108,36 @@ end
     @test assert_valid_state(snapshot3) === snapshot3
     @test isempty(tracker_conformance_errors(
         resident3.state, fixture3.tracker, snapshot3))
+end
+
+@testset "Tiled prescribed-field energy and chemotaxis" begin
+    fixture = _tiled_reference_fixture()
+    field = CellCenteredField(reshape(Float32.(1:36), 6, 6))
+    coupling = OwnerScalarCoupling(
+        :volume_strength, MediumID(1) => 0.0f0; number_type = Float32)
+    field_energy = ExternalFieldOccupancyHamiltonian(
+        field, coupling; energy_scale = 0.05f0)
+    chemotaxis = ChemotaxisDrive(
+        field, coupling, LinearResponse(), ExtensionChemotaxis())
+    components = ScientificComponentSet(
+        energies = (fixture.components.energies..., field_energy),
+        drives = (chemotaxis,), kinetic_modifiers = (PositiveYield(0.25f0),))
+    algorithm = TiledCheckerboardCPM(temperature = 5.0f0, tile_size = (2, 2),
+        switching_interval = 2, shared_memory = :disabled)
+    resident = init_scientific(compile_scientific_state(
+            fixture.state, fixture.domain, fixture.tracker),
+        fixture.proposal_relation, components, algorithm; seed = 0x125f)
+    reference = init_tiled_reference(CorePotts._copy_logical_state(fixture.state),
+        fixture.domain, fixture.proposal_relation, components, algorithm; seed = 0x125f)
+    CorePotts.SciMLBase.step!(resident, 3)
+    for _ in 1:3
+        step_tiled_reference!(reference)
+    end
+    snapshot = logical_state(resident)
+    @test lattice_storage(snapshot) == lattice_storage(logical_state(reference))
+    @test current_mcs_report(resident) == current_mcs_report(reference)
+    @test assert_valid_state(snapshot) === snapshot
+    @test isempty(tracker_conformance_errors(resident.state, fixture.tracker, snapshot))
 end
 
 @testset "TiledCheckerboardCPM configuration and guarantees" begin
@@ -137,6 +176,7 @@ end
     @test contact_access isa TiledSnapshotAccess
     @test contact_access.relations == (relation,)
     @test contact_access.dependency_radius == 1
+    @test tiled_scientific_access(PositiveYield(1.0f0)) isa TiledSnapshotAccess
 
     components = ScientificComponentSet(energies = (volume, contact))
     @test isempty(algorithm_component_compatibility(

@@ -1,5 +1,5 @@
 """Resident device-global workspace for the first qualified tiled execution path."""
-struct TiledDeviceWorkspace{S, F, C, O, V, D, I, L, K}
+struct TiledDeviceWorkspace{S, F, C, O, V, D, I, B, L, K}
     tile_sites::S
     tile_offsets::F
     color_tiles::C
@@ -7,8 +7,11 @@ struct TiledDeviceWorkspace{S, F, C, O, V, D, I, L, K}
     color_order::O
     finite_snapshot::V
     finite_deltas::D
+    boundary_snapshot::B
+    boundary_deltas::D
     scratch_ids::I
     scratch_deltas::D
+    tile_counters::I
     layout::L
     kernels::K
     color_count::UInt32
@@ -72,34 +75,43 @@ function _allocate_tiled_device_workspace(
         prototype, Int32, length(state.trackers.finite_volumes)))
     finite_deltas = recorded(similar(
         prototype, Int32, length(state.trackers.finite_volumes)))
+    boundary_snapshot = recorded(similar(prototype,
+        eltype(state.trackers.boundary_measures),
+        length(state.trackers.boundary_measures)))
+    boundary_deltas = recorded(similar(
+        prototype, Int32, length(state.trackers.boundary_measures)))
     scratch_ids = recorded(similar(
         prototype, UInt32, prod(layout.tile_grid) * scratch_stride))
     scratch_deltas = recorded(similar(
         prototype, Int32, prod(layout.tile_grid) * scratch_stride))
+    tile_counters = recorded(similar(
+        prototype, UInt32, prod(layout.tile_grid) * 8))
     if !(plan.backend isa KernelAbstractions.CPU)
         record_transfer!(plan, :host_to_device)
     end
     cell_count = length(state.trackers.finite_volumes)
+    prepare_size = max(cell_count, length(tile_counters), 1)
     kernels = (
-        prepare = _execution_kernel(plan, _tiled_prepare_mcs!, max(cell_count, 1)),
+        prepare = _execution_kernel(plan, _tiled_prepare_mcs!, prepare_size),
         snapshot = _execution_kernel(plan, _tiled_snapshot_cells!, max(cell_count, 1)),
         execute = _execution_kernel(
             plan, _tiled_execute_batch!, maximum_color_tiles),
         reconcile = _execution_kernel(
             plan, _tiled_reconcile_cells!, max(cell_count, 1)),
+        report = _execution_kernel(plan, _tiled_reduce_report!, 1),
     )
     return TiledDeviceWorkspace(tile_sites, tile_offsets, color_tiles, color_offsets,
-        color_order, finite_snapshot, finite_deltas, scratch_ids, scratch_deltas,
-        layout, kernels, UInt32(length(layout.color_offsets) - 1),
+        color_order, finite_snapshot, finite_deltas, boundary_snapshot,
+        boundary_deltas, scratch_ids, scratch_deltas, tile_counters, layout,
+        kernels, UInt32(length(layout.color_offsets) - 1),
         UInt32(maximum_color_tiles), UInt32(maximum_tile_sites), UInt32(scratch_stride),
         UInt32(interval), UInt32(batches))
 end
 
 function _validate_tiled_device_components(components, state, moment_tracker, algorithm)
-    isempty(components.drives) && isempty(components.constraints) &&
-        isempty(components.kinetic_modifiers) && isempty(components.mechanics) ||
+    isempty(components.constraints) && isempty(components.mechanics) ||
         throw(ArgumentError(
-            "the resident tiled vertical slice currently qualifies conservative energies only"))
+            "the resident tiled path rejects constraints and mechanical components"))
     moment_tracker === nothing || throw(ArgumentError(
         "the resident tiled vertical slice currently rejects moment-dependent components"))
     state.trackers.moments isa NoMomentStorage || throw(ArgumentError(
@@ -109,9 +121,17 @@ function _validate_tiled_device_components(components, state, moment_tracker, al
     algorithm.shared_memory === TiledSharedMemoryRequired && throw(ArgumentError(
         "shared_memory=:required is not qualified by the device-global vertical slice"))
     all(component -> component isa Union{QuadraticVolumeHamiltonian,
-            UnorderedContactHamiltonian}, components.energies) || throw(ArgumentError(
-        "the resident tiled vertical slice currently qualifies volume and adhesion energies"))
-    accesses = map(tiled_scientific_access, components.energies)
+            UnorderedContactHamiltonian, ExternalFieldOccupancyHamiltonian},
+        components.energies) || throw(ArgumentError(
+        "the resident tiled path qualifies volume, adhesion, and prescribed-field energies"))
+    all(component -> component isa ChemotaxisDrive, components.drives) ||
+        throw(ArgumentError(
+            "the resident tiled path qualifies prescribed-field chemotaxis drives"))
+    all(component -> component isa PositiveYield,
+        components.kinetic_modifiers) || throw(ArgumentError(
+            "the resident tiled path qualifies PositiveYield kinetic modifiers"))
+    accesses = map(tiled_scientific_access, (components.energies...,
+        components.drives..., components.kinetic_modifiers...))
     all(access -> access isa TiledSnapshotAccess, accesses) || throw(ArgumentError(
         "every tiled energy must declare tiled_scientific_access"))
     return accesses
@@ -209,11 +229,34 @@ end
 @inline tiled_device_energy_change(component::UnorderedContactHamiltonian,
     proposal::CopyProposal, context::TiledDeviceEnergyContext) =
     energy_change(component, proposal, context.state, context.state.domain)
+@inline tiled_device_energy_change(component::ExternalFieldOccupancyHamiltonian,
+    proposal::CopyProposal, context::TiledDeviceEnergyContext) =
+    energy_change(component, proposal, context.state, context.state.domain)
 
 @inline _tiled_device_energy(::Tuple{}, proposal, context, result) = result
 @inline function _tiled_device_energy(components::Tuple, proposal, context, result)
     updated = result + tiled_device_energy_change(first(components), proposal, context)
     return _tiled_device_energy(Base.tail(components), proposal, context, updated)
+end
+
+@inline _tiled_device_drive(::Tuple{}, proposal, context, result) = result
+@inline function _tiled_device_drive(components::Tuple, proposal, context, result)
+    component = first(components)
+    updated = result + drive_log_bias(
+        component, proposal, context.state, context.state.domain)
+    return _tiled_device_drive(Base.tail(components), proposal, context, updated)
+end
+
+@inline _tiled_device_modifier(::Tuple{}, proposal, context, kinetic, barrier) =
+    (kinetic = kinetic, barrier = barrier)
+@inline function _tiled_device_modifier(
+        components::Tuple, proposal, context, kinetic, barrier)
+    component = first(components)
+    updated = component isa PositiveYield ?
+        (kinetic = kinetic, barrier = barrier + component.barrier) :
+        (kinetic = kinetic, barrier = barrier)
+    return _tiled_device_modifier(Base.tail(components), proposal, context,
+        updated.kinetic, updated.barrier)
 end
 
 @inline function _tiled_device_address(mcs, subround, tile, local_proposal, draw)
@@ -223,15 +266,19 @@ end
 end
 
 @kernel function _tiled_prepare_mcs!(report, finite_snapshot, finite_deltas,
-        finite_volumes, rng, seed, mcs, color_order, color_count, internal_rounds,
+        finite_volumes, boundary_snapshot, boundary_deltas, boundary_measures,
+        tile_counters, rng, seed, mcs, color_order, color_count, internal_rounds,
         mutable_sites)
     index = @index(Global, Linear)
     if index <= length(finite_volumes)
         @inbounds begin
             finite_snapshot[index] = finite_volumes[index]
             finite_deltas[index] = Int32(0)
+            boundary_snapshot[index] = boundary_measures[index]
+            boundary_deltas[index] = Int32(0)
         end
     end
+    index <= length(tile_counters) && @inbounds(tile_counters[index] = UInt32(0))
     if index == 1
         @inbounds begin
             report[1] = mcs
@@ -258,18 +305,22 @@ end
     end
 end
 
-@kernel function _tiled_snapshot_cells!(finite_snapshot, finite_deltas, finite_volumes)
+@kernel function _tiled_snapshot_cells!(finite_snapshot, finite_deltas, finite_volumes,
+        boundary_snapshot, boundary_deltas, boundary_measures)
     cell = @index(Global, Linear)
     @inbounds begin
         finite_snapshot[cell] = finite_volumes[cell]
         finite_deltas[cell] = Int32(0)
+        boundary_snapshot[cell] = boundary_measures[cell]
+        boundary_deltas[cell] = Int32(0)
     end
 end
 
 @kernel function _tiled_execute_batch!(tile_sites, tile_offsets, color_tiles,
         color_offsets, color_order, finite_snapshot, finite_deltas, scratch_ids,
-        scratch_deltas, scratch_stride, state, components, algorithm, relation,
-        rng, seed, mcs, ordinal, subround, batch_start, interval, report)
+        scratch_deltas, scratch_stride, boundary_deltas, tile_counters, state,
+        components, algorithm, relation, rng, seed, mcs, ordinal, subround,
+        batch_start, interval)
     local_tile = @index(Global, Linear)
     color = @inbounds color_order[Int(ordinal)]
     color_first = @inbounds color_offsets[Int(color)]
@@ -282,6 +333,14 @@ end
         stop_site = @inbounds tile_offsets[Int(tile) + 1]
         site_count = stop_site - first_site
         if batch_start <= site_count
+            realized = UInt32(0)
+            same_owner = UInt32(0)
+            boundary = UInt32(0)
+            immutable = UInt32(0)
+            conflicts = UInt32(0)
+            constraint_rejections = UInt32(0)
+            acceptance_rejections = UInt32(0)
+            accepted = UInt32(0)
             scratch_start = (tile - UInt32(1)) * scratch_stride + UInt32(1)
             scratch_count = UInt32(0)
             batch_stop = min(site_count, batch_start + interval - UInt32(1))
@@ -298,16 +357,16 @@ end
                 attempt = construct_proposal_attempt(proposal_law(algorithm), state,
                     state.domain, relation, Int(recipient), direction, mcs, semantic_id)
                 if attempt.outcome === SameOwnerAttempt
-                    Atomix.@atomic report[6] += UInt64(1)
+                    same_owner += UInt32(1)
                     continue
                 elseif attempt.outcome === BoundaryNullAttempt
-                    Atomix.@atomic report[7] += UInt64(1)
+                    boundary += UInt32(1)
                     continue
                 elseif attempt.outcome === ImmutableRecipientAttempt
-                    Atomix.@atomic report[8] += UInt64(1)
+                    immutable += UInt32(1)
                     continue
                 end
-                Atomix.@atomic report[5] += UInt64(1)
+                realized += UInt32(1)
                 proposal = _copy_proposal_unchecked(attempt.recipient, attempt.donor,
                     attempt.losing, attempt.gaining, attempt.direction, attempt.mcs,
                     attempt.semantic_id, attempt.forward_multiplicity,
@@ -319,7 +378,14 @@ end
                 T = typeof(algorithm.temperature)
                 delta_h = T(_tiled_device_energy(
                     components.energies, proposal, context, zero(T)))
-                inputs = AcceptanceInputs(delta_h, proposal)
+                drive = T(_tiled_device_drive(
+                    components.drives, proposal, context, zero(T)))
+                modifier = _tiled_device_modifier(components.kinetic_modifiers,
+                    proposal, context, zero(T), zero(T))
+                inputs = AcceptanceInputs(delta_h, proposal;
+                    drive_log_bias = drive,
+                    kinetic_modifier = modifier.kinetic,
+                    yield_barrier = modifier.barrier)
                 probability = _acceptance_probability(
                     ConventionalMetropolis(), inputs, algorithm.temperature)
                 acceptance_address = _tiled_device_address(
@@ -344,12 +410,12 @@ end
                             Int(delta.gaining_medium)] += Int32(1)
                     end
                     if delta.losing_cell != 0
-                        Atomix.@atomic state.trackers.boundary_measures[
-                            Int(delta.losing_cell)] += delta.losing_boundary
+                        Atomix.@atomic boundary_deltas[
+                            Int(delta.losing_cell)] += Int32(delta.losing_boundary)
                     end
                     if delta.gaining_cell != 0
-                        Atomix.@atomic state.trackers.boundary_measures[
-                            Int(delta.gaining_cell)] += delta.gaining_boundary
+                        Atomix.@atomic boundary_deltas[
+                            Int(delta.gaining_cell)] += Int32(delta.gaining_boundary)
                     end
                     @inbounds begin
                         state.core.ownership.tags[Int(proposal.recipient)] =
@@ -357,9 +423,9 @@ end
                         state.core.ownership.ids[Int(proposal.recipient)] =
                             proposal.gaining.value
                     end
-                    Atomix.@atomic report[12] += UInt64(1)
+                    accepted += UInt32(1)
                 else
-                    Atomix.@atomic report[11] += UInt64(1)
+                    acceptance_rejections += UInt32(1)
                 end
             end
             if !iszero(scratch_count)
@@ -370,20 +436,52 @@ end
                     Atomix.@atomic finite_deltas[Int(owner)] += change
                 end
             end
+            counter_start = (tile - UInt32(1)) * UInt32(8)
+            @inbounds begin
+                tile_counters[Int(counter_start + UInt32(1))] += realized
+                tile_counters[Int(counter_start + UInt32(2))] += same_owner
+                tile_counters[Int(counter_start + UInt32(3))] += boundary
+                tile_counters[Int(counter_start + UInt32(4))] += immutable
+                tile_counters[Int(counter_start + UInt32(5))] += conflicts
+                tile_counters[Int(counter_start + UInt32(6))] += constraint_rejections
+                tile_counters[Int(counter_start + UInt32(7))] += acceptance_rejections
+                tile_counters[Int(counter_start + UInt32(8))] += accepted
+            end
         end
     end
 end
 
-@kernel function _tiled_reconcile_cells!(state, finite_snapshot, finite_deltas)
+@kernel function _tiled_reconcile_cells!(state, finite_snapshot, finite_deltas,
+        boundary_snapshot, boundary_deltas)
     cell = @index(Global, Linear)
     updated = @inbounds finite_snapshot[cell] + finite_deltas[cell]
-    @inbounds state.trackers.finite_volumes[cell] = updated
+    @inbounds begin
+        state.trackers.finite_volumes[cell] = updated
+        state.trackers.boundary_measures[cell] =
+            boundary_snapshot[cell] + boundary_deltas[cell]
+    end
     if iszero(updated) && @inbounds(state.core.active[cell] != UInt8(0))
         @inbounds begin
             state.core.active[cell] = UInt8(0)
             state.core.cell_types[cell] = UInt32(0)
             _reset_columns!(Tuple(state.core.properties),
                 Tuple(state.retirement_defaults), cell)
+        end
+    end
+end
+
+@kernel function _tiled_reduce_report!(report, tile_counters)
+    index = @index(Global, Linear)
+    if index == 1
+        totals = ntuple(_ -> UInt64(0), 8)
+        tiles = length(tile_counters) ÷ 8
+        for tile in 1:tiles
+            start = (tile - 1) * 8
+            totals = ntuple(field -> totals[field] +
+                UInt64(@inbounds(tile_counters[start + field])), 8)
+        end
+        @inbounds for field in 1:8
+            report[field + 4] = totals[field]
         end
     end
 end
@@ -396,32 +494,41 @@ function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
     cell_count = length(integrator.state.trackers.finite_volumes)
     internal_rounds = workspace.color_count * workspace.batches_per_color
     kernels = workspace.kernels
+    prepare_size = max(cell_count, length(workspace.tile_counters), 1)
     launch!(integrator.plan, kernels.prepare, integrator.report_storage,
         workspace.finite_snapshot, workspace.finite_deltas,
-        integrator.state.trackers.finite_volumes, integrator.rng, integrator.seed,
-        next_mcs, workspace.color_order, workspace.color_count, internal_rounds,
-        length(integrator.state.domain.storage.mutable_sites); ndrange = max(cell_count, 1))
+        integrator.state.trackers.finite_volumes, workspace.boundary_snapshot,
+        workspace.boundary_deltas, integrator.state.trackers.boundary_measures,
+        workspace.tile_counters, integrator.rng, integrator.seed, next_mcs,
+        workspace.color_order, workspace.color_count, internal_rounds,
+        length(integrator.state.domain.storage.mutable_sites); ndrange = prepare_size)
     subround = UInt32(0)
     for ordinal in UInt32(1):workspace.color_count
         for batch in UInt32(1):workspace.batches_per_color
             subround += UInt32(1)
             subround > UInt32(1) && launch!(integrator.plan, kernels.snapshot,
                 workspace.finite_snapshot, workspace.finite_deltas,
-                integrator.state.trackers.finite_volumes; ndrange = max(cell_count, 1))
+                integrator.state.trackers.finite_volumes, workspace.boundary_snapshot,
+                workspace.boundary_deltas, integrator.state.trackers.boundary_measures;
+                ndrange = max(cell_count, 1))
             batch_start = (batch - UInt32(1)) * workspace.switching_interval + UInt32(1)
             launch!(integrator.plan, kernels.execute, workspace.tile_sites,
                 workspace.tile_offsets, workspace.color_tiles, workspace.color_offsets,
                 workspace.color_order, workspace.finite_snapshot, workspace.finite_deltas,
                 workspace.scratch_ids, workspace.scratch_deltas,
-                workspace.scratch_stride, state, integrator.components,
+                workspace.scratch_stride, workspace.boundary_deltas,
+                workspace.tile_counters, state, integrator.components,
                 integrator.algorithm, integrator.proposal_relation, integrator.rng,
                 integrator.seed, next_mcs, ordinal, subround, batch_start,
-                workspace.switching_interval, integrator.report_storage;
+                workspace.switching_interval;
                 ndrange = Int(workspace.maximum_color_tiles))
             launch!(integrator.plan, kernels.reconcile, state, workspace.finite_snapshot,
-                workspace.finite_deltas; ndrange = max(cell_count, 1))
+                workspace.finite_deltas, workspace.boundary_snapshot,
+                workspace.boundary_deltas; ndrange = max(cell_count, 1))
         end
     end
+    launch!(integrator.plan, kernels.report, integrator.report_storage,
+        workspace.tile_counters; ndrange = 1)
     run_compiled_lifecycle!(integrator, integrator.lifecycle, next_mcs)
     integrator.mcs = next_mcs
     return integrator

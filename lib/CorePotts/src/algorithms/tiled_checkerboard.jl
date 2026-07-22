@@ -284,6 +284,9 @@ tiled_reference_energy_change(component::AbstractEnergy, proposal::CopyProposal,
 tiled_reference_energy_change(component::UnorderedContactHamiltonian,
     proposal::CopyProposal, state::LogicalPottsState, domain::CartesianDomain) =
     energy_change(component, proposal, state, domain)
+tiled_reference_energy_change(component::ExternalFieldOccupancyHamiltonian,
+    proposal::CopyProposal, state::LogicalPottsState, domain::CartesianDomain) =
+    energy_change(component, proposal, state, domain)
 
 @inline _tiled_reference_energy(::Tuple{}, proposal, state, domain, result) = result
 @inline function _tiled_reference_energy(components::Tuple, proposal, state, domain, result)
@@ -291,6 +294,24 @@ tiled_reference_energy_change(component::UnorderedContactHamiltonian,
         first(components), proposal, state, domain)
     return _tiled_reference_energy(
         Base.tail(components), proposal, state, domain, updated)
+end
+
+@inline _tiled_reference_drive(::Tuple{}, proposal, state, domain, result) = result
+@inline function _tiled_reference_drive(components::Tuple, proposal, state, domain, result)
+    updated = result + drive_log_bias(first(components), proposal, state, domain)
+    return _tiled_reference_drive(Base.tail(components), proposal, state, domain, updated)
+end
+
+@inline _tiled_reference_modifier(::Tuple{}, proposal, state, kinetic, barrier) =
+    (kinetic = kinetic, barrier = barrier)
+@inline function _tiled_reference_modifier(
+        components::Tuple, proposal, state, kinetic, barrier)
+    component = first(components)
+    updated = component isa PositiveYield ?
+        (kinetic = kinetic, barrier = barrier + component.barrier) :
+        (kinetic = kinetic, barrier = barrier)
+    return _tiled_reference_modifier(Base.tail(components), proposal, state,
+        updated.kinetic, updated.barrier)
 end
 
 function _tiled_periodic_axes(domain::CartesianDomain{N}) where {N}
@@ -308,10 +329,9 @@ function init_tiled_reference(state::LogicalPottsState, domain::CartesianDomain,
         "tiled reference seed must fit UInt64"))
     messages = algorithm_component_compatibility(algorithm, components)
     isempty(messages) || throw(ArgumentError(join(messages, "; ")))
-    isempty(components.drives) && isempty(components.constraints) &&
-        isempty(components.kinetic_modifiers) && isempty(components.mechanics) ||
+    isempty(components.constraints) && isempty(components.mechanics) ||
         throw(ArgumentError(
-            "the initial tiled reference qualifies conservative energies only"))
+            "the tiled reference rejects constraints and mechanical components"))
     halo = _tiled_required_halo(components, proposal_relation)
     layout = tiled_layout(algorithm, domain.dims; halo_radius = halo,
         periodic = _tiled_periodic_axes(domain))
@@ -399,7 +419,16 @@ function step_tiled_reference!(integrator::TiledReferenceIntegrator)
                         delta_h = T(_tiled_reference_energy(
                             integrator.components.energies, proposal, tile_state,
                             integrator.domain, zero(T)))
-                        inputs = AcceptanceInputs(delta_h, proposal)
+                        drive = T(_tiled_reference_drive(
+                            integrator.components.drives, proposal, tile_state,
+                            integrator.domain, zero(T)))
+                        modifier = _tiled_reference_modifier(
+                            integrator.components.kinetic_modifiers, proposal,
+                            tile_state, zero(T), zero(T))
+                        inputs = AcceptanceInputs(delta_h, proposal;
+                            drive_log_bias = drive,
+                            kinetic_modifier = modifier.kinetic,
+                            yield_barrier = modifier.barrier)
                         acceptance_address = tiled_rng_address(next_mcs, subround,
                             tile, local_proposal; draw = 2)
                         draw = uniform_open01(T, integrator.rng, integrator.seed,

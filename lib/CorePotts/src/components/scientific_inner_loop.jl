@@ -325,3 +325,8 @@ tiled_scientific_access(::QuadraticVolumeHamiltonian) =
 tiled_scientific_access(component::UnorderedContactHamiltonian) =
     TiledSnapshotAccess((component.relation,); dependency_radius = 1,
         cell_wide = true, scratch_words = 2)
+tiled_scientific_access(::ExternalFieldOccupancyHamiltonian) =
+    TiledSnapshotAccess(; cell_wide = true)
+tiled_scientific_access(::ChemotaxisDrive) =
+    TiledSnapshotAccess(; cell_wide = true)
+tiled_scientific_access(::PositiveYield) = TiledSnapshotAccess()
