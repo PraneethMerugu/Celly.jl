@@ -487,6 +487,47 @@ end
 """Return the component's conservative deterministic-parallel access declaration."""
 scientific_access(::Any) = UnsupportedScientificAccess()
 
+"""Host-side marker for a component that has not declared tile-local execution semantics."""
+struct UnsupportedTiledScientificAccess end
+
+@enum TiledReconciliationMode::UInt8 begin
+    ExactAdditiveTiledReconciliation = 1
+    BoundedStateTiledReconciliation = 2
+end
+
+"""
+    TiledSnapshotAccess(relations=(); dependency_radius=0, cell_wide=false,
+                        scratch_words=0, reconciliation=ExactAdditiveTiledReconciliation)
+
+Open, auditable declaration used by `TiledCheckerboardCPM`. `relations` names every spatial
+dependency whose halo must be resident. `dependency_radius` covers non-relation state dependencies.
+`scratch_words` is the bounded per-tile requirement, and `reconciliation` states whether subround
+state is an exact additive reduction or a separately qualified bounded-state protocol.
+"""
+struct TiledSnapshotAccess{R <: Tuple}
+    relations::R
+    dependency_radius::UInt8
+    cell_wide::Bool
+    scratch_words::UInt16
+    reconciliation::TiledReconciliationMode
+end
+
+function TiledSnapshotAccess(relations::Tuple = (); dependency_radius::Integer = 0,
+        cell_wide::Bool = false, scratch_words::Integer = 0,
+        reconciliation::TiledReconciliationMode = ExactAdditiveTiledReconciliation)
+    all(relation -> relation isa StaticCartesianRelation, relations) || throw(ArgumentError(
+        "tiled scientific access relations must be static Cartesian relations"))
+    0 <= dependency_radius <= typemax(UInt8) || throw(ArgumentError(
+        "tiled dependency radius must fit UInt8"))
+    0 <= scratch_words <= typemax(UInt16) || throw(ArgumentError(
+        "tiled scratch words must fit UInt16"))
+    return TiledSnapshotAccess(relations, UInt8(dependency_radius), cell_wide,
+        UInt16(scratch_words), reconciliation)
+end
+
+"""Return one component's open tile-local snapshot and reconciliation declaration."""
+tiled_scientific_access(::Any) = UnsupportedTiledScientificAccess()
+
 function _interface_report(category::Symbol, component, essential::Tuple)
     missing = Symbol[]
     hasmethod(component_identity, Tuple{typeof(component)}) ||

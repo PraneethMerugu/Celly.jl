@@ -92,7 +92,8 @@ export PreserveOnTransition, ResetOnTransition, RecomputeOnTransition
 export UnsupportedTransition, ResetOnRetirement
 export ConstitutiveMeanInitialization, StationaryMechanicalInitialization
 export PreserveMechanicalInitialization
-export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM, LotteryCPM
+export SequentialCPM, SequentialEquilibrium, CheckerboardSweepCPM,
+       TiledCheckerboardCPM, LotteryCPM
 export AbstractScientificObservable, CellVolume, CellTypeObservable
 export CellBoundaryMeasure, CellPropertyValues, ObservationSet
 export CellValue, CellValues, CellFrame, CellSeries

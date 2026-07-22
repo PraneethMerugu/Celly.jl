@@ -1,6 +1,6 @@
 # [Monte Carlo Algorithms](@id corepotts-engine)
 
-CorePotts provides four Monte Carlo update algorithms. They all implement the same
+CorePotts provides several explicitly named Monte Carlo update algorithms. They implement related
 Metropolis-Hastings acceptance criterion (see [Concepts](@ref concepts)) but differ in
 *how* lattice-site copy attempts are parallelised.
 
@@ -10,6 +10,53 @@ An algorithm is selected when constructing the integrator:
 alg = CheckerboardMetropolis(T = 2.0f0, sweeps_per_step = 10)
 sol = solve(prob, alg; saveat = 10)
 ```
+
+## TiledCheckerboardCPM *(experimental research algorithm)*
+
+```julia
+alg = TiledCheckerboardCPM(
+    temperature = 2.0f0,
+    tile_size = nothing,
+    switching_interval = nothing,
+    shared_memory = :auto,
+)
+sol = solve(prob, alg)
+```
+
+`TiledCheckerboardCPM` activates nonconflicting rectangular tiles, executes proposals sequentially
+inside each tile, and reconciles exact additive cell statistics between deterministic subrounds.
+One public step always activates exactly one proposal per mutable lattice site in total. Counter RNG
+addresses contain the MCS, subround, tile, local proposal, and draw purpose, so observation and GPU
+launch geometry do not change the stochastic schedule.
+
+Tile size and switching interval are scientifically visible algorithm configuration: changing them
+can change local waiting-time distributions. `nothing` selects the recorded dimension policy;
+explicit values are retained in provenance. `shared_memory = :auto` uses the cooperative
+workgroup-local tile/halo cache on qualified GPU layouts and the device-global policy on CPU;
+`:disabled` always selects the device-global path. `:required` demands the local-memory path and
+fails during construction when the padded halo exceeds the configured workgroup capacity. It never
+falls back to host execution or silently changes algorithms.
+
+The current experimental qualification covers quadratic volume, exact edge-count surface/perimeter,
+unordered adhesion,
+prescribed-field occupancy energy and chemotaxis, and `PositiveYield` in 2D and 3D through the
+resident device-global and workgroup-local paths. Components without `tiled_scientific_access` fail
+preflight. Hard constraints, moment-dependent physics, floating boundary trackers, and other
+unqualified component families are rejected rather than omitted. Use
+`backend_report(prob, alg, backend)` before allocating a long run.
+
+Phase 12.5 did not promote this algorithm to the stable or automatically selected GPU path. Its
+exact snapshot/reconciliation schedule requires many device-wide kernel boundaries, and the
+cooperative local-memory kernel uses the workgroup to load a halo before one lane executes the
+tile's ordered proposals. The retained CPU and ROCm measurements did not establish the required
+end-to-end speedup over `CheckerboardSweepCPM`. Select it only for research on tiled update
+semantics, local-memory experiments, or reproduction of the Phase 12.5 evidence; use
+`CheckerboardSweepCPM` for supported production work.
+
+This algorithm does not claim detailed balance, statistical equivalence, or trajectory identity
+with `SequentialCPM` or `CheckerboardSweepCPM`. CPU resident execution is tested against its own
+logical reference. A passing backend smoke run establishes compilation, residency, accounting, and
+invariants only; it is not statistical or performance qualification.
 
 ---
 

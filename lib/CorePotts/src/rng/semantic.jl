@@ -53,6 +53,8 @@ end
     EnsembleStream = 16
     CheckerboardPriorityStream = 17
     AuxiliaryInitializationStream = 18
+    TiledOrderStream = 19
+    TiledProposalStream = 20
 end
 
 """Semantic identity domain for an addressed random operation."""

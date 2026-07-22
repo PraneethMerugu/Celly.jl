@@ -2769,7 +2769,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
             compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
-                :CheckerboardSweepCPM, :LotteryCPM),
+                :CheckerboardSweepCPM, :TiledCheckerboardCPM, :LotteryCPM),
             model_builder = () -> references.differential_adhesion_model(
                 target_volume = profile == "smoke" ? 16 : 20),
             problem_builder = () -> references.differential_adhesion_problem(
@@ -2777,6 +2777,24 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 target_volume = profile == "smoke" ? 16 : 20,
                 capacity = sorting_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313106),
+        ),
+        measurement_spec(;
+            label = "uniform_adhesion_tiled_baseline",
+            family = "tile_local_volume_adhesion",
+            dimensions = length(sorting_shape),
+            requires_lifecycle_observation = false,
+            compatible_algorithms = (:CheckerboardSweepCPM, :TiledCheckerboardCPM),
+            model_builder = () -> references.differential_adhesion_model(
+                target_volume = profile == "smoke" ? 16 : 20,
+                volume_strength = 20,
+                within_a = 2, within_b = 2, between = 2, medium_contact = 20),
+            problem_builder = () -> references.differential_adhesion_problem(
+                sorting_shape; cells_per_population = sorting_cells,
+                target_volume = profile == "smoke" ? 16 : 20,
+                capacity = sorting_capacity, volume_strength = 20,
+                within_a = 2, within_b = 2,
+                between = 2, medium_contact = 20,
+                tspan = (0, horizon), seed = 0x7068617365313156),
         ),
         measurement_spec(;
             label = "angiogenesis_2d",
@@ -2883,7 +2901,8 @@ end
 
 function _validate_reference_mcs_report(name, label, algorithm, report, sites)
     expected_sites = UInt64(sites)
-    if algorithm isa AbstractSequentialCPMAlgorithm || algorithm isa CheckerboardSweepCPM
+    if algorithm isa AbstractSequentialCPMAlgorithm ||
+       algorithm isa Union{CheckerboardSweepCPM, TiledCheckerboardCPM}
         report.scheduler_candidates == expected_sites || error(
             "$name $label $(nameof(typeof(algorithm))) scheduler budget differs from mutable sites")
         report.activated_attempts == expected_sites || error(
@@ -3017,7 +3036,7 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             n_cells(snapshot) >= n_cells(problem.u0) || error(
                 "$name $(spec.label) lost a finite cell in the timing smoke fixture")
         end
-        workloads[spec.label] = Dict(
+        workload = Dict(
             "family" => spec.family,
             "scale" => spec.scale,
             "dimensions" => collect(size(lattice_storage(snapshot))),
@@ -3086,6 +3105,25 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
                 spec.requires_lifecycle_observation,
             "timed_regions_backend_synchronized" => true,
         )
+        if algorithm isa TiledCheckerboardCPM
+            workspace = integrator.inner.algorithm_workspace
+            workload["tiled_execution_configuration"] = Dict(
+                "requested_tile_size" => algorithm.tile_size === nothing ?
+                    "dimension_default" : collect(algorithm.tile_size),
+                "requested_switching_interval" =>
+                    algorithm.switching_interval === nothing ?
+                    "tile_site_default" : Int(algorithm.switching_interval),
+                "requested_shared_memory" => string(algorithm.shared_memory),
+                "resolved_tile_size" => collect(workspace.layout.tile_size),
+                "resolved_switching_interval" => Int(workspace.switching_interval),
+                "resolved_halo_radius" => workspace.layout.halo_radius,
+                "resolved_storage_policy" => workspace.uses_shared_memory ?
+                    "workgroup_local" : "device_global",
+                "shared_halo_capacity" => Int(workspace.shared_halo_capacity),
+                "configured_block_size" => integrator.inner.plan.block_size,
+            )
+        end
+        workloads[spec.label] = workload
     end
     return Dict(
         "profile" => profile,
@@ -3111,6 +3149,7 @@ function measure_phase12_reference_backend(name::String; profile::String = "smok
         SequentialCPM(temperature = real_type(2)),
         SequentialEquilibrium(temperature = real_type(2)),
         CheckerboardSweepCPM(temperature = real_type(2)),
+        TiledCheckerboardCPM(temperature = real_type(2)),
         LotteryCPM(temperature = real_type(2)),
     )
     measurements = Dict{String, Any}()

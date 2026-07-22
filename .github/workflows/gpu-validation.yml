@@ -47,6 +47,8 @@ jobs:
         run: |
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Qualify Phase 12.5 Metal tiled path
+        run: julia --project=benchmark/backends/metal --startup-file=no --check-bounds=yes benchmark/tiled_smoke.jl --backend=metal
       - name: Qualify Metal device execution and invariants
         run: julia --project=benchmark/backends/metal --startup-file=no --check-bounds=yes benchmark/matrix.jl --backend=metal --profile=smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -82,6 +84,8 @@ jobs:
         run: |
           julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Qualify Phase 12.5 ROCm tiled path
+        run: julia --project=benchmark/backends/amdgpu --startup-file=no --check-bounds=yes benchmark/tiled_smoke.jl --backend=amdgpu
       - name: Qualify ROCm device execution and invariants
         run: julia --project=benchmark/backends/amdgpu --startup-file=no --check-bounds=yes benchmark/matrix.jl --backend=amdgpu --profile=smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

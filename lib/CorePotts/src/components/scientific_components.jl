@@ -87,6 +87,13 @@ component_semantic_data(component::QuadraticVolumeHamiltonian) = (
     number_type = nameof(typeof(component).parameters[3]),
 )
 
+@inline function _quadratic_volume_owner_change(strength::T, target::T,
+        volume::V, change::V) where {T <: AbstractFloat, V <: Integer}
+    old = strength * (T(volume) - target)^2
+    updated = volume + change
+    return iszero(updated) ? -old : strength * (T(updated) - target)^2 - old
+end
+
 function global_energy(component::QuadraticVolumeHamiltonian, state::LogicalPottsState)
     targets = _property_column(state, _volume_target(component))
     strengths = _property_column(state, _volume_strength(component))
@@ -108,16 +115,14 @@ function energy_change(component::QuadraticVolumeHamiltonian, proposal::CopyProp
     if is_cell_owner(proposal.losing)
         index = Int(proposal.losing.value)
         volume = finite_volume(state, CellID(proposal.losing.value))
-        old = T(strengths[index]) * (T(volume) - T(targets[index]))^2
-        delta += volume == 1 ? -old :
-                 T(strengths[index]) * (T(volume - 1) - T(targets[index]))^2 - old
+        delta += _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, -one(volume))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         volume = finite_volume(state, CellID(proposal.gaining.value))
-        delta += T(strengths[index]) * (
-            (T(volume + 1) - T(targets[index]))^2 -
-            (T(volume) - T(targets[index]))^2)
+        delta += _quadratic_volume_owner_change(
+            T(strengths[index]), T(targets[index]), volume, one(volume))
     end
     return delta
 end
@@ -276,10 +281,14 @@ end
            _fixed_owner_unchecked(neighbor)
 end
 
+@inline _contact_neighbor_owner(::Nothing, state, neighbor::RealizedNeighbor) =
+    _realized_owner(state, neighbor)
+
 @inline _metric_edge_weight(::Nothing, relation, direction) = relation_weight(relation, direction)
 
-function energy_change(component::UnorderedContactHamiltonian, proposal::CopyProposal,
-        state, domain::Union{CartesianDomain, CompiledCartesianDomain})
+@inline function _contact_energy_change(component::UnorderedContactHamiltonian,
+        proposal::CopyProposal, state,
+        domain::Union{CartesianDomain, CompiledCartesianDomain}, owner_access)
     losing_type = owner_type(state, component.medium_types, proposal.losing)
     gaining_type = owner_type(state, component.medium_types, proposal.gaining)
     T = eltype(component.interactions)
@@ -287,7 +296,7 @@ function energy_change(component::UnorderedContactHamiltonian, proposal::CopyPro
     for direction in 1:direction_count(component.relation)
         neighbor = realize_neighbor(domain, component.relation, proposal.recipient, direction)
         neighbor.kind in (AbsentNeighbor, InvalidNeighbor) && continue
-        neighbor_owner = _realized_owner(state, neighbor)
+        neighbor_owner = _contact_neighbor_owner(owner_access, state, neighbor)
         neighbor_type = owner_type(state, component.medium_types, neighbor_owner)
         weight = T(relation_weight(component.relation, direction))
         proposal.losing != neighbor_owner &&
@@ -296,6 +305,11 @@ function energy_change(component::UnorderedContactHamiltonian, proposal::CopyPro
             (delta += weight * _contact_value(component, gaining_type, neighbor_type))
     end
     return delta
+end
+
+function energy_change(component::UnorderedContactHamiltonian, proposal::CopyProposal,
+        state, domain::Union{CartesianDomain, CompiledCartesianDomain})
+    return _contact_energy_change(component, proposal, state, domain, nothing)
 end
 
 function global_energy(component::UnorderedContactHamiltonian, state,
@@ -523,6 +537,13 @@ function global_energy(component::QuadraticBoundaryHamiltonian, state::LogicalPo
     return result
 end
 
+@inline function _quadratic_boundary_owner_change(strength, target, measure,
+        volume, boundary_change, volume_change)
+    old = strength * (measure - target)^2
+    volume_change == -one(volume_change) && volume == one(volume) && return -old
+    return strength * (measure + boundary_change - target)^2 - old
+end
+
 function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyProposal,
         state::LogicalPottsState, domain::Union{CartesianDomain, CompiledCartesianDomain})
     targets = _property_column(state, _boundary_target(component))
@@ -535,18 +556,19 @@ function energy_change(component::QuadraticBoundaryHamiltonian, proposal::CopyPr
         index = Int(proposal.losing.value)
         measure = boundary_measure(state, domain, component.relation,
             proposal.losing, component.metric)
-        old = T(strengths[index]) * (T(measure) - T(targets[index]))^2
-        result += finite_volume(state, CellID(proposal.losing.value)) == 1 ? -old :
-                  T(strengths[index]) *
-                  (T(measure + deltas.losing) - T(targets[index]))^2 - old
+        result += _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure),
+            finite_volume(state, CellID(proposal.losing.value)),
+            T(deltas.losing), Int32(-1))
     end
     if is_cell_owner(proposal.gaining)
         index = Int(proposal.gaining.value)
         measure = boundary_measure(state, domain, component.relation,
             proposal.gaining, component.metric)
-        result += T(strengths[index]) * (
-            (T(measure + deltas.gaining) - T(targets[index]))^2 -
-            (T(measure) - T(targets[index]))^2)
+        result += _quadratic_boundary_owner_change(T(strengths[index]),
+            T(targets[index]), T(measure),
+            finite_volume(state, CellID(proposal.gaining.value)),
+            T(deltas.gaining), Int32(1))
     end
     return result
 end
