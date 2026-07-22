@@ -3,6 +3,22 @@ using TOML
 
 include(joinpath(@__DIR__, "..", "src", "Phase12Comparison.jl"))
 using .Phase12Comparison
+include(joinpath(@__DIR__, "..", "src", "Phase12PairedRunner.jl"))
+using .Phase12PairedRunner
+
+@testset "Phase 12 shared paired worker" begin
+    worker = joinpath("relative", "harness", "performance_worker.jl")
+    subject = joinpath("relative", "subject")
+    command = paired_worker_command(worker, subject;
+        backend = "cpu", profile = "full", precision = "Float32")
+    arguments = command.exec
+    @test abspath(worker) in arguments
+    @test "--project=$(abspath(joinpath(subject, "benchmark")))" in arguments
+    @test "--backend=cpu" in arguments
+    @test "--profile=full" in arguments
+    @test "--precision=Float32" in arguments
+    @test isempty(command.dir)
+end
 
 function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
         memory = 1000, backend = "cpu", hardware_id = "cpu-arm64-reference",

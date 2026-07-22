@@ -1,6 +1,9 @@
 VERSION == v"1.12.6" ||
     error("The refactor benchmark target is Julia 1.12.6; found $VERSION")
 
+include(joinpath(@__DIR__, "src", "Phase12PairedRunner.jl"))
+using .Phase12PairedRunner
+
 function option(name, default = nothing)
     prefix = "--$name="
     argument = findfirst(value -> startswith(value, prefix), ARGS)
@@ -38,11 +41,9 @@ worker = abspath(joinpath(@__DIR__, "performance_worker.jl"))
 isfile(worker) || error("paired benchmark harness worker is missing: $worker")
 
 function worker_command(root)
-    project = joinpath(root, "benchmark")
-    command = `$(Base.julia_cmd()) --project=$project --startup-file=no $worker --backend=$backend --profile=$profile --precision=$precision`
     # Each subject loads its own path-pinned package implementation while both
     # subjects execute this one immutable harness checkout.
-    return command
+    return paired_worker_command(worker, root; backend, profile, precision)
 end
 
 function run_subject!(label, root, pair_index, ordinal)
