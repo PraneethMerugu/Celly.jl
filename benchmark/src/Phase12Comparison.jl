@@ -54,6 +54,22 @@ const ZERO_WARM_METRICS = (
     "host_to_device_transfers",
 )
 
+const CPU_REPLAY_EVIDENCE_KEYS = (
+    "final_state_checksum",
+    "final_cells",
+    "last_mcs_internal_rounds",
+    "last_mcs_scheduler_candidates",
+    "last_mcs_activated_attempts",
+    "last_mcs_realized_proposals",
+    "last_mcs_same_owner_no_ops",
+    "last_mcs_boundary_no_ops",
+    "last_mcs_immutable_recipient_no_ops",
+    "last_mcs_dynamic_conflicts",
+    "last_mcs_constraint_rejections",
+    "last_mcs_acceptance_rejections",
+    "last_mcs_accepted_copies",
+)
+
 const COLD_IDENTITY_KEYS = (
     "contract_version",
     "cold_workload_version",
@@ -362,6 +378,37 @@ function _cpu_system_id(hardware_id::AbstractString)
         r"-[1-9][0-9]*-(?:pinned-)?physical-threads$" => "")
 end
 
+function _cpu_replay_evidence(groups, threads)
+    issues = String[]
+    reference = nothing
+    evidence = Dict{String, Any}()
+    for thread_count in threads, (record_index, record) in pairs(groups[thread_count])
+        for name in sort!(collect(keys(record["workloads"])))
+            workload = record["workloads"][name]
+            for key in CPU_REPLAY_EVIDENCE_KEYS
+                haskey(workload, key) || push!(issues,
+                    "$thread_count-thread record $record_index workload `$name` is missing replay evidence `$key`")
+            end
+        end
+        isempty(issues) || continue
+        if isnothing(reference)
+            reference = record
+            for (name, workload) in record["workloads"]
+                evidence[name] = Dict(
+                    key => deepcopy(workload[key]) for key in CPU_REPLAY_EVIDENCE_KEYS)
+            end
+            continue
+        end
+        for name in keys(reference["workloads"]), key in CPU_REPLAY_EVIDENCE_KEYS
+            expected = reference["workloads"][name][key]
+            observed = record["workloads"][name][key]
+            isequal(expected, observed) || push!(issues,
+                "$thread_count-thread record $record_index workload `$name` changed replay evidence `$key`: $(repr(expected)) != $(repr(observed))")
+        end
+    end
+    return issues, evidence
+end
+
 """Summarize separately qualified fixed-thread CPU groups as scaling evidence."""
 function summarize_cpu_scaling(groups::AbstractDict; minimum_processes::Int = 3)
     minimum_processes > 0 || throw(ArgumentError("minimum_processes must be positive"))
@@ -414,6 +461,8 @@ function summarize_cpu_scaling(groups::AbstractDict; minimum_processes::Int = 3)
             end
         end
     end
+    replay_issues, replay_evidence = _cpu_replay_evidence(groups, threads)
+    append!(issues, replay_issues)
     isempty(issues) || return Dict(
         "comparable" => false, "issues" => unique!(issues))
 
@@ -458,6 +507,8 @@ function summarize_cpu_scaling(groups::AbstractDict; minimum_processes::Int = 3)
             reference["comparison_identity"]["hardware_id"]),
         "implementation_commit" => reference["provenance"]["implementation_commit"],
         "thread_counts" => threads,
+        "exact_cross_thread_replay" => true,
+        "replay_evidence" => replay_evidence,
         "scaling" => summaries,
     )
 end

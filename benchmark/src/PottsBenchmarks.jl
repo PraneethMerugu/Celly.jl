@@ -3057,9 +3057,18 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "steady_raw_host_allocated_bytes_per_mcs" => host_bytes,
             "steady_median_host_allocated_bytes_per_mcs" => median(host_bytes),
             "last_mcs_scheduler_candidates" => Int(report.scheduler_candidates),
+            "last_mcs_internal_rounds" => Int(report.internal_rounds),
             "last_mcs_activated_attempts" => Int(report.activated_attempts),
             "last_mcs_realized_proposals" => Int(report.realized_proposals),
+            "last_mcs_same_owner_no_ops" => Int(report.same_owner_no_ops),
+            "last_mcs_boundary_no_ops" => Int(report.boundary_no_ops),
+            "last_mcs_immutable_recipient_no_ops" =>
+                Int(report.immutable_recipient_no_ops),
+            "last_mcs_dynamic_conflicts" => Int(report.dynamic_conflicts),
+            "last_mcs_constraint_rejections" => Int(report.constraint_rejections),
+            "last_mcs_acceptance_rejections" => Int(report.acceptance_rejections),
             "last_mcs_accepted_copies" => Int(report.accepted_copies),
+            "final_state_checksum" => state_checksum(snapshot),
             "median_activated_attempts_per_second" =>
                 report.activated_attempts / median_seconds,
             "median_realized_proposals_per_second" =>

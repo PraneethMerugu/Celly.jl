@@ -42,6 +42,19 @@ function synthetic_record(process_id; steady = 1.0, first_mcs = 2.0,
                 "sites" => 128^2,
                 "timed_mcs" => 10,
                 "declared_lifecycle_observation_per_mcs" => false,
+                "final_state_checksum" => "exact-final-state",
+                "final_cells" => 7,
+                "last_mcs_internal_rounds" => 1,
+                "last_mcs_scheduler_candidates" => 16,
+                "last_mcs_activated_attempts" => 16,
+                "last_mcs_realized_proposals" => 12,
+                "last_mcs_same_owner_no_ops" => 2,
+                "last_mcs_boundary_no_ops" => 1,
+                "last_mcs_immutable_recipient_no_ops" => 1,
+                "last_mcs_dynamic_conflicts" => 1,
+                "last_mcs_constraint_rejections" => 1,
+                "last_mcs_acceptance_rejections" => 3,
+                "last_mcs_accepted_copies" => 7,
                 "steady_median_seconds_per_mcs" => steady,
                 "first_mcs_seconds" => first_mcs,
                 "steady_median_host_allocated_bytes_per_mcs" => 0.0,
@@ -71,6 +84,9 @@ end
     result = summarize_cpu_scaling(groups)
     @test result["comparable"]
     @test result["thread_counts"] == [1, 2, 4]
+    @test result["exact_cross_thread_replay"]
+    @test result["replay_evidence"]["migration_2d"]["final_state_checksum"] ==
+          "exact-final-state"
     @test result["scaling"]["2"]["algorithm_geometric_mean_speedups"][
         "SequentialCPM"] ≈ 2
     @test result["scaling"]["4"]["workloads"]["migration_2d"][
@@ -85,6 +101,13 @@ end
     result = summarize_cpu_scaling(Dict(2 => groups[2]))
     @test !result["comparable"]
     @test any(contains("requires one thread"), result["issues"])
+
+    changed_replay = deepcopy(groups)
+    changed_replay[4][2]["workloads"]["migration_2d"]["final_state_checksum"] =
+        "different-final-state"
+    result = summarize_cpu_scaling(changed_replay)
+    @test !result["comparable"]
+    @test any(contains("changed replay evidence `final_state_checksum`"), result["issues"])
 end
 
 function synthetic_cold_record(process_id; scale = 1.0, hardware_id = "cpu-arm64-reference")

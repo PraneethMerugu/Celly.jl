@@ -106,6 +106,10 @@ threads where the requested count exists on the runner. A thread-count result is
 if it were the same comparison identity as another count; scaling summaries are derived only after
 each fixed-thread baseline/candidate gate has been evaluated independently.
 
+All records in one CPU scaling curve use the same profile and workload matrix. The scaling analyzer
+also requires identical final-state checksums, cell counts, and complete last-MCS accounting across
+every process and thread count; timing speedup is not reportable when cross-thread replay differs.
+
 Cold latency is measured in independent fresh processes and never inferred from the order-dependent
 first workload in a warm matrix. The cold workload uses the same conservative differential-adhesion
 model for all four compatible algorithms:
