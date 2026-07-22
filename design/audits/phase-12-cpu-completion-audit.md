@@ -1,6 +1,6 @@
 # Phase 12.CPU specialization and scaling completion audit
 
-Status: Qualification accepted; exact protected checks pending
+Status: Completed
 
 Date: 2026-07-22
 
@@ -164,10 +164,16 @@ to small one-thread Checkerboard launches, while all multithreaded launches keep
 
 ## Exact-revision protected qualification
 
-Draft [PR #13](https://github.com/PraneethMerugu/Potts.jl/pull/13) carries the candidate. Package,
-integration, documentation, CPU, Metal, and ROCm checks must be green on the final audit revision.
-The audit revision may add evidence text only; any source, harness, workflow, or test change creates a
-new candidate and invalidates the prior exact-revision closure claim.
+[PR #13](https://github.com/PraneethMerugu/Potts.jl/pull/13) carried the candidate and merged as
+`1bc97348057ea1fb3fa238731e16058c560843ab`. Exact audit revision
+`78b34d04b09ee61044df3f85de3fc234ba611604` passed package, integration, and both authoritative CPU
+jobs in [CI 29952868778](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29952868778),
+documentation in [29952868775](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29952868775),
+and Metal plus ROCm validation in
+[29952868781](https://github.com/PraneethMerugu/Potts.jl/actions/runs/29952868781). CUDA was skipped by
+the repository's declared unavailable-runner policy. The completion audit was the only change after
+scientific source revision `ad1d4e87cd8565424566713126ff41c10e790e65` produced its authoritative
+performance evidence.
 
 ## Closure checklist
 
@@ -179,7 +185,8 @@ new candidate and invalidates the prior exact-revision closure claim.
 - [x] The complete x86_64 curve and owner-accepted ARM64 endpoint curve prove exact cross-thread replay.
 - [x] CPU `Float64` correctness/performance evidence is accepted with the raw owner-reviewed diagnostics above.
 - [x] Scaling summaries and raw artifact identities are recorded below the release revision.
-- [ ] Exact final revision passes protected CI, documentation, Metal, and ROCm validation.
-- [ ] PR #13 is merged and its immutable merge commit is recorded.
+- [x] Exact final revision passes protected CI, documentation, Metal, and ROCm validation.
+- [x] PR #13 is merged and its immutable merge commit is recorded.
 
-Phase 12.5 implementation remains blocked until every unchecked item is satisfied.
+Phase 12.5 implementation is unblocked from merge commit
+`1bc97348057ea1fb3fa238731e16058c560843ab`.
