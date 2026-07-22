@@ -141,4 +141,6 @@ export CellValue, CellValues, CellFrame, CellSeries
 export observe, observation_policy, observation_table
 export PhysicalScale, UnitfulSolutionView, with_units, mcs
 
+include("precompile.jl")
+
 end

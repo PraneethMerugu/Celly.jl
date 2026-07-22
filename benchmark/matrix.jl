@@ -52,6 +52,12 @@ println("PHASE10_REFERENCE_PERFORMANCE=", Dict(
     "profile" => profile,
     "workloads" => sort!(collect(keys(phase10_reference_performance["workloads"]))),
     "required_families" => phase10_reference_performance["required_families"]))
+phase12_reference_performance = PottsBenchmarks.measure_phase12_reference_backend(
+    backend; profile, sequential_reference = phase10_reference_performance)
+println("PHASE12_REFERENCE_PERFORMANCE=", Dict(
+    "profile" => profile,
+    "workload_count" => length(phase12_reference_performance["workloads"]),
+    "required_algorithms" => phase12_reference_performance["required_algorithms"]))
 _, phase10_device = PottsBenchmarks.load_backend(backend)
 phase10_record = PottsBenchmarks.phase10_result(
     backend, profile, phase10_device;
@@ -61,6 +67,14 @@ phase10_record = PottsBenchmarks.phase10_result(
     checkpoint_performance = phase8_performance)
 phase10_path = PottsBenchmarks.write_phase10_result(phase10_record)
 println("PHASE10_RESULT=", phase10_path)
+phase12_record = PottsBenchmarks.phase12_result(
+    backend, profile, phase10_device;
+    qualification = phase10_qualification,
+    direct_comparison = phase10_performance,
+    reference_performance = phase12_reference_performance,
+    checkpoint_performance = phase8_performance)
+phase12_path = PottsBenchmarks.write_phase12_result(phase12_record)
+println("PHASE12_RESULT=", phase12_path)
 phase9_performance = PottsBenchmarks.measure_phase9_backend(backend)
 println("PHASE9_PERFORMANCE=", phase9_performance)
 

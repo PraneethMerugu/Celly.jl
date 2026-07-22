@@ -1,5 +1,7 @@
 module PottsBenchmarks
 
+include("Phase12Comparison.jl")
+
 using Adapt
 using BenchmarkTools
 using CorePotts
@@ -34,6 +36,7 @@ Phase11ExtensionEnergy(value::Real) = Phase10QualificationEnergy(Float32(value))
 
 const SCHEMA_VERSION = "1.0.0"
 const PHASE10_SCHEMA_VERSION = "2.1.0"
+const PHASE12_WORKLOAD_SET_VERSION = "paper-core-1.0.0"
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 const RESULTS_ROOT = joinpath(REPOSITORY_ROOT, "benchmark", "results")
 
@@ -2668,6 +2671,10 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         angiogenesis_2d_cells = 3
         angiogenesis_3d_cells = 2
         angiogenesis_3d_target = 32
+        growth_capacity = 16
+        sorting_capacity = 8
+        angiogenesis_2d_capacity = 8
+        angiogenesis_3d_capacity = 4
     elseif profile == "full"
         migration_shape = (48, 48)
         sorting_shape = (32, 32)
@@ -2678,19 +2685,40 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         angiogenesis_2d_cells = 12
         angiogenesis_3d_cells = 8
         angiogenesis_3d_target = 64
+        growth_capacity = 128
+        sorting_capacity = 64
+        angiogenesis_2d_capacity = 64
+        angiogenesis_3d_capacity = 32
+    elseif profile == "throughput"
+        migration_shape = (256, 256)
+        sorting_shape = (256, 256)
+        angiogenesis_2d_shape = (256, 256)
+        angiogenesis_3d_shape = (64, 64, 64)
+        target_volume = 32
+        sorting_cells = 16
+        angiogenesis_2d_cells = 16
+        angiogenesis_3d_cells = 8
+        angiogenesis_3d_target = 64
+        growth_capacity = 128
+        sorting_capacity = 64
+        angiogenesis_2d_capacity = 64
+        angiogenesis_3d_capacity = 32
     else
-        throw(ArgumentError("Phase 10 profile must be smoke or full"))
+        throw(ArgumentError("Phase 12 profile must be smoke, full, or throughput"))
     end
 
     measurement_spec(; label, family, dimensions, requires_lifecycle_observation,
         model_builder, problem_builder, problem_binding_required = false,
-        problem_binding_builder = identity) = (
+        problem_binding_builder = identity,
+        compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
+            :CheckerboardSweepCPM, :LotteryCPM)) = (
         label,
         family,
         scale = profile,
         dimensions,
         requires_lifecycle_observation,
         problem_binding_required,
+        compatible_algorithms,
         model_builder,
         problem_binding_builder,
         problem_builder,
@@ -2700,6 +2728,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
         label, family, dimensions = length(migration_shape),
         requires_lifecycle_observation = false,
         problem_binding_required = true,
+        compatible_algorithms = (:SequentialCPM, :CheckerboardSweepCPM, :LotteryCPM),
         model_builder = () -> references.chemotaxis_model(; target_volume),
         problem_binding_builder = model ->
             PottsToolkit.Authoring._realize_problem_fields(model,
@@ -2724,11 +2753,12 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "monolayer_growth",
             dimensions = length(migration_shape),
             requires_lifecycle_observation = true,
+            compatible_algorithms = (:SequentialCPM, :CheckerboardSweepCPM, :LotteryCPM),
             model_builder = () -> references.monolayer_growth_model(
                 target_volume = 8, division_target = 16),
             problem_builder = () -> references.monolayer_growth_problem(
                 migration_shape; target_volume = 8, division_target = 16,
-                capacity = profile == "smoke" ? 16 : 128,
+                capacity = growth_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313105),
         ),
         measurement_spec(;
@@ -2736,12 +2766,14 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "differential_adhesion_sorting",
             dimensions = length(sorting_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium,
+                :CheckerboardSweepCPM, :LotteryCPM),
             model_builder = () -> references.differential_adhesion_model(
                 target_volume = profile == "smoke" ? 16 : 20),
             problem_builder = () -> references.differential_adhesion_problem(
                 sorting_shape; cells_per_population = sorting_cells,
                 target_volume = profile == "smoke" ? 16 : 20,
-                capacity = profile == "smoke" ? 8 : 64,
+                capacity = sorting_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313106),
         ),
         measurement_spec(;
@@ -2749,6 +2781,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "elongation_driven_angiogenesis",
             dimensions = length(angiogenesis_2d_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium),
             model_builder = () -> references.elongation_driven_angiogenesis_model(
                 target_volume = 16,
                 target_elongation = profile == "smoke" ? 1.5 : 3),
@@ -2756,7 +2789,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 angiogenesis_2d_shape; cells = angiogenesis_2d_cells,
                 target_volume = 16,
                 target_elongation = profile == "smoke" ? 1.5 : 3,
-                capacity = profile == "smoke" ? 8 : 64,
+                capacity = angiogenesis_2d_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313107),
         ),
         measurement_spec(;
@@ -2764,6 +2797,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
             family = "elongation_driven_angiogenesis",
             dimensions = length(angiogenesis_3d_shape),
             requires_lifecycle_observation = false,
+            compatible_algorithms = (:SequentialCPM, :SequentialEquilibrium),
             model_builder = () -> references.elongation_driven_angiogenesis_model(
                 target_volume = angiogenesis_3d_target,
                 target_elongation = profile == "smoke" ? 1.5 : 3),
@@ -2771,7 +2805,7 @@ function _phase10_reference_measurement_specs(profile::String, horizon::Int)
                 angiogenesis_3d_shape; cells = angiogenesis_3d_cells,
                 target_volume = angiogenesis_3d_target,
                 target_elongation = profile == "smoke" ? 1.5 : 3,
-                capacity = profile == "smoke" ? 4 : 32,
+                capacity = angiogenesis_3d_capacity,
                 tspan = (0, horizon), seed = 0x7068617365313108),
         ),
     )
@@ -2845,18 +2879,57 @@ function _phase10_kernel_resource_evidence(name::String)
     )
 end
 
-"""Measure all mandatory Phase 10 reference families and retain actual MCS accounting."""
-function measure_phase10_reference_backend(name::String; profile::String = "smoke")
-    samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) : (10, 5, 2)
+function _validate_reference_mcs_report(name, label, algorithm, report, sites)
+    expected_sites = UInt64(sites)
+    if algorithm isa AbstractSequentialCPMAlgorithm || algorithm isa CheckerboardSweepCPM
+        report.scheduler_candidates == expected_sites || error(
+            "$name $label $(nameof(typeof(algorithm))) scheduler budget differs from mutable sites")
+        report.activated_attempts == expected_sites || error(
+            "$name $label $(nameof(typeof(algorithm))) did not activate exactly one attempt per mutable site")
+    elseif algorithm isa LotteryCPM
+        report.scheduler_candidates == expected_sites * report.internal_rounds || error(
+            "$name $label LotteryCPM scheduler accounting differs from sites times rounds")
+    else
+        error("Phase 12 reference accounting is undefined for $(typeof(algorithm))")
+    end
+    report.realized_proposals == report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name $label $(nameof(typeof(algorithm))) proposal accounting does not reconcile")
+    report.activated_attempts == report.same_owner_no_ops + report.boundary_no_ops +
+        report.immutable_recipient_no_ops + report.dynamic_conflicts +
+        report.constraint_rejections + report.acceptance_rejections +
+        report.accepted_copies || error(
+        "$name $label $(nameof(typeof(algorithm))) attempt accounting does not reconcile")
+    return nothing
+end
+
+"""Measure compatible mandatory reference families for one scientific algorithm."""
+function measure_phase10_reference_backend(name::String; profile::String = "smoke",
+        algorithm::AbstractPottsAlgorithm = SequentialCPM(temperature = 2.0f0),
+        skip_incompatible::Bool = false,
+        real_type::Type{<:AbstractFloat} = Float32)
+    samples, steps, warmup_steps = profile == "smoke" ? (2, 1, 1) :
+                                     profile == "throughput" ? (10, 1, 2) :
+                                     (10, 5, 2)
     horizon = 1 + warmup_steps + samples * steps
     adaptor = _backend_adaptor(name)
     probe = _backend_array(name, zeros(UInt8, 1))
     backend = KernelAbstractions.get_backend(probe)
-    algorithm = SequentialCPM(temperature = 2.0f0)
     workloads = Dict{String, Any}()
+    exclusions = Dict{String, Any}()
 
     for spec in _phase10_reference_measurement_specs(profile, horizon)
-        model_timing = @timed spec.model_builder()
+        algorithm_name = nameof(typeof(algorithm))
+        if algorithm_name ∉ spec.compatible_algorithms
+            skip_incompatible || error(
+                "$name $(spec.label) is not scientifically compatible with $algorithm_name")
+            exclusions[spec.label] = [
+                "$algorithm_name is outside this workload's scientific guarantee profile"]
+            continue
+        end
+        model_timing = @timed SciMLBase.remake(spec.model_builder();
+            numerics = CorePotts.NumericalPolicy(real_type))
         model = model_timing.value
         normalization_timing = @timed PottsToolkit.Authoring.normalize(model)
         normalized = normalization_timing.value
@@ -2869,13 +2942,18 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         lowering_timing =
             @timed PottsToolkit.Authoring.lower(problem_bound_model; dimensions)
         lowered = lowering_timing.value
-        problem_timing = @timed spec.problem_builder()
+        problem_timing = @timed SciMLBase.remake(spec.problem_builder();
+            model = lowered.core_model)
         problem = problem_timing.value
         parentmodule(typeof(problem)) === CorePotts || error(
             "$name $(spec.label) introduced a runtime authoring wrapper")
         backend_report = PottsToolkit.backend_report(problem, algorithm, backend)
-        backend_report.qualified || error(
-            "$name $(spec.label) failed performance preflight: $(backend_report.diagnostics)")
+        if !backend_report.qualified
+            skip_incompatible || error(
+                "$name $(spec.label) failed performance preflight: $(backend_report.messages)")
+            exclusions[spec.label] = collect(backend_report.messages)
+            continue
+        end
 
         initialization_timing = @timed init(problem, algorithm;
             backend, adaptor, verbose = false, save_start = false, save_end = false)
@@ -2925,14 +3003,7 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "$name $(spec.label) diagnostic observation allocated device storage")
         report.mcs == UInt64(integrator.t) || error(
             "$name $(spec.label) report MCS differs from integrator time")
-        report.scheduler_candidates == UInt64(sites) || error(
-            "$name $(spec.label) sequential scheduler budget differs from mutable sites")
-        report.activated_attempts == UInt64(sites) || error(
-            "$name $(spec.label) sequential activated-attempt budget differs from one MCS")
-        report.realized_proposals <= report.activated_attempts || error(
-            "$name $(spec.label) realized proposals exceed activated attempts")
-        report.accepted_copies <= report.realized_proposals || error(
-            "$name $(spec.label) accepted copies exceed realized proposals")
+        _validate_reference_mcs_report(name, spec.label, algorithm, report, sites)
         bound_normalized.fingerprint.digest ==
             lowered.normalized.fingerprint.digest || error(
                 "$name $(spec.label) lowering changed the semantic fingerprint")
@@ -3010,12 +3081,54 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
         "steps_per_sample" => steps,
         "warmup_steps" => warmup_steps,
         "algorithm" => string(nameof(typeof(algorithm))),
+        "precision" => string(real_type),
         "workloads" => workloads,
+        "incompatible_workloads" => exclusions,
         "required_families" => [
             "single_cell_migration", "prescribed_gradient_chemotaxis",
             "monolayer_growth", "differential_adhesion_sorting",
             "elongation_driven_angiogenesis"],
         "kernel_resource_evidence" => _phase10_kernel_resource_evidence(name),
+    )
+end
+
+function measure_phase12_reference_backend(name::String; profile::String = "smoke",
+        sequential_reference = nothing,
+        real_type::Type{<:AbstractFloat} = Float32)
+    algorithms = (
+        SequentialCPM(temperature = real_type(2)),
+        SequentialEquilibrium(temperature = real_type(2)),
+        CheckerboardSweepCPM(temperature = real_type(2)),
+        LotteryCPM(temperature = real_type(2)),
+    )
+    measurements = Dict{String, Any}()
+    workloads = Dict{String, Any}()
+    exclusions = Dict{String, Any}()
+    for algorithm in algorithms
+        algorithm_name = string(nameof(typeof(algorithm)))
+        measurement = algorithm isa SequentialCPM && sequential_reference !== nothing ?
+                      sequential_reference : measure_phase10_reference_backend(
+            name; profile, algorithm, skip_incompatible = true, real_type)
+        isempty(measurement["workloads"]) && error(
+            "$name Phase 12 algorithm $algorithm_name has no compatible reference workload")
+        measurements[algorithm_name] = measurement
+        exclusions[algorithm_name] = measurement["incompatible_workloads"]
+        for (label, workload) in measurement["workloads"]
+            workloads["$(algorithm_name)__$(label)"] = workload
+        end
+    end
+    reference = first(values(measurements))
+    return Dict(
+        "profile" => profile,
+        "samples" => reference["samples"],
+        "steps_per_sample" => reference["steps_per_sample"],
+        "warmup_steps" => reference["warmup_steps"],
+        "precision" => string(real_type),
+        "workloads" => workloads,
+        "required_families" => reference["required_families"],
+        "required_algorithms" => collect(keys(measurements)),
+        "incompatible_workloads" => exclusions,
+        "kernel_resource_evidence" => reference["kernel_resource_evidence"],
     )
 end
 
@@ -3050,6 +3163,98 @@ function write_phase10_result(result)
     directory = joinpath(RESULTS_ROOT, provenance_data["baseline_id"], backend)
     mkpath(directory)
     path = joinpath(directory, "$(timestamp)-phase10-reference-suite-$(profile).toml")
+    open(path, "w") do io
+        TOML.print(io, result; sorted = true)
+    end
+    return path
+end
+
+function _phase12_workloads(reference_performance)
+    workloads = deepcopy(reference_performance["workloads"])
+    timed_mcs = reference_performance["samples"] * reference_performance["steps_per_sample"]
+    for workload in values(workloads)
+        workload["reusable_semantic_fingerprint"] = workload["semantic_fingerprint"]
+        workload["semantic_fingerprint"] = workload["problem_bound_semantic_fingerprint"]
+        workload["timed_mcs"] = timed_mcs
+    end
+    return workloads
+end
+
+function _phase12_process_id()
+    return get(ENV, "POTTS_BENCHMARK_PROCESS_ID",
+        string(Dates.format(now(UTC), dateformat"yyyymmddTHHMMSS.sss"), "-", getpid()))
+end
+
+function _phase12_tuning_policy()
+    policy = get(ENV, "POTTS_BENCHMARK_TUNING_POLICY", "conservative")
+    policy in ("conservative", "tuned") || throw(ArgumentError(
+        "POTTS_BENCHMARK_TUNING_POLICY must be conservative or tuned"))
+    return policy
+end
+
+"""Build one fresh-process Phase 12 performance record from qualified measurements."""
+function phase12_result(name::String, profile::String, device::String;
+        qualification, direct_comparison, reference_performance, checkpoint_performance)
+    provenance_data = provenance(name, device)
+    return Dict(
+        "schema_version" => Phase12Comparison.PHASE12_SCHEMA_VERSION,
+        "record_kind" => "phase12-performance-run",
+        "recorded_at_utc" => string(now(UTC)),
+        "comparison_identity" => Dict(
+            "contract_version" => Phase12Comparison.PHASE12_CONTRACT_VERSION,
+            "workload_set_version" => PHASE12_WORKLOAD_SET_VERSION,
+            "harness_tree_sha256" => provenance_data["harness_tree_sha256"],
+            "backend" => name,
+            "hardware_id" => provenance_data["hardware_id"],
+            "julia_version" => string(VERSION),
+            "architecture" => string(Sys.ARCH),
+            "os" => string(Sys.KERNEL),
+            "julia_threads" => Threads.nthreads(),
+            "precision" => reference_performance["precision"],
+            "profile" => profile,
+            "tuning_policy" => _phase12_tuning_policy(),
+        ),
+        "run" => Dict(
+            "process_id" => _phase12_process_id(),
+            "independence_unit" => "fresh Julia process",
+            "samples_per_workload" => reference_performance["samples"],
+            "steps_per_sample" => reference_performance["steps_per_sample"],
+            "warmup_steps" => reference_performance["warmup_steps"],
+        ),
+        "provenance" => provenance_data,
+        "workloads" => _phase12_workloads(reference_performance),
+        "qualification" => qualification,
+        "direct_corepotts_comparison" => direct_comparison,
+        "checkpoint_performance" => checkpoint_performance,
+        "kernel_resource_evidence" => reference_performance["kernel_resource_evidence"],
+        "measurement_contract" => Dict(
+            "public_time_unit" => "MCS",
+            "actual_proposal_counters" => true,
+            "fresh_process_record" => true,
+            "cold_tiers_require_separate_subprocess_records" => true,
+            "first_mcs_field_is_order_dependent_diagnostic" => true,
+            "diagnostic_observations_excluded_from_warm_timing" => true,
+            "declared_lifecycle_safety_observations_retained_in_warm_timing" => true,
+            "gpu_timing_is_backend_synchronized" => true,
+            "state_evolves_across_steady_samples" => true,
+            "regression_threshold_fraction" => 0.05,
+            "memory_threshold_fraction" => 0.05,
+        ),
+    )
+end
+
+function write_phase12_result(result)
+    issues = Phase12Comparison.validate_record(result)
+    isempty(issues) || error("refusing to write invalid Phase 12 result:\n- " *
+                             join(issues, "\n- "))
+    provenance_data = result["provenance"]
+    backend = result["comparison_identity"]["backend"]
+    profile = result["comparison_identity"]["profile"]
+    timestamp = Dates.format(now(UTC), dateformat"yyyymmddTHHMMSS")
+    directory = joinpath(RESULTS_ROOT, provenance_data["subject_id"], backend)
+    mkpath(directory)
+    path = joinpath(directory,
+        "$(timestamp)-phase12-performance-$(profile)-$(result["run"]["process_id"]).toml")
     open(path, "w") do io
         TOML.print(io, result; sorted = true)
     end
@@ -3382,6 +3587,58 @@ function source_tree_checksum()
     return bytes2hex(sha256(bytes))
 end
 
+function benchmark_harness_files()
+    roots = [
+        joinpath(REPOSITORY_ROOT, "benchmark", "performance_worker.jl"),
+        joinpath(REPOSITORY_ROOT, "benchmark", "src"),
+    ]
+    files = String[]
+    for root in roots
+        if isfile(root)
+            push!(files, root)
+        elseif isdir(root)
+            for (directory, _, names) in walkdir(root), name in names
+                endswith(name, ".jl") && push!(files, joinpath(directory, name))
+            end
+        end
+    end
+    return sort!(files)
+end
+
+function benchmark_environment_files()
+    roots = [joinpath(REPOSITORY_ROOT, "benchmark")]
+    files = String[]
+    for root in roots
+        for (directory, _, names) in walkdir(root), name in names
+            name in ("Project.toml", "Manifest.toml") &&
+                push!(files, joinpath(directory, name))
+        end
+    end
+    return sort!(files)
+end
+
+function file_set_checksum(files)
+    bytes = UInt8[]
+    for file in files
+        append!(bytes, codeunits(relpath(file, REPOSITORY_ROOT)))
+        append!(bytes, read(file))
+    end
+    return bytes2hex(sha256(bytes))
+end
+
+function _cpu_model()
+    models = unique(info.model for info in Sys.cpu_info())
+    return isempty(models) ? "unknown" : join(models, "; ")
+end
+
+function _hardware_id(backend, device, cpu_model)
+    explicit = get(ENV, "POTTS_BENCHMARK_HARDWARE_ID", "")
+    isempty(explicit) || return explicit
+    identity = join((backend, device, string(Sys.KERNEL), string(Sys.ARCH), cpu_model,
+        string(Sys.CPU_THREADS)), "\0")
+    return "derived-" * first(bytes2hex(sha256(codeunits(identity))), 16)
+end
+
 function command_output(command; default = "unknown")
     try
         return strip(read(command, String))
@@ -3392,21 +3649,38 @@ end
 
 function provenance(backend::String, device::String)
     commit = command_output(`git -C $REPOSITORY_ROOT rev-parse HEAD`)
+    implementation_commit = command_output(`git -C $REPOSITORY_ROOT log -1 --format=%H -- Project.toml src ext lib test integration`)
     dirty_status = command_output(`git -C $REPOSITORY_ROOT status --short`; default = "")
     source_checksum = source_tree_checksum()
+    harness_checksum = file_set_checksum(benchmark_harness_files())
+    environment_checksum = file_set_checksum(benchmark_environment_files())
+    cpu_model = _cpu_model()
     return Dict(
         "git_commit" => commit,
+        "harness_commit" => commit,
+        "implementation_commit" => implementation_commit,
         "git_dirty" => !isempty(dirty_status),
         "source_tree_sha256" => source_checksum,
+        "implementation_tree_sha256" => source_checksum,
+        "harness_tree_sha256" => harness_checksum,
+        "benchmark_environment_sha256" => environment_checksum,
         "baseline_id" => string(first(commit, min(12, length(commit))), "-",
             first(source_checksum, 12)),
+        "subject_id" => string(first(implementation_commit,
+            min(12, length(implementation_commit))), "-", first(source_checksum, 12)),
         "julia_version" => string(VERSION),
         "os" => string(Sys.KERNEL),
         "architecture" => string(Sys.ARCH),
+        "cpu_model" => cpu_model,
         "cpu_threads" => Sys.CPU_THREADS,
         "julia_threads" => Threads.nthreads(),
         "backend" => backend,
         "device" => device,
+        "hardware_id" => _hardware_id(backend, device, cpu_model),
+        "power_mode" => get(ENV, "POTTS_BENCHMARK_POWER_MODE", "unreported"),
+        "thermal_state" => get(ENV, "POTTS_BENCHMARK_THERMAL_STATE", "unreported"),
+        "cpu_affinity_policy" => get(ENV, "POTTS_BENCHMARK_CPU_AFFINITY",
+            "unreported"),
         "kernel_intrinsics_source" => "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git",
         "kernel_intrinsics_commit" => "b3a02b6e80f0839082a02f1838af7e10e992062c"
     )

@@ -562,11 +562,18 @@ function perform_scientific_mcs!(integrator::ScientificPottsIntegrator{S, C, R,
             ndrange = Int(workspace.maximum_color_size))
         _advance_checkerboard_mechanics!(integrator, next_mcs, ordinal, UInt8(1))
     end
-    report_kernel = _checkerboard_report!(integrator.plan.backend, 1)
-    launch!(integrator.plan, report_kernel, integrator.report_storage,
-        workspace.attempts, workspace.dispositions, workspace.color_count,
-        next_mcs; ndrange = 1)
     run_compiled_lifecycle!(integrator, integrator.lifecycle, next_mcs)
     integrator.mcs = next_mcs
     return integrator
+end
+
+function _current_mcs_report(integrator::ScientificPottsIntegrator,
+        ::CheckerboardSweepCPM)
+    integrator.mcs > 0 || return nothing
+    workspace = integrator.algorithm_workspace
+    report_kernel = _checkerboard_report!(integrator.plan.backend, 1)
+    launch!(integrator.plan, report_kernel, integrator.report_storage,
+        workspace.attempts, workspace.dispositions, workspace.color_count,
+        integrator.mcs; ndrange = 1)
+    return _standard_current_mcs_report(integrator)
 end

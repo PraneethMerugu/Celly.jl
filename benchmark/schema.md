@@ -1,5 +1,56 @@
 # Benchmark Result Schemas
 
+## Phase 12 performance schema
+
+Schema version: `3.0.0`
+
+Each `phase12-performance-run` record represents one fresh process. Three independent full records
+per baseline or candidate are required for an engineering regression decision, and five are required
+for a paper candidate. Samples within one process remain nested in that process and are not treated
+as independent process repetitions.
+
+The `full` profile is the required five-family latency/regression matrix. The separate `throughput`
+profile uses 256² and 64³ realized domains to exercise publication-scale parallel work. Profile is a
+comparison-identity field: latency and throughput results are never pooled or used to compensate for
+one another. Each throughput process records ten independently synchronized one-MCS samples per
+workload; large-domain work is not multiplied by the full profile's five-MCS sampling block.
+
+Before comparing numbers, the comparator requires equality of the benchmark-contract and workload-set
+versions, backend, authoritative hardware identity, Julia version, architecture, operating system,
+Julia thread count, precision, profile, tuning policy, workload inventory, algorithm, semantic model
+fingerprint, dimension, shape, and site count. A mismatch produces `INCOMPARABLE`, not a ratio.
+CPU artifacts additionally record the affinity policy. Linux headline and scaling runs bind one
+logical CPU from each selected physical core; Darwin fixes the physical-core count but labels the
+configuration scheduler-managed because macOS exposes no supported process-affinity contract.
+
+The warm comparison independently gates steady MCS time, backend-resident memory, and warm residency
+counters. Its per-workload `first_mcs_seconds` is explicitly an order-dependent diagnostic and is not
+a cold gate. Fresh-depot `phase12-precompile-run` records measure offline base/backend precompilation
+and resulting cache bytes. Fresh-process `phase12-cold-run` records independently gate backend import, package
+import, authoring stages, initialization, and first synchronized MCS for each algorithm. A faster
+steady result cannot compensate for a failed cold, memory,
+allocation, transfer, or synchronization gate. Each scientific algorithm has its own steady-time
+geometric mean evaluated in ratio space; scientifically different algorithms never share an
+unlabeled mean. Every algorithm mean must not regress. The default per-workload regression and memory
+threshold is 5%.
+
+Implementation provenance is distinct from harness provenance. Benchmark-only changes may improve
+measurement without pretending that the scientific implementation changed. Historical schema
+`2.1.0` remains readable evidence and is never rewritten as schema `3.0.0`.
+
+Backend-native `phase12-backend-profile` records use their own `1.0.0` evidence schema. They retain
+the synchronized differential-adhesion workload identity, implementation provenance, backend
+package version, per-algorithm GPUCompiler device-code inventory, native-code byte counts, and only
+the resource metadata present in the backend's authoritative output. Metal records its integrated
+chronological GPU trace; ROCm records a `rocprofv3` HIP/HSA/kernel Perfetto trace and GCN metadata.
+An absent metric remains explicitly unavailable: register counts are never inferred from occupancy.
+
+The warm and cold harness identities hash measurement code, not dependency lockfiles. Exact
+benchmark `Project.toml` and `Manifest.toml` contents are retained separately as
+`benchmark_environment_sha256` provenance. This permits a dependency or precompilation optimization
+to be measured as part of the candidate implementation without pretending that the timing procedure
+changed; reviewers can still detect and audit every environment difference.
+
 ## Phase 10 reference-suite schema
 
 Schema version: `2.1.0`

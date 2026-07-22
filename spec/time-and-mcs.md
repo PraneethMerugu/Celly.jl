@@ -103,6 +103,14 @@ Actual activated-attempt and proposal counts MAY fluctuate. The algorithm MUST r
 - Constraint and acceptance rejections
 - Accepted moves
 
+Required accounting does not make host-visible reporting part of an unobserved MCS. An algorithm
+MAY retain bounded counters or per-attempt dispositions in its backend-resident workspace and
+aggregate the latest completed MCS only when `current_mcs_report` is requested. That observation
+MAY add a reduction launch and one declared host-observation boundary; ordinary stepping MUST NOT
+materialize or eagerly reduce diagnostic accounting that no consumer requested. Deferred reporting
+MUST return exactly the same partition for the latest completed MCS as eager accounting would and
+MUST NOT alter proposal, acceptance, commit, lifecycle, RNG, or time semantics.
+
 The equilibrium and kinetic consequences of expected normalization remain under investigation and
 MUST be documented in the algorithm's guarantee profile.
 
