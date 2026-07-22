@@ -3068,7 +3068,8 @@ function measure_phase10_reference_backend(name::String; profile::String = "smok
             "last_mcs_constraint_rejections" => Int(report.constraint_rejections),
             "last_mcs_acceptance_rejections" => Int(report.acceptance_rejections),
             "last_mcs_accepted_copies" => Int(report.accepted_copies),
-            "final_state_checksum" => state_checksum(snapshot),
+            "final_state_checksum" => bytes2hex(collect(
+                capture_checkpoint(integrator.inner).state_fingerprint)),
             "median_activated_attempts_per_second" =>
                 report.activated_attempts / median_seconds,
             "median_realized_proposals_per_second" =>
