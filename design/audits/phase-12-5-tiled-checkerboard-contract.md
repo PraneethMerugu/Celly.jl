@@ -202,4 +202,3 @@ reproducibility, statistical, compilation, memory, native-profile, and performan
 Sultan reconstruction, raw configurations, seeds, records, and analysis programs remain separately
 reproducible. Protected CI is green on the completion revision, documentation is updated, and the
 owner records the promote, experimental, or reject decision before Phase 13 begins.
-
