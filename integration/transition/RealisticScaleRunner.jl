@@ -28,7 +28,11 @@ function realistic_identity_applicable(algorithm, backend,
         manifest::AbstractDict = load_realistic_manifest())
     algorithm_name = String(algorithm)
     backend_name = lowercase(String(backend))
-    identities = get(manifest, "qualification_identities", Any[])
+    if !haskey(manifest, "qualification_identities")
+        return algorithm_name in String.(manifest["algorithms"]) &&
+            backend_name in lowercase.(String.(manifest["backends"]))
+    end
+    identities = manifest["qualification_identities"]
     return any(identity -> identity["algorithm"] == algorithm_name &&
         backend_name in lowercase.(String.(identity["backends"])), identities)
 end

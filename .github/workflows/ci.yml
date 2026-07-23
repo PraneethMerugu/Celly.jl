@@ -70,6 +70,29 @@ jobs:
         with:
           version: ${{ env.JULIA_VERSION }}
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Install, load, and exercise package from a clean temporary project
+        env:
+          PACKAGE: ${{ matrix.package }}
+          PROJECT: ${{ matrix.project }}
+        run: |
+          julia --startup-file=no -e '
+            using Pkg
+            Pkg.activate(; temp=true)
+            Pkg.develop(path=abspath(ENV["PROJECT"]))
+            Pkg.instantiate(; julia_version_strict=true)
+            if ENV["PACKAGE"] == "CorePotts"
+                @eval using CorePotts
+                profile = CorePotts.algorithm_guarantees(CorePotts.SequentialCPM())
+                profile.proposal_process.recipient === :uniform_with_replacement ||
+                    error("CorePotts public exercise failed")
+            else
+                @eval using PottsToolkit
+                algorithm = PottsToolkit.CheckerboardSweepCPM()
+                algorithm.temperature == 20.0f0 ||
+                    error("PottsToolkit public exercise failed")
+                PottsToolkit.scientific_contract_versions().authoring_dsl == v"1.0.0" ||
+                    error("PottsToolkit contract exercise failed")
+            end'
       - name: Test package independently
         env:
           PACKAGE: ${{ matrix.package }}

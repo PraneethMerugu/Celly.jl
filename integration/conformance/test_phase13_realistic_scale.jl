@@ -14,6 +14,9 @@ using TOML
     @test !realistic_identity_applicable("SequentialCPM", "rocm", manifest)
     @test all(backend -> realistic_identity_applicable(
         "CheckerboardSweepCPM", backend, manifest), ("cpu", "metal", "rocm"))
+    legacy_manifest = deepcopy(manifest)
+    delete!(legacy_manifest, "qualification_identities")
+    @test realistic_identity_applicable("SequentialCPM", "metal", legacy_manifest)
 
     seeds = derive_replica_seeds(0x1301000000000001)
     @test seeds == derive_replica_seeds(0x1301000000000001)
@@ -52,6 +55,9 @@ using TOML
     push!(relaxation_results, second)
     evidence = build_realistic_evidence(relaxation, "SequentialCPM",
         relaxation_results; backend = "cpu", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    @test_throws ArgumentError build_realistic_evidence(relaxation, "SequentialCPM",
+        relaxation_results; backend = "metal", profile = :qualification, manifest,
         source_revision = "test-dirty", reproduction_command = "test command")
     @test evidence["result"]["status"] == "diagnostic-collected"
     @test validate_realistic_evidence(evidence).valid
