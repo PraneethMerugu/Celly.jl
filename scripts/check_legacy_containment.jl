@@ -27,7 +27,6 @@ const FORBIDDEN_PATTERNS = [
     r"\bAbstractSampler\b",
     r"\bMetropolisSampler\b",
     r"\bMetropolisAlgorithm\b",
-    r"\bMooreTopology\b",
     r"\bVolumeTracker\b",
     r"\bSurfaceAreaTracker\b",
     r"\bevaluate_penalty\b",
@@ -115,13 +114,19 @@ for dependency in REMOVED_TOOLKIT_DEPENDENCIES
 end
 
 freeze = TOML.parsefile(FREEZE_FILE)
-require(get(freeze, "version", nothing) == 1, "unsupported legacy freeze manifest version")
+require(get(freeze, "version", nothing) == 2,
+    "Phase 13 requires the closed version-2 legacy manifest")
+require(get(freeze, "status", nothing) == "closed",
+    "Phase 13 legacy manifest is not closed")
 frozen_files = get(freeze, "files", Dict{String, Any}())
-require(!isempty(frozen_files), "legacy freeze manifest has no files")
 frozen_signatures = get(freeze, "signatures", Dict{String, Any}())
-require(!isempty(frozen_signatures), "legacy freeze manifest has no mixed-file signatures")
 consumer_signatures = get(freeze, "consumer_signatures", Dict{String, Any}())
-require(!isempty(consumer_signatures), "legacy freeze manifest has no consumer signatures")
+require(isempty(frozen_files),
+    "closed legacy manifest must not retain historical implementation files")
+require(isempty(frozen_signatures),
+    "closed legacy manifest must not retain mixed production signatures")
+require(isempty(consumer_signatures),
+    "closed legacy manifest must not retain executable consumer signatures")
 
 for (path, expected_digest) in sort!(collect(frozen_files); by = first)
     absolute = joinpath(ROOT, path)
@@ -168,7 +173,5 @@ for path in all_sources
         "scientific source `$path` references quarantined vocabulary: $(join(matches, ", "))")
 end
 
-println("Phase 10 legacy containment passes: the Toolkit compiler is absent, " *
-        "$(length(frozen_files)) historical Core/satellite files remain frozen, " *
-        "$(length(frozen_signatures)) mixed production signatures, " *
-        "$(length(consumer_signatures)) frozen consumer signatures, and a clean scientific path")
+println("Phase 13 legacy closure passes: the historical engine, Toolkit compiler, " *
+        "mixed production paths, and executable legacy consumers are absent")

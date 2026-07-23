@@ -20,7 +20,6 @@ using CorePotts
 
     @test lattice_size(state) == (2, 2)
     @test lattice_storage(state) === state._owners
-    @test PottsCache(state, VonNeumannTopology{2}()).grid_dims == (2, 2)
     @test owner_at(state, 1) == CellOwner(1)
     @test owner_at(state, CartesianIndex(2, 1)) == CellOwner(1)
     @test owner_at(state, 1, 2) == MediumOwner(1)

@@ -32,7 +32,7 @@ jobs:
       - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
       - name: Enforce repository and package structure
         run: julia --startup-file=no scripts/check_structure.jl
-      - name: Enforce Phase 7 legacy containment
+      - name: Enforce Phase 13 legacy closure
         run: julia --startup-file=no scripts/check_legacy_containment.jl
       - name: Resolve the package workspace without mutation
         run: |
@@ -60,10 +60,6 @@ jobs:
             project: .
           - package: CorePotts
             project: lib/CorePotts
-          - package: MakiePotts
-            project: lib/MakiePotts
-          - package: NeuralPotts
-            project: lib/NeuralPotts
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
