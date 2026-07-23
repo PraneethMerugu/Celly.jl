@@ -57,5 +57,5 @@ using SHA
     candidates = [evidence[(workload, "CheckerboardSweepCPM")] for workload in workloads]
     recomputed = RealisticEvidenceAnalysis.analyze_realistic_family(
         references, candidates; comparison = :paired_algorithm, manifest)
-    @test recomputed == archived_analysis
+    test_realistic_analysis_archive(recomputed, archived_analysis)
 end

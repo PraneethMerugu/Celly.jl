@@ -26,6 +26,7 @@ include("transition/ProductionEvidenceArchive.jl")
 include("transition/RealisticScaleRunner.jl")
 include("transition/RealisticEvidenceArchive.jl")
 include("transition/RealisticEvidenceAnalysis.jl")
+include("conformance/RealisticAnalysisArchiveComparison.jl")
 
 @testset "Potts package-family integration [$(BACKEND_GROUP)]" begin
     run_shard("thermodynamics") && include("test_thermodynamics.jl")

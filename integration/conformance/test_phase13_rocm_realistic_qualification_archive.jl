@@ -89,7 +89,7 @@ using SHA
         [cpu_evidence[workload] for workload in workloads],
         [rocm_evidence[workload] for workload in workloads];
         comparison = :independent_backend, manifest)
-    @test recomputed == archived_analysis
+    test_realistic_analysis_archive(recomputed, archived_analysis)
 
     metal_analysis = TOML.parsefile(normpath(joinpath(
         directory, "..", "metal", "CheckerboardSweepCPM-portability-family.toml")))
