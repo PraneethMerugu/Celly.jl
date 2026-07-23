@@ -52,6 +52,7 @@ include("transition/RealisticEvidenceAnalysis.jl")
         include("conformance/test_phase13_realistic_scale.jl")
         include("conformance/test_phase13_realistic_qualification_archive.jl")
         include("conformance/test_phase13_metal_realistic_qualification_archive.jl")
+        include("conformance/test_phase13_rocm_device_code_archive.jl")
         include("conformance/test_phase9_distributed.jl")
     end
 end
