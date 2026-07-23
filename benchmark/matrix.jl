@@ -77,24 +77,3 @@ phase12_path = PottsBenchmarks.write_phase12_result(phase12_record)
 println("PHASE12_RESULT=", phase12_path)
 phase9_performance = PottsBenchmarks.measure_phase9_backend(backend)
 println("PHASE9_PERFORMANCE=", phase9_performance)
-
-workloads = profile == "smoke" ? ("volume_2d_small",) :
-            ("volume_2d_small", "adhesion_2d_medium", "volume_3d_small",
-    "adhesion_2d_publication")
-algorithms = backend == "cpu" ? ("sequential", "lottery", "checkerboard") :
-             ("lottery", "checkerboard")
-samples, seconds, warmup = profile == "smoke" ? (2, 5.0, 1) : (10, 30.0, 2)
-
-for workload in workloads, algorithm in algorithms
-
-    @info "Benchmarking" backend workload algorithm profile
-    result = PottsBenchmarks.benchmark_case(
-        workload, algorithm, backend; samples, seconds, warmup_steps = warmup)
-    for stage in ("initial_invariants", "final_invariants")
-        invariants = result[stage]
-        failures = sort!([name for (name, value) in invariants if value === false])
-        isempty(failures) || error("$stage failed for $workload/$algorithm: $failures")
-    end
-    path = PottsBenchmarks.write_result(result)
-    println("BASELINE_RESULT=", path)
-end

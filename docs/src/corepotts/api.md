@@ -1,35 +1,13 @@
-# [CorePotts API Reference](@id corepotts-api)
+# [CorePotts API](@id corepotts-api)
 
-This page provides the full docstring index for the `CorePotts` package.
+CorePotts owns execution, state, persistence, backend, observation, and downstream-extension
+protocols. PottsToolkit is the preferred biological authoring interface.
 
-> [!NOTE]
-> End users normally access this API through `PottsToolkit`, which re-exports all public
-> symbols. You only need to qualify names with `CorePotts.` when writing extensions such as
-> custom penalties or backends.
-
----
-
-## Types
+The index below documents implemented protocol objects. Phase 13 stability is assigned by the
+curated API inventory in the owner evidence packet; an implementation symbol is not stable merely
+because it is exported or appears here.
 
 ```@autodocs
 Modules = [CorePotts]
-Order   = [:type]
-```
-
----
-
-## Functions
-
-```@autodocs
-Modules = [CorePotts]
-Order   = [:function]
-```
-
----
-
-## Constants
-
-```@autodocs
-Modules = [CorePotts]
-Order   = [:constant]
+Order = [:module, :constant, :type, :function, :macro]
 ```

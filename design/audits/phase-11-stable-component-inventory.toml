@@ -480,15 +480,3 @@ core = "SequentialReference"
 category = "reference_engine"
 status = "excluded"
 reason = "Reference-engine oracle algorithms are validation infrastructure, not production modeling algorithms."
-
-[[component]]
-core = "VolumeTracker"
-category = "legacy"
-status = "excluded"
-reason = "Historical tracker path superseded by OwnershipVolumeTracker and forbidden by the legacy-containment gate."
-
-[[component]]
-core = "SurfaceAreaTracker"
-category = "legacy"
-status = "excluded"
-reason = "Historical tracker path superseded by BoundaryMeasureTracker and forbidden by the legacy-containment gate."

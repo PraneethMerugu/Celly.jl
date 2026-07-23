@@ -1,9 +1,6 @@
 module CorePotts
 
-using KernelIntrinsics
-using AcceleratedKernels
 using KernelAbstractions
-using StructArrays
 using StaticArrays
 using Adapt
 using ConstructionBase
@@ -15,13 +12,12 @@ using SHA
 import Atomix
 import SciMLBase: solve, savevalues!
 
-export solve, savevalues!, fmap
+export solve, savevalues!
 
 const DEFAULT_BLOCK_SIZE = 256
 
 include("contracts/versions.jl")
 include("topology/topology.jl")
-include("proposals/samplers.jl")
 include("state/semantics.jl")
 include("state/types.jl")
 include("state/logical.jl")
@@ -32,9 +28,6 @@ include("execution/dispatch.jl")
 include("rng/semantic.jl")
 include("execution/contracts.jl")
 
-include("components/trackers/trackers.jl")
-include("components/components.jl")
-include("components/training.jl")
 include("protocols/scientific.jl")
 include("components/scientific_components.jl")
 include("lifecycle/reference.jl")
@@ -54,13 +47,7 @@ include("algorithms/lottery.jl")
 include("persistence/scientific.jl")
 include("reference/engine.jl")
 
-include("initialization/initialization.jl")
 include("initialization/logical.jl")
-include("lifecycle/events.jl")
-
-include("kernels/metropolis.jl")
-include("kernels/intrinsics.jl")
-include("sciml/simulator.jl")
 include("sciml/interface.jl")
 
 # ==============================================================================
@@ -116,7 +103,7 @@ export default_parameters, realize_components, proposal_relation, boundary_track
        PottsCallbackConflictError, UnsafePottsSerializationError,
        execution_adaptor, AbstractEnsembleSeedPolicy, EnsembleSeedDerivationV1,
        UserManagedEnsembleSeeds, ensemble_seed
-export AbstractPottsState, FlexibilityTrait, Rigid, Flex
+export AbstractPottsState
 export lattice_storage
 export AbstractEvent
 export AbstractScientificID, CellID, CellTypeID, MediumID, CellSlot, CellGeneration,
@@ -337,28 +324,6 @@ export AbstractInitialOverlapPolicy, RejectInitialOverlap, StableInitialPriority
        LogicalInitializationReport, InitializedLogicalState, logical_state,
        initialization_report,
        finalize_initial_state, CellCapacityError
-export AbstractTracker, VolumeTracker, SurfaceAreaTracker, VolumeFlexTracker,
-       SurfaceAreaFlexTracker
-export AbstractPenalty, AbstractNeuralPenalty, AbstractHSTPenalty, LocalNeuralPenalty,
-       compute_global_energy, VolumePenalty, HSTVolumePenalty, HSTSurfaceAreaPenalty,
-       AdhesionPenalty, FocalPointSpringPenalty, HSTFocalPointPenalty, HSTLengthPenalty,
-       ChemotaxisPenalty, ConnectivityConstraint
-export PottsTrainingCache, potts_loss
-export AbstractOutputBackend, MemoryBackend, ZarrBackend, HDF5Backend, initialize_backend,
-       save_state!
-export DEFAULT_BLOCK_SIZE
-
-# From Tools & Engine
-export PottsComponent
-function PottsComponent end
-export spawn_hypersphere!, build_cell_data
-export process_mitosis_events!, process_death_events!, MitosisWorkspace
-export VolumeThresholdTrigger
-export DivisionOrientation, RandomOrientation, MajorAxisOrientation, MinorAxisOrientation,
-       VectorOrientation
-export InheritanceRule, Clone, Split
-export Reset, ResetChild, AsymmetricReset, InheritAdd, InheritMultiply, RandomUniform,
-       RandomNormal, RandomPoisson
-export PropertyUpdateEvent
+export AbstractTracker
 
 end

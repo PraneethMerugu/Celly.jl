@@ -1,8 +1,7 @@
 # Potts.jl Benchmark Project
 
-This project captures correctness-qualified pre-refactor baselines and will become the permanent
-JuliaGPU benchmark suite. Results use the versioned schema in `schema.md` and are generated under
-the ignored `results/` directory.
+This project is the permanent correctness-qualified JuliaGPU benchmark suite. Results use the
+versioned schema in `schema.md` and are generated under the ignored `results/` directory.
 
 Set up the base environment:
 
@@ -10,44 +9,20 @@ Set up the base environment:
 julia --project=benchmark benchmark/setup.jl
 ```
 
-The environment pins the Apple-Silicon-compatible KernelIntrinsics fork to commit
-`b3a02b6e80f0839082a02f1838af7e10e992062c`. It does not follow the branch head, so a future force
-push or additional branch commit cannot silently change a paper baseline.
-
-Run one CPU case:
-
-```sh
-julia --project=benchmark benchmark/run.jl \
-  --backend=cpu --workload=volume_2d_small --algorithm=checkerboard
-```
-
-The workload names are:
-
-- `volume_2d_small`
-- `adhesion_2d_medium`
-- `volume_3d_small`
-- `adhesion_2d_publication`
-
-The legacy algorithm names accepted by the runner are `sequential`, `lottery`, `checkerboard`, and
-`intrinsic`. These labels describe the pre-refactor implementation; they are not final API names or
-scientific guarantee claims.
-
 GPU packages live in separate environments under `backends/`. Stack the selected backend environment
 ahead of the base benchmark project so only one GPU stack is loaded:
 
 ```sh
 JULIA_LOAD_PATH="benchmark/backends/metal:benchmark:@stdlib" \
-  julia benchmark/run.jl --backend=metal \
-  --workload=volume_2d_small --algorithm=checkerboard
+  julia --project=benchmark/backends/metal benchmark/performance_worker.jl \
+  --backend=metal --profile=smoke
 ```
 
-GPU samples synchronize the active KernelAbstractions backend inside the timed region. A GPU timing
-without this synchronization is invalid.
-
-Run the historical all-in-one qualification matrix locally with `benchmark/matrix.jl`. Phase 12
+GPU samples synchronize the active KernelAbstractions backend inside the timed region. Phase 12
 performance decisions use the lean `benchmark/performance_worker.jl` through `repeat.jl`, or the
-`Benchmarks` GitHub workflow, so unrelated historical suites do not heat the runner or consume the
-timing window. GPU jobs run only on explicitly enabled, trusted, backend-labeled self-hosted runners.
+`Benchmarks` GitHub workflow. `benchmark/matrix.jl` remains a correctness/qualification diagnostic
+and no longer executes the deleted historical engine benchmark. GPU jobs run only on explicitly
+enabled, trusted, backend-labeled self-hosted runners.
 
 Launch independent fresh Julia processes with `benchmark/repeat.jl`. One process is diagnostic,
 three full processes are the minimum regression evidence, and five full processes qualify a paper

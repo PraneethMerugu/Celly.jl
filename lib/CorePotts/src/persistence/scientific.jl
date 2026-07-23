@@ -192,13 +192,12 @@ function _continuation_profile(integrator::ScientificPottsIntegrator)
     )
     dependencies = Tuple(sort!(String[
         _module_identity(@__MODULE__),
-        _module_identity(AcceleratedKernels),
         _module_identity(Adapt),
+        _module_identity(Atomix),
+        _module_identity(ConstructionBase),
         _module_identity(KernelAbstractions),
-        _module_identity(KernelIntrinsics),
         _module_identity(SciMLBase),
         _module_identity(StaticArrays),
-        _module_identity(StructArrays),
     ]))
     backend_module = parentmodule(typeof(integrator.plan.backend))
     algorithm_identity = component_identity(integrator.algorithm)

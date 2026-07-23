@@ -32,6 +32,11 @@ The packages remain independently valid Julia packages with their own identity, 
 compatibility bounds, and package-local tests. Repository co-location MUST NOT permit undeclared
 cross-package dependencies.
 
+During the Phase 13 freeze, only PottsToolkit and CorePotts are paper-core workspace packages.
+MakiePotts source is intentionally outside that workspace until its Phase 14 migration. The
+pre-freeze NeuralPotts implementation is absent; the experimental package identity may be restored
+only by the Phase 14-or-later redesign required by the accepted scope map.
+
 ## Dependency Direction
 
 The dependency direction is:
@@ -258,7 +263,7 @@ Performance measurement is a first-class project:
 ```text
 benchmark/
   Project.toml
-  run.jl
+  performance_worker.jl
   workloads/
   micro/
   kernels/

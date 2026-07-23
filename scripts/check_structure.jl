@@ -6,8 +6,6 @@ const STDLIBS = Set(["LinearAlgebra", "Random", "Serialization", "SHA", "Statist
 const RELEASED_PROJECTS = [
     joinpath(ROOT, "Project.toml"),
     joinpath(ROOT, "lib", "CorePotts", "Project.toml"),
-    joinpath(ROOT, "lib", "MakiePotts", "Project.toml"),
-    joinpath(ROOT, "lib", "NeuralPotts", "Project.toml"),
 ]
 
 function require(condition, message)
@@ -57,21 +55,25 @@ require(isempty(nested_files), "the nested PottsToolkit package still contains f
 family_deps = Dict(
     "CorePotts" => Set(keys(get(TOML.parsefile(RELEASED_PROJECTS[2]), "deps", Dict()))),
     "PottsToolkit" => Set(keys(get(root_project, "deps", Dict()))),
-    "MakiePotts" => Set(keys(get(TOML.parsefile(RELEASED_PROJECTS[3]), "deps", Dict()))),
-    "NeuralPotts" => Set(keys(get(TOML.parsefile(RELEASED_PROJECTS[4]), "deps", Dict()))),
 )
 require(isempty(intersect(family_deps["CorePotts"], Set(["PottsToolkit", "MakiePotts", "NeuralPotts"]))),
     "CorePotts depends on an upward layer")
 require(isempty(intersect(family_deps["PottsToolkit"], Set(["MakiePotts", "NeuralPotts"]))),
     "PottsToolkit depends on a satellite")
-require(isempty(intersect(family_deps["NeuralPotts"], Set(["PottsToolkit", "MakiePotts"]))),
-    "NeuralPotts depends on an unnecessary higher layer")
+workspace_projects = get(get(root_project, "workspace", Dict{String, Any}()),
+    "projects", String[])
+require(workspace_projects == ["integration", "lib/CorePotts"],
+    "Phase 13 workspace must contain only integration and the paper-core engine")
+neural_root = joinpath(ROOT, "lib", "NeuralPotts")
+neural_files = isdir(neural_root) ?
+               collect(Iterators.flatten(files for (_, _, files) in walkdir(neural_root))) :
+               String[]
+require(isempty(neural_files),
+    "the pre-freeze NeuralPotts implementation must remain absent until its deferred redesign")
 
 for runner in [
         joinpath(ROOT, "test", "runtests.jl"),
         joinpath(ROOT, "lib", "CorePotts", "test", "runtests.jl"),
-        joinpath(ROOT, "lib", "MakiePotts", "test", "runtests.jl"),
-        joinpath(ROOT, "lib", "NeuralPotts", "test", "runtests.jl"),
         joinpath(ROOT, "integration", "runtests.jl")]
     require(isfile(runner), "missing test owner: $(relpath(runner, ROOT))")
 end
@@ -90,4 +92,5 @@ for generated in ["docs/build", "benchmark/results"]
     require(isempty(tracked), "$generated contains tracked generated output")
 end
 
-println("Repository structure satisfies the Phase 2 package, dependency, test, manifest, and Julia-target contract")
+println("Repository structure satisfies the Phase 13 paper-core package, dependency, test, " *
+        "manifest, workspace, and Julia-target contract")
