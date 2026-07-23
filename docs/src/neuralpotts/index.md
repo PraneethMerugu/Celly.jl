@@ -35,7 +35,7 @@ The core building block is `LocalNeuralPenalty`, which wraps a Lux.jl neural net
 and plugs it into the CorePotts penalty system.
 
 ```julia
-using Lux, NeuralPotts
+using Lux, NeuralPotts, Random
 
 # Define a small MLP for the local energy
 network = Lux.Chain(
@@ -44,7 +44,8 @@ network = Lux.Chain(
     Lux.Dense(32, 1),
 )
 
-penalty = LocalNeuralPenalty(network)
+parameters, state = Lux.setup(Random.default_rng(), network)
+penalty = LocalNeuralPenalty(LuxPenaltyModel(network), parameters, state)
 ```
 
 ### The 9-Element Feature Vector
@@ -161,7 +162,8 @@ A      = CellType(:A)
 Medium = CellType(:Medium, is_background=true)   # background must be marked explicitly
 
 network = Lux.Chain(Lux.Dense(9, 64, tanh), Lux.Dense(64, 1))
-penalty = LocalNeuralPenalty(network)
+parameters, state = Lux.setup(Random.default_rng(), network)
+penalty = LocalNeuralPenalty(LuxPenaltyModel(network), parameters, state)
 
 sys  = PottsSystem(cell_types = [Medium, A], penalties = [penalty])
 prob = PottsProblem(sys, Dict(A => 30), (100, 100); tspan=(0, 200))

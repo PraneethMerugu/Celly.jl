@@ -14,13 +14,23 @@ CorePotts = {path = "../CorePotts"}
 KernelIntrinsics = {url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git", rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"}
 
 [compat]
+Aqua = "0.8"
 ChainRulesCore = "1.26"
+ComponentArrays = "0.15"
 CorePotts = "0.1"
+KernelIntrinsics = "0.1"
 Lux = "1.31"
+Optimization = "4, 5"
+OptimizationOptimisers = "0.3, 0.4"
+Random = "1"
 StaticArrays = "1.9"
+Statistics = "1"
+Test = "1"
+Zygote = "0.6, 0.7"
 julia = "1.12.6"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 KernelIntrinsics = "f9588fbb-d238-4998-b15a-468e8766d49a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
@@ -31,4 +41,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["ComponentArrays", "KernelIntrinsics", "Optimization", "OptimizationOptimisers", "Random", "Statistics", "Test", "Zygote"]
+test = ["Aqua", "ComponentArrays", "KernelIntrinsics", "Optimization", "OptimizationOptimisers", "Random", "Statistics", "Test", "Zygote"]

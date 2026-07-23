@@ -119,14 +119,14 @@ components = ["adhesion", "volume"]
 dimension = 2
 fixture = "2d-vn-periodic-zero-sparse-normalized-mcs"
 initial_state_fingerprint = "c70d7160db693b37811fb0ef325f0a97d2e51dc56215bdb685091dc363d5b5f3"
-model_fingerprint = "sha256:8b5a3bfe1c03e0a445570ca9e2a4ed7a377e53a33d258627a8716b3ccb3e30e1"
+model_fingerprint = "sha256:5a7149541a516321d5513da27d0f4ca314e7a51264aceb686f5321d641b4e07a"
 rng = "Philox4x32x10V1"
 rng_contract_version = "1.0.0"
 sampling_plan_version = "phase13-transition-evidence-v1"
 scheduler = "sequential_with_replacement"
 scheduler_version = "1.0.0"
 semantic_seed_or_range = "exact-enumeration:no-random-draws"
-source_revision = "content-sha256:5dd4b5a6e0429078151d030f4944b25a188befa1cb27ece541e15d9ef3a20c4b"
+source_revision = "content-sha256:cd7862281a52cf8184446a12f63878f83d65e07d35be18db64ee3edfe298ee1e"
 temperature = "0"
 topology = "von_neumann"
 

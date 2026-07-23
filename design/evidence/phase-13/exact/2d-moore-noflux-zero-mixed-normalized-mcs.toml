@@ -6,15 +6,15 @@ communicating_classes = [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11]
 detailed_balance_residual = "0.0"
 irreducible = false
 probability_currents = []
-relaxation_time = "1.4628571428571429"
-row_support_size = [1, 1, 1, 5, 1, 5, 5, 1, 1, 5, 5, 1, 5, 1, 1, 1]
-self_transition_probability = ["1//1", "1//1", "1//1", "81//256", "1//1", "81//256", "81//256", "1//1", "1//1", "81//256", "81//256", "1//1", "81//256", "1//1", "1//1", "1//1"]
-spectral_gap = "0.68359375"
+relaxation_time = "3.072345038749469"
+row_support_size = [1, 2, 2, 7, 2, 7, 7, 2, 2, 7, 7, 2, 7, 2, 2, 1]
+self_transition_probability = ["1//1", "707281//1048576", "707281//1048576", "81//256", "707281//1048576", "81//256", "81//256", "707281//1048576", "707281//1048576", "81//256", "81//256", "707281//1048576", "81//256", "707281//1048576", "707281//1048576", "1//1"]
+spectral_gap = "0.3254842758178711"
 stationarity_residual = "0.0"
-stationary_distribution = ["0.1", "0.1", "0.1", "0.0", "0.10000000000000002", "0.0", "0.0", "0.1", "0.1", "0.0", "0.0", "0.1", "0.0", "0.1", "0.1", "0.1"]
+stationary_distribution = ["0.5", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "0.5000000000000001"]
 stationary_nonnegative = true
 stationary_normalized = true
-unit_eigenvalue_multiplicity = 10
+unit_eigenvalue_multiplicity = 2
 
     [[analysis.class_periods]]
     period = 1
@@ -73,28 +73,28 @@ unit_eigenvalue_multiplicity = 10
     real = "1.0"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
-    real = "1.0"
+    real = "0.6745157241821289"
     [[analysis.eigenvalues]]
     imaginary = "0.0"
     real = "0.31640625"
@@ -115,20 +115,20 @@ unit_eigenvalue_multiplicity = 10
     real = "0.31640625"
 
     [analysis.observable]
-    diffusion = ["0//1", "0//1", "0//1", "175//256", "0//1", "175//256", "175//256", "0//1", "0//1", "175//256", "175//256", "0//1", "175//256", "0//1", "0//1", "0//1"]
-    drift = ["0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1", "0//1"]
-    second_moment = ["0//1", "0//1", "0//1", "175//256", "0//1", "175//256", "175//256", "0//1", "0//1", "175//256", "175//256", "0//1", "175//256", "0//1", "0//1", "0//1"]
+    diffusion = ["0//1", "241391468895//1099511627776", "241391468895//1099511627776", "133097//131072", "241391468895//1099511627776", "133097//131072", "133097//131072", "241391468895//1099511627776", "241391468895//1099511627776", "133097//131072", "133097//131072", "241391468895//1099511627776", "133097//131072", "241391468895//1099511627776", "241391468895//1099511627776", "0//1"]
+    drift = ["0//1", "-341295//1048576", "-341295//1048576", "0//1", "-341295//1048576", "0//1", "0//1", "341295//1048576", "-341295//1048576", "0//1", "0//1", "341295//1048576", "0//1", "341295//1048576", "341295//1048576", "0//1"]
+    second_moment = ["0//1", "341295//1048576", "341295//1048576", "133097//131072", "341295//1048576", "133097//131072", "133097//131072", "341295//1048576", "341295//1048576", "133097//131072", "133097//131072", "341295//1048576", "133097//131072", "341295//1048576", "341295//1048576", "0//1"]
     values = ["0", "1", "1", "2", "1", "2", "2", "3", "1", "2", "2", "3", "2", "3", "3", "4"]
 
 [comparison]
-added_support = []
+added_support = [[4, 1], [4, 16], [6, 1], [6, 16], [7, 1], [7, 16], [10, 1], [10, 16], [11, 1], [11, 16], [13, 1], [13, 16]]
 candidate_resolution = "normalized_mcs"
 maximum_absolute_residual = "111//256"
 maximum_row = 4
 maximum_total_variation = "111//256"
 missing_support = []
 reference_resolution = "primitive_attempt"
-row_total_variation = ["0//1", "0//1", "0//1", "111//256", "0//1", "111//256", "111//256", "0//1", "0//1", "111//256", "111//256", "0//1", "111//256", "0//1", "0//1", "0//1"]
+row_total_variation = ["0//1", "242991//1048576", "242991//1048576", "111//256", "242991//1048576", "111//256", "111//256", "242991//1048576", "242991//1048576", "111//256", "111//256", "242991//1048576", "111//256", "242991//1048576", "242991//1048576", "0//1"]
 
 [environment]
 architecture = "aarch64"
@@ -141,7 +141,7 @@ dimensions = [2, 2]
 mutable_sites = [1, 2, 3, 4]
 
 [identity]
-acceptance_law = "OracleMetropolisHastings"
+acceptance_law = "OracleConventionalMetropolis"
 algorithm = "SequentialCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program = "TransitionEvidenceArchive"
@@ -152,14 +152,14 @@ components = ["adhesion", "volume"]
 dimension = 2
 fixture = "2d-moore-noflux-zero-mixed-normalized-mcs"
 initial_state_fingerprint = "c70d7160db693b37811fb0ef325f0a97d2e51dc56215bdb685091dc363d5b5f3"
-model_fingerprint = "sha256:f2e19874d82f25bd91039e72b644443d98c2346a532e7a83e29572e876abe27b"
+model_fingerprint = "sha256:0c9386fd4ee58b87d3a249cea1b0025573a1fb243f290ff624585d1068a4daad"
 rng = "Philox4x32x10V1"
 rng_contract_version = "1.0.0"
 sampling_plan_version = "phase13-transition-evidence-v1"
 scheduler = "sequential_with_replacement"
 scheduler_version = "1.0.0"
 semantic_seed_or_range = "exact-enumeration:no-random-draws"
-source_revision = "content-sha256:5dd4b5a6e0429078151d030f4944b25a188befa1cb27ece541e15d9ef3a20c4b"
+source_revision = "content-sha256:cd7862281a52cf8184446a12f63878f83d65e07d35be18db64ee3edfe298ee1e"
 temperature = "0"
 topology = "moore"
 
@@ -173,20 +173,32 @@ state_count = 16
     probability = "1//1"
     source = 1
     [[kernel.entries]]
-    destination = 2
-    probability = "1//1"
+    destination = 1
+    probability = "341295//1048576"
     source = 2
     [[kernel.entries]]
-    destination = 3
-    probability = "1//1"
+    destination = 2
+    probability = "707281//1048576"
+    source = 2
+    [[kernel.entries]]
+    destination = 1
+    probability = "341295//1048576"
     source = 3
     [[kernel.entries]]
+    destination = 3
+    probability = "707281//1048576"
+    source = 3
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 4
+    [[kernel.entries]]
     destination = 2
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 4
     [[kernel.entries]]
     destination = 3
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 4
     [[kernel.entries]]
     destination = 4
@@ -194,23 +206,35 @@ state_count = 16
     source = 4
     [[kernel.entries]]
     destination = 8
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 4
     [[kernel.entries]]
     destination = 12
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 4
     [[kernel.entries]]
-    destination = 5
-    probability = "1//1"
+    destination = 16
+    probability = "14499//262144"
+    source = 4
+    [[kernel.entries]]
+    destination = 1
+    probability = "341295//1048576"
     source = 5
     [[kernel.entries]]
+    destination = 5
+    probability = "707281//1048576"
+    source = 5
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 6
+    [[kernel.entries]]
     destination = 2
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 6
     [[kernel.entries]]
     destination = 5
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 6
     [[kernel.entries]]
     destination = 6
@@ -218,19 +242,27 @@ state_count = 16
     source = 6
     [[kernel.entries]]
     destination = 8
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 6
     [[kernel.entries]]
     destination = 14
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 6
     [[kernel.entries]]
+    destination = 16
+    probability = "14499//262144"
+    source = 6
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 7
+    [[kernel.entries]]
     destination = 3
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 7
     [[kernel.entries]]
     destination = 5
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 7
     [[kernel.entries]]
     destination = 7
@@ -238,27 +270,43 @@ state_count = 16
     source = 7
     [[kernel.entries]]
     destination = 8
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 7
     [[kernel.entries]]
     destination = 15
-    probability = "175//1024"
+    probability = "75101//524288"
+    source = 7
+    [[kernel.entries]]
+    destination = 16
+    probability = "14499//262144"
     source = 7
     [[kernel.entries]]
     destination = 8
-    probability = "1//1"
+    probability = "707281//1048576"
     source = 8
     [[kernel.entries]]
-    destination = 9
-    probability = "1//1"
+    destination = 16
+    probability = "341295//1048576"
+    source = 8
+    [[kernel.entries]]
+    destination = 1
+    probability = "341295//1048576"
     source = 9
     [[kernel.entries]]
+    destination = 9
+    probability = "707281//1048576"
+    source = 9
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 10
+    [[kernel.entries]]
     destination = 2
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 10
     [[kernel.entries]]
     destination = 9
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 10
     [[kernel.entries]]
     destination = 10
@@ -266,19 +314,27 @@ state_count = 16
     source = 10
     [[kernel.entries]]
     destination = 12
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 10
     [[kernel.entries]]
     destination = 14
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 10
     [[kernel.entries]]
+    destination = 16
+    probability = "14499//262144"
+    source = 10
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 11
+    [[kernel.entries]]
     destination = 3
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 11
     [[kernel.entries]]
     destination = 9
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 11
     [[kernel.entries]]
     destination = 11
@@ -286,23 +342,35 @@ state_count = 16
     source = 11
     [[kernel.entries]]
     destination = 12
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 11
     [[kernel.entries]]
     destination = 15
-    probability = "175//1024"
+    probability = "75101//524288"
+    source = 11
+    [[kernel.entries]]
+    destination = 16
+    probability = "14499//262144"
     source = 11
     [[kernel.entries]]
     destination = 12
-    probability = "1//1"
+    probability = "707281//1048576"
     source = 12
     [[kernel.entries]]
+    destination = 16
+    probability = "341295//1048576"
+    source = 12
+    [[kernel.entries]]
+    destination = 1
+    probability = "14499//262144"
+    source = 13
+    [[kernel.entries]]
     destination = 5
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 13
     [[kernel.entries]]
     destination = 9
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 13
     [[kernel.entries]]
     destination = 13
@@ -310,19 +378,31 @@ state_count = 16
     source = 13
     [[kernel.entries]]
     destination = 14
-    probability = "175//1024"
+    probability = "75101//524288"
     source = 13
     [[kernel.entries]]
     destination = 15
-    probability = "175//1024"
+    probability = "75101//524288"
+    source = 13
+    [[kernel.entries]]
+    destination = 16
+    probability = "14499//262144"
     source = 13
     [[kernel.entries]]
     destination = 14
-    probability = "1//1"
+    probability = "707281//1048576"
+    source = 14
+    [[kernel.entries]]
+    destination = 16
+    probability = "341295//1048576"
     source = 14
     [[kernel.entries]]
     destination = 15
-    probability = "1//1"
+    probability = "707281//1048576"
+    source = 15
+    [[kernel.entries]]
+    destination = 16
+    probability = "341295//1048576"
     source = 15
     [[kernel.entries]]
     destination = 16

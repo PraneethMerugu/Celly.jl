@@ -20,6 +20,9 @@ include("transition/TransitionKernelAnalysis.jl")
 include("transition/TransitionEvidenceArchive.jl")
 include("transition/TransitionEmpirical.jl")
 include("transition/CheckerboardOracle.jl")
+include("transition/Phase13Fixtures.jl")
+include("transition/ProductionTransitionSampler.jl")
+include("transition/ProductionEvidenceArchive.jl")
 
 @testset "Potts package-family integration [$(BACKEND_GROUP)]" begin
     run_shard("thermodynamics") && include("test_thermodynamics.jl")
@@ -38,6 +41,9 @@ include("transition/CheckerboardOracle.jl")
         include("conformance/test_phase13_checkerboard_oracle.jl")
         include("conformance/test_phase13_checkerboard_analysis.jl")
         include("conformance/test_phase13_production_adapter.jl")
+        include("conformance/test_phase13_fixtures.jl")
+        include("conformance/test_phase13_production_sampler.jl")
+        include("conformance/test_phase13_production_evidence.jl")
         include("conformance/test_phase9_distributed.jl")
     end
 end

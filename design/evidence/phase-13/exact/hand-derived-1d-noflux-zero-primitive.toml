@@ -77,7 +77,7 @@ sampling_plan_version = "phase13-transition-evidence-v1"
 scheduler = "sequential_with_replacement"
 scheduler_version = "1.0.0"
 semantic_seed_or_range = "exact-enumeration:no-random-draws"
-source_revision = "content-sha256:5dd4b5a6e0429078151d030f4944b25a188befa1cb27ece541e15d9ef3a20c4b"
+source_revision = "content-sha256:cd7862281a52cf8184446a12f63878f83d65e07d35be18db64ee3edfe298ee1e"
 temperature = "0"
 topology = "von_neumann"
 

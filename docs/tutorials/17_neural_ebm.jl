@@ -54,7 +54,7 @@ ps, st = Lux.setup(rng, model)
 # `PottsSystem` component list alongside standard components.
 # The `radius` controls the neighbourhood patch fed to the network.
 
-neural_penalty = LocalNeuralPenalty(model, ps, st)
+neural_penalty = LocalNeuralPenalty(LuxPenaltyModel(model), ps, st)
 
 # ## Step 3: Build the Potts system and problem
 #
@@ -127,7 +127,7 @@ alg = CheckerboardMetropolis(T = 1.5f0, sweeps_per_step = 10)
 #     end
 # 
 #     opt_state, ps = Optimisers.update(opt_state, ps, grads[1])
-#     neural_penalty = LocalNeuralPenalty(model, ps, st)
+#     neural_penalty = LocalNeuralPenalty(LuxPenaltyModel(model), ps, st)
 #     epoch % 10 == 0 && println("Epoch $epoch — loss: $(round(loss_val; digits=4))")
 # end
 # ```

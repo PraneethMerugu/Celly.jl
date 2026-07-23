@@ -52,7 +52,7 @@ theta = ComponentArray(
 
 function update_fn(p_old::PottsParameters, θ)
     new_vol = VolumePenalty{Rigid}(θ.volume_lambdas)
-    new_nn = LocalNeuralPenalty(model, θ.neural_weights, st)
+    new_nn = LocalNeuralPenalty(LuxPenaltyModel(model), θ.neural_weights, st)
     return PottsParameters(p_old.topology, (new_vol, new_nn), p_old.trackers)
 end
 

@@ -6,9 +6,11 @@ using TOML
 include(joinpath(@__DIR__, "TransitionKernelOracle.jl"))
 include(joinpath(@__DIR__, "TransitionKernelAnalysis.jl"))
 include(joinpath(@__DIR__, "TransitionEvidenceArchive.jl"))
+include(joinpath(@__DIR__, "CheckerboardOracle.jl"))
 
 using .TransitionKernelOracle
 using .TransitionEvidenceArchive
+using .CheckerboardOracle
 
 function moore_relation(::Val{N}) where {N}
     offsets = Tuple(offset for offset in Iterators.product(
@@ -35,13 +37,14 @@ function model_fingerprint(domain, relation, model)
 end
 
 function evidence_identity(fixture, state, domain, relation, model;
-        topology, boundaries, components, source_revision)
+        topology, boundaries, components, source_revision,
+        algorithm = "SequentialCPM", scheduler = "sequential_with_replacement")
     return EvidenceIdentity(
         model_fingerprint = model_fingerprint(domain, relation, model),
         initial_state_fingerprint = state_fingerprint(state),
-        algorithm = "SequentialCPM",
+        algorithm = algorithm,
         algorithm_semantic_version = v"1.0.0",
-        scheduler = "sequential_with_replacement",
+        scheduler = scheduler,
         scheduler_version = v"1.0.0",
         rng = "Philox4x32x10V1",
         rng_contract_version = v"1.0.0",
@@ -65,6 +68,7 @@ function archive_pair(output_directory, fixture, domain, relation, model, catalo
         topology, boundaries, components, source_revision, force)
     primitive = primitive_kernel(catalog, domain, model)
     normalized = sequential_mcs_kernel(catalog, domain, model)
+    checkerboard = checkerboard_mcs_kernel(catalog, domain, model)
     source_state = catalog.states[min(2, length(catalog.states))]
     observable = [count(owner -> owner.kind === OracleCellKind, state.owners)
                   for state in catalog.states]
@@ -72,9 +76,14 @@ function archive_pair(output_directory, fixture, domain, relation, model, catalo
     artifacts = String[]
     for (suffix, kernel, reference) in (
             ("primitive", primitive, nothing),
-            ("normalized-mcs", normalized, primitive))
+            ("normalized-mcs", normalized, primitive),
+            ("checkerboard-normalized-mcs", checkerboard, normalized))
+        checkerboard_record = startswith(suffix, "checkerboard")
         identity = evidence_identity(string(fixture, '-', suffix), source_state,
-            domain, relation, model; identity_base...)
+            domain, relation, model; identity_base...,
+            algorithm = checkerboard_record ? "CheckerboardSweepCPM" : "SequentialCPM",
+            scheduler = checkerboard_record ? "realized_graph_colored_sweep" :
+                "sequential_with_replacement")
         archive = archive_kernel(kernel; identity, domain, reference_kernel = reference,
             observable,
             thresholds = Dict(
@@ -131,8 +140,7 @@ function generate(output_directory; force = false)
     relation_moore = moore_relation(Val(2))
     volume = OracleVolumeEnergy(Dict(1 => 2), Dict(1 => 1))
     contact = OracleContactEnergy(Int[0 2; 2 0], owner_types, relation_moore)
-    model_moore = OracleModel(relation_moore, (volume, contact);
-        acceptance = OracleMetropolisHastings(), temperature = 0)
+    model_moore = OracleModel(relation_moore, (volume, contact); temperature = 0)
     catalog_moore = enumerate_states(domain_moore, labels)
     append!(artifacts, archive_pair(output_directory, "2d-moore-noflux-zero-mixed",
         domain_moore, relation_moore, model_moore, catalog_moore;

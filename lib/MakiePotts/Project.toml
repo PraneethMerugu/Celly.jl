@@ -15,15 +15,20 @@ CorePotts = {path = "../CorePotts"}
 KernelIntrinsics = {url = "https://github.com/PraneethMerugu/KernelIntrinsics.jl.git", rev = "b3a02b6e80f0839082a02f1838af7e10e992062c"}
 
 [compat]
+Aqua = "0.8"
 CommonSolve = "0.2"
 CorePotts = "0.1"
 Makie = "0.24"
+KernelIntrinsics = "0.1"
+Random = "1"
 SciMLBase = "3"
+Test = "1"
 julia = "1.12.6"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 KernelIntrinsics = "f9588fbb-d238-4998-b15a-468e8766d49a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["KernelIntrinsics", "Test"]
+test = ["Aqua", "KernelIntrinsics", "Test"]

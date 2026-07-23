@@ -50,13 +50,13 @@ unit_eigenvalue_multiplicity = 2
 
 [comparison]
 added_support = []
-candidate_resolution = "normalized_mcs"
-maximum_absolute_residual = "1//4"
-maximum_row = 2
-maximum_total_variation = "1//4"
+candidate_resolution = "checkerboard_normalized_mcs"
+maximum_absolute_residual = "0//1"
+maximum_row = 1
+maximum_total_variation = "0//1"
 missing_support = []
-reference_resolution = "primitive_attempt"
-row_total_variation = ["0//1", "1//4", "1//4", "0//1"]
+reference_resolution = "normalized_mcs"
+row_total_variation = ["0//1", "0//1", "0//1", "0//1"]
 
 [environment]
 architecture = "aarch64"
@@ -70,7 +70,7 @@ mutable_sites = [1, 2]
 
 [identity]
 acceptance_law = "OracleConventionalMetropolis"
-algorithm = "SequentialCPM"
+algorithm = "CheckerboardSweepCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program = "TransitionEvidenceArchive"
 analysis_program_version = "1.0.0"
@@ -78,13 +78,13 @@ backend = "cpu-exact-oracle"
 boundaries = ["no_flux"]
 components = ["none"]
 dimension = 1
-fixture = "hand-derived-1d-noflux-zero-normalized-mcs"
+fixture = "hand-derived-1d-noflux-zero-checkerboard-normalized-mcs"
 initial_state_fingerprint = "322435bab0fd149bb05ae9261d6bc1508738f1c069061e53a958150420548969"
 model_fingerprint = "sha256:0e87ebd33e3d291f69a55c10153be3cb7ec0b1469dab4e9ea0571fe067657671"
 rng = "Philox4x32x10V1"
 rng_contract_version = "1.0.0"
 sampling_plan_version = "phase13-transition-evidence-v1"
-scheduler = "sequential_with_replacement"
+scheduler = "realized_graph_colored_sweep"
 scheduler_version = "1.0.0"
 semantic_seed_or_range = "exact-enumeration:no-random-draws"
 source_revision = "content-sha256:cd7862281a52cf8184446a12f63878f83d65e07d35be18db64ee3edfe298ee1e"
@@ -93,7 +93,7 @@ topology = "von_neumann"
 
 [kernel]
 matrix_format = "sparse-coordinate-row-source"
-resolution = "normalized_mcs"
+resolution = "checkerboard_normalized_mcs"
 state_count = 4
 
     [[kernel.entries]]
