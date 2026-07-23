@@ -49,6 +49,7 @@ include("transition/RealisticEvidenceAnalysis.jl")
         include("conformance/test_phase13_production_evidence.jl")
         include("conformance/test_phase13_cpu_qualification_archive.jl")
         include("conformance/test_phase13_realistic_scale.jl")
+        include("conformance/test_phase13_realistic_qualification_archive.jl")
         include("conformance/test_phase9_distributed.jl")
     end
 end
