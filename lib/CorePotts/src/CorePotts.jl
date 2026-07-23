@@ -49,6 +49,7 @@ include("reference/engine.jl")
 
 include("initialization/logical.jl")
 include("sciml/interface.jl")
+include("contracts/public_api_docs.jl")
 
 # ==============================================================================
 # UNIFIED USER API EXPORTS

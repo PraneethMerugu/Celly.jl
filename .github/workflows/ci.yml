@@ -34,6 +34,8 @@ jobs:
         run: julia --startup-file=no scripts/check_structure.jl
       - name: Enforce Phase 13 legacy closure
         run: julia --startup-file=no scripts/check_legacy_containment.jl
+      - name: Enforce exhaustive Phase 13 API inventory
+        run: julia --project=. --startup-file=no scripts/check_phase13_api_inventory.jl
       - name: Resolve the package workspace without mutation
         run: |
           julia --project=. --startup-file=no -e '
