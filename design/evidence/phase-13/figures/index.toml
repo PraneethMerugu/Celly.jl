@@ -1,6 +1,8 @@
+realistic_source_evidence = "../realistic/cpu"
 schema_version = "1.0.0"
 source_evidence = "../exact"
-speed_fidelity_status = "pending-registered-real-hardware-evidence"
+speed_fidelity_status = "equivalence-fail"
+speed_timing_source_evidence = "../realistic/diagnostic/cpu-speed"
 
 [[figures]]
 path = "transition-difference.svg"
@@ -16,7 +18,7 @@ path = "observable-drift.svg"
 sha256 = "a0e4aafa239bffbe1dc3779be146eb45745d1664fd81979e60a0a1bfeaf11928"
 [[figures]]
 path = "speed-fidelity.svg"
-sha256 = "ec08fa71217553d9fd94273c0a32ef4deb23ff535b66d422d22deda07126c2a8"
+sha256 = "b06a40f747954f21599828244c10618f76e644ede06af0718c8552d930bfe41c"
 
 [[fixtures]]
 checkerboard_maximum_observable_drift = 0.375
@@ -50,3 +52,25 @@ maximum_probability_current = 0.0
 maximum_total_variation = 0.0
 sequential_maximum_observable_drift = 0.0
 sequential_spectral_gap = 0.75
+
+[[speed_fidelity_points]]
+checkerboard_to_sequential_median_throughput = 0.9893037019400646
+equivalent_endpoint_fraction = 0.14285714285714285
+equivalent_endpoints = 2
+registered_endpoints = 14
+timing_replicas_per_algorithm = 8
+workload = "adhesion_volume_relaxation"
+[[speed_fidelity_points]]
+checkerboard_to_sequential_median_throughput = 0.9904265572618103
+equivalent_endpoint_fraction = 0.07142857142857142
+equivalent_endpoints = 1
+registered_endpoints = 14
+timing_replicas_per_algorithm = 8
+workload = "differential_adhesion_sorting"
+[[speed_fidelity_points]]
+checkerboard_to_sequential_median_throughput = 0.9548978574754765
+equivalent_endpoint_fraction = 0.2857142857142857
+equivalent_endpoints = 4
+registered_endpoints = 14
+timing_replicas_per_algorithm = 8
+workload = "single_cell_migration"

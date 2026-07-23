@@ -9,7 +9,9 @@ Date: 2026-07-22
 Decision 0028 makes stability an explicit evidence decision. Export status alone is not a
 compatibility promise. The authoritative candidate policy is
 `phase-13-api-freeze-policy.toml`; the exhaustive generated inventory is
-`phase-13-api-inventory.toml`.
+`phase-13-api-inventory.toml`. The consolidated evidence and decision surface is
+`phase-13-owner-freeze-packet.md`; it remains a draft until real-ROCm evidence is admitted and the
+project owner explicitly approves the final dispositions.
 
 Every non-imported export in CorePotts and PottsToolkit is content-addressed and classified as one
 of:

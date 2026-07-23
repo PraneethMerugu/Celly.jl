@@ -36,11 +36,15 @@ function build_realistic_evidence(workload::AbstractDict, algorithm,
     profile in (:diagnostic, :qualification) || throw(ArgumentError(
         "profile must be :diagnostic or :qualification"))
     isempty(summaries) && throw(ArgumentError("realistic evidence requires replicas"))
+    algorithm_name = String(algorithm)
+    backend_name = _canonical_backend_name(backend)
+    profile === :qualification &&
+        !realistic_identity_applicable(algorithm_name, backend_name, manifest) &&
+        throw(ArgumentError(
+            "$algorithm_name on $backend_name is outside the registered realistic qualification domain"))
     registered = Int(manifest["replicas_per_identity"])
     profile === :qualification && length(summaries) != registered && throw(ArgumentError(
         "qualification evidence requires exactly $registered replicas"))
-    algorithm_name = String(algorithm)
-    backend_name = _canonical_backend_name(backend)
     all(summary -> summary["workload"] == workload["id"] &&
             summary["algorithm"] == algorithm_name &&
             _canonical_backend_name(summary["backend"]) == backend_name, summaries) ||

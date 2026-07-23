@@ -1,6 +1,7 @@
 #!/usr/bin/env julia
 
 using SHA
+using Statistics
 using TOML
 
 function parse_number(value)
@@ -88,7 +89,95 @@ function pending_speed_fidelity(path)
     return path
 end
 
-function generate(exact_directory, output_directory)
+function realistic_speed_fidelity(path, realistic_directory, timing_directory)
+    workloads = (
+        "adhesion_volume_relaxation",
+        "differential_adhesion_sorting",
+        "single_cell_migration",
+    )
+    analysis_path = joinpath(realistic_directory, "algorithm-family-analysis.toml")
+    all(isfile(joinpath(timing_directory, string(workload, "-", algorithm, ".toml")))
+        for workload in workloads
+        for algorithm in ("SequentialCPM", "CheckerboardSweepCPM")) &&
+        isfile(analysis_path) || return (
+            pending_speed_fidelity(path), Any[],
+            "pending-registered-real-hardware-evidence")
+    analysis = TOML.parsefile(analysis_path)
+    points = Dict{String, Any}[]
+    for workload in workloads
+        sequential = TOML.parsefile(joinpath(
+            timing_directory, string(workload, "-SequentialCPM.toml")))
+        checkerboard = TOML.parsefile(joinpath(
+            timing_directory, string(workload, "-CheckerboardSweepCPM.toml")))
+        for record in (sequential, checkerboard)
+            record["sampling"]["profile"] == "diagnostic" || error(
+                "speed-fidelity timing records must use the diagnostic profile")
+            record["sampling"]["replicas"] == 8 || error(
+                "speed-fidelity timing records require exactly eight isolated replicas")
+        end
+        sequential_rate = median(getindex.(
+            sequential["replica_primary_summaries"], "measured_mcs_per_second"))
+        checkerboard_rate = median(getindex.(
+            checkerboard["replica_primary_summaries"], "measured_mcs_per_second"))
+        endpoints = filter(endpoint -> endpoint["workload"] == workload,
+            analysis["endpoints"])
+        push!(points, Dict(
+            "workload" => workload,
+            "checkerboard_to_sequential_median_throughput" =>
+                checkerboard_rate / sequential_rate,
+            "timing_replicas_per_algorithm" => 8,
+            "equivalent_endpoints" => count(endpoint -> endpoint["passed"], endpoints),
+            "registered_endpoints" => length(endpoints),
+            "equivalent_endpoint_fraction" =>
+                count(endpoint -> endpoint["passed"], endpoints) / length(endpoints)))
+    end
+    width, height = 920, 520
+    left, right, top, bottom = 95, 35, 65, 90
+    plot_width, plot_height = width - left - right, height - top - bottom
+    logarithmic_speed = log2.(
+        getindex.(points, "checkerboard_to_sequential_median_throughput"))
+    x_min = floor(minimum(vcat(logarithmic_speed, [-1.0])))
+    x_max = ceil(maximum(vcat(logarithmic_speed, [1.0])))
+    x_max == x_min && (x_max = x_min + 1)
+    colors = ("#36558f", "#e07a5f", "#3d9970")
+    open(path, "w") do io
+        println(io, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"$width\" height=\"$height\" viewBox=\"0 0 $width $height\">")
+        println(io, "<rect width=\"100%\" height=\"100%\" fill=\"white\"/>")
+        println(io, "<text x=\"$(width/2)\" y=\"30\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"20\">Phase 13 CPU speed–fidelity evidence</text>")
+        println(io, "<text x=\"$(width/2)\" y=\"50\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"12\">Isolated eight-replica diagnostic timing; fidelity uses the registered 512-replica Holm-adjusted v4 battery</text>")
+        println(io, "<line x1=\"$left\" y1=\"$top\" x2=\"$left\" y2=\"$(top+plot_height)\" stroke=\"#222\"/>")
+        println(io, "<line x1=\"$left\" y1=\"$(top+plot_height)\" x2=\"$(left+plot_width)\" y2=\"$(top+plot_height)\" stroke=\"#222\"/>")
+        println(io, "<text x=\"$(left+plot_width/2)\" y=\"$(height-20)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">checkerboard / sequential median measured MCS/s</text>")
+        println(io, "<text transform=\"translate(24 $(top+plot_height/2)) rotate(-90)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">fraction of registered endpoints equivalent</text>")
+        for value in 0:4
+            fraction = value / 4
+            y = top + plot_height * (1 - fraction)
+            println(io, "<line x1=\"$left\" y1=\"$y\" x2=\"$(left+plot_width)\" y2=\"$y\" stroke=\"#ddd\"/>")
+            println(io, "<text x=\"$(left-8)\" y=\"$(y+4)\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\">$fraction</text>")
+        end
+        for exponent in Int(x_min):Int(x_max)
+            x = left + plot_width * (exponent - x_min) / (x_max - x_min)
+            println(io, "<line x1=\"$x\" y1=\"$top\" x2=\"$x\" y2=\"$(top+plot_height)\" stroke=\"$(exponent == 0 ? "#999" : "#eee")\"/>")
+            println(io, "<text x=\"$x\" y=\"$(top+plot_height+18)\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\">$(2.0^exponent)x</text>")
+        end
+        for (index, point) in pairs(points)
+            x = left + plot_width * (logarithmic_speed[index] - x_min) / (x_max - x_min)
+            y = top + plot_height * (1 - point["equivalent_endpoint_fraction"])
+            label = replace(point["workload"], '_' => ' ')
+            println(io, "<circle cx=\"$x\" cy=\"$y\" r=\"8\" fill=\"$(colors[index])\"><title>$label: $(point["checkerboard_to_sequential_median_throughput"])x, $(point["equivalent_endpoints"])/$(point["registered_endpoints"]) endpoints</title></circle>")
+            println(io, "<text x=\"$(x+11)\" y=\"$(y-10+18(index-1))\" font-family=\"sans-serif\" font-size=\"11\">$label</text>")
+        end
+        status = analysis["result"]["status"]
+        println(io, "<text x=\"$(left+plot_width)\" y=\"$(top+15)\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"12\">family result: $status</text>")
+        println(io, "</svg>")
+    end
+    return path, points, analysis["result"]["status"]
+end
+
+function generate(exact_directory, output_directory;
+        realistic_directory = normpath(joinpath(exact_directory, "..", "realistic", "cpu")),
+        timing_directory = normpath(joinpath(
+            exact_directory, "..", "realistic", "diagnostic", "cpu-speed")))
     mkpath(output_directory)
     paths = sort(filter(path -> endswith(path, "checkerboard-normalized-mcs.toml"),
         readdir(exact_directory; join = true)))
@@ -122,11 +211,16 @@ function generate(exact_directory, output_directory)
         "Maximum one-MCS cell-count drift", labels,
         [("sequential", sequential_drift), ("checkerboard", checkerboard_drift)];
         y_label = "maximum absolute drift"))
-    push!(figures, pending_speed_fidelity(joinpath(output_directory, "speed-fidelity.svg")))
+    speed_path, speed_points, speed_status = realistic_speed_fidelity(
+        joinpath(output_directory, "speed-fidelity.svg"),
+        realistic_directory, timing_directory)
+    push!(figures, speed_path)
 
     data = Dict{String, Any}(
         "schema_version" => "1.0.0",
         "source_evidence" => relpath(exact_directory, output_directory),
+        "realistic_source_evidence" => relpath(realistic_directory, output_directory),
+        "speed_timing_source_evidence" => relpath(timing_directory, output_directory),
         "fixtures" => [Dict(
             "id" => labels[index],
             "maximum_total_variation" => tv[index],
@@ -136,7 +230,8 @@ function generate(exact_directory, output_directory)
             "sequential_maximum_observable_drift" => sequential_drift[index],
             "checkerboard_maximum_observable_drift" => checkerboard_drift[index])
             for index in eachindex(labels)],
-        "speed_fidelity_status" => "pending-registered-real-hardware-evidence",
+        "speed_fidelity_status" => speed_status,
+        "speed_fidelity_points" => speed_points,
         "figures" => [Dict(
             "path" => basename(path),
             "sha256" => bytes2hex(open(SHA.sha256, path))) for path in figures])
@@ -153,7 +248,13 @@ function main(args)
         joinpath(root, "design", "evidence", "phase-13", "exact")
     output = length(args) >= 2 ? abspath(args[2]) :
         joinpath(root, "design", "evidence", "phase-13", "figures")
-    figures, index = generate(exact, output)
+    realistic = length(args) >= 3 ? abspath(args[3]) :
+        joinpath(root, "design", "evidence", "phase-13", "realistic", "cpu")
+    timing = length(args) >= 4 ? abspath(args[4]) :
+        joinpath(root, "design", "evidence", "phase-13", "realistic",
+            "diagnostic", "cpu-speed")
+    figures, index = generate(exact, output;
+        realistic_directory = realistic, timing_directory = timing)
     println("wrote $(length(figures)) Phase 13 figures and $index")
 end
 

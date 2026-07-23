@@ -14,6 +14,8 @@ The governing semantic contract is
 [Transition-Kernel Verification and Algorithm Characterization](../../spec/transition-kernel-verification.md).
 The project-owner scope, evidence, and freeze choices are recorded in
 [Decision 0028](../../spec/decisions/0028-phase-13-entry-and-freeze-policy.md).
+The final evidence review is assembled in the
+[owner API-freeze packet](phase-13-owner-freeze-packet.md).
 The prerequisites are closed. Phase 12.5 retained `TiledCheckerboardCPM` as an experimental,
 non-paper algorithm, so the initial Phase 13 implementation qualifies the sequential and ordinary
 checkerboard families without consuming the tiled engine as a stable protocol claimant.

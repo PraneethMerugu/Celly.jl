@@ -4,6 +4,7 @@ using Statistics
 using TOML
 using Distributions
 using ..RealisticEvidenceArchive
+using ..RealisticScaleRunner: realistic_identity_applicable
 
 export realistic_endpoint_specs, analyze_realistic_equivalence,
        analyze_realistic_family, write_realistic_analysis
@@ -29,6 +30,11 @@ function _require_registered_evidence(record::AbstractDict, manifest::AbstractDi
         "evidence algorithm is not registered by the analysis manifest"))
     identity["backend"] in manifest["backends"] || throw(ArgumentError(
         "evidence backend is not registered by the analysis manifest"))
+    sampling["profile"] == "qualification" &&
+        !realistic_identity_applicable(
+            identity["algorithm"], identity["backend"], manifest) &&
+        throw(ArgumentError(
+            "evidence identity is outside the registered realistic qualification domain"))
 
     workload_id = identity["workload"]
     matches = filter(workload -> workload["id"] == workload_id, manifest["workloads"])
