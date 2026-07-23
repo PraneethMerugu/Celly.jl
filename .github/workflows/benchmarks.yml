@@ -148,8 +148,17 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        row: [3, 4, 9, 10]
-        algorithm: [SequentialCPM, CheckerboardSweepCPM]
+        include:
+          - row: 4
+            algorithm: CheckerboardSweepCPM
+          - row: 9
+            algorithm: SequentialCPM
+          - row: 9
+            algorithm: CheckerboardSweepCPM
+          - row: 10
+            algorithm: SequentialCPM
+          - row: 10
+            algorithm: CheckerboardSweepCPM
     runs-on: [self-hosted, rocm]
     timeout-minutes: 240
     env:
