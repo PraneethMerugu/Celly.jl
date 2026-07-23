@@ -148,7 +148,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        row: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        row: [3, 4, 9, 10]
         algorithm: [SequentialCPM, CheckerboardSweepCPM]
     runs-on: [self-hosted, rocm]
     timeout-minutes: 240
