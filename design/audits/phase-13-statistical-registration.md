@@ -7,6 +7,12 @@ Date: 2026-07-22
 Machine-readable contract:
 [`phase-13-statistical-registration.toml`](phase-13-statistical-registration.toml)
 
+The immutable original is retained as
+[`phase-13-statistical-registration-v1.toml`](phase-13-statistical-registration-v1.toml); its
+fixture grid is retained as
+[`phase-13-fixture-manifest-v1.toml`](phase-13-fixture-manifest-v1.toml). Exact and v1 CPU records
+point to those historical files, while all new production qualification uses the v2 defaults.
+
 ## Scope and immutability
 
 This registration fixes the statistical design for the initial Phase 13 qualification of

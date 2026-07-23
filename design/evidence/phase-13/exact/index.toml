@@ -1,6 +1,6 @@
 analysis_program_version = "1.0.0"
 evidence_schema_version = "1.0.0"
-fixture_manifest = "../../../audits/phase-13-fixture-manifest.toml"
+fixture_manifest = "../../../audits/phase-13-fixture-manifest-v1.toml"
 schema_version = "1.0.0"
 source_revision = "content-sha256:cd7862281a52cf8184446a12f63878f83d65e07d35be18db64ee3edfe298ee1e"
 
