@@ -18,9 +18,9 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 9: SciML Integration | Complete | [Phase 9 completion audit](audits/phase-9-completion-audit.md); SciML semantics and CPU/Metal/ROCm qualification pass authoritative CI |
 | Phase 10: PottsToolkit Typed API and Compiler | Complete | [Phase 10 completion audit](audits/phase-10-completion-audit.md); sole Level 2 semantic path, legacy deletion, reference workloads, schema `2.0.0` Metal/ROCm artifacts, and exact-head authoritative CI |
 | Phase 11: PottsToolkit Level 1 DSL | Complete | [Phase 11 completion audit](audits/phase-11-completion-audit.md); exact-head package-family, integration, documentation, x86_64/ARM64 CPU, real-Metal, and real-ROCm CI is green |
-| Phase 12: Performance Recovery and Backend Qualification | CPU closure addendum in progress | Core recovery merged in [PR #12](https://github.com/PraneethMerugu/Potts.jl/pull/12); [completion audit](audits/phase-12-completion-audit.md), [chunk plan](audits/phase-12-chunk-plan.md), and [external comparison crosswalk](audits/phase-12-external-comparison-crosswalk.md) |
-| Phase 12.5: Tiled Checkerboard Engine and Sultan-Class Study | Not started | [Accepted contract](audits/phase-12-5-tiled-checkerboard-contract.md) and [chunk plan](audits/phase-12-5-chunk-plan.md) |
-| Phase 13: Algorithmic Conformance and API Freeze | Entry interview complete; implementation not started | [Accepted transition-kernel contract](../spec/transition-kernel-verification.md), [entry policy](../spec/decisions/0028-phase-13-entry-and-freeze-policy.md), and [chunk plan](audits/phase-13-transition-kernel-chunk-plan.md); blocked on Phase 12.CPU, Phase 12 closure, and Phase 12.5 |
+| Phase 12: Performance Recovery and Backend Qualification | Complete | Core recovery [completion audit](audits/phase-12-completion-audit.md), [CPU completion audit](audits/phase-12-cpu-completion-audit.md), and [external comparison crosswalk](audits/phase-12-external-comparison-crosswalk.md) |
+| Phase 12.5: Tiled Checkerboard Engine and Sultan-Class Study | Complete; experimental disposition | [Completion audit](audits/phase-12-5-completion-audit.md), [accepted contract](audits/phase-12-5-tiled-checkerboard-contract.md), and [chunk plan](audits/phase-12-5-chunk-plan.md) |
+| Phase 13: Algorithmic Conformance and API Freeze | In progress; entry interview complete | [Accepted transition-kernel contract](../spec/transition-kernel-verification.md), [entry policy](../spec/decisions/0028-phase-13-entry-and-freeze-policy.md), and [chunk plan](audits/phase-13-transition-kernel-chunk-plan.md); Phase 12 and 12.5 prerequisites closed |
 | Phases 14-15 | Not started | Ordered by their own entry gates |
 
 ## Objective
@@ -651,10 +651,10 @@ Complete D6 and D7 before declaring the public API candidate.
 Phase 12.5 is a roadmap-level phase, distinct from the internal work packages in the Phase 12 chunk
 plan. It begins only after Phase 12 closes and must resolve before Phase 13 freezes the public API.
 
-Phase 12.5 enters this phase with `TiledCheckerboardCPM` retained as an explicitly experimental
-research algorithm. Phase 13 must keep it out of automatic selection, the stable performance
-surface, and paper claims. Its current name and configuration are not frozen as stable API; any
-future promotion requires a new scientific, portability, and performance qualification decision.
+Phase 12.5 is complete with `TiledCheckerboardCPM` retained as an explicitly experimental research
+algorithm. Its negative performance result, qualified implementation boundary, and future
+promotion requirements are recorded in the
+[Phase 12.5 completion audit](audits/phase-12-5-completion-audit.md).
 
 ### Deliverables
 
@@ -695,9 +695,12 @@ future promotion requires a new scientific, portability, and performance qualifi
 
 ## Phase 13: Algorithmic Conformance, API Freeze, and Full Conformance
 
-Phase 13 implementation begins only after Phase 12.CPU and the remaining Phase 12 closure gate pass
-and Phase 12.5 records a promote, experimental, or reject disposition. Its accepted algorithmic
-work is detailed in the
+Phase 12.CPU, the remaining Phase 12 closure gate, and Phase 12.5 are complete. Phase 12.5 enters
+this phase with `TiledCheckerboardCPM` retained as an explicitly experimental research algorithm.
+Phase 13 keeps it out of automatic selection, the stable performance surface, and paper claims. Its
+current name and configuration are not frozen as stable API; any future promotion requires a new
+scientific, portability, and performance qualification decision. The accepted algorithmic work is
+detailed in the
 [transition-kernel contract](../spec/transition-kernel-verification.md) and
 [Phase 13 chunk plan](audits/phase-13-transition-kernel-chunk-plan.md).
 

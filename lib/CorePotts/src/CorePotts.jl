@@ -19,6 +19,7 @@ export solve, savevalues!, fmap
 
 const DEFAULT_BLOCK_SIZE = 256
 
+include("contracts/versions.jl")
 include("topology/topology.jl")
 include("proposals/samplers.jl")
 include("state/semantics.jl")
@@ -67,6 +68,15 @@ include("sciml/interface.jl")
 # ==============================================================================
 
 # From Base
+export ScientificContractVersions, scientific_contract_versions,
+       SCIENTIFIC_CONTRACT_VERSIONS, RNG_CONTRACT_VERSION,
+       AUTHORING_DSL_CONTRACT_VERSION, NORMALIZED_IR_CONTRACT_VERSION,
+       CHECKPOINT_SCHEMA_VERSION, SEMANTIC_FINGERPRINT_VERSION,
+       EXECUTION_FINGERPRINT_VERSION, PHASE13_RESULT_EVIDENCE_SCHEMA_VERSION,
+       SEQUENTIAL_ALGORITHM_CONTRACT_VERSION,
+       CHECKERBOARD_SCHEDULER_CONTRACT_VERSION,
+       LOTTERY_ALGORITHM_CONTRACT_VERSION,
+       TILED_CHECKERBOARD_EXPERIMENTAL_CONTRACT_VERSION
 export AbstractTopology, VonNeumannTopology, MooreTopology, NoFluxVonNeumannTopology,
        NoFluxMooreTopology, ExtendedVonNeumannTopology, ExtendedMooreTopology,
        NoFluxExtendedVonNeumannTopology, NoFluxExtendedMooreTopology
@@ -192,7 +202,8 @@ export AbstractEnergy, AbstractDrive, AbstractHardConstraint, AbstractKineticMod
        AbstractMechanicalComponent,
        AbstractProposalLaw, NeighborCopyProposal, proposal_law,
        construct_proposal_attempt,
-       ScientificCapabilities, AlgorithmGuaranteeProfile, CopyProposal,
+       ScientificCapabilities, AlgorithmGuaranteeProfile,
+       ALGORITHM_GUARANTEE_TAXONOMY, algorithm_guarantee_taxonomy, CopyProposal,
        CopyAttemptOutcome, ActionableCopy, SameOwnerAttempt, BoundaryNullAttempt,
        ImmutableRecipientAttempt, CopyAttempt, is_actionable, actionable_proposal,
        construct_copy_attempt, proposal_probabilities, AbstractAcceptanceLaw,
@@ -341,9 +352,8 @@ export DEFAULT_BLOCK_SIZE
 export PottsComponent
 function PottsComponent end
 export spawn_hypersphere!, build_cell_data
-export process_mitosis_events!, process_death_events!, MitosisCallback, DeathCallback,
-       MitosisWorkspace
-export VolumeThresholdTrigger, LinearGrowthCallback, required_fields
+export process_mitosis_events!, process_death_events!, MitosisWorkspace
+export VolumeThresholdTrigger
 export DivisionOrientation, RandomOrientation, MajorAxisOrientation, MinorAxisOrientation,
        VectorOrientation
 export InheritanceRule, Clone, Split

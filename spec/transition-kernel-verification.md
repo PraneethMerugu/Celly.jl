@@ -1,6 +1,6 @@
 # Transition-Kernel Verification and Algorithm Characterization
 
-Status: Accepted; implementation deferred to Phase 13
+Status: Accepted; Phase 13 implementation in progress
 
 The project-owner entry, evidence, and API-freeze policy is recorded in
 [Decision 0028](decisions/0028-phase-13-entry-and-freeze-policy.md).
@@ -19,10 +19,8 @@ synchronization to the production engine.
 
 ## Phase Ordering
 
-The specification and implementation plan MAY be completed before execution begins. Phase 13
-implementation MUST NOT begin, consume self-hosted qualification runners, or modify qualified
-algorithm code until Phase 12.CPU and the remaining Phase 12 closure work are complete and Phase
-12.5 has recorded its promote, experimental, or reject disposition.
+Phase 12.CPU, the remaining Phase 12 closure work, and Phase 12.5 are complete. Phase 12.5 retained
+`TiledCheckerboardCPM` as an explicitly experimental algorithm outside the stable paper surface.
 
 Phase 13 initially qualifies the sequential and ordinary checkerboard families. `LotteryCPM` and a
 retained `TiledCheckerboardCPM` MUST use the same protocol later, but their full matrix

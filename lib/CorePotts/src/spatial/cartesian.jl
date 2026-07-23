@@ -413,7 +413,9 @@ end
     _owner_ref_unchecked(neighbor.owner_tag, neighbor.owner_id)
 
 @inline function _linear_index(coordinates::SVector{N, Int32},
-        dims::NTuple{N, I}) where {N, I <: Integer}
+        dims::Tuple{I, Vararg{I}}) where {N, I <: Integer}
+    length(dims) == N || throw(DimensionMismatch(
+        "coordinate and lattice dimensions differ"))
     index = Int32(0)
     stride = Int32(1)
     for dimension in 1:N
@@ -424,7 +426,8 @@ end
 end
 
 @inline function _site_coordinates(
-        site::Integer, dims::NTuple{N, I}) where {N, I <: Integer}
+        site::Integer, dims::Tuple{I, Vararg{I}}) where {I <: Integer}
+    N = length(dims)
     coordinates = idx_to_coord(Base.unsafe_trunc(UInt32, site), dims)
     return SVector{N, Int32}(ntuple(
         i -> Base.unsafe_trunc(Int32, coordinates[i]), Val(N)))
@@ -469,11 +472,12 @@ end
         state.invalid | state.closed | incompatible_owner, owner.tag, owner.value)
 end
 
-@inline _resolve_axes(::Tuple{}, candidate::SVector{N, Int32}, dims::NTuple{N, I},
+@inline _resolve_axes(::Tuple{}, candidate::SVector{N, Int32},
+    dims::Tuple{I, Vararg{I}},
     state::BoundaryResolution{N}, ::Val{D}) where {N, I <: Integer, D} = state
 
 @inline function _resolve_axes(boundaries::Tuple, candidate::SVector{N, Int32},
-        dims::NTuple{N, I}, state::BoundaryResolution{N}, ::Val{D}) where {
+        dims::Tuple{I, Vararg{I}}, state::BoundaryResolution{N}, ::Val{D}) where {
         N, I <: Integer, D}
     axis = first(boundaries)
     value = candidate[D]
@@ -487,9 +491,11 @@ end
     return _resolve_axes(Base.tail(boundaries), candidate, dims, next_state, Val(D + 1))
 end
 
-@inline function _realize_neighbor_unchecked(dims::NTuple{N, I}, boundaries, mutable_mask,
-        immutable_tags, immutable_ids, relation::StaticCartesianRelation{R, N},
-        site::Integer, direction::Integer) where {R, N, I <: Integer}
+@inline function _realize_neighbor_unchecked(dims::Tuple{I, Vararg{I}}, boundaries,
+        mutable_mask, immutable_tags, immutable_ids,
+        relation::StaticCartesianRelation{R, N, K, T, O, W, P},
+        site::Integer, direction::Integer) where {
+        R, N, K, T, O, W, P, I <: Integer}
     # Preconditions are established by CartesianDomain, relation validation, and the caller's
     # checked public boundary. Keeping them out of this path avoids device exception branches.
     coordinates = _site_coordinates(site, dims)
@@ -518,9 +524,11 @@ end
     end
 end
 
-@inline function _realize_neighbor(dims::NTuple{N, I}, boundaries, mutable_mask,
-        immutable_tags, immutable_ids, relation::StaticCartesianRelation{R, N},
-        site::Integer, direction::Integer) where {R, N, I <: Integer}
+@inline function _realize_neighbor(dims::Tuple{I, Vararg{I}}, boundaries, mutable_mask,
+        immutable_tags, immutable_ids,
+        relation::StaticCartesianRelation{R, N, K, T, O, W, P},
+        site::Integer, direction::Integer) where {
+        R, N, K, T, O, W, P, I <: Integer}
     1 <= site <= prod(dims) || throw(BoundsError(1:prod(dims), site))
     1 <= direction <= direction_count(relation) ||
         throw(BoundsError(relation.offsets, direction))

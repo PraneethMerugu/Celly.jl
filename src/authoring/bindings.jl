@@ -25,11 +25,12 @@ struct BindingTable{K, V}
     end
 end
 
-BindingTable(entries::Tuple{Vararg{Binding{K, V}}}) where {K, V} =
+BindingTable(entries::Tuple{Binding{K, V}, Vararg{Binding{K, V}}}) where {K, V} =
     BindingTable{K, V}(entries)
 
-function BindingTable(pairs::Pair{K, V}...) where {K, V}
-    isempty(pairs) && throw(ArgumentError("a binding table must not be empty"))
+function BindingTable(first_pair::Pair{K, V},
+        remaining_pairs::Pair{K, V}...) where {K, V}
+    pairs = (first_pair, remaining_pairs...)
     return BindingTable(Tuple(Binding(pair) for pair in pairs))
 end
 

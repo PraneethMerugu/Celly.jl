@@ -149,6 +149,22 @@ struct PottsParameterHandle{Name} end
 PottsParameterHandle(name::Symbol) = PottsParameterHandle{name}()
 parameter_name(::PottsParameterHandle{Name}) where {Name} = Name
 
+# Keep symbolic parameter indexing scoped to Potts-owned values. Extending
+# `Base.getindex` for an unconstrained first argument creates ambiguities with
+# every array, dictionary, and SciML indexing method loaded in the process.
+struct PottsParameterValues{P}
+    values::P
+end
+Base.propertynames(view::PottsParameterValues, private::Bool = false) =
+    propertynames(getfield(view, :values), private)
+function Base.getproperty(view::PottsParameterValues, name::Symbol)
+    name === :values && return getfield(view, :values)
+    return getproperty(getfield(view, :values), name)
+end
+Base.getindex(view::PottsParameterValues,
+    ::PottsParameterHandle{Name}) where {Name} =
+    getproperty(getfield(view, :values), Name)
+
 struct PottsObservableHandle{Name} end
 PottsObservableHandle(name::Symbol) = PottsObservableHandle{name}()
 observable_name(::PottsObservableHandle{Name}) where {Name} = Name
@@ -213,13 +229,14 @@ struct PottsCompilationArtifact
     parameter_type::DataType
 end
 
-struct PottsCompatibilityReport{F}
+struct PottsCompatibilityReport{F, G <: AlgorithmGuaranteeProfile}
     backend::DataType
     backend_family::F
     algorithm::DataType
     dimensions::Int
     qualified::Bool
     messages::Tuple
+    guarantee::G
 end
 
 struct PottsCompilationReport
@@ -259,7 +276,9 @@ end
 function Base.show(io::IO, report::PottsCompatibilityReport)
     print(io, "PottsCompatibilityReport(backend=", nameof(report.backend),
         ", alg=", nameof(report.algorithm), ", ", report.dimensions,
-        "D, qualified=", report.qualified, ")")
+        "D, qualified=", report.qualified,
+        ", guarantee=", report.guarantee.guarantee_label,
+        ", api=", report.guarantee.api_status, ")")
 end
 
 function Base.show(io::IO, report::PottsCompilationReport)
@@ -396,9 +415,7 @@ _SII.independent_variable_symbols(::PottsProblem) = [:t]
 _SII.is_time_dependent(::PottsProblem) = true
 _SII.constant_structure(::PottsProblem) = true
 _SII.is_observed(prob::PottsProblem, symbol) = symbol in observable_symbols(prob.model)
-_SII.parameter_values(prob::PottsProblem) = prob.p
-Base.getindex(parameters, ::PottsParameterHandle{Name}) where {Name} =
-    getproperty(parameters, Name)
+_SII.parameter_values(prob::PottsProblem) = PottsParameterValues(prob.p)
 
 function Base.show(io::IO, prob::PottsProblem)
     print(io, "PottsProblem(", prob.geometry.dims, ", tspan=", prob.tspan,
@@ -436,7 +453,7 @@ function compatibility_report(prob::PottsProblem, alg::AbstractPottsAlgorithm,
             "model parameterization did not return ScientificComponentSet")
     end
     return PottsCompatibilityReport(typeof(backend), capabilities.family, typeof(alg),
-        dimensions, isempty(messages), Tuple(unique(messages)))
+        dimensions, isempty(messages), Tuple(unique(messages)), guarantee)
 end
 
 struct SavedPottsState{S}
@@ -520,7 +537,7 @@ function Base.getproperty(integrator::PottsIntegrator, name::Symbol)
     if name === :u
         return getfield(integrator, :inner).state
     elseif name === :p
-        return getfield(integrator, :prob).p
+        return PottsParameterValues(getfield(integrator, :prob).p)
     elseif name === :sol
         return getfield(integrator, :solution)
     else

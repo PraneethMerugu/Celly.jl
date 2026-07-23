@@ -862,13 +862,13 @@ end
 
 function _semantic_fingerprint(numerics, cells, media, components)
     io = IOBuffer()
-    print(io, "PottsToolkitSemanticModelV1|")
+    print(io, "PottsToolkitNormalizedIR|", CorePotts.NORMALIZED_IR_CONTRACT_VERSION, '|')
     _canonical_write(io, numerics)
     _canonical_write(io, cells)
     _canonical_write(io, media)
     _canonical_write(io, components)
     digest = bytes2hex(SHA.sha256(take!(io)))
-    return SemanticFingerprint(v"1.0.0", digest)
+    return SemanticFingerprint(CorePotts.SEMANTIC_FINGERPRINT_VERSION, digest)
 end
 
 function _execution_write(io::IO, value::Tuple)
@@ -920,7 +920,7 @@ function execution_fingerprint(model::NormalizedModel, algorithm, backend;
     dimensions in (2, 3) || throw(ArgumentError(
         "execution fingerprints require a 2D or 3D model realization"))
     io = IOBuffer()
-    print(io, "PottsToolkitExecutionV1|")
+    print(io, "PottsToolkitExecution|", CorePotts.EXECUTION_FINGERPRINT_VERSION, '|')
     _execution_write(io, model.fingerprint.version)
     _execution_write(io, model.fingerprint.digest)
     _execution_write(io, model.numerics)
@@ -934,7 +934,8 @@ function execution_fingerprint(model::NormalizedModel, algorithm, backend;
     _execution_write(io, VERSION)
     _execution_write(io, Base.pkgversion(CorePotts))
     _execution_write(io, Base.pkgversion(parentmodule(@__MODULE__)))
-    return ExecutionFingerprint(v"1.0.0", bytes2hex(SHA.sha256(take!(io))))
+    return ExecutionFingerprint(CorePotts.EXECUTION_FINGERPRINT_VERSION,
+        bytes2hex(SHA.sha256(take!(io))))
 end
 
 execution_fingerprint(model::PottsModel, algorithm, backend; kwargs...) =
@@ -1291,8 +1292,11 @@ function semantic_manifest(model::NormalizedModel)
         reduction_policy = nameof(typeof(model.numerics.reductions)),
         overflow_policy = nameof(typeof(model.numerics.overflow)),
     )
-    return SemanticManifest(v"1.0.0", model.fingerprint, numerical,
-        report.declarations, dependencies(model), :not_claimed)
+    return SemanticManifest(CorePotts.NORMALIZED_IR_CONTRACT_VERSION,
+        CorePotts.AUTHORING_DSL_CONTRACT_VERSION,
+        CorePotts.NORMALIZED_IR_CONTRACT_VERSION,
+        model.fingerprint, numerical, report.declarations,
+        dependencies(model), :not_claimed)
 end
 
 semantic_manifest(model::PottsModel) = semantic_manifest(normalize(model))

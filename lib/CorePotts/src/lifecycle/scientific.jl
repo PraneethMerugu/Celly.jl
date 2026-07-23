@@ -214,8 +214,13 @@ struct DivisionSiteContext{N, T <: AbstractFloat}
     center::SVector{N, T}
 end
 
-DivisionSiteContext(coordinate::NTuple{N, T}, center::NTuple{N, T}) where {
-    N, T <: AbstractFloat} = DivisionSiteContext(SVector{N, T}(coordinate), SVector{N, T}(center))
+function DivisionSiteContext(coordinate::Tuple{T, Vararg{T}},
+        center::Tuple{T, Vararg{T}}) where {T <: AbstractFloat}
+    N = length(coordinate)
+    length(center) == N || throw(DimensionMismatch(
+        "division coordinate and center dimensions differ"))
+    return DivisionSiteContext(SVector{N, T}(coordinate), SVector{N, T}(center))
+end
 
 """Open allocation-free query returning a compact descendant-region label."""
 function division_region end

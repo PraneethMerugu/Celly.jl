@@ -48,7 +48,8 @@ function TiledCheckerboardCPM(; temperature::AbstractFloat = 20.0f0,
 end
 
 component_identity(::TiledCheckerboardCPM) =
-    ComponentIdentity(:tiled_checkerboard_cpm, v"1.0.0", :algorithm)
+    ComponentIdentity(:tiled_checkerboard_cpm,
+        TILED_CHECKERBOARD_EXPERIMENTAL_CONTRACT_VERSION, :algorithm)
 
 algorithm_guarantees(::TiledCheckerboardCPM) = AlgorithmGuaranteeProfile(
     proposal_process = (
@@ -75,6 +76,8 @@ algorithm_guarantees(::TiledCheckerboardCPM) = AlgorithmGuaranteeProfile(
         :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
+    api_status = :experimental,
+    paper_scope = :non_paper,
 )
 
 function algorithm_component_compatibility(::TiledCheckerboardCPM,

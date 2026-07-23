@@ -56,12 +56,15 @@ end
 LotteryCPM(; temperature::AbstractFloat = 20.0f0) = LotteryCPM(temperature)
 
 component_identity(::SequentialCPM) =
-    ComponentIdentity(:sequential_cpm, v"1.0.0", :algorithm)
+    ComponentIdentity(:sequential_cpm, SEQUENTIAL_ALGORITHM_CONTRACT_VERSION, :algorithm)
 component_identity(::SequentialEquilibrium) =
-    ComponentIdentity(:sequential_equilibrium, v"1.0.0", :algorithm)
+    ComponentIdentity(
+        :sequential_equilibrium, SEQUENTIAL_ALGORITHM_CONTRACT_VERSION, :algorithm)
 component_identity(::CheckerboardSweepCPM) =
-    ComponentIdentity(:checkerboard_sweep_cpm, v"1.0.0", :algorithm)
-component_identity(::LotteryCPM) = ComponentIdentity(:lottery_cpm, v"1.0.0", :algorithm)
+    ComponentIdentity(
+        :checkerboard_sweep_cpm, CHECKERBOARD_SCHEDULER_CONTRACT_VERSION, :algorithm)
+component_identity(::LotteryCPM) =
+    ComponentIdentity(:lottery_cpm, LOTTERY_ALGORITHM_CONTRACT_VERSION, :algorithm)
 
 algorithm_guarantees(::SequentialCPM) = AlgorithmGuaranteeProfile(
     proposal_process = (
@@ -86,6 +89,8 @@ algorithm_guarantees(::SequentialCPM) = AlgorithmGuaranteeProfile(
         :tracker_reconstruction, :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
+    api_status = :candidate,
+    paper_scope = :phase13_core,
 )
 
 algorithm_guarantees(::SequentialEquilibrium) = AlgorithmGuaranteeProfile(
@@ -111,6 +116,8 @@ algorithm_guarantees(::SequentialEquilibrium) = AlgorithmGuaranteeProfile(
         :exact_accounting, :strict_replay),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
+    api_status = :candidate,
+    paper_scope = :not_admitted,
 )
 
 algorithm_guarantees(::CheckerboardSweepCPM) = AlgorithmGuaranteeProfile(
@@ -138,6 +145,8 @@ algorithm_guarantees(::CheckerboardSweepCPM) = AlgorithmGuaranteeProfile(
         :tracker_reconstruction, :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
+    api_status = :candidate,
+    paper_scope = :phase13_core,
 )
 
 algorithm_guarantees(::LotteryCPM) = AlgorithmGuaranteeProfile(
@@ -167,6 +176,8 @@ algorithm_guarantees(::LotteryCPM) = AlgorithmGuaranteeProfile(
         :tracker_reconstruction, :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
+    api_status = :limited,
+    paper_scope = :later_protocol_consumer,
 )
 
 function algorithm_component_compatibility(::SequentialEquilibrium,

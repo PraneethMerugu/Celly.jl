@@ -71,7 +71,8 @@ end
     return ex
 end
 @inline evaluate_reduce_rules!(
-    ::Tuple{}, cell_id, n_cell_id, n_type, spatial_buffer, cell_data) = nothing
+    ::Tuple{}, cell_id::UInt32, n_cell_id::UInt32, n_type::UInt8,
+    spatial_buffer, cell_data) = nothing
 
 @generated function evaluate_map_rules!(rules::Tuple, cell_id::UInt32, n_cell_id::UInt32,
         n_type::UInt8, spatial_buffer, cell_data)
@@ -84,7 +85,8 @@ end
     return ex
 end
 @inline evaluate_map_rules!(
-    ::Tuple{}, cell_id, n_cell_id, n_type, spatial_buffer, cell_data) = nothing
+    ::Tuple{}, cell_id::UInt32, n_cell_id::UInt32, n_type::UInt8,
+    spatial_buffer, cell_data) = nothing
 
 # Fallbacks
 @inline evaluate_reduce_rule!(
