@@ -1,6 +1,6 @@
 # Phase 13 statistical and empirical evidence registration
 
-Status: v2 transition amendment registered before v2 qualification; realistic v3 registered before qualification
+Status: v2 transition amendment registered before v2 qualification; realistic v4 applicability amendment registered before v4 sampling
 
 Date: 2026-07-22
 
@@ -113,10 +113,19 @@ the model-bound target-volume and strength properties. No v1 qualification ensem
 workload version is retained as a failed diagnostic and superseded by
 `phase13-realistic-workloads-v2`, which requires the corrected lowering source revision. Analysis
 preflight then found that the already-declared mean-squared-displacement endpoint had no numerical
-margin; no qualification ensemble had run. `phase13-realistic-workloads-v3` therefore adds the
-missing absolute margin of 0.20 initial-cell-diameters squared before qualification. The registered
-model parameters, workload dimensions, schedules, seeds, and other observables and margins remain
-unchanged.
+margin; no qualification ensemble had run. `phase13-realistic-workloads-v3` therefore added the
+missing absolute margin of 0.20 initial-cell-diameters squared before qualification.
+
+The v3 Metal infrastructure preflight then completed 512 checkerboard replicas but exposed a
+backend-type provenance-normalization defect during archive construction. A concurrent sequential
+preflight reached 22 replicas before it was stopped: its intentional one-site GPU schedule is
+launch-dominated and cannot complete the registered realistic battery within the 12-hour hardware
+job. That is not a statistical or scientific failure, and it is not hidden. V4 records
+`SequentialCPM` as the stable CPU reference for realistic-scale claims while retaining its
+CPU/Metal/ROCm fixed-source transition qualification. `CheckerboardSweepCPM` remains the
+cross-backend realistic production claimant on CPU, Metal, and ROCm. V4 changes no workload,
+endpoint, margin, seed, replica count, estimator, or stopping rule; the complete applicable v4
+family is rerun at one corrected source revision.
 
 | Workload family | Required primary observables | Sampling window |
 | --- | --- | --- |
@@ -124,7 +133,8 @@ unchanged.
 | Differential-adhesion sorting | energy per mutable site; heterotypic-contact fraction; segregation index; volume and boundary morphology; sorting autocorrelation; mixing time; effective sample size | fixed presorting burn-in and fixed sorting window |
 | Single-cell migration | net displacement in initial-cell diameters; mean-squared displacement; speed; persistence; volume and boundary morphology; velocity autocorrelation; effective sample size | fixed equilibration followed by a fixed migration window |
 
-Each algorithm/backend/workload identity uses 512 independent replicas. Replica seeds are
+Each applicable algorithm/backend/workload identity uses 512 independent replicas. Applicability
+is fixed as Sequential/CPU and Checkerboard/CPU, Metal, and ROCm. Replica seeds are
 `0x1301000000000000:0x13010000000001ff`. Initial-layout randomness and simulation randomness are
 domain-separated. Algorithm comparisons share the registered initial-layout identity and are
 paired by replica; backend-portability comparisons are analyzed conservatively as independent

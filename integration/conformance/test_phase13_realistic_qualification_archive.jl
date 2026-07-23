@@ -50,7 +50,8 @@ using SHA
     @test !archived_analysis["result"]["qualification_passed"]
     @test archived_analysis["result"]["status"] == "equivalence-fail"
 
-    manifest = RealisticScaleRunner.load_realistic_manifest()
+    manifest = RealisticScaleRunner.load_realistic_manifest(
+        normpath(joinpath(directory, index["workload_manifest"])))
     workloads = getindex.(manifest["workloads"], "id")
     references = [evidence[(workload, "SequentialCPM")] for workload in workloads]
     candidates = [evidence[(workload, "CheckerboardSweepCPM")] for workload in workloads]

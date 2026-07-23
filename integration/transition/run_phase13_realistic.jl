@@ -50,6 +50,11 @@ function main(args)
     algorithm in ("SequentialCPM", "CheckerboardSweepCPM") || throw(ArgumentError(
         "--algorithm must be SequentialCPM or CheckerboardSweepCPM"))
     registered = Int(manifest["replicas_per_identity"])
+    backend_name = lowercase(BACKEND_GROUP == "AMDGPU" ? "rocm" : BACKEND_GROUP)
+    profile === :qualification &&
+        !realistic_identity_applicable(algorithm, backend_name, manifest) &&
+        throw(ArgumentError(
+            "$algorithm on $backend_name is outside the registered realistic qualification domain"))
     replicas = parse(Int, get(options, "replicas",
         string(profile === :qualification ? registered : 2)))
     profile === :qualification && replicas != registered && throw(ArgumentError(
@@ -63,7 +68,6 @@ function main(args)
             seed = seed_base + UInt64(index - 1), backend = BACKEND, manifest))
         println("completed realistic replica $index/$replicas")
     end
-    backend_name = lowercase(BACKEND_GROUP == "AMDGPU" ? "rocm" : BACKEND_GROUP)
     command = join(vcat(["julia --project=integration",
         "integration/transition/run_phase13_realistic.jl"], args), ' ')
     record = build_realistic_evidence(workload, algorithm, summaries;

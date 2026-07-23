@@ -93,14 +93,12 @@ jobs:
         run: |
           julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run both preregistered 512-replica identities
+      - name: Run the preregistered 512-replica Metal checkerboard identity
         run: |
           mkdir -p "$RUNNER_TEMP/phase13-results/metal"
-          for algorithm in SequentialCPM CheckerboardSweepCPM; do
-            julia --project=benchmark/backends/metal --startup-file=no integration/transition/run_phase13_realistic.jl \
-              --workload "${{ matrix.workload }}" --algorithm "$algorithm" --profile qualification \
-              --output "$RUNNER_TEMP/phase13-results/metal/${{ matrix.workload }}-$algorithm.toml"
-          done
+          julia --project=benchmark/backends/metal --startup-file=no integration/transition/run_phase13_realistic.jl \
+            --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
+            --output "$RUNNER_TEMP/phase13-results/metal/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -139,14 +137,12 @@ jobs:
         run: |
           julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run both preregistered 512-replica identities
+      - name: Run the preregistered 512-replica ROCm checkerboard identity
         run: |
           mkdir -p "$RUNNER_TEMP/phase13-results/rocm"
-          for algorithm in SequentialCPM CheckerboardSweepCPM; do
-            julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
-              --workload "${{ matrix.workload }}" --algorithm "$algorithm" --profile qualification \
-              --output "$RUNNER_TEMP/phase13-results/rocm/${{ matrix.workload }}-$algorithm.toml"
-          done
+          julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
+            --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
+            --output "$RUNNER_TEMP/phase13-results/rocm/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -183,64 +179,6 @@ jobs:
           path: phase13-results/cpu/algorithm-family-analysis.toml
           if-no-files-found: error
 
-  metal-algorithm-family:
-    name: Metal algorithm claim family
-    needs: [metal]
-    if: always() && vars.METAL_RUNNER_ENABLED == 'true' && needs.metal.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
-        with:
-          version: ${{ env.JULIA_VERSION }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: phase13-realistic-metal-*-${{ github.sha }}
-          path: phase13-results
-          merge-multiple: true
-      - name: Apply Holm correction across the full Metal algorithm claim family
-        run: |
-          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-          julia --project=integration --startup-file=no integration/transition/analyze_phase13_realistic.jl \
-            --reference "phase13-results/metal/adhesion_volume_relaxation-SequentialCPM.toml,phase13-results/metal/differential_adhesion_sorting-SequentialCPM.toml,phase13-results/metal/single_cell_migration-SequentialCPM.toml" \
-            --candidate "phase13-results/metal/adhesion_volume_relaxation-CheckerboardSweepCPM.toml,phase13-results/metal/differential_adhesion_sorting-CheckerboardSweepCPM.toml,phase13-results/metal/single_cell_migration-CheckerboardSweepCPM.toml" \
-            --comparison paired_algorithm --output phase13-results/metal/algorithm-family-analysis.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: phase13-realistic-metal-algorithm-family-${{ github.sha }}
-          path: phase13-results/metal/algorithm-family-analysis.toml
-          if-no-files-found: error
-
-  rocm-algorithm-family:
-    name: ROCm algorithm claim family
-    needs: [rocm]
-    if: always() && vars.ROCM_RUNNER_ENABLED == 'true' && needs.rocm.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
-        with:
-          version: ${{ env.JULIA_VERSION }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: phase13-realistic-rocm-*-${{ github.sha }}
-          path: phase13-results
-          merge-multiple: true
-      - name: Apply Holm correction across the full ROCm algorithm claim family
-        run: |
-          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-          julia --project=integration --startup-file=no integration/transition/analyze_phase13_realistic.jl \
-            --reference "phase13-results/rocm/adhesion_volume_relaxation-SequentialCPM.toml,phase13-results/rocm/differential_adhesion_sorting-SequentialCPM.toml,phase13-results/rocm/single_cell_migration-SequentialCPM.toml" \
-            --candidate "phase13-results/rocm/adhesion_volume_relaxation-CheckerboardSweepCPM.toml,phase13-results/rocm/differential_adhesion_sorting-CheckerboardSweepCPM.toml,phase13-results/rocm/single_cell_migration-CheckerboardSweepCPM.toml" \
-            --comparison paired_algorithm --output phase13-results/rocm/algorithm-family-analysis.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: phase13-realistic-rocm-algorithm-family-${{ github.sha }}
-          path: phase13-results/rocm/algorithm-family-analysis.toml
-          if-no-files-found: error
-
   metal-portability:
     name: CPU–Metal / ${{ matrix.algorithm }} claim family
     needs: [cpu, metal]
@@ -250,7 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        algorithm: [SequentialCPM, CheckerboardSweepCPM]
+        algorithm: [CheckerboardSweepCPM]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -291,7 +229,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        algorithm: [SequentialCPM, CheckerboardSweepCPM]
+        algorithm: [CheckerboardSweepCPM]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6

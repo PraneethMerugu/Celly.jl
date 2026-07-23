@@ -9,7 +9,7 @@ using KernelAbstractions
 using ..TransitionEmpirical
 
 export load_realistic_manifest, realistic_workload, build_realistic_problem,
-       derive_replica_seeds, run_realistic_replica
+       realistic_identity_applicable, derive_replica_seeds, run_realistic_replica
 
 const DEFAULT_MANIFEST = normpath(joinpath(@__DIR__, "..", "..", "design", "audits",
     "phase-13-realistic-workload-manifest.toml"))
@@ -21,6 +21,16 @@ function realistic_workload(id::AbstractString,
     index = findfirst(workload -> workload["id"] == id, manifest["workloads"])
     index === nothing && throw(ArgumentError("unknown Phase 13 realistic workload: $id"))
     return manifest["workloads"][index]
+end
+
+"""Whether an algorithm/backend pair belongs to the registered realistic qualification domain."""
+function realistic_identity_applicable(algorithm, backend,
+        manifest::AbstractDict = load_realistic_manifest())
+    algorithm_name = String(algorithm)
+    backend_name = lowercase(String(backend))
+    identities = get(manifest, "qualification_identities", Any[])
+    return any(identity -> identity["algorithm"] == algorithm_name &&
+        backend_name in lowercase.(String.(identity["backends"])), identities)
 end
 
 const _LAYOUT_SEED_TAG = UInt64(0x13a70113a70113a7)

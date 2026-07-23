@@ -20,6 +20,15 @@ workload_fingerprint(workload::AbstractDict, manifest::AbstractDict) = _toml_dig
     Dict("workload" => workload, "model" => manifest["model"],
         "analysis" => manifest["analysis"], "margins" => manifest["margins"]))
 
+function _canonical_backend_name(value)
+    name = lowercase(replace(String(value), r"[^A-Za-z0-9]" => ""))
+    name in ("cpu", "cpubackend") && return "cpu"
+    occursin("metal", name) && return "metal"
+    (occursin("amdgpu", name) || occursin("roc", name)) && return "rocm"
+    occursin("cuda", name) && return "cuda"
+    return name
+end
+
 function build_realistic_evidence(workload::AbstractDict, algorithm,
         summaries::AbstractVector; backend::AbstractString, profile::Symbol,
         manifest::AbstractDict = load_realistic_manifest(),
@@ -31,9 +40,10 @@ function build_realistic_evidence(workload::AbstractDict, algorithm,
     profile === :qualification && length(summaries) != registered && throw(ArgumentError(
         "qualification evidence requires exactly $registered replicas"))
     algorithm_name = String(algorithm)
+    backend_name = _canonical_backend_name(backend)
     all(summary -> summary["workload"] == workload["id"] &&
             summary["algorithm"] == algorithm_name &&
-            lowercase(summary["backend"]) == lowercase(backend), summaries) ||
+            _canonical_backend_name(summary["backend"]) == backend_name, summaries) ||
         throw(ArgumentError("replica summaries do not share the declared identity"))
     versions = CorePotts.scientific_contract_versions()
     model_fingerprints = unique(getindex.(summaries, "model_fingerprint"))
@@ -55,7 +65,7 @@ function build_realistic_evidence(workload::AbstractDict, algorithm,
             "scheduler" => algorithm_name == "SequentialCPM" ?
                 "sequential_with_replacement" : "realized_graph_colored_sweep",
             "rng_contract_version" => string(versions.rng),
-            "backend" => String(backend),
+            "backend" => backend_name,
             "number_type" => manifest["number_type"],
             "source_revision" => String(source_revision)),
         "sampling" => Dict(
@@ -131,6 +141,13 @@ function validate_realistic_evidence(record::AbstractDict)
                 "replica $index is missing '$field'")
         end
         for (index, summary) in enumerate(summaries)
+            get(summary, "workload", "") == get(identity, "workload", "") ||
+                push!(errors, "replica $index has the wrong workload identity")
+            get(summary, "algorithm", "") == get(identity, "algorithm", "") ||
+                push!(errors, "replica $index has the wrong algorithm identity")
+            _canonical_backend_name(get(summary, "backend", "")) ==
+                _canonical_backend_name(get(identity, "backend", "")) ||
+                push!(errors, "replica $index has the wrong backend identity")
             if get(summary, "observation_count", -1) !=
                     get(summary, "observation_synchronizations", -2)
                 push!(errors, "replica $index violated observation synchronization accounting")
