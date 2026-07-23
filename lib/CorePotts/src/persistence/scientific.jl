@@ -1,4 +1,4 @@
-const _CHECKPOINT_SCHEMA_VERSION = v"1.0.0"
+const _CHECKPOINT_SCHEMA_VERSION = CHECKPOINT_SCHEMA_VERSION
 const _COREPOTTS_PERSISTENCE_VERSION = v"0.1.0"
 const _ZERO_DIGEST = ntuple(_ -> UInt8(0), 32)
 
@@ -11,6 +11,7 @@ end
 struct ExactContinuationProfile
     backend::BackendFamily
     algorithm::String
+    algorithm_contract::VersionNumber
     rng_contract::VersionNumber
     julia_version::VersionNumber
     corepotts_version::VersionNumber
@@ -200,8 +201,10 @@ function _continuation_profile(integrator::ScientificPottsIntegrator)
         _module_identity(StructArrays),
     ]))
     backend_module = parentmodule(typeof(integrator.plan.backend))
+    algorithm_identity = component_identity(integrator.algorithm)
     return ExactContinuationProfile(integrator.plan.capabilities.family,
-        string(nameof(typeof(integrator.algorithm))), rng_contract_version(integrator.rng),
+        string(nameof(typeof(integrator.algorithm))), algorithm_identity.version,
+        rng_contract_version(integrator.rng),
         VERSION, _COREPOTTS_PERSISTENCE_VERSION, "native_backend",
         scalar_types, index_types, dependencies, _module_identity(backend_module))
 end
@@ -518,6 +521,7 @@ function checkpoint_storage_payload(checkpoint::CanonicalCheckpoint)
         property_values = Any[copy(column.values) for column in checkpoint.properties],
         seed = checkpoint.seed, backend = UInt8(checkpoint.profile.backend),
         algorithm = checkpoint.profile.algorithm,
+        algorithm_contract = string(checkpoint.profile.algorithm_contract),
         rng_contract = string(checkpoint.profile.rng_contract),
         julia_version = string(checkpoint.profile.julia_version),
         corepotts_version = string(checkpoint.profile.corepotts_version),
@@ -543,7 +547,8 @@ function checkpoint_from_storage_payload(payload)
     properties = Tuple(CanonicalPropertyColumn(Symbol(key), collect(values))
         for (key, values) in zip(payload.property_keys, payload.property_values))
     profile = ExactContinuationProfile(BackendFamily(payload.backend), payload.algorithm,
-        VersionNumber(payload.rng_contract), VersionNumber(payload.julia_version),
+        VersionNumber(payload.algorithm_contract), VersionNumber(payload.rng_contract),
+        VersionNumber(payload.julia_version),
         VersionNumber(payload.corepotts_version), payload.numerical_mode,
         Tuple(payload.scalar_types), Tuple(payload.index_types),
         Tuple(payload.dependency_identities), payload.backend_runtime_identity)

@@ -193,6 +193,8 @@ end
 """Portable description of normalized meaning; deliberately not executable serialization."""
 struct SemanticManifest
     schema_version::VersionNumber
+    authoring_dsl_version::VersionNumber
+    normalized_ir_version::VersionNumber
     fingerprint::SemanticFingerprint
     numerical_policy::NamedTuple
     declarations::Tuple
@@ -202,7 +204,9 @@ end
 
 function Base.show(io::IO, manifest::SemanticManifest)
     print(io, "SemanticManifest(v", manifest.schema_version, ", ",
-        first(manifest.fingerprint.digest, 12), "…, ", manifest.reconstruction, ")")
+        first(manifest.fingerprint.digest, 12), "…, dsl=",
+        manifest.authoring_dsl_version, ", ir=", manifest.normalized_ir_version,
+        ", ", manifest.reconstruction, ")")
 end
 
 function Base.show(io::IO, report::ModelReport)

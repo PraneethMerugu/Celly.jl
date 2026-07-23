@@ -1,6 +1,6 @@
 # Phase 13 Algorithmic Conformance and API Freeze Chunk Plan
 
-Status: Accepted plan; blocked on Phase 12.CPU, Phase 12 closure, and Phase 12.5
+Status: In progress; Phase 12.CPU, Phase 12 closure, Phase 12.5, and owner entry interview complete
 
 Date: 2026-07-22
 
@@ -14,9 +14,9 @@ The governing semantic contract is
 [Transition-Kernel Verification and Algorithm Characterization](../../spec/transition-kernel-verification.md).
 The project-owner scope, evidence, and freeze choices are recorded in
 [Decision 0028](../../spec/decisions/0028-phase-13-entry-and-freeze-policy.md).
-Planning and specification may proceed now. Implementation must not modify qualified algorithm code
-or consume self-hosted qualification runners until Phase 12.CPU and Phase 12 close and Phase 12.5
-records a promote, experimental, or reject disposition.
+The prerequisites are closed. Phase 12.5 retained `TiledCheckerboardCPM` as an experimental,
+non-paper algorithm, so the initial Phase 13 implementation qualifies the sequential and ordinary
+checkerboard families without consuming the tiled engine as a stable protocol claimant.
 
 ## 13A: Independent finite-state oracle
 

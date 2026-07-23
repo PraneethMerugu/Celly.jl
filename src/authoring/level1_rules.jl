@@ -160,28 +160,30 @@ end
 _as_rule_expression(value::AbstractRuleExpression) = value
 _as_rule_expression(value) = RuleLiteral(value)
 
-Base.:+(left::AbstractRuleExpression, right) =
+const RuleScalarOperand = Union{Number, AbstractRuleExpression}
+
+Base.:+(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(AddOperation(), (left, _as_rule_expression(right)))
-Base.:+(left, right::AbstractRuleExpression) =
+Base.:+(left::Number, right::AbstractRuleExpression) =
     ScalarCall(AddOperation(), (_as_rule_expression(left), right))
-Base.:-(left::AbstractRuleExpression, right) =
+Base.:-(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(SubtractOperation(), (left, _as_rule_expression(right)))
 Base.:-(left::AbstractRuleExpression) = ScalarCall(SubtractOperation(), (left,))
-Base.:*(left::AbstractRuleExpression, right) =
+Base.:*(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(MultiplyOperation(), (left, _as_rule_expression(right)))
-Base.:*(left, right::AbstractRuleExpression) =
+Base.:*(left::Number, right::AbstractRuleExpression) =
     ScalarCall(MultiplyOperation(), (_as_rule_expression(left), right))
-Base.:/(left::AbstractRuleExpression, right) =
+Base.:/(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(DivideOperation(), (left, _as_rule_expression(right)))
-Base.:^(left::AbstractRuleExpression, right) =
+Base.:^(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(PowerOperation(), (left, _as_rule_expression(right)))
-Base.:>=(left::AbstractRuleExpression, right) =
+Base.:>=(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(GreaterEqualOperation(), (left, _as_rule_expression(right)))
-Base.:<=(left::AbstractRuleExpression, right) =
+Base.:<=(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(LessEqualOperation(), (left, _as_rule_expression(right)))
-Base.:>(left::AbstractRuleExpression, right) =
+Base.:>(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(GreaterOperation(), (left, _as_rule_expression(right)))
-Base.:<(left::AbstractRuleExpression, right) =
+Base.:<(left::AbstractRuleExpression, right::RuleScalarOperand) =
     ScalarCall(LessOperation(), (left, _as_rule_expression(right)))
 
 function _rule_reference(value, owner::OwnerReference)

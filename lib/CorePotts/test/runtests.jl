@@ -39,6 +39,8 @@ const TEST_ALGORITHMS = (
     include("test_reference_engine.jl")
     include("test_sciml_saving.jl")
     include("test_scientific_protocols.jl")
+    include("test_phase13_contract_versions.jl")
+    include("test_phase13_quality_gates.jl")
     include("test_state_semantics.jl")
     include("test_phase8_protocols.jl")
     include("test_phase8_lifecycle.jl")

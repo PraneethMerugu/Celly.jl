@@ -4,7 +4,7 @@ abstract type AbstractRNGContract end
 """Accepted Philox4x32 ten-round contract with Potts semantic address packing v1."""
 struct Philox4x32x10V1 <: AbstractRNGContract end
 
-rng_contract_version(::Philox4x32x10V1) = v"1.0.0"
+rng_contract_version(::Philox4x32x10V1) = RNG_CONTRACT_VERSION
 
 """Stable 128-bit identity for one extension-owned stochastic namespace."""
 struct RNGNamespaceIdentity
@@ -388,8 +388,8 @@ struct CategoricalTable{T, N}
     total::T
 end
 
-function CategoricalTable(weights::NTuple{N, T}) where {N, T <: AbstractFloat}
-    N > 0 || throw(ArgumentError("a categorical distribution needs at least one category"))
+function CategoricalTable(weights::Tuple{T, Vararg{T}}) where {T <: AbstractFloat}
+    N = length(weights)
     all(weight -> isfinite(weight) && weight >= zero(T), weights) || throw(ArgumentError(
         "categorical weights must be finite and non-negative"))
     total = sum(weights)

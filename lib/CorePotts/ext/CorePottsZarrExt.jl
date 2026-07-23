@@ -118,7 +118,9 @@ end
 function _zarr_write_payload(path, key, payload; fail_after = nothing)
     attrs = Dict{String, Any}(
         "checkpoint_key" => String(key), "schema_version" => payload.schema_version,
-        "algorithm" => payload.algorithm, "rng_contract" => payload.rng_contract,
+        "algorithm" => payload.algorithm,
+        "algorithm_contract" => payload.algorithm_contract,
+        "rng_contract" => payload.rng_contract,
         "julia_version" => payload.julia_version,
         "corepotts_version" => payload.corepotts_version,
         "numerical_mode" => payload.numerical_mode,
@@ -189,6 +191,7 @@ function _zarr_read_payload(path, key)
         medium_ids = _zarr_array(group, "medium_ids"), property_keys, property_values,
         seed = _zarr_array(group, "seed")[1], backend = _zarr_array(group, "backend")[1],
         algorithm = String(group.attrs["algorithm"]),
+        algorithm_contract = String(group.attrs["algorithm_contract"]),
         rng_contract = String(group.attrs["rng_contract"]),
         julia_version = String(group.attrs["julia_version"]),
         corepotts_version = String(group.attrs["corepotts_version"]),

@@ -1,6 +1,6 @@
 # Phase 12 performance recovery and backend qualification completion audit
 
-Status: Core recovery merged; Phase 12.CPU closure addendum pending
+Status: Completed; core recovery and Phase 12.CPU addendum merged
 
 Date: 2026-07-22
 
@@ -143,5 +143,5 @@ paper-scale contract.
   `ac68b366ba33eb9edb3e87bb3a0073db445c32e6`.
 
 This audit closes the merged core recovery work. The subsequently separated Phase 12.CPU addendum
-must still qualify the accepted physical-core scaling matrix and record its own completion audit
-before Phase 12.5 implementation begins.
+is closed by the [Phase 12.CPU completion audit](phase-12-cpu-completion-audit.md); Phase 12.5 then
+completed with an experimental disposition before Phase 13 began.

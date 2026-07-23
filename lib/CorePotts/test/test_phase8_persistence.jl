@@ -35,6 +35,9 @@ end
     root = capture_checkpoint(initial)
     @test root.mcs == 0
     @test root.initial_state_fingerprint != ntuple(_ -> UInt8(0), 32)
+    @test root.schema_version == CHECKPOINT_SCHEMA_VERSION
+    @test root.profile.algorithm_contract == SEQUENTIAL_ALGORITHM_CONTRACT_VERSION
+    @test root.profile.rng_contract == RNG_CONTRACT_VERSION
     @test root.profile.numerical_mode == "native_backend"
     @test "Float32" in root.profile.scalar_types
     @test "ownership_id=UInt32" in root.profile.index_types
@@ -59,6 +62,7 @@ end
     @test !haskey(store.records, "failed")
 
     payload = checkpoint_storage_payload(root)
+    @test payload.algorithm_contract == string(SEQUENTIAL_ALGORITHM_CONTRACT_VERSION)
     corrupt_active = copy(payload.active)
     corrupt_active[1] = xor(corrupt_active[1], UInt8(1))
     corrupt = merge(payload, (active = corrupt_active,))

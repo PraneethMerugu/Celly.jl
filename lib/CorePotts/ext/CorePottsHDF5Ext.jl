@@ -123,6 +123,7 @@ function _hdf5_write_payload(path, key, payload; fail_after = nothing)
         attributes(file)["checkpoint_key"] = String(key)
         attributes(file)["schema_version"] = payload.schema_version
         attributes(file)["algorithm"] = payload.algorithm
+        attributes(file)["algorithm_contract"] = payload.algorithm_contract
         attributes(file)["rng_contract"] = payload.rng_contract
         attributes(file)["julia_version"] = payload.julia_version
         attributes(file)["corepotts_version"] = payload.corepotts_version
@@ -200,6 +201,8 @@ function _hdf5_read_payload(path, key)
             medium_ids = read(file["medium_ids"]), property_keys, property_values,
             seed = read(file["seed"])[1], backend = read(file["backend"])[1],
             algorithm = String(read(attributes(file)["algorithm"])),
+            algorithm_contract =
+                String(read(attributes(file)["algorithm_contract"])),
             rng_contract = String(read(attributes(file)["rng_contract"])),
             julia_version = String(read(attributes(file)["julia_version"])),
             corepotts_version = String(read(attributes(file)["corepotts_version"])),

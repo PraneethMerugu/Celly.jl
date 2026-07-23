@@ -28,8 +28,25 @@ function ScientificCapabilities(; dimensions = (2, 3), portable::Bool = true)
     ScientificCapabilities(Tuple(Int.(dimensions)), portable)
 end
 
-"""Programmatically inspectable scientific contract for one named algorithm process."""
-struct AlgorithmGuaranteeProfile{P, T, M, R, C, V, B, D <: Tuple}
+const ALGORITHM_GUARANTEE_TAXONOMY = (
+    :detailed_balance_preserving,
+    :stationary_distribution_preserving,
+    :reference_limit_convergent,
+    :observably_comparable,
+    :unqualified,
+)
+
+"""Return the closed Phase 13 public guarantee-label taxonomy."""
+algorithm_guarantee_taxonomy() = ALGORITHM_GUARANTEE_TAXONOMY
+
+"""
+Programmatically inspectable scientific contract for one named algorithm process.
+
+The Phase 13 evidence fields default conservatively for downstream algorithms: an extension that
+does not opt into the new metadata is unqualified, provisional, outside the paper scope, and has no
+claimed tested backend or evidence record.
+"""
+struct AlgorithmGuaranteeProfile{P, T, M, R, C, V, B, D <: Tuple, Q, X, E <: Tuple, EV}
     proposal_process::P
     equilibrium_status::Symbol
     kinetic_interpretation::Symbol
@@ -40,13 +57,25 @@ struct AlgorithmGuaranteeProfile{P, T, M, R, C, V, B, D <: Tuple}
     validation_evidence::V
     backend_contract::B
     dimensions::D
+    guarantee_label::Symbol
+    qualified_domain::Q
+    maximum_observed_discrepancy::X
+    tested_backends::E
+    evidence_version::EV
+    api_status::Symbol
+    paper_scope::Symbol
 end
 
 function AlgorithmGuaranteeProfile(; proposal_process,
         equilibrium_status::Symbol, kinetic_interpretation::Symbol,
         transaction_semantics, mcs_normalization, reproducibility_scope,
         compatible_component_scopes, validation_evidence,
-        backend_contract, dimensions)
+        backend_contract, dimensions,
+        guarantee_label::Symbol = :unqualified,
+        qualified_domain = (), maximum_observed_discrepancy = nothing,
+        tested_backends = (), evidence_version = nothing,
+        api_status::Symbol = :provisional,
+        paper_scope::Symbol = :not_admitted)
     isempty(validation_evidence) && throw(ArgumentError(
         "algorithm guarantee profiles require validation evidence"))
     backends = Tuple(Symbol.(backend_contract))
@@ -57,10 +86,48 @@ function AlgorithmGuaranteeProfile(; proposal_process,
         "algorithm guarantee profiles require supported dimensions"))
     all(dimension -> dimension > 0, dims) || throw(ArgumentError(
         "algorithm guarantee dimensions must be positive"))
+    guarantee_label in ALGORITHM_GUARANTEE_TAXONOMY || throw(ArgumentError(
+        "unknown algorithm guarantee label `$guarantee_label`; expected one of $(ALGORITHM_GUARANTEE_TAXONOMY)"))
+    tested = Tuple(Symbol.(tested_backends))
+    evidence_version === nothing || evidence_version isa VersionNumber || throw(ArgumentError(
+        "algorithm evidence_version must be nothing or VersionNumber"))
+    if guarantee_label !== :unqualified
+        qualified_domain == () && throw(ArgumentError(
+            "a qualified algorithm guarantee requires an explicit qualified_domain"))
+        maximum_observed_discrepancy === nothing && throw(ArgumentError(
+            "a qualified algorithm guarantee requires maximum_observed_discrepancy"))
+        isempty(tested) && throw(ArgumentError(
+            "a qualified algorithm guarantee requires tested_backends"))
+        evidence_version === nothing && throw(ArgumentError(
+            "a qualified algorithm guarantee requires evidence_version"))
+    end
+    api_status in (:provisional, :candidate, :stable, :limited, :experimental, :internal) ||
+        throw(ArgumentError("unsupported algorithm API status `$api_status`"))
+    paper_scope in (:not_admitted, :phase13_core, :later_protocol_consumer, :non_paper) ||
+        throw(ArgumentError("unsupported algorithm paper scope `$paper_scope`"))
     return AlgorithmGuaranteeProfile(proposal_process, equilibrium_status,
         kinetic_interpretation, transaction_semantics, mcs_normalization,
         reproducibility_scope, compatible_component_scopes, validation_evidence,
-        backends, dims)
+        backends, dims, guarantee_label, qualified_domain,
+        maximum_observed_discrepancy, tested, evidence_version,
+        api_status, paper_scope)
+end
+
+function Base.show(io::IO, profile::AlgorithmGuaranteeProfile)
+    print(io, "AlgorithmGuaranteeProfile(", profile.guarantee_label,
+        ", api=", profile.api_status, ", paper=", profile.paper_scope,
+        ", evidence=", something(profile.evidence_version, :none), ')')
+end
+
+function Base.show(io::IO, ::MIME"text/plain", profile::AlgorithmGuaranteeProfile)
+    println(io, "Algorithm guarantee profile")
+    println(io, "  guarantee:          ", profile.guarantee_label)
+    println(io, "  API status:         ", profile.api_status)
+    println(io, "  paper scope:        ", profile.paper_scope)
+    println(io, "  qualified domain:   ", profile.qualified_domain)
+    println(io, "  maximum discrepancy:", profile.maximum_observed_discrepancy)
+    println(io, "  tested backends:    ", profile.tested_backends)
+    print(io, "  evidence version:   ", something(profile.evidence_version, :none))
 end
 
 """

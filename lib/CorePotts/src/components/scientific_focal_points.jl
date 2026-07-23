@@ -42,9 +42,11 @@ struct UnwrappedMomentStorage{N, T <: AbstractFloat, M, S, Q}
 end
 
 function UnwrappedMomentStorage(tracked,
-        coordinate_sums::NTuple{N, A}, quadratic_sums::NTuple{P, A},
-        track_all::Bool) where
-        {N, P, T <: AbstractFloat, A <: AbstractVector{T}}
+        coordinate_sums::Tuple{A, Vararg{A}},
+        quadratic_sums::Tuple{A, Vararg{A}}, track_all::Bool) where
+        {T <: AbstractFloat, A <: AbstractVector{T}}
+    N = length(coordinate_sums)
+    P = length(quadratic_sums)
     P == N * (N + 1) ÷ 2 || throw(ArgumentError(
         "unwrapped quadratic-moment storage has the wrong packed size"))
     return UnwrappedMomentStorage{N, T, typeof(tracked), typeof(coordinate_sums),

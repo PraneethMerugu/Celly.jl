@@ -418,6 +418,8 @@ end
 end
 
 @inline _coerce_compiled_rule_output(::NoChange, current, policy) = current
+@inline _coerce_compiled_rule_output(::NoChange, current,
+    ::_ExactRuleOutput{T}) where {T} = current
 @inline _coerce_compiled_rule_output(value::T, current,
     ::_ExactRuleOutput{T}) where {T} = value
 @inline _coerce_compiled_rule_output(value, current,

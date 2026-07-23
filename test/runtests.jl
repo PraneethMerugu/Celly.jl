@@ -11,4 +11,6 @@ using CorePotts
     include("test_phase11_inventory.jl")
     include("test_phase11_macro_contract.jl")
     include("test_phase12_5_tiled.jl")
+    include("test_phase13_contract_versions.jl")
+    include("test_phase13_quality_gates.jl")
 end

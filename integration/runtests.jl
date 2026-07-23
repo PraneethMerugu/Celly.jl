@@ -15,6 +15,11 @@ run_shard(name) = TEST_SHARD == "all" || TEST_SHARD == name
 
 include("reference/ReferenceSemantics.jl")
 include("conformance/ConformanceHarness.jl")
+include("transition/TransitionKernelOracle.jl")
+include("transition/TransitionKernelAnalysis.jl")
+include("transition/TransitionEvidenceArchive.jl")
+include("transition/TransitionEmpirical.jl")
+include("transition/CheckerboardOracle.jl")
 
 @testset "Potts package-family integration [$(BACKEND_GROUP)]" begin
     run_shard("thermodynamics") && include("test_thermodynamics.jl")
@@ -25,6 +30,14 @@ include("conformance/ConformanceHarness.jl")
     if run_shard("conformance")
         include("conformance/test_reference_semantics.jl")
         include("conformance/test_harness.jl")
+        include("conformance/test_phase13_oracle.jl")
+        include("conformance/test_phase13_analysis.jl")
+        include("conformance/test_phase13_evidence_archive.jl")
+        include("conformance/test_phase13_empirical.jl")
+        include("conformance/test_phase13_sequential.jl")
+        include("conformance/test_phase13_checkerboard_oracle.jl")
+        include("conformance/test_phase13_checkerboard_analysis.jl")
+        include("conformance/test_phase13_production_adapter.jl")
         include("conformance/test_phase9_distributed.jl")
     end
 end
