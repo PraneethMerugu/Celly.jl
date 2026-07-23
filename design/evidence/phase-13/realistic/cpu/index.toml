@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 backend = "cpu"
-workload_manifest = "../../../../audits/phase-13-realistic-workload-manifest.toml"
+workload_manifest = "../../../../audits/phase-13-realistic-workload-manifest-v3.toml"
 statistical_registration = "../../../../audits/phase-13-statistical-registration-v1.toml"
 study_version = "phase13-realistic-workloads-v3"
 statistical_plan = "phase13-transition-evidence-v1"

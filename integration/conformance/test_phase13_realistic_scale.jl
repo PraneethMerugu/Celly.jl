@@ -5,9 +5,15 @@ using TOML
 
 @testset "Phase 13 realistic-scale registration and runner" begin
     manifest = load_realistic_manifest()
-    @test manifest["status"] == "registered-before-realistic-scale-sampling"
+    @test manifest["manifest_version"] == "phase13-realistic-workloads-v4"
+    @test manifest["status"] == "registered-applicability-amendment-before-v4-sampling"
     @test manifest["layout_seed_domain"] != manifest["simulation_seed_domain"]
     @test length(manifest["workloads"]) == 3
+    @test realistic_identity_applicable("SequentialCPM", "cpu", manifest)
+    @test !realistic_identity_applicable("SequentialCPM", "metal", manifest)
+    @test !realistic_identity_applicable("SequentialCPM", "rocm", manifest)
+    @test all(backend -> realistic_identity_applicable(
+        "CheckerboardSweepCPM", backend, manifest), ("cpu", "metal", "rocm"))
 
     seeds = derive_replica_seeds(0x1301000000000001)
     @test seeds == derive_replica_seeds(0x1301000000000001)
@@ -56,6 +62,16 @@ using TOML
     checker_evidence = build_realistic_evidence(relaxation, "CheckerboardSweepCPM",
         checker_summaries; backend = "cpu", profile = :diagnostic, manifest,
         source_revision = "test-dirty", reproduction_command = "test command")
+    metal_summaries = deepcopy(checker_summaries)
+    foreach(summary -> summary["backend"] = "MetalBackend", metal_summaries)
+    metal_evidence = build_realistic_evidence(relaxation, "CheckerboardSweepCPM",
+        metal_summaries; backend = "metal", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    @test metal_evidence["identity"]["backend"] == "metal"
+    @test validate_realistic_evidence(metal_evidence).valid
+    mismatched_backend = deepcopy(metal_evidence)
+    mismatched_backend["replica_primary_summaries"][1]["backend"] = "CPU"
+    @test !validate_realistic_evidence(mismatched_backend).valid
     analysis = analyze_realistic_equivalence(evidence, checker_evidence;
         comparison = :paired_algorithm, manifest)
     @test analysis["schema"]["name"] == "potts-realistic-equivalence-analysis"

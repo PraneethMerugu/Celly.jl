@@ -87,8 +87,9 @@ deterministic_limits_required = true
 manifest_committed_before_sampling = true
 
 [realistic_scale]
-workload_study_version = "phase13-realistic-workloads-v3"
-supersedes_workload_study_version = "phase13-realistic-workloads-v2"
+workload_study_version = "phase13-realistic-workloads-v4"
+supersedes_workload_study_version = "phase13-realistic-workloads-v3"
+v4_change_reason = "Metal v3 infrastructure preflight established that SequentialCPM's intentional one-site GPU launch schedule is not a production-applicable realistic-scale identity; v4 leaves all endpoints, margins, seeds, and sample counts unchanged, limits SequentialCPM realistic qualification to CPU, and retains CheckerboardSweepCPM on CPU, Metal, and ROCm"
 replicas_per_identity = 512
 familywise_alpha = 0.01
 maximum_primary_hypotheses_per_claim_family = 96
@@ -103,6 +104,12 @@ equivalence_requires_interval_inside_margin = true
 nonsignificant_difference_is_equivalence = false
 workload_manifest_committed_before_sampling = true
 dimensions = [2]
+
+[realistic_scale.applicability]
+SequentialCPM = ["cpu"]
+CheckerboardSweepCPM = ["cpu", "metal", "rocm"]
+sequential_gpu_scope = "limited to registered transition-law qualification; no realistic-scale or production-throughput claim"
+checkerboard_scope = "registered realistic-scale backend portability claim"
 
 [realistic_scale.seeds]
 base_hex = "0x1301000000000000"
