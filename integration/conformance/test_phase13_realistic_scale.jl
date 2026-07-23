@@ -62,13 +62,14 @@ using TOML
     @test analysis["multiplicity"]["method"] == "Holm two-one-sided equivalence"
     @test length(analysis["endpoints"]) == 14
     @test all(haskey(endpoint, "adjusted_interval") for endpoint in analysis["endpoints"])
-    family = analyze_realistic_family([evidence, evidence],
-        [checker_evidence, checker_evidence]; comparison = :paired_algorithm, manifest)
-    @test family["schema"]["name"] ==
-        "potts-realistic-equivalence-family-analysis"
-    @test family["multiplicity"]["hypotheses"] == 28
-    @test family["multiplicity"]["scope"] ==
-        "all applicable primary endpoints in the claim family"
+    mixed_revision = deepcopy(checker_evidence)
+    mixed_revision["identity"]["source_revision"] = "different-revision"
+    @test_throws ArgumentError analyze_realistic_equivalence(evidence, mixed_revision;
+        comparison = :paired_algorithm, manifest)
+    mixed_registration = deepcopy(checker_evidence)
+    mixed_registration["sampling"]["registered_replicas"] += 1
+    @test_throws ArgumentError analyze_realistic_equivalence(evidence, mixed_registration;
+        comparison = :paired_algorithm, manifest)
     mktempdir() do directory
         path = joinpath(directory, "realistic.toml")
         @test write_realistic_evidence(path, evidence) == path
@@ -99,4 +100,42 @@ using TOML
     @test migration_result["mean_squared_displacement"] >= 0
     @test 0 <= migration_result["persistence"] <= 1
     @test migration_result["velocity_effective_sample_size"] > 0
+
+    sorting_evidence = build_realistic_evidence(sorting, "SequentialCPM",
+        [sorting_result]; backend = "cpu", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    sorting_checker_summaries = [deepcopy(sorting_result)]
+    sorting_checker_summaries[1]["algorithm"] = "CheckerboardSweepCPM"
+    sorting_checker = build_realistic_evidence(sorting, "CheckerboardSweepCPM",
+        sorting_checker_summaries; backend = "cpu", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    migration_sequential_summaries = [deepcopy(migration_result)]
+    migration_sequential_summaries[1]["algorithm"] = "SequentialCPM"
+    migration_sequential = build_realistic_evidence(migration, "SequentialCPM",
+        migration_sequential_summaries; backend = "cpu", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    migration_checker = build_realistic_evidence(migration, "CheckerboardSweepCPM",
+        [migration_result]; backend = "cpu", profile = :diagnostic, manifest,
+        source_revision = "test-dirty", reproduction_command = "test command")
+    family = analyze_realistic_family(
+        [evidence, sorting_evidence, migration_sequential],
+        [checker_evidence, sorting_checker, migration_checker];
+        comparison = :paired_algorithm, manifest)
+    @test family["schema"]["name"] ==
+        "potts-realistic-equivalence-family-analysis"
+    @test family["multiplicity"]["hypotheses"] == 42
+    @test family["multiplicity"]["scope"] ==
+        "all applicable primary endpoints in the claim family"
+    mixed_sorting_evidence = deepcopy(sorting_evidence)
+    mixed_sorting_checker = deepcopy(sorting_checker)
+    mixed_sorting_evidence["identity"]["source_revision"] = "different-revision"
+    mixed_sorting_checker["identity"]["source_revision"] = "different-revision"
+    @test_throws ArgumentError analyze_realistic_family(
+        [evidence, mixed_sorting_evidence, migration_sequential],
+        [checker_evidence, mixed_sorting_checker, migration_checker];
+        comparison = :paired_algorithm, manifest)
+    @test_throws ArgumentError analyze_realistic_family(
+        [evidence, evidence, migration_sequential],
+        [checker_evidence, checker_evidence, migration_checker];
+        comparison = :paired_algorithm, manifest)
 end

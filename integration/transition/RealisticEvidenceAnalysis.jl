@@ -10,6 +10,121 @@ export realistic_endpoint_specs, analyze_realistic_equivalence,
 
 const REALISTIC_ANALYSIS_SCHEMA_VERSION = "1.0.0"
 
+function _require_match(left::AbstractDict, right::AbstractDict,
+        table::AbstractString, field::AbstractString)
+    get(left, field, nothing) == get(right, field, nothing) || throw(ArgumentError(
+        "$table field '$field' differs between evidence records"))
+end
+
+function _require_registered_evidence(record::AbstractDict, manifest::AbstractDict)
+    identity = record["identity"]
+    sampling = record["sampling"]
+    identity["study_version"] == manifest["manifest_version"] || throw(ArgumentError(
+        "evidence study version does not match the analysis manifest"))
+    identity["statistical_plan"] == manifest["statistical_plan"] || throw(ArgumentError(
+        "evidence statistical plan does not match the analysis manifest"))
+    identity["number_type"] == manifest["number_type"] || throw(ArgumentError(
+        "evidence number type does not match the analysis manifest"))
+    identity["algorithm"] in manifest["algorithms"] || throw(ArgumentError(
+        "evidence algorithm is not registered by the analysis manifest"))
+    identity["backend"] in manifest["backends"] || throw(ArgumentError(
+        "evidence backend is not registered by the analysis manifest"))
+
+    workload_id = identity["workload"]
+    matches = filter(workload -> workload["id"] == workload_id, manifest["workloads"])
+    length(matches) == 1 || throw(ArgumentError(
+        "evidence workload is not uniquely registered by the analysis manifest"))
+    registered_workload = only(matches)
+    if sampling["profile"] == "qualification"
+        record["workload"] == registered_workload || throw(ArgumentError(
+            "qualification evidence workload differs from the registered workload"))
+    end
+    record["model"] == manifest["model"] || throw(ArgumentError(
+        "evidence model table differs from the registered model"))
+    record["analysis"] == manifest["analysis"] || throw(ArgumentError(
+        "evidence analysis table differs from the registered analysis"))
+    identity["workload_fingerprint"] ==
+        workload_fingerprint(record["workload"], manifest) || throw(ArgumentError(
+            "evidence workload fingerprint does not match the analysis manifest"))
+
+    registered_sampling = (
+        "registered_replicas" => manifest["replicas_per_identity"],
+        "layout_seed_domain" => manifest["layout_seed_domain"],
+        "simulation_seed_domain" => manifest["simulation_seed_domain"],
+        "seed_base_hex" => manifest["seed_base_hex"],
+    )
+    for (field, expected) in registered_sampling
+        get(sampling, field, nothing) == expected || throw(ArgumentError(
+            "evidence sampling field '$field' does not match the analysis manifest"))
+    end
+    get(sampling, "independent_replicas", false) === true || throw(ArgumentError(
+        "evidence does not declare independent replicas"))
+    return nothing
+end
+
+function _require_comparable_pair(reference::AbstractDict, candidate::AbstractDict,
+        comparison::Symbol, manifest::AbstractDict)
+    _require_registered_evidence(reference, manifest)
+    _require_registered_evidence(candidate, manifest)
+    left_identity, right_identity = reference["identity"], candidate["identity"]
+    for field in ("study_version", "statistical_plan", "workload",
+            "workload_fingerprint", "model_fingerprint", "rng_contract_version",
+            "number_type", "source_revision")
+        _require_match(left_identity, right_identity, "identity", field)
+    end
+    left_sampling, right_sampling = reference["sampling"], candidate["sampling"]
+    for field in ("profile", "registered_replicas", "layout_seed_domain",
+            "simulation_seed_domain", "seed_base_hex")
+        _require_match(left_sampling, right_sampling, "sampling", field)
+    end
+    if comparison === :paired_algorithm
+        left_identity["backend"] == right_identity["backend"] || throw(ArgumentError(
+            "paired algorithm comparison requires one backend"))
+        left_identity["algorithm"] != right_identity["algorithm"] || throw(ArgumentError(
+            "paired algorithm comparison requires distinct algorithms"))
+    else
+        for field in ("algorithm", "algorithm_contract_version", "scheduler")
+            _require_match(left_identity, right_identity, "identity", field)
+        end
+        left_identity["backend"] != right_identity["backend"] || throw(ArgumentError(
+            "independent backend comparison requires distinct backends"))
+    end
+    return nothing
+end
+
+function _require_one_registered_family(references::AbstractVector,
+        candidates::AbstractVector, manifest::AbstractDict)
+    records = vcat(collect(references), collect(candidates))
+    first_identity, first_sampling = records[1]["identity"], records[1]["sampling"]
+    for record in @view records[2:end]
+        identity, sampling = record["identity"], record["sampling"]
+        for field in ("study_version", "statistical_plan", "rng_contract_version",
+                "number_type", "source_revision")
+            _require_match(first_identity, identity, "family identity", field)
+        end
+        for field in ("profile", "registered_replicas", "layout_seed_domain",
+                "simulation_seed_domain", "seed_base_hex")
+            _require_match(first_sampling, sampling, "family sampling", field)
+        end
+    end
+    for side in (references, candidates)
+        first_side = side[1]["identity"]
+        for record in @view side[2:end]
+            identity = record["identity"]
+            for field in ("algorithm", "algorithm_contract_version", "scheduler", "backend")
+                _require_match(first_side, identity, "claim-family identity", field)
+            end
+        end
+    end
+    workload_ids = getindex.(getindex.(references, "identity"), "workload")
+    length(unique(workload_ids)) == length(workload_ids) || throw(ArgumentError(
+        "claim family contains duplicate workloads"))
+    registered_ids = getindex.(manifest["workloads"], "id")
+    Set(workload_ids) == Set(registered_ids) || throw(ArgumentError(
+        "claim family must contain every registered workload exactly once"))
+    return nothing
+end
+
 _raw(name, field; relative = nothing, absolute = nothing, standardized = nothing,
     quantile = nothing) = (; name, field, scale = :raw, relative, absolute,
         standardized, quantile, divisor = nothing, lower = nothing, upper = nothing)
@@ -193,9 +308,8 @@ function analyze_realistic_equivalence(reference::AbstractDict, candidate::Abstr
         "reference evidence is invalid"))
     validate_realistic_evidence(candidate).valid || throw(ArgumentError(
         "candidate evidence is invalid"))
+    _require_comparable_pair(reference, candidate, comparison, manifest)
     left_identity, right_identity = reference["identity"], candidate["identity"]
-    left_identity["workload_fingerprint"] == right_identity["workload_fingerprint"] ||
-        throw(ArgumentError("workload fingerprints differ"))
     reference_summaries = reference["replica_primary_summaries"]
     candidate_summaries = candidate["replica_primary_summaries"]
     paired = comparison === :paired_algorithm
@@ -299,6 +413,7 @@ function analyze_realistic_family(references::AbstractVector,
         alpha::Real = 0.01)
     length(references) == length(candidates) > 0 || throw(ArgumentError(
         "family analysis requires equally many nonempty reference and candidate records"))
+    _require_one_registered_family(references, candidates, manifest)
     pair_analyses = [analyze_realistic_equivalence(references[index], candidates[index];
         comparison, manifest, alpha) for index in eachindex(references)]
     endpoints = Dict{String, Any}[]
