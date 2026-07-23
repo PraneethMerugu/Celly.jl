@@ -53,7 +53,7 @@ jobs:
           --row ${{ matrix.row }} --algorithm ${{ matrix.algorithm }}
           --profile qualification
           --output phase13-results/cpu-row-${{ matrix.row }}-${{ matrix.algorithm }}.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-cpu-row-${{ matrix.row }}-${{ matrix.algorithm }}-${{ github.sha }}
@@ -101,7 +101,7 @@ jobs:
           --row ${{ matrix.row }} --algorithm ${{ matrix.algorithm }}
           --profile qualification
           --output phase13-results/metal-row-${{ matrix.row }}-${{ matrix.algorithm }}.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-metal-row-${{ matrix.row }}-${{ matrix.algorithm }}-${{ github.sha }}
@@ -147,7 +147,7 @@ jobs:
           --row ${{ matrix.row }} --algorithm ${{ matrix.algorithm }}
           --profile qualification
           --output phase13-results/rocm-row-${{ matrix.row }}-${{ matrix.algorithm }}.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-rocm-row-${{ matrix.row }}-${{ matrix.algorithm }}-${{ github.sha }}

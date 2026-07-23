@@ -53,7 +53,7 @@ jobs:
               --workload "${{ matrix.workload }}" --algorithm "$algorithm" --profile qualification \
               --output "$RUNNER_TEMP/phase13-results/cpu/${{ matrix.workload }}-$algorithm.toml"
           done
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-cpu-${{ matrix.workload }}-${{ github.sha }}
@@ -99,7 +99,7 @@ jobs:
           julia --project=benchmark/backends/metal --startup-file=no integration/transition/run_phase13_realistic.jl \
             --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
             --output "$RUNNER_TEMP/phase13-results/metal/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-metal-${{ matrix.workload }}-${{ github.sha }}
@@ -143,7 +143,7 @@ jobs:
           julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
             --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
             --output "$RUNNER_TEMP/phase13-results/rocm/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-rocm-${{ matrix.workload }}-${{ github.sha }}
@@ -172,7 +172,7 @@ jobs:
             --reference "phase13-results/cpu/adhesion_volume_relaxation-SequentialCPM.toml,phase13-results/cpu/differential_adhesion_sorting-SequentialCPM.toml,phase13-results/cpu/single_cell_migration-SequentialCPM.toml" \
             --candidate "phase13-results/cpu/adhesion_volume_relaxation-CheckerboardSweepCPM.toml,phase13-results/cpu/differential_adhesion_sorting-CheckerboardSweepCPM.toml,phase13-results/cpu/single_cell_migration-CheckerboardSweepCPM.toml" \
             --comparison paired_algorithm --output phase13-results/cpu/algorithm-family-analysis.toml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-cpu-algorithm-family-${{ github.sha }}
@@ -213,7 +213,7 @@ jobs:
             --candidate "phase13-results/metal/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/metal/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/metal/single_cell_migration-${{ matrix.algorithm }}.toml" \
             --comparison independent_backend \
             --output "phase13-results/metal/${{ matrix.algorithm }}-portability-family.toml"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-cpu-metal-${{ matrix.algorithm }}-${{ github.sha }}
@@ -254,7 +254,7 @@ jobs:
             --candidate "phase13-results/rocm/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/rocm/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/rocm/single_cell_migration-${{ matrix.algorithm }}.toml" \
             --comparison independent_backend \
             --output "phase13-results/rocm/${{ matrix.algorithm }}-portability-family.toml"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: phase13-realistic-cpu-rocm-${{ matrix.algorithm }}-${{ github.sha }}
