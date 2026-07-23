@@ -1,53 +1,52 @@
 name: Benchmarks
 
 on:
+  schedule:
+    - cron: '41 5 1 * *'
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       backend:
-        description: Authoritative Phase 12 target
+        description: Authoritative Phase 13 target
         type: choice
         required: true
-        default: cpu-arm64
+        default: amdgpu
         options: [cpu-arm64, cpu-x86_64, metal, amdgpu]
       profile:
-        description: Smoke or complete baseline matrix
+        description: Launcher compatibility input
         type: choice
         required: true
         default: smoke
         options: [smoke, full, throughput, native-profile]
       repetitions:
-        description: Independent fresh Julia processes
+        description: Launcher compatibility input
         type: choice
         required: true
         default: '1'
         options: ['1', '3', '5']
       precision:
-        description: Numerical precision (Float64 is CPU-only in Phase 12)
+        description: Launcher compatibility input
         type: choice
         required: true
         default: Float32
         options: [Float32, Float64]
       cpu_threads:
-        description: Julia threads on CPU (GPU jobs require 1)
+        description: Launcher compatibility input
         type: choice
         required: true
         default: '1'
         options: ['1', '2', '4', '8', physical]
       subject_ref:
-        description: Immutable commit SHA to measure (defaults to the workflow commit)
+        description: Immutable Phase 13 evidence source SHA
         type: string
-        required: false
-        default: ''
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  # Keep duplicate dispatches for the same immutable evidence subject serialized,
-  # without letting a different profile or subject evict a pending run. GitHub
-  # retains only one pending member of a concurrency group even when
-  # cancel-in-progress is false.
-  group: benchmark-${{ inputs.backend }}-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}-${{ inputs.subject_ref || github.sha }}
+  group: phase13-realistic-${{ inputs.subject_ref }}
   cancel-in-progress: false
 
 env:
@@ -55,129 +54,55 @@ env:
   JULIA_NUM_PRECOMPILE_TASKS: 2
 
 jobs:
-  cpu-arm64:
-    name: CPU ARM64 / ${{ inputs.profile }} / ${{ inputs.precision }} / ${{ inputs.cpu_threads }} threads / ${{ inputs.repetitions }} processes
-    if: inputs.backend == 'cpu-arm64' && vars.METAL_RUNNER_ENABLED == 'true'
-    runs-on: [self-hosted, metal]
-    timeout-minutes: 90
-    defaults:
-      run:
-        working-directory: _ci/source
+  cpu:
+    name: CPU / ${{ matrix.workload }}
+    if: github.event_name != 'workflow_dispatch' || inputs.backend == 'all' || inputs.backend == 'cpu'
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [adhesion_volume_relaxation, differential_adhesion_sorting, single_cell_migration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    env:
+      BACKEND_GROUP: CPU
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          path: _ci/source
-          ref: ${{ inputs.subject_ref || github.sha }}
-          fetch-depth: 0
-      - name: Verify complete benchmark provenance
-        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
-          arch: aarch64
-          force-arch: true
-      - name: Configure fixed ARM64 physical-core count
-        shell: bash
+      - uses: julia-actions/cache@a45e8fa8be21c18a06b7177052533149e61e9b38 # v3
+      - name: Instantiate integration environment
+        run: julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+      - name: Run both preregistered 512-replica identities
         run: |
-          physical="$(sysctl -n hw.physicalcpu)"
-          requested="${{ inputs.cpu_threads }}"
-          threads="$requested"
-          if [[ "$requested" == "physical" ]]; then threads="$physical"; fi
-          if (( threads < 1 || threads > physical )); then
-            echo "requested $threads Julia threads on a $physical-core host" >&2
-            exit 1
-          fi
-          echo "JULIA_NUM_THREADS=$threads" >> "$GITHUB_ENV"
-          echo "POTTS_BENCHMARK_CPU_AFFINITY=fixed-$threads-of-$physical-physical-cores; scheduler-managed on Darwin" >> "$GITHUB_ENV"
-          echo "POTTS_BENCHMARK_HARDWARE_ID=metal-runner-cpu-arm64-v1-$threads-physical-threads" >> "$GITHUB_ENV"
-      - run: julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run independent CPU processes
-        if: inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --precision=${{ inputs.precision }} --repetitions=${{ inputs.repetitions }}
-      - name: Measure offline CPU precompilation
-        if: inputs.precision == 'Float32' && inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
-      - name: Run independent CPU cold processes
-        if: inputs.precision == 'Float32' && inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
+          mkdir -p "$RUNNER_TEMP/phase13-results/cpu"
+          for algorithm in SequentialCPM CheckerboardSweepCPM; do
+            julia --project=integration --startup-file=no integration/transition/run_phase13_realistic.jl \
+              --workload "${{ matrix.workload }}" --algorithm "$algorithm" --profile qualification \
+              --output "$RUNNER_TEMP/phase13-results/cpu/${{ matrix.workload }}-$algorithm.toml"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
-          name: benchmark-cpu-arm64-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}threads-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
-          path: _ci/source/benchmark/results/
-          if-no-files-found: error
-
-  cpu-x86_64:
-    name: CPU x86_64 / ${{ inputs.profile }} / ${{ inputs.precision }} / ${{ inputs.cpu_threads }} threads / ${{ inputs.repetitions }} processes
-    if: inputs.backend == 'cpu-x86_64' && vars.ROCM_RUNNER_ENABLED == 'true'
-    runs-on: [self-hosted, rocm]
-    timeout-minutes: 90
-    defaults:
-      run:
-        working-directory: _ci/source
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          path: _ci/source
-          ref: ${{ inputs.subject_ref || github.sha }}
-          fetch-depth: 0
-      - name: Verify complete benchmark provenance
-        run: test "$(git rev-parse --is-shallow-repository)" = "false"
-      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
-        with:
-          version: ${{ env.JULIA_VERSION }}
-      - name: Configure pinned x86_64 physical cores
-        shell: bash
-        run: |
-          mapfile -t physical_cpus < <(lscpu -p=CPU,CORE,SOCKET | awk -F, '!/^#/ && !seen[$2 FS $3]++ {print $1}')
-          physical="${#physical_cpus[@]}"
-          requested="${{ inputs.cpu_threads }}"
-          threads="$requested"
-          if [[ "$requested" == "physical" ]]; then threads="$physical"; fi
-          if (( threads < 1 || threads > physical )); then
-            echo "requested $threads Julia threads on a $physical-core host" >&2
-            exit 1
-          fi
-          selected=("${physical_cpus[@]:0:threads}")
-          cpuset="$(IFS=,; echo "${selected[*]}")"
-          echo "JULIA_NUM_THREADS=$threads" >> "$GITHUB_ENV"
-          echo "POTTS_BENCHMARK_CPUSET=$cpuset" >> "$GITHUB_ENV"
-          echo "POTTS_BENCHMARK_CPU_AFFINITY=taskset-one-logical-cpu-per-physical-core:$cpuset" >> "$GITHUB_ENV"
-          echo "POTTS_BENCHMARK_HARDWARE_ID=rocm-runner-cpu-x86_64-v1-$threads-pinned-physical-threads" >> "$GITHUB_ENV"
-      - run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run independent CPU processes
-        if: inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/repeat.jl --backend=cpu --profile=${{ inputs.profile }} --precision=${{ inputs.precision }} --repetitions=${{ inputs.repetitions }}
-      - name: Measure offline CPU precompilation
-        if: inputs.precision == 'Float32' && inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/precompile_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
-      - name: Run independent CPU cold processes
-        if: inputs.precision == 'Float32' && inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: taskset -c "$POTTS_BENCHMARK_CPUSET" julia --project=benchmark --startup-file=no benchmark/cold_repeat.jl --backend=cpu --repetitions=${{ inputs.repetitions }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: benchmark-cpu-x86_64-${{ inputs.profile }}-${{ inputs.precision }}-${{ inputs.cpu_threads }}threads-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
-          path: _ci/source/benchmark/results/
+          name: phase13-realistic-cpu-${{ matrix.workload }}-${{ github.sha }}
+          path: ${{ runner.temp }}/phase13-results/
           if-no-files-found: error
 
   metal:
-    name: Metal / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
-    if: inputs.backend == 'metal' && vars.METAL_RUNNER_ENABLED == 'true'
+    name: Metal / ${{ matrix.workload }}
+    if: >-
+      vars.METAL_RUNNER_ENABLED == 'true' &&
+      (github.event_name != 'workflow_dispatch' || inputs.backend == 'all' || inputs.backend == 'metal')
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        workload: [adhesion_volume_relaxation, differential_adhesion_sorting, single_cell_migration]
     runs-on: [self-hosted, metal]
-    timeout-minutes: 90
+    timeout-minutes: 720
     env:
-      JULIA_LOAD_PATH: "benchmark/backends/metal:benchmark:@stdlib"
+      BACKEND_GROUP: Metal
+      JULIA_LOAD_PATH: "benchmark/backends/metal:integration:@stdlib"
     defaults:
       run:
         working-directory: _ci/source
@@ -185,60 +110,45 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
-          ref: ${{ inputs.subject_ref || github.sha }}
-          fetch-depth: 0
-      - name: Validate GPU benchmark policy
-        run: test "${{ inputs.precision }}" = "Float32" && test "${{ inputs.cpu_threads }}" = "1"
-      - name: Verify complete benchmark provenance
-        run: test "$(git rev-parse --is-shallow-repository)" = "false"
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
           arch: aarch64
           force-arch: true
-      - name: Instantiate Metal runtime
+      - name: Instantiate integration and Metal environments
         env:
           JULIA_LOAD_PATH: "@:@stdlib"
         run: |
-          julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/metal --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run independent Metal processes
-        if: inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/repeat.jl --backend=metal --profile=${{ inputs.profile }} --precision=Float32 --repetitions=${{ inputs.repetitions }}
-      - name: Measure offline Metal precompilation
-        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/precompile_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
-      - name: Run independent Metal cold processes
-        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/cold_repeat.jl --backend=metal --repetitions=${{ inputs.repetitions }}
-      - name: Capture Metal device code and chronological profile
-        if: inputs.profile == 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: metal-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/metal --startup-file=no benchmark/profile_metal.jl
+      - name: Run the preregistered 512-replica Metal checkerboard identity
+        run: |
+          mkdir -p "$RUNNER_TEMP/phase13-results/metal"
+          julia --project=benchmark/backends/metal --startup-file=no integration/transition/run_phase13_realistic.jl \
+            --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
+            --output "$RUNNER_TEMP/phase13-results/metal/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
-          name: benchmark-metal-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
-          path: _ci/source/benchmark/results/
+          name: phase13-realistic-metal-${{ matrix.workload }}-${{ github.sha }}
+          path: ${{ runner.temp }}/phase13-results/
           if-no-files-found: error
 
   rocm:
-    name: ROCm / ${{ inputs.profile }} / ${{ inputs.repetitions }} processes
-    if: inputs.backend == 'amdgpu' && vars.ROCM_RUNNER_ENABLED == 'true'
+    name: ROCm / ${{ matrix.workload }}
+    if: >-
+      vars.ROCM_RUNNER_ENABLED == 'true' &&
+      inputs.backend == 'amdgpu'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        workload: [adhesion_volume_relaxation, differential_adhesion_sorting, single_cell_migration]
     runs-on: [self-hosted, rocm]
-    timeout-minutes: 90
+    timeout-minutes: 720
     env:
-      JULIA_LOAD_PATH: "benchmark/backends/amdgpu:benchmark:@stdlib"
+      BACKEND_GROUP: AMDGPU
+      JULIA_LOAD_PATH: "benchmark/backends/amdgpu:integration:@stdlib"
     defaults:
       run:
         working-directory: _ci/source
@@ -246,56 +156,136 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: _ci/source
-          ref: ${{ inputs.subject_ref || github.sha }}
-          fetch-depth: 0
-      - name: Validate GPU benchmark policy
-        run: test "${{ inputs.precision }}" = "Float32" && test "${{ inputs.cpu_threads }}" = "1"
-      - name: Verify complete benchmark provenance
-        run: test "$(git rev-parse --is-shallow-repository)" = "false"
+          ref: ${{ inputs.subject_ref }}
       - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
         with:
           version: ${{ env.JULIA_VERSION }}
-      - name: Instantiate ROCm runtime
+      - name: Instantiate integration and ROCm environments
         env:
           JULIA_LOAD_PATH: "@:@stdlib"
         run: |
-          julia --project=benchmark --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
           julia --project=benchmark/backends/amdgpu --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
-      - name: Run independent ROCm processes
-        if: inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/repeat.jl --backend=amdgpu --profile=${{ inputs.profile }} --precision=Float32 --repetitions=${{ inputs.repetitions }}
-      - name: Measure offline ROCm precompilation
-        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/precompile_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
-      - name: Run independent ROCm cold processes
-        if: inputs.profile != 'throughput' && inputs.profile != 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
-        run: julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/cold_repeat.jl --backend=amdgpu --repetitions=${{ inputs.repetitions }}
-      - name: Require the authoritative ROCm profiler
-        if: inputs.profile == 'native-profile'
-        run: command -v rocprofv3
-      - name: Capture ROCm GCN and Perfetto profile
-        if: inputs.profile == 'native-profile'
-        env:
-          POTTS_BENCHMARK_HARDWARE_ID: rocm-runner-gpu-v1
-          POTTS_BENCHMARK_POWER_MODE: ac-power
+      - name: Run the preregistered 512-replica ROCm checkerboard identity
         run: |
-          mkdir -p benchmark/results/rocprof
-          ENABLE_JITPROFILING=1 POTTS_ROCPROF_TRACE_STATUS=captured rocprofv3 \
-            --output-directory benchmark/results/rocprof --output-format pftrace \
-            --hip-trace --hsa-trace --kernel-trace -- \
-            julia --project=benchmark/backends/amdgpu --startup-file=no benchmark/profile_amdgpu.jl
-          find benchmark/results/rocprof -type f -name '*.pftrace' -size +0 -print -quit | grep .
+          mkdir -p "$RUNNER_TEMP/phase13-results/rocm"
+          julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
+            --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
+            --output "$RUNNER_TEMP/phase13-results/rocm/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
-          name: benchmark-rocm-${{ inputs.profile }}-${{ inputs.repetitions }}-${{ inputs.subject_ref || github.sha }}
-          path: _ci/source/benchmark/results/
+          name: phase13-realistic-rocm-${{ matrix.workload }}-${{ inputs.subject_ref }}
+          path: ${{ runner.temp }}/phase13-results/
+          if-no-files-found: error
+
+  cpu-algorithm-family:
+    name: CPU algorithm claim family
+    needs: [cpu]
+    if: needs.cpu.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: phase13-realistic-cpu-*-${{ github.sha }}
+          path: phase13-results
+          merge-multiple: true
+      - name: Apply Holm correction across the full CPU algorithm claim family
+        run: |
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=integration --startup-file=no integration/transition/analyze_phase13_realistic.jl \
+            --reference "phase13-results/cpu/adhesion_volume_relaxation-SequentialCPM.toml,phase13-results/cpu/differential_adhesion_sorting-SequentialCPM.toml,phase13-results/cpu/single_cell_migration-SequentialCPM.toml" \
+            --candidate "phase13-results/cpu/adhesion_volume_relaxation-CheckerboardSweepCPM.toml,phase13-results/cpu/differential_adhesion_sorting-CheckerboardSweepCPM.toml,phase13-results/cpu/single_cell_migration-CheckerboardSweepCPM.toml" \
+            --comparison paired_algorithm --output phase13-results/cpu/algorithm-family-analysis.toml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: phase13-realistic-cpu-algorithm-family-${{ github.sha }}
+          path: phase13-results/cpu/algorithm-family-analysis.toml
+          if-no-files-found: error
+
+  metal-portability:
+    name: CPU–Metal / ${{ matrix.algorithm }} claim family
+    needs: [cpu, metal]
+    if: >-
+      always() && vars.METAL_RUNNER_ENABLED == 'true' &&
+      needs.cpu.result == 'success' && needs.metal.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        algorithm: [CheckerboardSweepCPM]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: phase13-realistic-cpu-*-${{ github.sha }}
+          path: phase13-results
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: phase13-realistic-metal-*-${{ github.sha }}
+          path: phase13-results
+          merge-multiple: true
+      - name: Instantiate and compare independent backend replicas
+        run: |
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=integration --startup-file=no integration/transition/analyze_phase13_realistic.jl \
+            --reference "phase13-results/cpu/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/cpu/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/cpu/single_cell_migration-${{ matrix.algorithm }}.toml" \
+            --candidate "phase13-results/metal/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/metal/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/metal/single_cell_migration-${{ matrix.algorithm }}.toml" \
+            --comparison independent_backend \
+            --output "phase13-results/metal/${{ matrix.algorithm }}-portability-family.toml"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: phase13-realistic-cpu-metal-${{ matrix.algorithm }}-${{ github.sha }}
+          path: phase13-results/metal/*-portability-family.toml
+          if-no-files-found: error
+
+  rocm-portability:
+    name: CPU–ROCm / ${{ matrix.algorithm }} claim family
+    needs: [cpu, rocm]
+    if: >-
+      always() && vars.ROCM_RUNNER_ENABLED == 'true' &&
+      needs.cpu.result == 'success' && needs.rocm.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        algorithm: [CheckerboardSweepCPM]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3
+        with:
+          version: ${{ env.JULIA_VERSION }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: phase13-realistic-cpu-*-${{ github.sha }}
+          path: phase13-results
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: phase13-realistic-rocm-*-${{ github.sha }}
+          path: phase13-results
+          merge-multiple: true
+      - name: Instantiate and compare independent backend replicas
+        run: |
+          julia --project=integration --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
+          julia --project=integration --startup-file=no integration/transition/analyze_phase13_realistic.jl \
+            --reference "phase13-results/cpu/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/cpu/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/cpu/single_cell_migration-${{ matrix.algorithm }}.toml" \
+            --candidate "phase13-results/rocm/adhesion_volume_relaxation-${{ matrix.algorithm }}.toml,phase13-results/rocm/differential_adhesion_sorting-${{ matrix.algorithm }}.toml,phase13-results/rocm/single_cell_migration-${{ matrix.algorithm }}.toml" \
+            --comparison independent_backend \
+            --output "phase13-results/rocm/${{ matrix.algorithm }}-portability-family.toml"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: phase13-realistic-cpu-rocm-${{ matrix.algorithm }}-${{ github.sha }}
+          path: phase13-results/rocm/*-portability-family.toml
           if-no-files-found: error
