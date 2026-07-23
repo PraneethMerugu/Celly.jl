@@ -1,8 +1,10 @@
 schema_version = "1.0.0"
-manifest_version = "phase13-realistic-workloads-v1"
+manifest_version = "phase13-realistic-workloads-v3"
 status = "registered-before-realistic-scale-sampling"
 registered_at = "2026-07-22"
 statistical_plan = "phase13-transition-evidence-v1"
+supersedes = "phase13-realistic-workloads-v2"
+supersession_reason = "v2 analysis preflight found that the declared primary mean-squared-displacement endpoint lacked a numerical margin; v3 completes that margin before any qualification ensemble"
 replicas_per_identity = 512
 seed_base_hex = "0x1301000000000000"
 algorithms = ["SequentialCPM", "CheckerboardSweepCPM"]
@@ -83,6 +85,7 @@ standardized = 0.25
 [[margins]]
 family = "migration_displacement"
 absolute_initial_cell_diameters = 0.20
+absolute_initial_cell_diameters_squared = 0.20
 standardized = 0.25
 
 [[margins]]

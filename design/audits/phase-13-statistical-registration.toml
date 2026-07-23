@@ -80,6 +80,8 @@ deterministic_limits_required = true
 manifest_committed_before_sampling = true
 
 [realistic_scale]
+workload_study_version = "phase13-realistic-workloads-v3"
+supersedes_workload_study_version = "phase13-realistic-workloads-v2"
 replicas_per_identity = 512
 familywise_alpha = 0.01
 maximum_primary_hypotheses_per_claim_family = 96
@@ -141,6 +143,7 @@ members = ["heterotypic_contact_fraction", "segregation_index"]
 [[realistic_scale.margins]]
 observable = "net_displacement"
 absolute_initial_cell_diameters = 0.20
+mean_squared_displacement_absolute_initial_cell_diameters_squared = 0.20
 standardized = 0.25
 
 [[realistic_scale.margins]]
