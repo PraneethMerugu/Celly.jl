@@ -1,6 +1,6 @@
 # Phase 13 statistical and empirical evidence registration
 
-Status: Registered before Phase 13 qualification results
+Status: v2 transition amendment registered before v2 qualification; realistic v3 registered before qualification
 
 Date: 2026-07-22
 
@@ -10,9 +10,14 @@ Machine-readable contract:
 ## Scope and immutability
 
 This registration fixes the statistical design for the initial Phase 13 qualification of
-`SequentialCPM` and `CheckerboardSweepCPM` on the admitted adhesion-and-volume domain. It was
-written before inspecting any Phase 13 transition-row or realistic-scale result. `LotteryCPM` and
-the experimental `TiledCheckerboardCPM` are not qualified by this study.
+`SequentialCPM` and `CheckerboardSweepCPM` on the admitted adhesion-and-volume domain. The original
+v1 transition plan and realistic plan were written before inspecting any Phase 13 result.
+Transition v2 is a recorded infrastructure amendment made after v1 CPU results and the first Metal
+preflight, but before any v2 qualification result: Metal correctly rejected the v1 adapter's
+`Float64` property arrays. V2 declares portable `Float32` production precision on CPU, Metal, and
+ROCm, retains the same fixtures, seeds, samples, thresholds, and oracle, forbids pooling with v1,
+and requires the complete backend family to rerun. `LotteryCPM` and the experimental
+`TiledCheckerboardCPM` are not qualified by this study.
 
 The committed TOML file is the executable authority for constants. A change to a threshold, seed,
 sample count, fixture selection rule, stopping rule, or primary observable creates a new study
@@ -52,6 +57,11 @@ independent replicas. Replica `i` uses semantic ensemble seed
 no correlated trajectory is substituted for independent initialization. CPU, Metal, and ROCm use
 the same seed set, RNG contract, source-state encoding, and fixture identity. Bitwise cross-backend
 trajectory identity is neither required nor used as a pass criterion.
+
+Production v2 uses the same portable `Float32` numerical policy on all three backends. Oracle
+probabilities remain exact rational or bounded-`BigFloat` reference values and are converted only
+for the final empirical comparison. Every v2 record carries its production real type. The v1
+Float64 CPU evidence remains a historical qualification artifact, not evidence pooled into v2.
 
 For a row with oracle probabilities `p`, empirical frequencies `p_hat`, support size `K <= 64`, and
 `n = 262144`, the simultaneous total-variation radius is the Weissman multinomial bound

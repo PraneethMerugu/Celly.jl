@@ -3,7 +3,7 @@ fixture_manifest = "../../../audits/phase-13-fixture-manifest.toml"
 limited_rows = 16
 maximum_oracle_support = 64
 registered_rows = 24
-sampling_plan = "phase-13-transition-evidence-v1"
+sampling_plan = "phase-13-transition-evidence-v2"
 schema_version = "1.0.0"
 
 [[rows]]

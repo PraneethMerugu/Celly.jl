@@ -26,6 +26,8 @@ using .ProductionEvidenceArchive
     @test validate_production_evidence(diagnostic).valid
     @test !diagnostic["result"]["qualification_passed"]
     @test diagnostic["sampling"]["profile"] == "diagnostic"
+    @test diagnostic["schema"]["version"] == "1.1.0"
+    @test diagnostic["environment"]["production_real_type"] == "Float32"
     @test sum(diagnostic["raw_counts"]) == 32
     @test_throws ArgumentError build_production_evidence(
         supported, supported_row, sample; profile = :qualification, manifest,

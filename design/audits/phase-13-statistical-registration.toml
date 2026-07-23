@@ -1,6 +1,7 @@
 schema_version = "1.0.0"
-study_version = "phase13-transition-evidence-v1"
-status = "registered-before-results"
+study_version = "phase13-transition-evidence-v2"
+supersedes_study_version = "phase13-transition-evidence-v1"
+status = "registered-before-v2-qualification"
 registered_at = "2026-07-22"
 decision = "0028-phase-13-entry-and-freeze-policy"
 human_contract = "phase-13-statistical-registration.md"
@@ -16,7 +17,9 @@ metal = "metal"
 rocm = "amdgpu"
 
 [immutability]
-results_inspected_before_registration = false
+v1_results_inspected_before_v1_registration = false
+v1_results_inspected_before_v2_amendment = true
+v2_results_inspected_before_v2_registration = false
 threshold_changes_require_new_study_version = true
 seed_changes_require_new_study_version = true
 sample_count_changes_require_new_study_version = true
@@ -33,6 +36,10 @@ secondary_confidence = 0.95
 secondary_supports_stable_claim = false
 
 [transition_rows]
+production_real_type = "Float32"
+v2_change_reason = "Metal v1 infrastructure preflight rejected Float64 state properties; v2 uses one portable Float32 production policy on all backends and requires a complete family rerun"
+v1_results_inspected = true
+pool_v1_and_v2 = false
 source_states_per_algorithm_maximum = 24
 algorithms = 2
 backends = 3

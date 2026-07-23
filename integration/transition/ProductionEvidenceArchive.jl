@@ -10,7 +10,8 @@ using ..ProductionTransitionSampler
 export build_production_evidence, build_limited_domain_evidence,
        validate_production_evidence, write_production_evidence
 
-const PRODUCTION_EVIDENCE_SCHEMA_VERSION = "1.0.0"
+const PRODUCTION_EVIDENCE_SCHEMA_VERSION = "1.1.0"
+const SUPPORTED_PRODUCTION_EVIDENCE_SCHEMA_VERSIONS = ("1.0.0", "1.1.0")
 
 _number_strings(values) = string.(values)
 
@@ -57,7 +58,8 @@ function _base_record(fixture::Phase13Fixture, row, algorithm, backend,
             "julia_version" => string(VERSION),
             "operating_system" => string(Sys.KERNEL),
             "architecture" => string(Sys.ARCH),
-            "threads" => Threads.nthreads()),
+            "threads" => Threads.nthreads(),
+            "production_real_type" => string(typeof(fixture.production_temperature))),
         "reproduction_command" => String(reproduction_command),
     )
 end
@@ -129,8 +131,9 @@ function validate_production_evidence(record::AbstractDict)
     errors = String[]
     get(get(record, "schema", Dict()), "name", nothing) ==
         "potts-production-transition-evidence" || push!(errors, "invalid schema name")
-    get(get(record, "schema", Dict()), "version", nothing) ==
-        PRODUCTION_EVIDENCE_SCHEMA_VERSION || push!(errors, "invalid schema version")
+    schema_version = get(get(record, "schema", Dict()), "version", nothing)
+    schema_version in SUPPORTED_PRODUCTION_EVIDENCE_SCHEMA_VERSIONS ||
+        push!(errors, "invalid schema version")
     for table in ("identity", "fixture", "environment", "result")
         get(record, table, nothing) isa AbstractDict || push!(errors, "missing table '$table'")
     end
@@ -141,6 +144,10 @@ function validate_production_evidence(record::AbstractDict)
         isempty(string(get(identity, field, ""))) && push!(errors,
             "missing identity field '$field'")
     end
+    environment = get(record, "environment", Dict())
+    schema_version == "1.1.0" &&
+        !(get(environment, "production_real_type", "") in ("Float32", "Float64")) &&
+        push!(errors, "missing or invalid production real type")
     result = get(record, "result", Dict())
     status = get(result, "status", "")
     status in ("limited-domain", "statistical-pass", "statistical-fail") ||

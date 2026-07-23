@@ -1,8 +1,9 @@
 schema_version = "1.0.0"
-manifest_version = "phase13-fixture-grid-v1"
-status = "registered-before-empirical-sampling"
+manifest_version = "phase13-fixture-grid-v2"
+supersedes_manifest_version = "phase13-fixture-grid-v1"
+status = "registered-before-v2-qualification"
 registered_at = "2026-07-22"
-statistical_plan = "phase-13-transition-evidence-v1"
+statistical_plan = "phase-13-transition-evidence-v2"
 maximum_empirical_source_states = 24
 registered_empirical_source_states = 12
 owner_encoding = "comma-separated kind:id values in Julia column-major site order"
@@ -32,6 +33,9 @@ contact_matrix_multiplier = "energy_scale"
 boundary_tracker = "unweighted contact-shell edge count; tracker only, not an energy"
 
 [empirical_sampling]
+production_real_type = "Float32"
+precision_policy = "portable Float32 on CPU, Metal, and ROCm; oracle probabilities remain exact-rational or bounded-BigFloat"
+v2_change_reason = "v1 Metal preflight exposed an inadmissible Float64 production fixture adapter; v2 changes only the adapter precision and reruns every backend identity without pooling"
 replicas_per_source_state = 262144
 maximum_oracle_support = 64
 seed_base_hex = "0x1300000000000000"
