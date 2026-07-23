@@ -18,7 +18,7 @@ scientific result rather than converted into an implementation failure or narrat
 | 13D | Bounded fixtures and component admission | fixture manifest covers required von Neumann/Moore, periodic/no-flux, 2D/selected-3D strata; adhesion and volume admitted; exclusions explicit | proved |
 | 13E | Preregistered CPU/Metal/ROCm transition rows and realistic ensembles | CPU and Metal transition 8/8; CPU v4 six identities; Metal v4 three identities; all fixed counts/seeds/source revisions | CPU/Metal proved; ROCm pending |
 | 13F | Versioned archives, CI tiers, figures, stale-evidence detection | exact, empirical, realistic, diagnostic, device-code, and figure indices; semantic fingerprints and source checks; scheduled workflows | proved locally; ROCm workflow execution pending |
-| 13G | API audit, quality gates, legacy removal, frozen identities, owner approval | exhaustive API inventory; package/conformance/docs/install/device-code checks; legacy closure; owner packet | candidate proved; ROCm, final status changes, and owner approval pending |
+| 13G | API audit, quality gates, legacy removal, frozen identities, owner approval | exhaustive API inventory; package/conformance/docs/install checks; current Metal AIR/trace and ROCm GCN/Perfetto archives; legacy closure; owner packet | candidate proved; ROCm statistical admission, final status changes, and owner approval pending |
 
 ## Roadmap deliverables
 
