@@ -1,6 +1,6 @@
 # Phase 13 Owner API-Freeze Evidence Packet
 
-Status: Draft; local CPU/Metal evidence complete, real-ROCm admission and final owner approval pending
+Status: Draft; CPU/Metal and ROCm realistic/device evidence complete, ROCm transition and final owner approval pending
 
 Date: 2026-07-23
 
@@ -84,10 +84,12 @@ from source revision `7ed1473df38873f03247572fe94382e36f642a00`.
 | --- | --- | --- |
 | CPU sequential vs checkerboard | 7/42 endpoints pass; family `equivalence-fail` | Checkerboard is not observably equivalent to sequential on the bounded battery. |
 | CPU vs Metal checkerboard | 26/42 endpoints pass; family `equivalence-fail` | Every retained scientific replica value is exactly equal across CPU and Metal. The 16 failures are conservative independent-sample quantile intervals wider than their preregistered margins, so statistical portability equivalence is not demonstrated. |
-| CPU vs ROCm checkerboard | pending | No result may be inferred from compilation or CPU/Metal evidence. |
+| CPU vs ROCm checkerboard | 26/42 endpoints pass; family `equivalence-fail` | ROCm scientific summaries are not bit-identical to CPU, although the endpoint pass/fail pattern matches CPU--Metal. Statistical portability equivalence is not demonstrated. |
 
 The independent-backend analysis is intentionally retained even when semantic seeds coincide.
-Thresholds, pairing policy, and replica counts are not changed after seeing the result. Authority:
+Thresholds, pairing policy, and replica counts are not changed after seeing the result. The ROCm
+records and analysis came from exact source revision
+`7ed1473df38873f03247572fe94382e36f642a00` on the real self-hosted runner. Authority:
 `design/evidence/phase-13/realistic/index.toml`.
 
 Eight-replica isolated CPU timing is descriptive, not qualification evidence. Median
@@ -176,6 +178,9 @@ Approval freezes these exact identities; it does not revise the negative scienti
 - Checkerboard is not claimed to reproduce sequential kinetics or realistic observables.
 - CPU--Metal realistic values are descriptively identical, but the preregistered independent family
   did not demonstrate equivalence.
+- CPU--ROCm realistic values contain genuine backend differences. The same 26/42 endpoint pattern
+  passes as CPU--Metal, but the preregistered independent family still does not demonstrate
+  equivalence.
 - Sequential realistic qualification applies only to CPU; its intentional one-site GPU launch
   schedule is not a production-applicable realistic identity.
 - Transition qualification is limited to admitted adhesion and volume fixtures and the registered
@@ -191,10 +196,9 @@ Approval freezes these exact identities; it does not revise the negative scienti
 The immutable GitHub source refs now resolve exactly to transition revision `6f725683...` and
 realistic revision `7ed1473d...`; the current-source ROCm native-profile archive is admitted.
 
-1. Complete and archive the in-progress real-ROCm transition and realistic evidence without
-   changing the registration.
-2. Update this packet with the ROCm statistical results and any resulting tested-backend
-   limitations.
+1. Complete and archive the in-progress real-ROCm transition evidence without changing the
+   registration.
+2. Update this packet with the ROCm transition result and any resulting tested-backend limitations.
 3. Ask the project owner to explicitly approve or reject the recommended API and version freeze.
 4. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
    run the complete final validation matrix, and record the Phase 13 completion audit.

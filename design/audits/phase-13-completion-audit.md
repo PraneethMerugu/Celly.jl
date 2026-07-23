@@ -1,6 +1,6 @@
 # Phase 13 Completion Audit
 
-Status: In progress; local requirements proved, real-ROCm evidence and owner freeze approval pending
+Status: In progress; real-ROCm realistic/device evidence admitted, ROCm transition and owner freeze approval pending
 
 Date: 2026-07-23
 
@@ -16,8 +16,8 @@ scientific result rather than converted into an implementation failure or narrat
 | 13B | Sequential declared-process and applicable reference obligations | exact sequential rows, production adapter checks, CPU/Metal v2 empirical rows | proved locally; ROCm empirical rows pending |
 | 13C | Lifted production checkerboard characterization and evidence-supported label | exact lifted scheduler records; maximum TV `0.5625`; probability-current, spectral, relaxation, drift, and realistic analyses | characterization proved; final public metadata pending owner approval |
 | 13D | Bounded fixtures and component admission | fixture manifest covers required von Neumann/Moore, periodic/no-flux, 2D/selected-3D strata; adhesion and volume admitted; exclusions explicit | proved |
-| 13E | Preregistered CPU/Metal/ROCm transition rows and realistic ensembles | CPU and Metal transition 8/8; CPU v4 six identities; Metal v4 three identities; all fixed counts/seeds/source revisions | CPU/Metal proved; ROCm pending |
-| 13F | Versioned archives, CI tiers, figures, stale-evidence detection | exact, empirical, realistic, diagnostic, device-code, and figure indices; semantic fingerprints and source checks; scheduled workflows | proved locally; ROCm workflow execution pending |
+| 13E | Preregistered CPU/Metal/ROCm transition rows and realistic ensembles | CPU and Metal transition 8/8; CPU v4 six identities; Metal and ROCm v4 three identities each; all fixed counts/seeds/source revisions | realistic battery proved on all applicable backends; ROCm transition pending |
+| 13F | Versioned archives, CI tiers, figures, stale-evidence detection | exact, empirical, realistic, diagnostic, device-code, and figure indices; semantic fingerprints and source checks; scheduled workflows | ROCm realistic and native-profile workflows proved; transition workflow pending |
 | 13G | API audit, quality gates, legacy removal, frozen identities, owner approval | exhaustive API inventory; package/conformance/docs/install checks; current Metal AIR/trace and ROCm GCN/Perfetto archives; legacy closure; owner packet | candidate proved; ROCm statistical admission, final status changes, and owner approval pending |
 
 ## Roadmap deliverables
@@ -27,7 +27,7 @@ scientific result rather than converted into an implementation failure or narrat
 | Independent finite-state oracle without production proposal/delta/conflict/commit reuse | oracle source, import-independence guard, hand-derived reproduction | complete |
 | Verify sequential and characterize lifted checkerboard without inherited claims | exact archive and production adapter; discrepancy and mechanism records | complete |
 | Assign checkerboard an evidence-supported guarantee | owner packet recommends stable API plus scientifically `:unqualified`; maximum discrepancy and limitations explicit | pending owner approval |
-| Qualify applicable CPU, Metal, and ROCm transition rows; larger ensembles | CPU/Metal transition and realistic archives | ROCm pending |
+| Qualify applicable CPU, Metal, and ROCm transition rows; larger ensembles | CPU/Metal transition; CPU/Metal/ROCm realistic archives | ROCm transition pending |
 | Archive matrices, counts, thresholds, grids, provenance, programs, figure inputs | versioned machine-readable evidence trees and generators | complete for CPU/Metal; ROCm pending |
 | Review every export and public extension surface | 950-export exhaustive generated inventory; zero undocumented stable and unpromoted candidates | complete |
 | Mark stable, limited, experimental, and internal surfaces | candidate policy and inventory | final status pending owner approval |
@@ -43,9 +43,11 @@ scientific result rather than converted into an implementation failure or narrat
    empirical evidence remains pending.
 2. **Checkerboard scoped guarantee:** mechanism, exact discrepancy, and realistic failure are proved;
    final public profile is pending owner approval.
-3. **CPU, Metal, ROCm transition and realistic corroboration:** CPU and Metal are archived; ROCm is
-   pending. CPU algorithm equivalence is 7/42 and CPU--Metal independent portability is 26/42,
-   therefore no broader realistic-equivalence claim is permitted.
+3. **CPU, Metal, ROCm transition and realistic corroboration:** CPU and Metal transition are
+   archived; ROCm transition remains pending. The realistic battery is archived for every
+   applicable CPU, Metal, and ROCm identity. CPU algorithm equivalence is 7/42, CPU--Metal
+   independent portability is 26/42, and CPU--ROCm independent portability is 26/42; therefore no
+   broader realistic-equivalence claim is permitted.
 4. **All accepted core semantics have conformance evidence:** the current specification-to-evidence
    index and 2,203-test conformance shard cover the accepted paper-core contracts.
 5. **Public extension functions documented and tested:** the exhaustive inventory reports zero

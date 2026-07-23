@@ -8,7 +8,8 @@ using SHA
     @test root_index["study_version"] == "phase13-realistic-workloads-v4"
     @test root_index["cpu_algorithm_analysis"] == "equivalence-fail"
     @test root_index["metal_portability_analysis"] == "equivalence-fail"
-    @test root_index["rocm_status"] == "pending-real-hardware-evidence"
+    @test root_index["rocm_portability_analysis"] == "equivalence-fail"
+    @test root_index["status"] == "cpu-metal-rocm-realistic-battery-complete"
 
     directory = joinpath(root, "metal")
     index = TOML.parsefile(joinpath(directory, "index.toml"))
