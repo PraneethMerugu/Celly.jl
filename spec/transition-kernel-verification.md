@@ -1,6 +1,6 @@
 # Transition-Kernel Verification and Algorithm Characterization
 
-Status: Accepted; Phase 13 implementation in progress
+Status: Accepted and implemented; Phase 13 complete
 
 The project-owner entry, evidence, and API-freeze policy is recorded in
 [Decision 0028](decisions/0028-phase-13-entry-and-freeze-policy.md).

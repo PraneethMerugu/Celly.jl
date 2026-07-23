@@ -1,8 +1,8 @@
 # Phase 13 Legacy and Provisional-Surface Closure
 
-Status: implemented; final Phase 13 owner approval remains separate
+Status: Complete; retained dispositions included in the owner-approved Phase 13 freeze
 
-Date: 2026-07-22
+Date: 2026-07-23
 
 ## Decision boundary
 

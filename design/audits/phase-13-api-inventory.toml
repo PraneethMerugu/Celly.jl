@@ -1,9 +1,9 @@
 julia_version = "1.12.6"
 phase11_component_inventory_sha256 = "083e3f1b1f3dd3c22b75c13ca20c3a8276522908b383f9c807483f8019556501"
-policy_sha256 = "0f7f9ce71a913bfe4e577e777ae63392872bac3581008aa79dd3d5e90604d29e"
+policy_sha256 = "e411a9da0c43a5ba13535890dfb513d28e557ccebde79d7cd028b32836b88aef"
 reproduction_command = "julia --project=. --startup-file=no scripts/generate_phase13_api_inventory.jl --force"
 schema_version = "1.0.0"
-status = "candidate-pending-owner-approval"
+status = "frozen-owner-approved"
 
 [modules.CorePotts]
 export_count = 727

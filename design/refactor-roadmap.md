@@ -20,7 +20,7 @@ Status: Working execution roadmap derived from accepted specifications and engin
 | Phase 11: PottsToolkit Level 1 DSL | Complete | [Phase 11 completion audit](audits/phase-11-completion-audit.md); exact-head package-family, integration, documentation, x86_64/ARM64 CPU, real-Metal, and real-ROCm CI is green |
 | Phase 12: Performance Recovery and Backend Qualification | Complete | Core recovery [completion audit](audits/phase-12-completion-audit.md), [CPU completion audit](audits/phase-12-cpu-completion-audit.md), and [external comparison crosswalk](audits/phase-12-external-comparison-crosswalk.md) |
 | Phase 12.5: Tiled Checkerboard Engine and Sultan-Class Study | Complete; experimental disposition | [Completion audit](audits/phase-12-5-completion-audit.md), [accepted contract](audits/phase-12-5-tiled-checkerboard-contract.md), and [chunk plan](audits/phase-12-5-chunk-plan.md) |
-| Phase 13: Algorithmic Conformance and API Freeze | In progress; entry interview complete | [Accepted transition-kernel contract](../spec/transition-kernel-verification.md), [entry policy](../spec/decisions/0028-phase-13-entry-and-freeze-policy.md), and [chunk plan](audits/phase-13-transition-kernel-chunk-plan.md); Phase 12 and 12.5 prerequisites closed |
+| Phase 13: Algorithmic Conformance and API Freeze | Complete | [Completion audit](audits/phase-13-completion-audit.md), [approved owner freeze packet](audits/phase-13-owner-freeze-packet.md), [accepted transition-kernel contract](../spec/transition-kernel-verification.md), and [entry policy](../spec/decisions/0028-phase-13-entry-and-freeze-policy.md) |
 | Phases 14-15 | Not started | Ordered by their own entry gates |
 
 ## Objective

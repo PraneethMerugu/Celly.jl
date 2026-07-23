@@ -1,20 +1,22 @@
 # Phase 13 Owner API-Freeze Evidence Packet
 
-Status: Final evidence packet; owner approval and post-approval metadata validation pending
+Status: Approved and validated; API/version freeze complete
 
 Date: 2026-07-23
 
-## Decision requested
+Owner decision: Approved on 2026-07-23 in the Phase 13 working thread.
+
+## Decision record
 
 Decision 0028 requires the project owner to review one packet containing the API inventory,
 algorithm guarantees, backend results, limitations, removals, and frozen version identities. This
-packet does not treat green CI as approval and does not turn a failed equivalence analysis into a
-pass. All registered CPU, Metal, and ROCm evidence is now admitted; the owner must explicitly
-approve or reject the recommended freeze below.
+packet did not treat green CI as approval and did not turn a failed equivalence analysis into a
+pass. The owner reviewed the admitted CPU, Metal, and ROCm evidence and explicitly approved the
+freeze below.
 
-## Recommended algorithm freeze
+## Approved algorithm freeze
 
-| Algorithm | API disposition | Paper scope | Recommended guarantee label | Evidence-supported statement |
+| Algorithm | API disposition | Paper scope | Frozen guarantee label | Evidence-supported statement |
 | --- | --- | --- | --- | --- |
 | `SequentialCPM` | stable | Phase 13 core | `:unqualified` | Production execution conforms to its declared with-replacement, immediate-commit conventional CPM process on the admitted transition fixtures. No equilibrium, stationary-distribution, or physical-time interpretation is claimed. |
 | `CheckerboardSweepCPM` | stable | Phase 13 core | `:unqualified` | Production execution conforms to its declared graph-colored, randomized-color, common-snapshot, deterministic-conflict process. It is not sequential CPM: the maximum retained normalized-MCS row total variation is `0.5625`, and only 7/42 CPU realistic sequential-comparison endpoints passed the preregistered equivalence margins. |
@@ -28,7 +30,7 @@ convergence under an explicit scientific limit, or observable equivalence. For t
 stable algorithm names can honestly retain `:unqualified` while exposing their complete proposal,
 transaction, normalization, evidence, discrepancy, and tested-backend metadata.
 
-The recommended metadata is:
+The frozen metadata is:
 
 - `api_status = :stable` for `SequentialCPM` and `CheckerboardSweepCPM`;
 - `evidence_version = v"1.0.0"`;
@@ -103,22 +105,22 @@ registered 512-replica CPU family analysis.
 The generated inventory is byte-reproducible, exhaustive over every non-imported export, and rejects
 unknown, overlapping, undocumented-stable, and unpromoted-candidate bindings.
 
-| Package | Stable candidates | Limited | Experimental | Internal | Total exports |
+| Package | Stable | Limited | Experimental | Internal | Total exports |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | CorePotts | 228 | 1 | 10 | 488 | 727 |
 | PottsToolkit | 197 | 1 | 2 | 23 | 223 |
 
-Both packages have zero undocumented stable candidates and zero unpromoted candidates. Export status
-alone is not a compatibility promise. Authority:
+Both packages have zero undocumented stable bindings and zero unpromoted policy candidates. Export
+status alone is not a compatibility promise. Authority:
 `design/audits/phase-13-api-freeze-policy.toml` and
 `design/audits/phase-13-api-inventory.toml`.
 
 ## Quality and installation evidence
 
-Current local results on Julia 1.12.6:
+Final local results on Julia 1.12.6:
 
-- CorePotts package suite: 2,854/2,854;
-- PottsToolkit package suite: 664/664;
+- CorePotts package suite: 2,863/2,863;
+- PottsToolkit package suite: 666/666;
 - CPU integration shards: thermodynamics 7/7, biophysics 12/12, integration 8/8, conformance
   2,465/2,465;
 - benchmark-harness contract suite: 71/71;
@@ -130,13 +132,13 @@ Current local results on Julia 1.12.6:
 - repository structure, legacy containment, exhaustive API inventory, workflow YAML, and whitespace
   checks pass.
 
-The current Metal inspection at clean source revision
+The retained Metal inspection at clean source revision
 `7ed1473df38873f03247572fe94382e36f642a00` retained native AIR and chronological traces for both
 Phase 13 algorithms. `SequentialCPM` produced one 671,691-byte native job and five device
 operations; `CheckerboardSweepCPM` produced one 1,052,041-byte native job and 75 device operations.
 Authority: `design/evidence/phase-13/device-code/metal/index.toml`.
 
-The current ROCm inspection at that same clean source revision used Julia 1.12.6, AMDGPU 2.7.0,
+The retained ROCm inspection at that same clean source revision used Julia 1.12.6, AMDGPU 2.7.0,
 and the real `rocm-runner-gpu-v1` host. `SequentialCPM` produced one 1,291,112-byte native GCN job;
 `CheckerboardSweepCPM` produced eight native GCN jobs totaling 2,568,051 bytes. The authoritative
 `rocprofv3` invocation captured nonempty HIP/HSA/kernel Perfetto traces. The exact profile, nine
@@ -153,10 +155,9 @@ shims. MakiePotts remains deferred source outside the paper workspace for Phase 
 The structural and legacy checkers reject restoration of mixed production paths. The detailed
 manifest is `design/audits/phase-13-legacy-closure.md`.
 
-## Proposed frozen version identities
+## Frozen version identities
 
-Every identity below is currently `v"1.0.0"` and remains marked `:phase13_candidate` until the owner
-approves this packet:
+Every identity below is frozen at `v"1.0.0"` with status `:phase13_frozen`:
 
 - semantic RNG;
 - PottsToolkit authoring DSL;
@@ -170,7 +171,7 @@ approves this packet:
 - Lottery algorithm;
 - experimental tiled-checkerboard contract.
 
-Approval freezes these exact identities; it does not revise the negative scientific evidence.
+Approval froze these exact identities; it did not revise the negative scientific evidence.
 
 ## Explicit limitations
 
@@ -193,12 +194,12 @@ Approval freezes these exact identities; it does not revise the negative scienti
 - The admitted ROCm evidence supports only the bounded transition and checkerboard-realistic
   identities named in this packet; it does not support broader three-backend equivalence.
 
-## Remaining decisions and gates
+## Closure record
 
 The immutable GitHub source refs resolve exactly to transition revision `6f725683...` and realistic
 revision `7ed1473d...`. The ROCm transition, realistic, native-device-code, and trace archives are
 admitted without changing their registrations.
 
-1. The project owner explicitly approves or rejects the recommended API and version freeze.
-2. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
-   run the complete final validation matrix, and record the Phase 13 completion audit.
+The owner approved the recommended API and version freeze. The complete final validation matrix
+passed on the frozen implementation source and is recorded in
+`design/audits/phase-13-completion-audit.md`. No Phase 13 gate remains open.

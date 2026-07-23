@@ -1,5 +1,5 @@
 schema_version = "1.0.0"
-status = "candidate-pending-owner-approval"
+status = "frozen-owner-approved"
 decision = "0028-phase-13-entry-and-freeze-policy"
 julia_version = "1.12.6"
 
