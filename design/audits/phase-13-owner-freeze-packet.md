@@ -133,6 +133,13 @@ Phase 13 algorithms. `SequentialCPM` produced one 671,691-byte native job and fi
 operations; `CheckerboardSweepCPM` produced one 1,052,041-byte native job and 75 device operations.
 Authority: `design/evidence/phase-13/device-code/metal/index.toml`.
 
+The current ROCm inspection at that same clean source revision used Julia 1.12.6, AMDGPU 2.7.0,
+and the real `rocm-runner-gpu-v1` host. `SequentialCPM` produced one 1,291,112-byte native GCN job;
+`CheckerboardSweepCPM` produced eight native GCN jobs totaling 2,568,051 bytes. The authoritative
+`rocprofv3` invocation captured nonempty HIP/HSA/kernel Perfetto traces. The exact profile, nine
+native assembly records, two raw traces, hashes, and workflow run are retained under
+`design/evidence/phase-13/device-code/rocm/index.toml`.
+
 ## Removed and excluded surfaces
 
 Phase 13 removed the historical CorePotts engine, old component and event kernels, the historical
@@ -181,10 +188,13 @@ Approval freezes these exact identities; it does not revise the negative scienti
 
 ## Remaining decisions and gates
 
-1. Create immutable GitHub evidence refs at the exact transition-v2 and realistic-v4 source
-   revisions.
-2. Run and archive real-ROCm transition and realistic evidence without changing the registration.
-3. Update this packet with the ROCm results and any resulting tested-backend limitations.
-4. Ask the project owner to explicitly approve or reject the recommended API and version freeze.
-5. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
+The immutable GitHub source refs now resolve exactly to transition revision `6f725683...` and
+realistic revision `7ed1473d...`; the current-source ROCm native-profile archive is admitted.
+
+1. Complete and archive the in-progress real-ROCm transition and realistic evidence without
+   changing the registration.
+2. Update this packet with the ROCm statistical results and any resulting tested-backend
+   limitations.
+3. Ask the project owner to explicitly approve or reject the recommended API and version freeze.
+4. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
    run the complete final validation matrix, and record the Phase 13 completion audit.
