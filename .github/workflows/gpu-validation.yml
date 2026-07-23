@@ -51,7 +51,7 @@ jobs:
         run: julia --project=benchmark/backends/metal --startup-file=no --check-bounds=yes benchmark/tiled_smoke.jl --backend=metal
       - name: Qualify Metal device execution and invariants
         run: julia --project=benchmark/backends/metal --startup-file=no --check-bounds=yes benchmark/matrix.jl --backend=metal --profile=smoke
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gpu-smoke-metal-${{ github.sha }}
           path: _ci/source/benchmark/results/
@@ -88,7 +88,7 @@ jobs:
         run: julia --project=benchmark/backends/amdgpu --startup-file=no --check-bounds=yes benchmark/tiled_smoke.jl --backend=amdgpu
       - name: Qualify ROCm device execution and invariants
         run: julia --project=benchmark/backends/amdgpu --startup-file=no --check-bounds=yes benchmark/matrix.jl --backend=amdgpu --profile=smoke
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gpu-smoke-rocm-${{ github.sha }}
           path: _ci/source/benchmark/results/
@@ -123,7 +123,7 @@ jobs:
           julia --project=benchmark/backends/cuda --startup-file=no -e 'using Pkg; Pkg.instantiate(; julia_version_strict=true)'
       - name: Qualify CUDA device execution and invariants
         run: julia --project=benchmark/backends/cuda --startup-file=no --check-bounds=yes benchmark/matrix.jl --backend=cuda --profile=smoke
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gpu-smoke-cuda-${{ github.sha }}
           path: _ci/source/benchmark/results/
