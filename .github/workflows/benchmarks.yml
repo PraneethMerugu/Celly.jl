@@ -169,7 +169,7 @@ jobs:
       - name: Run the preregistered 512-replica ROCm checkerboard identity
         run: |
           mkdir -p "$RUNNER_TEMP/phase13-results/rocm"
-          julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
+          GITHUB_SHA="${{ inputs.subject_ref }}" julia --project=benchmark/backends/amdgpu --startup-file=no integration/transition/run_phase13_realistic.jl \
             --workload "${{ matrix.workload }}" --algorithm CheckerboardSweepCPM --profile qualification \
             --output "$RUNNER_TEMP/phase13-results/rocm/${{ matrix.workload }}-CheckerboardSweepCPM.toml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
