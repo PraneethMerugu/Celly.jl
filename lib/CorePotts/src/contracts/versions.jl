@@ -1,9 +1,9 @@
 """
     ScientificContractVersions
 
-Inspectable identities for the scientific contracts selected as Phase 13 freeze candidates. The
-versions are independent of package versions. `freeze_status == :phase13_candidate` means that the
-identities are wired into artifacts now but do not claim final owner approval of the paper freeze.
+Inspectable identities for the scientific contracts frozen at Phase 13. The versions are
+independent of package versions. `freeze_status == :phase13_frozen` records explicit project-owner
+approval of these exact paper-release identities.
 """
 struct ScientificContractVersions
     freeze_status::Symbol
@@ -33,7 +33,7 @@ const LOTTERY_ALGORITHM_CONTRACT_VERSION = v"1.0.0"
 const TILED_CHECKERBOARD_EXPERIMENTAL_CONTRACT_VERSION = v"1.0.0"
 
 const SCIENTIFIC_CONTRACT_VERSIONS = ScientificContractVersions(
-    :phase13_candidate,
+    :phase13_frozen,
     RNG_CONTRACT_VERSION,
     AUTHORING_DSL_CONTRACT_VERSION,
     NORMALIZED_IR_CONTRACT_VERSION,
@@ -47,7 +47,7 @@ const SCIENTIFIC_CONTRACT_VERSIONS = ScientificContractVersions(
     TILED_CHECKERBOARD_EXPERIMENTAL_CONTRACT_VERSION,
 )
 
-"""Return the immutable Phase 13 candidate scientific-contract version report."""
+"""Return the immutable Phase 13 frozen scientific-contract version report."""
 scientific_contract_versions() = SCIENTIFIC_CONTRACT_VERSIONS
 
 function Base.show(io::IO, versions::ScientificContractVersions)

@@ -10,11 +10,10 @@ scientific_contract_versions()
 
 The returned `ScientificContractVersions` value records the RNG, PottsToolkit authoring DSL,
 normalized IR, checkpoint schema, semantic and execution fingerprints, Phase 13 result/evidence
-schema, and algorithm/scheduler identities. Its current `freeze_status` is
-`:phase13_candidate`: these exact identities are wired into generated artifacts, but final paper
-API freeze approval is a separate owner evidence review.
+schema, and algorithm/scheduler identities. Its `freeze_status` is `:phase13_frozen`: the project
+owner approved these exact paper API identities after reviewing the final Phase 13 evidence packet.
 
-| Contract | Current candidate |
+| Contract | Frozen identity |
 |:--|:--|
 | Semantic RNG | `RNG_CONTRACT_VERSION` |
 | PottsToolkit authoring DSL | `AUTHORING_DSL_CONTRACT_VERSION` |
@@ -44,10 +43,13 @@ must not be populated from intended support, successful compilation, or unrelate
 tests. In particular, `backend_contract` declares intended execution support, while
 `tested_backends` records only applicable Phase 13 evidence.
 
-The current production sequential and ordinary checkerboard algorithms are Phase 13 candidates and
-remain `:unqualified` until transition evidence is admitted. `LotteryCPM` is a limited later protocol
-consumer, not part of the initial Phase 13-qualified matrix. `TiledCheckerboardCPM` is explicitly
-`:experimental`, `:non_paper`, and unqualified.
+The production sequential and ordinary checkerboard algorithm APIs are stable and retain the
+scientifically conservative `:unqualified` label. Their profiles name the exact transition and
+realistic evidence domains, tested backends, retained maximum discrepancy, and evidence version.
+This API stability does not claim equilibrium, sequential--checkerboard equivalence, cross-backend
+realistic equivalence, or physical-time semantics. `LotteryCPM` is a limited later protocol
+consumer, not part of the initial Phase 13 matrix. `SequentialEquilibrium` and
+`TiledCheckerboardCPM` are explicitly experimental and outside the paper scope.
 
 Downstream algorithms may continue constructing `AlgorithmGuaranteeProfile` with the original
 required keywords. New evidence fields default conservatively to unqualified, provisional, no

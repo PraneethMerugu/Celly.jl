@@ -89,7 +89,26 @@ algorithm_guarantees(::SequentialCPM) = AlgorithmGuaranteeProfile(
         :tracker_reconstruction, :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
-    api_status = :candidate,
+    guarantee_label = :unqualified,
+    qualified_domain = (
+        transition = (
+            registration = :phase13_transition_evidence_v2,
+            model = :adhesion_volume,
+            real_type = :float32,
+            backends = (:cpu, :metal, :amdgpu),
+        ),
+        realistic = (
+            registration = :phase13_realistic_qualification_v4,
+            role = :cpu_reference,
+            workloads = (:adhesion_volume_relaxation,
+                :differential_adhesion_sorting, :single_cell_migration),
+            backends = (:cpu,),
+        ),
+    ),
+    maximum_observed_discrepancy = 0.0,
+    tested_backends = (:cpu, :metal, :amdgpu),
+    evidence_version = PHASE13_RESULT_EVIDENCE_SCHEMA_VERSION,
+    api_status = :stable,
     paper_scope = :phase13_core,
 )
 
@@ -116,7 +135,7 @@ algorithm_guarantees(::SequentialEquilibrium) = AlgorithmGuaranteeProfile(
         :exact_accounting, :strict_replay),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
-    api_status = :candidate,
+    api_status = :experimental,
     paper_scope = :not_admitted,
 )
 
@@ -145,7 +164,25 @@ algorithm_guarantees(::CheckerboardSweepCPM) = AlgorithmGuaranteeProfile(
         :tracker_reconstruction, :backend_conformance_matrix),
     backend_contract = (:cpu, :metal, :amdgpu),
     dimensions = (2, 3),
-    api_status = :candidate,
+    guarantee_label = :unqualified,
+    qualified_domain = (
+        transition = (
+            registration = :phase13_transition_evidence_v2,
+            model = :adhesion_volume,
+            real_type = :float32,
+            backends = (:cpu, :metal, :amdgpu),
+        ),
+        realistic = (
+            registration = :phase13_realistic_qualification_v4,
+            workloads = (:adhesion_volume_relaxation,
+                :differential_adhesion_sorting, :single_cell_migration),
+            backends = (:cpu, :metal, :amdgpu),
+        ),
+    ),
+    maximum_observed_discrepancy = 0.5625,
+    tested_backends = (:cpu, :metal, :amdgpu),
+    evidence_version = PHASE13_RESULT_EVIDENCE_SCHEMA_VERSION,
+    api_status = :stable,
     paper_scope = :phase13_core,
 )
 

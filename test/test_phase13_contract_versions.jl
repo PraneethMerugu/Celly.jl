@@ -25,10 +25,12 @@ using Test
     mask[2:3, 2:3] .= true
     problem = PottsToolkit.problem(model, (4, 4), PottsToolkit.CellLayout(cell, 1, mask);
         capacity = 2, tspan = (0, 1))
-    candidate = PottsToolkit.backend_report(problem, PottsToolkit.CheckerboardSweepCPM())
-    @test candidate.guarantee.api_status === :candidate
-    @test candidate.guarantee.guarantee_label === :unqualified
-    @test occursin("guarantee=unqualified", sprint(show, candidate))
+    stable = PottsToolkit.backend_report(problem, PottsToolkit.CheckerboardSweepCPM())
+    @test stable.guarantee.api_status === :stable
+    @test stable.guarantee.guarantee_label === :unqualified
+    @test stable.guarantee.maximum_observed_discrepancy == 0.5625
+    @test stable.guarantee.tested_backends == (:cpu, :metal, :amdgpu)
+    @test occursin("guarantee=unqualified", sprint(show, stable))
 
     tiled = PottsToolkit.backend_report(problem, PottsToolkit.TiledCheckerboardCPM(
         tile_size = (2, 2), shared_memory = :disabled))
