@@ -32,9 +32,9 @@ function algorithm_symbol(value)
     throw(ArgumentError("unknown Phase 13 production algorithm: $value"))
 end
 
-_algorithm(::Val{:sequential}, temperature) = SequentialCPM(temperature = Float64(temperature))
+_algorithm(::Val{:sequential}, temperature) = SequentialCPM(temperature = temperature)
 _algorithm(::Val{:checkerboard}, temperature) =
-    CheckerboardSweepCPM(temperature = Float64(temperature))
+    CheckerboardSweepCPM(temperature = temperature)
 
 function _backend_name(backend)
     backend isa KernelAbstractions.CPU && return "cpu"
@@ -87,7 +87,7 @@ function _prepared_integrator(fixture::Phase13Fixture, algorithm::Symbol, backen
         energies = (fixture.volume_component, fixture.contact_component)))
     metrics = ExecutionMetrics()
     plan = ExecutionPlan(backend; block_size, metrics)
-    algorithm_value = _algorithm(Val(algorithm), fixture.temperature)
+    algorithm_value = _algorithm(Val(algorithm), fixture.production_temperature)
     integrator = init_scientific(state, fixture.proposal_relation, components,
         algorithm_value; seed = 0, plan)
     return (; integrator, pristine)

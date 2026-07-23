@@ -11,6 +11,11 @@ using .Phase13Fixtures
 
     for row in rows
         fixture = build_phase13_fixture(row; manifest)
+        @test fixture.production_temperature isa Float32
+        @test eltype(fixture.production_domain.spacing) === Float32
+        @test eltype(fixture.proposal_relation.weights) === Float32
+        @test eltype(property_values(fixture.logical_state, :target_volume)) === Float32
+        @test eltype(property_values(fixture.logical_state, :volume_strength)) === Float32
         @test size(lattice_storage(fixture.logical_state)) ==
               Tuple(row.fixture["dimensions"])
         @test CorePotts.assert_valid_state(fixture.logical_state) === fixture.logical_state
@@ -32,6 +37,6 @@ using .Phase13Fixtures
                 fixture.production_domain)
         independent_energy = TransitionKernelOracle.global_energy(
             fixture.oracle_model, fixture.oracle_state, fixture.oracle_domain, BigFloat)
-        @test Float64(independent_energy) ≈ production_energy
+        @test Float64(independent_energy) ≈ production_energy atol = 1.0e-5
     end
 end

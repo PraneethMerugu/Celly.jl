@@ -11,10 +11,11 @@ export Phase13Fixture, load_phase13_manifest, empirical_fixture_rows,
 const DEFAULT_MANIFEST = normpath(joinpath(@__DIR__, "..", "..", "design", "audits",
     "phase-13-fixture-manifest.toml"))
 
-struct Phase13Fixture
+struct Phase13Fixture{T <: AbstractFloat}
     id::String
     source_encoding::String
     temperature::Float64
+    production_temperature::T
     production_domain
     proposal_relation
     contact_relation
@@ -95,6 +96,13 @@ function _production_boundary(name::AbstractString)
     throw(ArgumentError("unknown Phase 13 boundary: $name"))
 end
 
+function _production_number_type(manifest)
+    name = String(manifest["empirical_sampling"]["production_real_type"])
+    name == "Float32" && return Float32
+    name == "Float64" && return Float64
+    throw(ArgumentError("unsupported Phase 13 production real type: $name"))
+end
+
 function build_phase13_fixture(row;
         manifest::AbstractDict = load_phase13_manifest())
     fixture = row.fixture
@@ -119,19 +127,24 @@ function build_phase13_fixture(row;
         owner in labels || push!(labels, owner)
     end
 
+    production_type = _production_number_type(manifest)
+    spacing = ntuple(_ -> one(production_type), length(dims))
     offsets = _offsets(fixture["topology"], length(dims))
-    proposal_relation = static_relation(ProposalRole(), offsets; symmetric = true)
-    contact_relation = static_relation(ContactRole(), offsets; symmetric = true)
-    surface_relation = static_relation(SurfaceRole(), offsets; symmetric = true)
+    proposal_relation = static_relation(ProposalRole(), offsets;
+        spacing, symmetric = true)
+    contact_relation = static_relation(ContactRole(), offsets;
+        spacing, symmetric = true)
+    surface_relation = static_relation(SurfaceRole(), offsets;
+        spacing, symmetric = true)
     boundaries = Tuple(_production_boundary(String(name)) for name in fixture["boundaries"])
-    production_domain = CartesianDomain(dims;
+    production_domain = CartesianDomain(dims; spacing,
         boundaries = Tuple(AxisBoundary(boundary) for boundary in boundaries))
 
     model = manifest["model"]
     energy_scale = _parse_rational(fixture["energy_scale"])
-    volume = QuadraticVolumeHamiltonian(number_type = Float64)
-    base = _parse_rational.(model["contact_matrix_base_row_major"])
-    contact_matrix = permutedims(reshape(base, 2, 2)) .* energy_scale
+    volume = QuadraticVolumeHamiltonian(number_type = production_type)
+    base = production_type.(_parse_rational.(model["contact_matrix_base_row_major"]))
+    contact_matrix = permutedims(reshape(base, 2, 2)) .* production_type(energy_scale)
     medium_types = MediumTypeTable(MediumID(id) => CellTypeID(model["medium_type_id"])
         for id in medium_ids)
     contact = UnorderedContactHamiltonian(contact_matrix, medium_types, contact_relation)
@@ -140,8 +153,9 @@ function build_phase13_fixture(row;
         cell_types = Dict(CellID(id) => CellTypeID(model["cell_type_id"]) for id in cell_ids),
         medium_domains = MediumID.(medium_ids), property_schema = required_properties(volume))
     for id in cell_ids
-        property_values(state, :target_volume)[id] = _parse_rational(model["target_volume"])
-        property_values(state, :volume_strength)[id] = energy_scale
+        property_values(state, :target_volume)[id] =
+            production_type(_parse_rational(model["target_volume"]))
+        property_values(state, :volume_strength)[id] = production_type(energy_scale)
     end
     boundary_tracker = BoundaryMeasureTracker(BoundaryEdgeCount(), surface_relation)
     compiled = compile_state(state)
@@ -173,6 +187,7 @@ function build_phase13_fixture(row;
     catalog = enumerate_states(oracle_domain, labels)
 
     return Phase13Fixture(String(fixture["id"]), String(row.source), temperature,
+        production_type(temperature),
         production_domain, proposal_relation, contact_relation, surface_relation,
         boundary_tracker, volume, contact, state, compiled, scientific,
         scientific !== nothing, limitation,
