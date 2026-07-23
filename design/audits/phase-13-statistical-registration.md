@@ -91,6 +91,17 @@ The initial battery contains exactly three two-dimensional adhesion-and-volume w
 Their final model fingerprints and parameter tables must be committed before ensemble execution.
 Changing a model fingerprint creates a new study version.
 
+The first diagnostic preflight of `phase13-realistic-workloads-v1` showed complete finite-cell
+retirement during burn-in because dense multi-cell layout lowering emitted ownership but omitted
+the model-bound target-volume and strength properties. No v1 qualification ensemble was run. That
+workload version is retained as a failed diagnostic and superseded by
+`phase13-realistic-workloads-v2`, which requires the corrected lowering source revision. Analysis
+preflight then found that the already-declared mean-squared-displacement endpoint had no numerical
+margin; no qualification ensemble had run. `phase13-realistic-workloads-v3` therefore adds the
+missing absolute margin of 0.20 initial-cell-diameters squared before qualification. The registered
+model parameters, workload dimensions, schedules, seeds, and other observables and margins remain
+unchanged.
+
 | Workload family | Required primary observables | Sampling window |
 | --- | --- | --- |
 | Adhesion/volume relaxation | energy per mutable site; cell-volume and boundary-measure morphology; energy and morphology autocorrelation; mixing time; effective sample size | fixed burn-in followed by an evenly sampled stationary window |
@@ -123,7 +134,7 @@ its scientific margin:
 | Mean energy per mutable site | relative difference at most 5% and standardized difference at most 0.25 |
 | Volume/boundary morphology means and registered quartiles | relative difference at most 10% and standardized mean difference at most 0.25 |
 | Heterotypic-contact fraction and segregation index | absolute difference at most 0.05 and standardized difference at most 0.25 |
-| Net migration displacement | at most 0.20 initial-cell diameters and standardized difference at most 0.25 |
+| Net and mean-squared migration displacement | at most 0.20 initial-cell diameters or initial-cell-diameters squared, respectively, and standardized difference at most 0.25 |
 | Migration speed and persistence | relative difference at most 10% and standardized difference at most 0.25 |
 | Integrated autocorrelation time | log-ratio within `[-log(1.15), log(1.15)]` |
 | Mixing time | log-ratio within `[-log(1.20), log(1.20)]` |

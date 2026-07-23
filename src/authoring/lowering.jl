@@ -549,13 +549,17 @@ function _lower_layout(lowered::LoweredModel, layout::CellLabelLayout,
     ndims(layout.labels) == dimensions || throw(ArgumentError(
         "dense cell-label dimensionality does not match the problem"))
     declarations = Pair{UInt64, CorePotts.CellTypeID}[]
+    properties = CorePotts.InitialCellProperties[]
     for (id, cell_type) in layout.cell_types
         haskey(lowered.cell_type_ids, cell_type) || throw(ArgumentError(
             "dense cell-label layout references undeclared cell type $cell_type"))
-        push!(declarations, id => lowered.cell_type_ids[cell_type])
+        type_id = lowered.cell_type_ids[cell_type]
+        push!(declarations, id => type_id)
+        push!(properties, CorePotts.InitialCellProperties(id, type_id,
+            _property_overrides(lowered, cell_type, NamedTuple()); dimensions))
     end
     return (CorePotts.DenseCellLabels(
-        layout.labels, declarations; priority = layout.priority),)
+        layout.labels, declarations; priority = layout.priority), properties...)
 end
 
 function _lower_layout(lowered::LoweredModel, layout::MediumLayout, shape::Tuple)

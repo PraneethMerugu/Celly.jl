@@ -23,6 +23,9 @@ include("transition/CheckerboardOracle.jl")
 include("transition/Phase13Fixtures.jl")
 include("transition/ProductionTransitionSampler.jl")
 include("transition/ProductionEvidenceArchive.jl")
+include("transition/RealisticScaleRunner.jl")
+include("transition/RealisticEvidenceArchive.jl")
+include("transition/RealisticEvidenceAnalysis.jl")
 
 @testset "Potts package-family integration [$(BACKEND_GROUP)]" begin
     run_shard("thermodynamics") && include("test_thermodynamics.jl")
@@ -44,6 +47,7 @@ include("transition/ProductionEvidenceArchive.jl")
         include("conformance/test_phase13_fixtures.jl")
         include("conformance/test_phase13_production_sampler.jl")
         include("conformance/test_phase13_production_evidence.jl")
+        include("conformance/test_phase13_realistic_scale.jl")
         include("conformance/test_phase9_distributed.jl")
     end
 end
