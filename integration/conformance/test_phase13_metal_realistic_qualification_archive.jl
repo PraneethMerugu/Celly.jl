@@ -88,7 +88,7 @@ using SHA
         [cpu_evidence[workload] for workload in workloads],
         [metal_evidence[workload] for workload in workloads];
         comparison = :independent_backend, manifest)
-    @test recomputed == archived_analysis
+    test_realistic_analysis_archive(recomputed, archived_analysis)
 end
 
 @testset "Phase 13 isolated CPU timing diagnostics" begin

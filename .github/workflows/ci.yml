@@ -34,14 +34,14 @@ jobs:
         run: julia --startup-file=no scripts/check_structure.jl
       - name: Enforce Phase 13 legacy closure
         run: julia --startup-file=no scripts/check_legacy_containment.jl
-      - name: Enforce exhaustive Phase 13 API inventory
-        run: julia --project=. --startup-file=no scripts/check_phase13_api_inventory.jl
       - name: Resolve the package workspace without mutation
         run: |
           julia --project=. --startup-file=no -e '
             using Pkg
             Pkg.instantiate(; workspace=true, julia_version_strict=true,
                 allow_autoprecomp=false)'
+      - name: Enforce exhaustive Phase 13 API inventory
+        run: julia --project=. --startup-file=no scripts/check_phase13_api_inventory.jl
       - name: Reject whitespace errors
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
