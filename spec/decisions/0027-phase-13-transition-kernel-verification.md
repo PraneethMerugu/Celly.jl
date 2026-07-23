@@ -61,4 +61,3 @@ do not block the first sequential--checkerboard characterization unless required
 - Adversarial-state fixtures and bounded parameter characterization.
 - Independent-replica CPU, Metal, and ROCm empirical transition results.
 - Larger ensemble corroboration for every realistic-model claim.
-
