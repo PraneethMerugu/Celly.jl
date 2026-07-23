@@ -1,5 +1,5 @@
 raw_counts = [0, 0, 0, 13, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 645, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36984, 6286, 0, 0, 0, 0, 1470, 244, 0, 32117, 31614, 6386, 0, 0, 0, 2378, 0, 542, 67738, 32291, 36980, 0, 0, 8, 0, 0, 0, 551, 0, 0, 0, 0, 0, 0, 0, 0, 0, 258, 0, 0, 0, 0, 1231, 0, 0, 2495, 1322, 0, 589, 1, 0]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 3 --algorithm CheckerboardSweepCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row3-checkerboard-qualification.toml --force"
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 3 --algorithm CheckerboardSweepCPM --profile qualification --output /tmp/phase13-transition-metal-v2-row3-checkerboard-qualification.toml --force"
 
 [environment]
 architecture = "aarch64"
@@ -23,7 +23,7 @@ algorithm_identity = "CheckerboardSweepCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program_identity = "ProductionTransitionSampler"
 analysis_program_version = "1.0.0"
-backend_identity = "cpu"
+backend_identity = "metal"
 fixture = "2d-vn-noflux-low-mixed"
 model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"
@@ -60,7 +60,7 @@ first_seed_hex = "0x1300000000000000"
 independent_replicas = true
 last_seed_hex = "0x130000000003ffff"
 launches = 3932160
-observation_synchronizations = 262144
+observation_synchronizations = 262145
 profile = "qualification"
 replicas = 262144
 source_state_id = 49

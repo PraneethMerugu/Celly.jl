@@ -1,10 +1,11 @@
 raw_counts = [40163, 0, 181913, 40068]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 10 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-row10-SequentialCPM.toml --force"
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 10 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row10-sequential-qualification.toml --force"
 
 [environment]
 architecture = "aarch64"
 julia_version = "1.12.6"
 operating_system = "Darwin"
+production_real_type = "Float32"
 threads = 1
 
 [fixture]
@@ -28,10 +29,10 @@ model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"
 rng_identity = "Philox4x32x10V1"
 row_id = "3d-vn-noflux-low-sparse-source-2"
-sampling_plan_version = "phase-13-transition-evidence-v1"
+sampling_plan_version = "phase-13-transition-evidence-v2"
 scheduler_identity = "sequential_with_replacement"
 scheduler_version = "1.0.0"
-source_revision = "d6a6ce94bcfc8ec9d4dc94fa3858d5fc328c7f87"
+source_revision = "6f725683092909a2ac2938b2108dae934dc6450e"
 source_state_encoding = "medium:1,cell:1"
 source_state_fingerprint = "bdf24d50ede70d92feb3067dec2520d19edc7f84aebeee1613b533f0dad5e930"
 
@@ -66,4 +67,4 @@ source_state_id = 3
 
 [schema]
 name = "potts-production-transition-evidence"
-version = "1.0.0"
+version = "1.1.0"

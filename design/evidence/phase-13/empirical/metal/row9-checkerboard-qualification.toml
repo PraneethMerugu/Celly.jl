@@ -1,5 +1,5 @@
-raw_counts = [40163, 0, 181913, 40068]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 9 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row9-sequential-qualification.toml --force"
+raw_counts = [39861, 0, 182111, 40172]
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 9 --algorithm CheckerboardSweepCPM --profile qualification --output /tmp/phase13-transition-metal-v2-row9-checkerboard-qualification.toml --force"
 
 [environment]
 architecture = "aarch64"
@@ -19,18 +19,18 @@ temperature = "1/2"
 topology = "von_neumann"
 
 [identity]
-algorithm_identity = "SequentialCPM"
+algorithm_identity = "CheckerboardSweepCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program_identity = "ProductionTransitionSampler"
 analysis_program_version = "1.0.0"
-backend_identity = "cpu"
+backend_identity = "metal"
 fixture = "3d-vn-noflux-low-sparse"
 model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"
 rng_identity = "Philox4x32x10V1"
 row_id = "3d-vn-noflux-low-sparse-source-1"
 sampling_plan_version = "phase-13-transition-evidence-v2"
-scheduler_identity = "sequential_with_replacement"
+scheduler_identity = "realized_graph_colored_sweep"
 scheduler_version = "1.0.0"
 source_revision = "6f725683092909a2ac2938b2108dae934dc6450e"
 source_state_encoding = "cell:1,medium:1"
@@ -43,24 +43,24 @@ support = 3
 
 [result]
 absolute_probability_radius = "0.0046562153767146465"
-absolute_residuals = ["0.0004319085015190849", "0.0", "0.0005014207628037948", "6.951226128470989e-5"]
-empirical_row = ["0.15320968627929688", "0.0", "0.6939430236816406", "0.1528472900390625"]
+absolute_residuals = ["0.0007201300726996651", "0.0", "0.00025388929578995523", "0.0004662407769097099"]
+empirical_row = ["0.15205764770507812", "0.0", "0.6946983337402344", "0.1532440185546875"]
 failed_criteria = []
 impossible_destinations = []
-maximum_absolute_residual = "0.0005014207628037948"
+maximum_absolute_residual = "0.0007201300726996651"
 qualification_passed = true
-self_transition_residual = "0.0005014207628037948"
+self_transition_residual = "0.00025388929578995523"
 statistical_passed = true
 status = "statistical-pass"
-total_variation = "0.0005014207628037948"
+total_variation = "0.0007201300726996651"
 total_variation_radius = "0.0046562153767146465"
 
 [sampling]
 first_seed_hex = "0x1300000000000000"
 independent_replicas = true
 last_seed_hex = "0x130000000003ffff"
-launches = 262144
-observation_synchronizations = 262144
+launches = 3932160
+observation_synchronizations = 262145
 profile = "qualification"
 replicas = 262144
 source_state_id = 3
