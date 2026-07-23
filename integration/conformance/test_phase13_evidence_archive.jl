@@ -123,7 +123,7 @@ end
     index = TOML.parsefile(joinpath(evidence_directory, "index.toml"))
     @test index["evidence_schema_version"] == string(EVIDENCE_SCHEMA_VERSION)
     @test index["analysis_program_version"] == string(ANALYSIS_PROGRAM_VERSION)
-    @test length(index["artifacts"]) == 8
+    @test length(index["artifacts"]) == 12
     fixture_manifest = normpath(joinpath(evidence_directory, index["fixture_manifest"]))
     @test isfile(fixture_manifest)
     for artifact in index["artifacts"]

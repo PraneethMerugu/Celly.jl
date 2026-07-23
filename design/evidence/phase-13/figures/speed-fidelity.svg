@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="300" viewBox="0 0 920 300">
+<rect width="100%" height="100%" fill="white"/>
+<text x="460" y="55" text-anchor="middle" font-family="sans-serif" font-size="20">Phase 13 speed–fidelity evidence</text>
+<rect x="110" y="95" width="700" height="105" rx="8" fill="#f4f1de" stroke="#d6c98d"/>
+<text x="460" y="135" text-anchor="middle" font-family="sans-serif" font-size="16">Pending registered realistic-scale real-hardware runs</text>
+<text x="460" y="168" text-anchor="middle" font-family="sans-serif" font-size="13">No speed or fidelity equivalence claim is inferred from tiny-state matrices.</text>
+<text x="460" y="235" text-anchor="middle" font-family="sans-serif" font-size="12">This explicit pending panel prevents absent performance evidence from appearing as a pass.</text>
+</svg>
