@@ -1,5 +1,5 @@
 raw_counts = [40163, 0, 181913, 40068]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 9 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row9-sequential-qualification.toml --force"
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 9 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-metal-v2-row9-sequential-qualification.toml --force"
 
 [environment]
 architecture = "aarch64"
@@ -23,7 +23,7 @@ algorithm_identity = "SequentialCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program_identity = "ProductionTransitionSampler"
 analysis_program_version = "1.0.0"
-backend_identity = "cpu"
+backend_identity = "metal"
 fixture = "3d-vn-noflux-low-sparse"
 model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"

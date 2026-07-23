@@ -1,11 +1,10 @@
 raw_counts = [0, 0, 0, 11, 31, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 513, 0, 51, 0, 0, 0, 0, 0, 0, 21, 0, 0, 34876, 4279, 0, 0, 0, 0, 1090, 51, 25, 37387, 20127, 4209, 0, 0, 22, 3136, 0, 412, 76787, 37713, 34802, 0, 0, 9, 26, 0, 0, 378, 27, 0, 58, 0, 0, 0, 0, 0, 0, 61, 0, 0, 0, 0, 1160, 0, 26, 3260, 1101, 24, 469, 0, 1]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 3 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row3-sequential-qualification.toml --force"
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 3 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-row3-sequential.toml --force"
 
 [environment]
 architecture = "aarch64"
 julia_version = "1.12.6"
 operating_system = "Darwin"
-production_real_type = "Float32"
 threads = 1
 
 [fixture]
@@ -29,10 +28,10 @@ model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"
 rng_identity = "Philox4x32x10V1"
 row_id = "2d-vn-noflux-low-mixed-source-1"
-sampling_plan_version = "phase-13-transition-evidence-v2"
+sampling_plan_version = "phase-13-transition-evidence-v1"
 scheduler_identity = "sequential_with_replacement"
 scheduler_version = "1.0.0"
-source_revision = "6f725683092909a2ac2938b2108dae934dc6450e"
+source_revision = "d6a6ce94bcfc8ec9d4dc94fa3858d5fc328c7f87"
 source_state_encoding = "cell:1,medium:1,cell:2,medium:1"
 source_state_fingerprint = "c37404155b435ba173d9173c595eaa223b20f037f7704865ff5b590167f3f8e6"
 
@@ -67,4 +66,4 @@ source_state_id = 49
 
 [schema]
 name = "potts-production-transition-evidence"
-version = "1.1.0"
+version = "1.0.0"

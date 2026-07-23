@@ -1,5 +1,5 @@
 raw_counts = [40163, 0, 181913, 40068]
-reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 9 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-cpu-v2-row9-sequential-qualification.toml --force"
+reproduction_command = "julia --project=integration integration/transition/run_phase13_empirical.jl --row 10 --algorithm SequentialCPM --profile qualification --output /tmp/phase13-transition-metal-v2-row10-sequential-qualification.toml --force"
 
 [environment]
 architecture = "aarch64"
@@ -23,18 +23,18 @@ algorithm_identity = "SequentialCPM"
 algorithm_semantic_version = "1.0.0"
 analysis_program_identity = "ProductionTransitionSampler"
 analysis_program_version = "1.0.0"
-backend_identity = "cpu"
+backend_identity = "metal"
 fixture = "3d-vn-noflux-low-sparse"
 model_identity = "phase13-adhesion-volume-v1"
 rng_contract_version = "1.0.0"
 rng_identity = "Philox4x32x10V1"
-row_id = "3d-vn-noflux-low-sparse-source-1"
+row_id = "3d-vn-noflux-low-sparse-source-2"
 sampling_plan_version = "phase-13-transition-evidence-v2"
 scheduler_identity = "sequential_with_replacement"
 scheduler_version = "1.0.0"
 source_revision = "6f725683092909a2ac2938b2108dae934dc6450e"
-source_state_encoding = "cell:1,medium:1"
-source_state_fingerprint = "322435bab0fd149bb05ae9261d6bc1508738f1c069061e53a958150420548969"
+source_state_encoding = "medium:1,cell:1"
+source_state_fingerprint = "bdf24d50ede70d92feb3067dec2520d19edc7f84aebeee1613b533f0dad5e930"
 
 [oracle]
 precision = "bounded_bigfloat"
