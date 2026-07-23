@@ -1,6 +1,6 @@
 # Phase 13 Owner API-Freeze Evidence Packet
 
-Status: Draft; CPU/Metal and ROCm realistic/device evidence complete, ROCm transition and final owner approval pending
+Status: Final evidence packet; owner approval and post-approval metadata validation pending
 
 Date: 2026-07-23
 
@@ -9,8 +9,8 @@ Date: 2026-07-23
 Decision 0028 requires the project owner to review one packet containing the API inventory,
 algorithm guarantees, backend results, limitations, removals, and frozen version identities. This
 packet does not treat green CI as approval and does not turn a failed equivalence analysis into a
-pass. After the real-ROCm records are admitted, the owner must explicitly approve or reject the
-recommended freeze below.
+pass. All registered CPU, Metal, and ROCm evidence is now admitted; the owner must explicitly
+approve or reject the recommended freeze below.
 
 ## Recommended algorithm freeze
 
@@ -28,7 +28,7 @@ convergence under an explicit scientific limit, or observable equivalence. For t
 stable algorithm names can honestly retain `:unqualified` while exposing their complete proposal,
 transaction, normalization, evidence, discrepancy, and tested-backend metadata.
 
-After ROCm admission, the recommended metadata is:
+The recommended metadata is:
 
 - `api_status = :stable` for `SequentialCPM` and `CheckerboardSweepCPM`;
 - `evidence_version = v"1.0.0"`;
@@ -68,10 +68,11 @@ seeds, and the preregistered simultaneous criteria.
 | --- | --- | ---: | --- |
 | CPU | `6f725683092909a2ac2938b2108dae934dc6450e` | 8/8 | pass |
 | Metal | `6f725683092909a2ac2938b2108dae934dc6450e` | 8/8 | pass |
-| ROCm | same required source | 8 required | pending real hardware |
+| ROCm | `6f725683092909a2ac2938b2108dae934dc6450e` | 8/8 | pass |
 
-CPU and Metal raw destination counts are exactly equal for corresponding rows. Authority:
-`design/evidence/phase-13/empirical/{cpu,metal}/index.toml`.
+CPU, Metal, and ROCm raw destination counts are exactly equal for corresponding rows. Every backend
+also independently passes the preregistered simultaneous criteria. Authority:
+`design/evidence/phase-13/empirical/{cpu,metal,rocm}/index.toml`.
 
 ### Registered realistic-scale battery
 
@@ -119,7 +120,7 @@ Current local results on Julia 1.12.6:
 - CorePotts package suite: 2,854/2,854;
 - PottsToolkit package suite: 664/664;
 - CPU integration shards: thermodynamics 7/7, biophysics 12/12, integration 8/8, conformance
-  2,203/2,203;
+  2,465/2,465;
 - benchmark-harness contract suite: 71/71;
 - Aqua and recursive ambiguity checks pass for both packages;
 - representative public contract and constructor paths pass `@inferred`;
@@ -189,16 +190,15 @@ Approval freezes these exact identities; it does not revise the negative scienti
   single-cell migration.
 - Surface, connectivity, fields, lifecycle enumeration, auxiliary mechanics, new lattices, Lottery,
   and tiled execution receive no implied Phase 13 matrix qualification.
-- Real-ROCm evidence is mandatory before any stable three-backend evidence statement.
+- The admitted ROCm evidence supports only the bounded transition and checkerboard-realistic
+  identities named in this packet; it does not support broader three-backend equivalence.
 
 ## Remaining decisions and gates
 
-The immutable GitHub source refs now resolve exactly to transition revision `6f725683...` and
-realistic revision `7ed1473d...`; the current-source ROCm native-profile archive is admitted.
+The immutable GitHub source refs resolve exactly to transition revision `6f725683...` and realistic
+revision `7ed1473d...`. The ROCm transition, realistic, native-device-code, and trace archives are
+admitted without changing their registrations.
 
-1. Complete and archive the in-progress real-ROCm transition evidence without changing the
-   registration.
-2. Update this packet with the ROCm transition result and any resulting tested-backend limitations.
-3. Ask the project owner to explicitly approve or reject the recommended API and version freeze.
-4. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
+1. The project owner explicitly approves or rejects the recommended API and version freeze.
+2. Only after approval, change candidate statuses to final stable/limited/experimental dispositions,
    run the complete final validation matrix, and record the Phase 13 completion audit.
